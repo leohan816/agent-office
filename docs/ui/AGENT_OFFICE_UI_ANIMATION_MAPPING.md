@@ -1,10 +1,13 @@
 # Agent Office UI and Animation Mapping
 
-Status: `CANDIDATE__NOT_IMPLEMENTED__PENDING_FABLE5_DESIGN_REVIEW`
+Status: `REVIEWED_DESIGN__BATCH_B_BASE_DASHBOARD_IMPLEMENTED__ANIMATION_PWA_GATED`
 
-This candidate defines the responsive, private PWA surface and the only allowed
-mapping from structured events to visual activity. No UI, icon, animation, asset,
-or PWA is implemented.
+This reviewed design defines the responsive, private PWA surface and the only
+allowed mapping from structured events to visual activity. Batch B implements the
+read-only local base dashboard, locale, pinned local icons, and stable responsive
+layout at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d`.
+Animation, office scene, Advisor Inbox, HTTP/live data, auth, SSE, PWA, and service
+worker remain unimplemented.
 
 ## 1. Experience Principles
 
@@ -40,6 +43,28 @@ The PWA has five primary destinations:
 Global chrome always shows network mode (`LOOPBACK_PRIVATE` or a future approved
 mode), projection revision, freshness, transport delivery state, and an offline
 indicator. It never shows a generic command box.
+
+### 2.1 Batch B as-built base dashboard
+
+- `src/application/queries/dashboard-view-model.ts` projects only a versioned
+  mission snapshot, typed observations, typed blockers, required gates, and
+  verified evidence. Terminal prose/process/pane content is not an input.
+- `src/ui/dashboard.tsx` renders the actual mission operations first screen:
+  hierarchy, distinct WorkUnit/gate progress, future-unapproved scope, operational
+  table, freshness banners, blocker reason/owner/action detail, and copyable
+  read-only evidence.
+- UI controls are limited to filtering, selection, native expansion, navigation,
+  and clipboard copy. No form or handler can dispatch to Advisor, a role, Git,
+  tmux, shell, or arbitrary path/target.
+- `src/ui/styles.css` fixes desktop/mobile geometry, semantic table scrolling,
+  `min-width: 0`, long-value wrapping, 320px reflow, and contains no animation or
+  transition declaration.
+- `src/ui/fixtures/dashboard.ts` supplies one approved-source snapshot plus a
+  clearly named synthetic review fixture. The approved immutable manifest is not
+  rewritten to claim later WorkUnit progress.
+- React/React DOM 19.2.7, Lucide React 1.24.0, and Vite 8.1.4 are exact-pinned;
+  `src/ui/assets/LICENSES.md` records local bundle licensing. No remote asset is
+  loaded.
 
 ## 3. Hierarchy and Mission Views
 
@@ -115,6 +140,18 @@ indicator; it does not silently synthesize Korean.
 | `COMPLETED` | `완료` |
 | `FAILED` | `실패` |
 | `CANCELLED` | `취소됨` |
+
+#### Batch B durable-primary and fallback labels
+
+These entries close the reviewed Fable5 R-1 residual without changing the
+required observable mapping. `WAITING_ADVISOR` and `HOLD` are durable primary
+states; `UNKNOWN_OR_STALE` is the fail-closed observable fallback.
+
+| Exact projection name | Canonical Korean label |
+|---|---|
+| `WAITING_ADVISOR` | `Advisor 확인 대기` |
+| `HOLD` | `보류` |
+| `UNKNOWN_OR_STALE` | `알 수 없거나 오래된 상태` |
 
 The UI obtains the exact observable name from the deterministic two-axis mapping
 in Domain Section 6.3, then performs this direct lookup. It never labels primary
@@ -448,6 +485,13 @@ turns fenced code or shell-looking text into an executable control.
 
 ## 15. UI Acceptance Tests
 
+Batch B component/view-model tests now cover the base hierarchy, all reviewed
+Korean labels including the three R-1 entries, separate progress denominators,
+typed freshness banners, blocker detail, evidence copy, terminal-prose exclusion,
+long IDs/hashes/Korean expansion, table scrolling, 320px rules, and absence of
+animation/PWA/server surfaces. The full Batch C/E acceptance scope below remains
+gated.
+
 Batch C/E test paths must cover:
 
 - the exact 16 required observable names, every primary/activity pairing in Domain
@@ -472,13 +516,13 @@ Batch C/E test paths must cover:
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/layout/`, `src/ui/missions/`, `src/ui/i18n/` | `tests/e2e/responsive-layout.spec.ts`, `tests/ui/korean-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Sections 1-3, 10-11 | `DESIGNED_CANDIDATE` | Batches B/E |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/application/queries/dashboard-view-model.ts`, `src/ui/i18n/ko.ts` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/dashboard-view-model.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/layout-contract.test.ts` | Responsive base operations first screen, exact hierarchy, distinct progress, typed table/detail, overflow rules, and deterministic fixtures pass at `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch B acceptance; live/server/PWA behavior remains Batch E |
 | AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/contract/required-observable-conformance.test.ts` | `NOT_IMPLEMENTED`; Sections 4-6 and Domain 6.3 | `DESIGNED_CANDIDATE` | Batch C |
 | AO-UI-003 Accessibility/reduced motion | `src/ui/a11y/`, `src/ui/scene/` | `tests/e2e/accessibility.spec.ts`, `tests/ui/reduced-motion.test.ts` | `NOT_IMPLEMENTED`; Sections 7-8 | `DESIGNED_CANDIDATE` | Batch C/E |
-| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/`, `src/ui/scene/asset-registry.ts` | `tests/ui/assets-layout.test.ts` | `NOT_IMPLEMENTED`; Sections 9-10 | `DESIGNED_CANDIDATE` | Batch C |
+| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/dashboard.tsx`, `src/ui/styles.css` | `tests/ui/layout-contract.test.ts`, `tests/ui/dashboard.component.test.tsx` | Exact-pinned locally bundled Lucide icons, license inventory, fixed icon controls, and stable base layout implemented; office-scene asset registry is absent | `IMPLEMENTED_BATCH_B_ICON_LAYOUT_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Office scene/assets remain Batch C |
 | AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/inbox/` | `tests/e2e/advisor-inbox.spec.ts` | `NOT_IMPLEMENTED`; Section 12 | `DESIGNED_CANDIDATE` | Batch D/E |
-| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/ui/alerts/`, `src/ui/recovery/` | `tests/e2e/recovery-readonly.spec.ts`, `tests/ui/alert-blocker-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Sections 3.4 and 13, Domain 7.2-7.3 | `DESIGNED_CANDIDATE` | Batch D/E |
+| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/queries/dashboard-view-model.ts`, `src/ui/dashboard.tsx` | `tests/ui/dashboard-view-model.test.ts`, `tests/ui/dashboard.component.test.tsx` | Base blocker reason/owner/action and freshness/conflict/error banners implemented from typed projection input; alert lifecycle/recovery controls are absent | `IMPLEMENTED_BATCH_B_PRESENTATION_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full alert/recovery UX remains Batch D/E |
 | AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/` | `tests/e2e/pwa-lifecycle.spec.ts` | `NOT_IMPLEMENTED`; Section 14 | `DESIGNED_CANDIDATE` | Batch E |
-| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts` | `tests/ui/korean-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Section 3.4 | `DESIGNED_CANDIDATE` | Batches B-D |
+| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Exact hierarchy, 16 required observables, blocker/freshness labels, plus reviewed `WAITING_ADVISOR`, `HOLD`, and `UNKNOWN_OR_STALE` entries pass at Batch B code commit | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Alert action/inbox usage remains Batch D |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

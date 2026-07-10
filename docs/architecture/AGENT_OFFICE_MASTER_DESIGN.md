@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `REVIEWED_DESIGN__BATCH_A_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
+Status: `REVIEWED_DESIGN__BATCH_A_ACCEPTED__BATCH_B_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
 
 Canonical owner: Agent Office repository
 
@@ -39,10 +39,19 @@ Batch A code/config/test commit
 `7edc8f79bedb059ab6697e64ddaf57fbebde2c87` implements the strict TypeScript
 domain contracts, approved manifest import/fixture, local single-writer JSONL
 event store, immutable artifacts, deterministic projections/checkpoints, and
-startup/recovery primitives. It has no runtime dependency and no DB, UI, browser
-server, PWA, adapter, gateway, animation, real authentication, network exposure,
-or deployment implementation. Batch A is pending Advisor acceptance and does not
-authorize Batch B.
+startup/recovery primitives. Advisor accepted it as the Batch B dependency in
+`22_ADVISOR_BATCH_A_VALIDATION.md`.
+
+Batch B code/config/test commit
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d` implements trusted local project/root
+registration, bounded manifest/artifact verification, fixed direct-argv read-only
+Git and exact-pane structured tmux observation, deterministic local freshness and
+restart projection, and a responsive read-only operations dashboard. The full
+suite is 23 test files/84 tests with lint, strict typecheck, production build, and
+zero-vulnerability dependency audit passing. It does not implement an HTTP server,
+auth, PWA, SSE, inbox, gateway, animation, remote collector, DB, network exposure,
+or deployment. Batch B is pending Advisor acceptance and does not authorize Batch
+C.
 
 The byte-exact approved governance manifest remains version 1 with denominator
 15. Its imported facts record AO-WU-01 through AO-WU-05 as `COMPLETED`, AO-WU-06
@@ -354,15 +363,30 @@ separate gate.
 - Verification: 15 required test files, 36 tests passing; lint, strict typecheck,
   production TypeScript build, and dependency audit all passing with zero known
   vulnerabilities.
-- Exit state: `IMPLEMENTED__PENDING_ADVISOR_BATCH_A_ACCEPTANCE`; Batch B is not
+- Exit state: `IMPLEMENTED__ADVISOR_ACCEPTED_AS_BATCH_B_DEPENDENCY`.
+
+### 11.3 Batch B as-built evidence
+
+- Code/config/tests/assets:
+  `85e66d856e33a0df73041cb4b33aba30a8f9f96d`.
+- Observation boundary: `src/adapters/observations/`, with no-shell direct Git
+  operations, bounded no-follow reads, and `display-message`-only tmux metadata.
+- Local registry/freshness/query projection: `src/application/projects/`,
+  `src/application/hosts/`, and `src/application/queries/`.
+- Base dashboard: `src/ui/`, `index.html`, and `vite.config.ts`; local preview is
+  fixed to loopback and no server authority/PWA capability exists.
+- Verification: 23 test files/84 tests; lint, strict typecheck, production core
+  and dashboard builds, dependency audit, diff check, and bounded read-only local
+  Git/tmux adapter smoke pass.
+- Exit state: `IMPLEMENTED__PENDING_ADVISOR_BATCH_B_ACCEPTANCE`; Batch C is not
   started.
 
 ## 12. Unknowns, Limitations, and Deferred Extensions
 
 | Item | Candidate decision | Current status | Gate |
 |---|---|---|---|
-| Application stack versions | Batch A strict TypeScript/Node core has zero runtime dependencies and an exact lockfile; React/server/PWA remain unselected | `IMPLEMENTED_BATCH_A_CORE` | Advisor Batch A acceptance; UI/server dependencies only under later handoff |
-| Persistence | Local append-only JSONL, immutable artifacts, atomic projections; no DB | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
+| Application stack versions | Strict TypeScript/Node core plus exact pinned React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, and Vite 8.1.4 for the local static dashboard; server/PWA stack remains unselected | `IMPLEMENTED_THROUGH_BATCH_B_LOCAL_UI` | Batch B Advisor acceptance; server/PWA only under later handoff |
+| Persistence | Local append-only JSONL, immutable artifacts, atomic projections; no DB | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
 | Real-time | SSE plus POST, no WebSocket | `NOT_IMPLEMENTED` | Fable5 design PASS, Batch E |
 | Loopback authentication | Provider contract, ephemeral/local secure provisioning, no embedded credential | `NOT_IMPLEMENTED` | Batch E and explicit secret-handling authority if a real credential is used |
 | Tailscale/private network | Designed disabled; identity/TLS/trust requirements reserved | `DEFERRED_WITH_GATE` | Leo/GPT private-network approval and threat review |
@@ -391,11 +415,11 @@ separate gate.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact 15-unit fixture/hash and scope properties pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
-| AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; replay/crash/restart/quarantine tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance; backup/restore remains Batch E |
-| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/server/`, `src/ui/`, `src/pwa/` | `tests/e2e/responsive-pwa.spec.ts`, `tests/integration/sse.test.ts` | `NOT_IMPLEMENTED`; Section 8 | `DESIGNED_CANDIDATE` | Batches B/E |
-| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/` | `tests/adapters/authority-boundary.test.ts` | `NOT_IMPLEMENTED`; Section 9 | `DESIGNED_CANDIDATE` | Batches B/D; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batch A scope/dependency guard passes at code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87` | `IMPLEMENTED_BATCH_A_GATE__PENDING_ADVISOR_ACCEPTANCE` | Advisor handoff per later batch and required Fable5 reviews |
+| AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 15-unit fixture/hash remains accepted; Batch B renders declared scope/future work separately at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_THROUGH_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Batch B Advisor acceptance |
+| AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; replay/crash/restart/quarantine tests pass and Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
+| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/ui/`; future `src/server/`, `src/pwa/` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/layout-contract.test.ts`; future E2E/SSE tests | Responsive read-only static base dashboard implemented at Batch B code commit; HTTP authority, SSE, auth, and PWA remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_B_UI_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Batch B acceptance; server/SSE/PWA remain Batch E |
+| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`; future `src/adapters/gateways/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Read-only observation subset implemented and smoke-verified at Batch B code commit; Advisor/Hermes gateways remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_B_OBSERVATION_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Advisor gateway Batch D; Hermes separately gated |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `tests/acceptance/batch-gates.test.ts`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batch A dependency accepted; Batch A regression plus Batch B/C/E forbidden-scope guards pass in the 84-test Batch B suite | `IMPLEMENTED_THROUGH_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Advisor handoff per later batch and required Fable5 reviews |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

@@ -1,11 +1,14 @@
 # Agent Office Gateway and Multi-Host Design
 
-Status: `CANDIDATE__NOT_IMPLEMENTED__PENDING_FABLE5_DESIGN_REVIEW`
+Status: `REVIEWED_DESIGN__BATCH_B_LOCAL_OBSERVATION_IMPLEMENTED__GATEWAYS_REMOTE_GATED`
 
-This candidate defines typed integration ports, the M01 Advisor gateway, read-only
-observations, multi-project topology, and designed-but-gated remote host support.
-It does not authorize a network connection, tmux input, Hermes implementation,
-Tailscale action, key provisioning, or external exposure.
+This reviewed design defines typed integration ports, the M01 Advisor gateway,
+read-only observations, multi-project topology, and designed-but-gated remote host
+support. Batch B implements only the local read-only observation, trusted registry,
+and freshness subset at code commit
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d`. It does not authorize or implement
+a network connection, tmux input, Advisor/Hermes gateway, Tailscale action, key
+provisioning, remote collector, or external exposure.
 
 ## 1. Integration Principles
 
@@ -37,6 +40,25 @@ Tailscale action, key provisioning, or external exposure.
 | `NotificationSink` | Agent Office -> UI/Advisor | In-app plus Advisor gateway outbox | Typed notifications, idempotent |
 | `ClockSource` | platform -> application | System UTC/monotonic pair | No domain ordering authority |
 | `HermesAdvisorGateway` | Agent Office -> Hermes | Stub only | Always disabled/not implemented in M01 |
+
+### 2.1 Batch B as-built port boundary
+
+- `MissionManifestSource`, `GitObservationSource`, `ArtifactSource`, and
+  `TmuxObservationSource` are exported from
+  `src/adapters/observations/ports.ts` with no generic execute/send/target API.
+- `LocalGitObservationSource` maps stable source/namespace/commit-pair IDs to
+  reviewed read-only argv shapes for top-level, HEAD/upstream, porcelain-v2,
+  exact ref namespaces, ancestry, and exact commit diffs.
+- Manifest/artifact sources map stable IDs to trusted roots and configured paths,
+  then perform bounded regular-file/no-follow/containment/hash/commit/dirty checks.
+- `LocalTmuxObservationSource` accepts one configured source ID and reads exactly
+  one pane through structured `display-message` fields. It retains tmux activity
+  time only as observation metadata; it never projects WorkUnit activity from it.
+- `NodeReadonlyToolRunner` uses trusted absolute executables, direct argv with
+  `shell: false`, fixed environment/timeout/output limits, and capped redacted
+  errors. Tests use a deterministic fake runner.
+- A bounded local smoke verified the implemented Git and exact `%13` tmux paths
+  without pane capture, tmux input, or repository mutation.
 
 ## 3. AdvisorGateway Contract
 
@@ -248,8 +270,11 @@ enabledObservationKinds[]
 
 The registry contains IDs and root references, not credentials. Browser users may
 filter registered projects but cannot add/edit a root, host, branch policy, or
-authority owner. Registry changes require trusted configuration, audit, restart or
-explicit reload receipt, and a later implementation handoff.
+authority owner. Batch B constructs the local registry only from trusted startup
+registrations, canonicalizes non-symlink directories, rejects cross-project root
+overlap, and exposes path-free project summaries. Browser add/edit and runtime
+reload do not exist; future registry mutation still requires audit and a later
+handoff.
 
 ### 7.2 Controller and collectors
 
@@ -324,6 +349,13 @@ Each observation carries a policy ID. Initial candidate policies:
 Staleness is a query overlay plus explicit alert/event where required. It never
 silently changes a WorkUnit to completed/failed.
 
+Batch B implements the local pure overlay in
+`src/application/hosts/freshness.ts`: `CURRENT`, `STALE`, `OFFLINE`, `UNKNOWN`,
+`CONFLICT`, and `ERROR` are deterministic from explicit clock/policy/condition
+inputs. Restart snapshots preserve the last value while it ages, and only
+`CURRENT` plus `VERIFIED` may satisfy the exported completion predicate. Remote
+clock/signature/gap/reconnect collection remains unimplemented.
+
 ### 9.3 Offline behavior
 
 When a host misses its policy window, the UI marks last-seen time, host/boot ID,
@@ -391,6 +423,11 @@ without exposing tool stderr or raw terminal content to the browser.
 
 ### Batch B
 
+All listed Batch B cases pass at code commit
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d` through
+`tests/adapters/`, `tests/integration/project-freshness.test.ts`, and the Batch B
+acceptance gate:
+
 - manifest commit/path/hash and denominator validation;
 - Git fixed-argv snapshots, hostile refs/pathspecs, timeout/output cap, and proof no
   writable subcommand exists;
@@ -428,10 +465,10 @@ gated.
 |---|---|---|---|---|---|
 | AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/adapters/gateways/tmux-advisor/` | `tests/integration/tmux-advisor-gateway.test.ts` | `NOT_IMPLEMENTED`; Sections 3-4 | `DESIGNED_CANDIDATE` | Batch D plus approved transport profile |
 | AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/` | `tests/adapters/hermes-disabled.test.ts` | `NOT_IMPLEMENTED`; Section 5 | `DEFERRED_WITH_GATE` | Separate Leo/GPT Hermes mission |
-| AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/adapters/observations/` | `tests/adapters/read-only-boundaries.test.ts` | `NOT_IMPLEMENTED`; Section 6 | `DESIGNED_CANDIDATE` | Batch B |
-| AO-INT-004 Multi-project registry/root isolation | `src/application/projects/` | `tests/integration/multi-project-isolation.test.ts` | `NOT_IMPLEMENTED`; Section 7 | `DESIGNED_CANDIDATE` | Batch B |
+| AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/adapters/observations/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Fixed argv, no-shell/no-write, hostile input, cap/timeout, bounded file, exact structured tmux, and real read-only smoke pass at `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch B acceptance |
+| AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts` | `tests/integration/project-freshness.test.ts` | Stable ID lookup, path-free summary, wrong-project denial, and cross-project overlap rejection pass at Batch B code commit | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch B acceptance; browser registry mutation remains absent |
 | AO-INT-005 Linux/Mac multi-host trust and observation envelope | `src/adapters/hosts/` | `tests/contract/host-observation.test.ts` | `NOT_IMPLEMENTED`; Sections 7-9 | `DEFERRED_WITH_GATE` | Private-network, key, remote-host mission |
-| AO-INT-006 Offline/reconnect/gap/stale evidence | `src/application/hosts/` | `tests/integration/host-reconnect.test.ts` | `NOT_IMPLEMENTED`; Section 9 | `DESIGNED_FOR_EXTENSION` | Local behavior Batch B; remote behavior gated |
+| AO-INT-006 Offline/reconnect/gap/stale evidence | `src/application/hosts/freshness.ts` | `tests/integration/project-freshness.test.ts` | Local current/stale/offline/unknown/conflict/error, completion eligibility, and restart aging pass at Batch B code commit; remote envelope/gap/reconnect is absent | `IMPLEMENTED_BATCH_B_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Remote behavior remains gated |
 | AO-INT-007 Canonical AlertKind notification, deterministic deduplication, and manual fallback | `src/application/notifications/` | `tests/integration/notification-recovery.test.ts`, `tests/contract/alert-notification-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Section 10 and Domain 7.3 | `DESIGNED_CANDIDATE` | Batch D |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

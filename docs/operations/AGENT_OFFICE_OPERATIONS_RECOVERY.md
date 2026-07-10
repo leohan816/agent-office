@@ -1,12 +1,14 @@
 # Agent Office Operations and Recovery Design
 
-Status: `REVIEWED_DESIGN__BATCH_A_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
+Status: `REVIEWED_DESIGN__BATCH_A_ACCEPTED__BATCH_B_LOCAL_OBSERVATION_IMPLEMENTED`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
-Batch A implements only the local state-root, ledger, immutable-artifact,
+Batch A implements the local state-root, ledger, immutable-artifact,
 checkpoint/projection, and startup/replay primitives at code commit
-`7edc8f79bedb059ab6697e64ddaf57fbebde2c87`. Backup, restore, service operation,
+`7edc8f79bedb059ab6697e64ddaf57fbebde2c87` and is Advisor-accepted. Batch B adds
+only local read-only observation/freshness/dashboard behavior at code commit
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d`. Backup, restore, service operation,
 credentials, deployment, and live/private operation remain unimplemented.
 
 ## 1. Operating Model
@@ -43,6 +45,25 @@ single-writer authority and remain separately gated.
   checkpoint use/fallback, genesis equivalence, and deterministic restart replay.
 - `tests/recovery/` plus persistence/acceptance tests pass in the 36-test Batch A
   suite. No real state root, backup, secret, DB, network, or service was used.
+
+### 1.2 Batch B as-built boundary
+
+- Observation reads are outside the Agent Office writable state root and are
+  strictly bounded, no-follow, containment-checked, and regular-file-only.
+- Direct child-tool reads have fixed operation unions, executable paths, cwd,
+  timeouts, combined output caps, and a no-shell environment. Timeout/cap/tool
+  failures are stable typed errors and raw stderr is not exposed to the UI.
+- Local observations retain source/receipt/policy/evidence identity. The pure
+  freshness projection distinguishes current/stale/offline/unknown/conflict/error
+  and survives restart without changing its stored durable value.
+- Stale/nonverified observations fail the exported completion-eligibility check;
+  the dashboard shows the last typed status but never appends a domain event or
+  resumes/completes a WorkUnit.
+- The static Vite dashboard is a build artifact and optional loopback development
+  preview only. No service process, listener authority, persistence writer,
+  gateway, PWA cache, backup, restore, or deployment operation was added.
+- The full 23-file/84-test suite, production builds, audit, diff check, and bounded
+  real read-only Git/tmux smoke pass at the Batch B code commit.
 
 ## 2. Durability Objectives
 
@@ -429,9 +450,9 @@ accessed.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; owner-only init, writer exclusion/stale recovery, artifact/event durability, rotation, and hash-chain tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
-| AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/checkpoint-store.ts` | `tests/recovery/restart-replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | Same-request replay/conflict, event-before-projection rebuild, verified checkpoint, and invalid-checkpoint genesis fallback pass at code commit | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/writer-lock.ts` | `tests/recovery/corruption-quarantine.test.ts` | Incomplete active tail is content-addressed/preserved; midstream tamper creates durable quarantine and prevents reopen | `IMPLEMENTED_BATCH_A_STORE_CORE` | Advisor Batch A acceptance; stale UI/adapter overlays remain Batches B/E |
+| AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; owner-only init, writer exclusion/stale recovery, artifact/event durability, rotation, and hash-chain tests pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
+| AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/checkpoint-store.ts` | `tests/recovery/restart-replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | Same-request replay/conflict, event-before-projection rebuild, verified checkpoint, and invalid-checkpoint genesis fallback pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Service recovery remains Batch E |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/hosts/freshness.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/recovery/corruption-quarantine.test.ts`, `tests/integration/project-freshness.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A quarantine is accepted; Batch B local restart aging, current/stale/offline/unknown/conflict/error, and non-completion behavior pass at `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_BATCH_B_LOCAL_OVERLAY__PENDING_ADVISOR_ACCEPTANCE` | Remote/service recovery overlays remain Batch E |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12, 16 | `DESIGNED_CANDIDATE` | Batch E; off-host/encryption gated |
 | AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/operations/`, `src/adapters/gateways/` | `tests/recovery/rollback-disable.test.ts` | `NOT_IMPLEMENTED`; Sections 13-14 | `DESIGNED_CANDIDATE` | Batch E; external transport remains canonical |
 | AO-OPS-006 Redacted health/observability | `src/server/health/`, `src/application/audit/` | `tests/security/observability-redaction.test.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |

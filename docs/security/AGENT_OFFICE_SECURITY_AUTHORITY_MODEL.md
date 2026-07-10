@@ -1,10 +1,12 @@
 # Agent Office Security and Authority Model
 
-Status: `CANDIDATE__NOT_IMPLEMENTED__PENDING_FABLE5_DESIGN_REVIEW`
+Status: `REVIEWED_DESIGN__BATCH_B_READ_ONLY_BOUNDARY_IMPLEMENTED__SERVER_SECURITY_GATED`
 
-This candidate defines browser, service, adapter, actor, and deployment trust
-boundaries. It contains no real secret, credential, token, key, cookie, or auth
-action.
+This reviewed design defines browser, service, adapter, actor, and deployment
+trust boundaries. Batch B implements only the local read-only adapter and static
+dashboard subset at code commit
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d`. It contains no real secret,
+credential, token, key, cookie, auth action, HTTP server, or network authority.
 
 ## 1. Security Objectives
 
@@ -23,6 +25,26 @@ Agent Office must:
 - make manual Advisor routing available when automated delivery is unsafe.
 
 Availability never outranks actor separation or evidence integrity.
+
+### 1.1 Batch B as-built security subset
+
+- `src/application/projects/registry.ts` validates trusted absolute roots and
+  rejects cross-project overlap; browser summaries contain IDs, not paths.
+- `src/adapters/observations/filesystem.ts` uses bounded regular-file reads,
+  no-follow opens, component checks, and opened-descriptor containment.
+- `process-runner.ts` exposes typed Git/tmux reads only, constructs direct argv,
+  sets `shell: false`, disables optional Git locks/prompts, and enforces fixed
+  timeout/combined-output caps.
+- Git callers select configured namespace/pair IDs; tmux callers select one
+  configured source ID whose only command shape is exact-pane structured
+  `display-message`. No capture, input, buffer, shell, signal, or mutation method
+  is exposed.
+- `src/ui/dashboard.tsx` provides filtering, selection, expansion, and evidence
+  copy only. There is no dispatch form, server route, arbitrary path/target, auth,
+  or gateway.
+- Adapter/security boundary tests are deterministic and use fake tool runners;
+  traversal, symlink, special-file, hostile argv/ref/name, timeout/cap, root
+  isolation, and later-batch forbidden-scope cases pass in the 84-test suite.
 
 ## 2. Threat Model
 
@@ -375,7 +397,7 @@ Tailscale action, or production identity is permitted by this design.
 | AO-SEC-001 Loopback private fail-closed bind | `src/server/network/` | `tests/security/bind-policy.test.ts` | `NOT_IMPLEMENTED`; Section 5 | `DESIGNED_CANDIDATE` | Batch E; private network separately gated |
 | AO-SEC-002 Auth/session/capability model without embedded secrets | `src/server/auth/` | `tests/security/auth-session.test.ts` | `NOT_IMPLEMENTED`; Sections 3 and 6 | `DESIGNED_CANDIDATE` | Batch E and real-secret authority if activated |
 | AO-SEC-003 CSRF/origin/rate/input/output controls | `src/server/security/` | `tests/security/http-boundary.test.ts` | `NOT_IMPLEMENTED`; Sections 7-10 | `DESIGNED_CANDIDATE` | Batch E |
-| AO-SEC-004 No browser role dispatch or arbitrary command | `src/server/routes/`, `src/adapters/` | `tests/security/no-dispatch-surface.test.ts` | `NOT_IMPLEMENTED`; Sections 8, 11-12 | `DESIGNED_CANDIDATE` | Batches B/D/E |
+| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/ui/dashboard.tsx`; future `src/server/routes/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/tmux-readonly.test.ts`, `tests/acceptance/batch-gates.test.ts`, `tests/ui/dashboard.component.test.tsx` | Batch B static UI/observation boundary has no generic command, role dispatch, tmux input/capture, or writable Git path at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d`; server routes do not exist | `IMPLEMENTED_BATCH_B_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Re-prove for Batch D gateway and Batch E HTTP boundary |
 | AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/` | `tests/security/audit-redaction.test.ts`, `tests/integration/kill-switch.test.ts` | `NOT_IMPLEMENTED`; Sections 12-14 | `DESIGNED_CANDIDATE` | Batch D/E; canonical transport remains external |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/` | `tests/e2e/pwa-cache-security.spec.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |
 

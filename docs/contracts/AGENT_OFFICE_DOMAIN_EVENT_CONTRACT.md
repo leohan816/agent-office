@@ -1,13 +1,16 @@
 # Agent Office Domain and Event Contract
 
-Status: `REVIEWED_DESIGN__BATCH_A_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
+Status: `REVIEWED_DESIGN__BATCH_A_ACCEPTED__BATCH_B_CONSUMER_IMPLEMENTED`
 
 Contract version: `agent-office.domain.v1`
 
 This document is the canonical contract for mission entities, state machines,
 commands, events, ordering, idempotency, evidence, and deterministic projection.
 The Batch A local domain/store/projection subset is implemented at code commit
-`7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; browser, gateway, adapter, and
+`7edc8f79bedb059ab6697e64ddaf57fbebde2c87` and accepted by Advisor as the Batch B
+dependency. Batch B consumes the contract through read-only observation and
+dashboard projections at code commit
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d`; gateway, mutation/server, and
 later-batch application flows remain unimplemented.
 
 ## 1. Contract Principles
@@ -46,7 +49,9 @@ Batch A implements:
 The Fable5 R-1 residual is pinned fail-closed: absent, expired, or incompatible
 activity for primary-only `DISPATCHED`, `RUNNING`, `RESULT_REPORTED`, or
 `REVIEW_PENDING`, and the unmapped `WAITING_ADVISOR`/`HOLD` states, projects
-`UNKNOWN_OR_STALE`. No user-facing alias is silently invented.
+`UNKNOWN_OR_STALE`. Batch B preserves that required-observable fallback while
+separately rendering the durable primary `WAITING_ADVISOR` and `HOLD` states with
+fixed locale entries; it does not invent an active observable alias.
 
 ## 2. Identity, Encoding, Time, and Hashing
 
@@ -738,11 +743,11 @@ are command-validated and reproduce Section 6.3 exactly.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
-| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; envelope/hash-chain tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
-| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts` | `tests/domain/transitions.test.ts`, `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact 16-name and R-1 fallback tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance; visual use remains Batch C |
+| AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Dashboard consumption implemented in Batch B; later scope changes still require authority |
+| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; envelope/hash-chain tests pass and Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Gateway event application remains Batch D |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 16-name/R-1 fallback remains accepted; Batch B primary-state/fallback rendering passes at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_THROUGH_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Structured scene/animation remains Batch C |
 | AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/domain/state-machines/entities.ts` | `tests/domain/transitions.test.ts` | Batch A schemas/state machines implemented at `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; delivery/intake application flow absent | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Batch D application/gateway handoff |
-| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/domain/completion/index.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts` | Genesis/checkpoint byte-equivalence and invalid-checkpoint fallback pass at `7edc8f79bedb059ab6697e64ddaf57fbebde2c87` | `IMPLEMENTED_BATCH_A_CORE__PENDING_ADVISOR_ACCEPTANCE` | Later evidence collectors/application flows remain Batches B-D |
+| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/domain/completion/index.ts`, `src/application/hosts/freshness.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/project-freshness.test.ts` | Batch A replay core is Advisor-accepted; Batch B proves stale/offline/conflict observations cannot satisfy completion | `IMPLEMENTED_BATCH_B_LOCAL_EVIDENCE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full evidence collector/application flows remain Batches D/E |
 | AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts` | `tests/domain/writing-result-activity.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Domain pairing, expiry, structured-source, and `UNKNOWN_OR_STALE` behavior pass at code commit | `IMPLEMENTED_BATCH_A_DOMAIN_CORE` | UI/animation remains Batch C |
 | AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts` | Closed 16/9 vocabularies, deduplication, and exact ordered 13-field snapshot pass at code commit | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Notification/inbox delivery remains Batch D |
 
