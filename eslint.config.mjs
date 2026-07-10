@@ -9,7 +9,7 @@ export default tseslint.config(
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -43,6 +43,15 @@ export default tseslint.config(
     files: ['tests/snapshot/gpt-package.test.ts'],
     rules: {
       'no-useless-escape': 'off',
+    },
+  },
+  {
+    files: ['src/ui/**/*.tsx', 'tests/ui/**/*.tsx'],
+    rules: {
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false } },
+      ],
     },
   },
 );

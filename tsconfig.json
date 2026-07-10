@@ -3,7 +3,7 @@
     "target": "ES2024",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2024"],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "strict": true,
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
@@ -15,10 +15,11 @@
     "useUnknownInCatchVariables": true,
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
+    "jsx": "react-jsx",
     "resolveJsonModule": true,
     "types": ["node", "vitest/globals"],
     "skipLibCheck": false,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vite.config.ts"]
 }
