@@ -1,0 +1,25 @@
+# Secrets and local environment values
+.env
+.env.*
+*.key
+*.pem
+credentials.*
+secrets.*
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local logs, caches, and temporary output
+*.log
+.cache/
+tmp/
+temp/
+coverage/
+build/
+dist/
