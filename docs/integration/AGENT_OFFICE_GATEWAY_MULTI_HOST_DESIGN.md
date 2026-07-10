@@ -348,10 +348,14 @@ No queued remote command is replayed because collectors accept no commands.
 
 ## 10. Notification and Alert Integration
 
-NotificationSink consumes typed alert/message events and creates a deterministic
-`notificationId` from kind, entity ID, transition event ID, and channel. UI
-notifications are projection entries. Advisor notifications enter the gateway
-outbox. No email, push, webhook, or external channel is enabled in M01.
+NotificationSink consumes the closed `AlertKind` enum and exact `AlertRaised`
+payload from Domain Section 7.3 plus typed message events. It cannot define an
+adapter-local alert kind, severity, action code, or deduplication rule. The alert
+`deduplicationKey` is supplied by the verified domain event; the sink creates
+`notificationId` deterministically from that key, the triggering event ID, and
+the fixed channel. UI notifications are projection entries. Advisor notifications
+enter the gateway outbox. No email, push, webhook, or external channel is enabled
+in M01.
 
 Retries are bounded exponential backoff with jitter chosen server-side, maximum
 attempts recorded by policy, and idempotent receipt lookup before every retry.
@@ -404,6 +408,10 @@ without exposing tool stderr or raw terminal content to the browser.
 - message text cannot appear in launcher input or argv;
 - no Worker/Reviewer/session/command field crosses the gateway port;
 - successful delivery remains distinct from Advisor acknowledgement/intake; and
+- every canonical `AlertKind` preserves the domain dedup key/action codes through
+  UI and Advisor notification, while an unknown/adapter-invented kind is rejected;
+- repeated alert occurrences with one open dedup key do not create duplicate
+  outbound notifications for the same triggering event; and
 - Hermes stub produces no network, file, process, or ledger side effect except a
   typed disabled receipt when invoked through the application.
 
@@ -424,6 +432,6 @@ gated.
 | AO-INT-004 Multi-project registry/root isolation | `src/application/projects/` | `tests/integration/multi-project-isolation.test.ts` | `NOT_IMPLEMENTED`; Section 7 | `DESIGNED_CANDIDATE` | Batch B |
 | AO-INT-005 Linux/Mac multi-host trust and observation envelope | `src/adapters/hosts/` | `tests/contract/host-observation.test.ts` | `NOT_IMPLEMENTED`; Sections 7-9 | `DEFERRED_WITH_GATE` | Private-network, key, remote-host mission |
 | AO-INT-006 Offline/reconnect/gap/stale evidence | `src/application/hosts/` | `tests/integration/host-reconnect.test.ts` | `NOT_IMPLEMENTED`; Section 9 | `DESIGNED_FOR_EXTENSION` | Local behavior Batch B; remote behavior gated |
-| AO-INT-007 Idempotent notification and manual fallback | `src/application/notifications/` | `tests/integration/notification-recovery.test.ts` | `NOT_IMPLEMENTED`; Section 10 | `DESIGNED_CANDIDATE` | Batch D |
+| AO-INT-007 Canonical AlertKind notification, deterministic deduplication, and manual fallback | `src/application/notifications/` | `tests/integration/notification-recovery.test.ts`, `tests/contract/alert-notification-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Section 10 and Domain 7.3 | `DESIGNED_CANDIDATE` | Batch D |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

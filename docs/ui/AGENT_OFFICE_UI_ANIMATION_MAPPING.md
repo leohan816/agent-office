@@ -32,7 +32,8 @@ The PWA has five primary destinations:
 3. **Advisor Inbox**: immutable message receipt, delivery, acknowledgement,
    intake, decision, and resume status.
 4. **Alerts**: blockers, stale evidence, security/transport/recovery alerts, and
-   acknowledgement/resolution distinction.
+   acknowledgement/resolution distinction. Alert cards consume only the canonical
+   `AlertKind` and `BlockerKind` vocabularies in the domain contract.
 5. **Evidence**: verified Git/artifact/review/decision references, hashes,
    freshness, and projection revision.
 
@@ -75,6 +76,114 @@ The detail view has fixed sections:
 `RESULT_REPORTED` is labeled "Result reported - not completed" until policy
 evidence is satisfied. `PASS_WITH_RISK` never appears as green/completed without a
 linked Leo/GPT acceptance record.
+
+### 3.4 Canonical Korean user-facing vocabulary
+
+Fixed system nouns and state/action labels come from the reviewed Korean locale
+table below. An implementer must not invent, paraphrase, or machine-translate them.
+Dynamic entity names preserve the manifest's `labelKo` byte-for-byte. If
+`labelKo` is absent, the UI shows the canonical `label` plus a locale-missing
+indicator; it does not silently synthesize Korean.
+
+#### Hierarchy labels
+
+| Locale key | Canonical English concept | Canonical Korean label |
+|---|---|---|
+| `hierarchy.initiative` | Initiative | `활성 작업 묶음` |
+| `hierarchy.package` | Package | `패키지` |
+| `hierarchy.mission` | Mission | `현재 미션` |
+| `hierarchy.phase` | Phase | `단계` |
+| `hierarchy.workUnit` | WorkUnit | `세부 작업` |
+
+#### Required WorkUnit observable labels
+
+| Exact observable name | Canonical Korean label |
+|---|---|
+| `QUEUED` | `대기열` |
+| `READY` | `준비됨` |
+| `DISPATCHING` | `작업 전달 중` |
+| `READING` | `읽는 중` |
+| `WORKING` | `작업 중` |
+| `TESTING` | `테스트 중` |
+| `WRITING_RESULT` | `결과 작성 중` |
+| `RETURNING_RESULT` | `결과 반환 중` |
+| `REVIEWING` | `검토 중` |
+| `NEEDS_PATCH` | `수정 필요` |
+| `WAITING_DEPENDENCY` | `선행 작업 대기` |
+| `WAITING_LEO` | `Leo/GPT 결정 대기` |
+| `BLOCKED` | `차단됨` |
+| `COMPLETED` | `완료` |
+| `FAILED` | `실패` |
+| `CANCELLED` | `취소됨` |
+
+The UI obtains the exact observable name from the deterministic two-axis mapping
+in Domain Section 6.3, then performs this direct lookup. It never labels primary
+`DISPATCHED`, `RUNNING`, `RESULT_REPORTED`, or `REVIEW_PENDING` as a renamed
+user-facing substitute without the required activity pair.
+
+#### Alert kinds and actions
+
+| AlertKind | Canonical Korean label |
+|---|---|
+| `NEEDS_LEO_DECISION` | `Leo/GPT 결정 필요` |
+| `PASS_WITH_RISK` | `위험 조건부 통과` |
+| `BLOCKED` | `차단됨` |
+| `AUTHENTICATION_REQUIRED` | `인증 필요` |
+| `MANUAL_ACTION_REQUIRED` | `수동 조치 필요` |
+| `FINAL_APPROVAL_REQUIRED` | `최종 승인 필요` |
+| `MISSION_COMPLETE` | `미션 완료` |
+| `MISSION_FAILED` | `미션 실패` |
+| `INFORMATION` | `안내` |
+
+| Canonical action code | Canonical Korean label |
+|---|---|
+| `COPY_GPT_PACKAGE` | `GPT용 패키지 복사` |
+| `OPEN_EVIDENCE` | `증거 열기` |
+| `REPLY_TO_ADVISOR` | `Advisor에게 답변` |
+| `HOLD` | `보류` |
+| `PAUSE_MISSION` | `미션 일시정지` |
+| `CANCEL_MISSION` | `미션 취소` |
+
+Rendering an action never grants its authority. The UI shows only action codes
+allowed by the canonical `AlertKind` payload and the authenticated capability;
+disabled/hidden actions do not become alternate routes.
+
+#### Blocker labels
+
+| BlockerKind | Canonical Korean label |
+|---|---|
+| `MISSING_LEO_DECISION` | `Leo/GPT 결정 필요` |
+| `MISSING_EVIDENCE` | `증거 누락` |
+| `SESSION_NOT_READY` | `세션 준비 안 됨` |
+| `SESSION_OFFLINE` | `세션 오프라인` |
+| `WRONG_ACTOR_OR_WORKSPACE` | `역할 또는 작업공간 불일치` |
+| `GIT_CONFLICT` | `Git 충돌` |
+| `DIRTY_WORKTREE_CONFLICT` | `정리되지 않은 작업 트리 충돌` |
+| `TEST_FAILURE` | `테스트 실패` |
+| `AUTHENTICATION_REQUIRED` | `인증 필요` |
+| `UNEXPECTED_APPROVAL_PROMPT` | `예상하지 못한 승인 요청` |
+| `SCOPE_CONFLICT` | `범위 충돌` |
+| `DEPENDENCY_FAILED` | `선행 작업 실패` |
+| `TIMEOUT` | `시간 초과` |
+| `ARTIFACT_MISSING` | `산출물 누락` |
+| `COMMIT_NOT_PUSHED` | `커밋이 푸시되지 않음` |
+| `MANUAL_KILL_SWITCH` | `수동 킬 스위치 작동` |
+
+`reasonCode` detail uses an explicitly reviewed locale entry
+`blocker.reason.<reasonCode>`. If that entry is absent, the UI renders the
+canonical `BlockerKind` Korean label followed by the stable reason code in
+parentheses. It never machine-translates or invents a detail string.
+
+#### Progress labels
+
+| Progress key | Canonical Korean label | Required rendering |
+|---|---|---|
+| `progress.workUnitCount` | `세부 작업 진행률` | Evidence-backed completed WorkUnits / manifest denominator, with manifest version |
+| `progress.requiredGate` | `필수 게이트 진행률` | Passed required gates / required-gate denominator |
+
+The two progress values are displayed separately and are never merged into one
+percentage. A scope change updates only the WorkUnit-count denominator for its new
+manifest version; gate progress changes only through structured gate evidence.
 
 ## 4. Office Scene Model
 
@@ -122,10 +231,11 @@ runs at most once per accepted source event ID and is deduplicated across reload
 | Required activity | Structured trigger | Full-motion cue | Static/text cue | End condition |
 |---|---|---|---|---|
 | `IDLE` | Explicit `RoleActivityChanged(IDLE)` or expiry overlay with no persistent blocking state | Very subtle 4-second status-light opacity cycle, no object movement | Neutral desk, `Idle` label | New higher-sequence activity |
-| `DELIVERY` | `NotificationDeliveryStarted` or `RoleActivityChanged(DELIVERY)` tied to fixed Advisor delivery | Envelope/pointer moves along a fixed path for 700 ms once | Envelope icon plus `Delivering to Advisor` | Delivery receipt/failure or 2-second visual expiry |
+| `DELIVERY` | Correlated WorkUnit `READY -> DISPATCHED` plus `RoleActivityChanged(DELIVERY, WORKUNIT_DISPATCH)`, or `NotificationDeliveryStarted` for fixed Advisor delivery | Envelope/pointer moves along a fixed path for 700 ms once | `Dispatching` for WorkUnit dispatch; `Delivering to Advisor` for Advisor notification | WorkUnit starts/fails/blocks, delivery receipt/failure, or 2-second visual expiry |
 | `READING` | `AdvisorMessageAcknowledged`, `AdvisorIntakeRecorded`, or explicit structured reading activity | Document highlight moves once over 900 ms | Open-document icon plus `Advisor reading` | Intake/decision activity or explicit expiry |
 | `WORKING` | `WorkUnitStateTransitioned(..., RUNNING)` or structured working event | Low-amplitude desk indicator cycle, max 2 repeats per event | Tool/desk icon plus `Working` and WorkUnit ID | State/activity transition |
 | `TESTING` | WorkUnit enters `TESTING` with command/evidence refs | Checklist rows illuminate sequentially once, 1.2 s | Checklist icon plus `Testing` | Test result/state transition |
+| `WRITING_RESULT` | `RoleActivityChanged(WRITING_RESULT, RESULT_DRAFT_STARTED)` while primary state remains `RUNNING` or `TESTING` | Result document gains bounded lines/check marks once, 900 ms | Document-edit icon plus `Writing result` | Verified `RESULT_REPORTED`, return to work/testing, block/wait/fail, or expiry |
 | `REVIEW` | WorkUnit enters `REVIEW_PENDING` or structured Fable5 review event | Review lens sweeps one bounded panel once, 1 s | Review icon plus `Independent review` | Verdict/state transition |
 | `BLOCKED` | WorkUnit `BLOCKED`, open blocker, critical evidence conflict | No repeated motion; barrier appears with 150 ms fade | Barrier icon, blocker reason, route, age/freshness | `BlockerResolved` plus resume transition |
 | `WAITING_LEO` | WorkUnit `WAITING_LEO` and open Decision `REQUESTED/ACKNOWLEDGED` | One gentle decision beacon expansion, then static | Decision icon plus `Waiting for Leo/GPT` | Canonical decision/resume or route change |
@@ -145,8 +255,9 @@ RECOVERY
   > WAITING_LEO
   > BLOCKED
   > REVIEW
-  > TESTING
   > RESULT_RETURN
+  > WRITING_RESULT
+  > TESTING
   > DELIVERY
   > READING
   > WORKING
@@ -339,7 +450,9 @@ turns fenced code or shell-looking text into an executable control.
 
 Batch C/E test paths must cover:
 
-- exact mapping for all ten required activities and event-ID deduplication;
+- the exact 16 required observable names, every primary/activity pairing in Domain
+  Section 6.3, `WRITING_RESULT` between work/testing and result return, and
+  event-ID deduplication;
 - proof that terminal/prose/process fixtures cannot change activity;
 - precedence, stale/offline suppression, burst coalescing, reload, and tab resume;
 - reduced motion and no-flash behavior;
@@ -350,6 +463,8 @@ Batch C/E test paths must cover:
 - PWA installability, offline read-only, no mutation queue, update, and cache
   exclusion tests;
 - Advisor form schema proving no role/session/command target; and
+- exact Korean hierarchy/status/alert/action/blocker/progress labels, unknown
+  reasonCode fallback, preserved `labelKo`, and proof no silent translation; and
 - visual regression snapshots using deterministic projection fixtures, not live
   tmux/prose.
 
@@ -357,12 +472,13 @@ Batch C/E test paths must cover:
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI | `src/ui/layout/`, `src/ui/missions/` | `tests/e2e/responsive-layout.spec.ts` | `NOT_IMPLEMENTED`; Sections 1-3, 10-11 | `DESIGNED_CANDIDATE` | Batches B/E |
-| AO-UI-002 Structured-event-only required animations | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts` | `NOT_IMPLEMENTED`; Sections 4-6 | `DESIGNED_CANDIDATE` | Batch C |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/layout/`, `src/ui/missions/`, `src/ui/i18n/` | `tests/e2e/responsive-layout.spec.ts`, `tests/ui/korean-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Sections 1-3, 10-11 | `DESIGNED_CANDIDATE` | Batches B/E |
+| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/contract/required-observable-conformance.test.ts` | `NOT_IMPLEMENTED`; Sections 4-6 and Domain 6.3 | `DESIGNED_CANDIDATE` | Batch C |
 | AO-UI-003 Accessibility/reduced motion | `src/ui/a11y/`, `src/ui/scene/` | `tests/e2e/accessibility.spec.ts`, `tests/ui/reduced-motion.test.ts` | `NOT_IMPLEMENTED`; Sections 7-8 | `DESIGNED_CANDIDATE` | Batch C/E |
 | AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/`, `src/ui/scene/asset-registry.ts` | `tests/ui/assets-layout.test.ts` | `NOT_IMPLEMENTED`; Sections 9-10 | `DESIGNED_CANDIDATE` | Batch C |
 | AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/inbox/` | `tests/e2e/advisor-inbox.spec.ts` | `NOT_IMPLEMENTED`; Section 12 | `DESIGNED_CANDIDATE` | Batch D/E |
-| AO-UI-006 Alert/recovery/stale evidence UX | `src/ui/alerts/`, `src/ui/recovery/` | `tests/e2e/recovery-readonly.spec.ts` | `NOT_IMPLEMENTED`; Section 13 | `DESIGNED_CANDIDATE` | Batch E |
+| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/ui/alerts/`, `src/ui/recovery/` | `tests/e2e/recovery-readonly.spec.ts`, `tests/ui/alert-blocker-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Sections 3.4 and 13, Domain 7.2-7.3 | `DESIGNED_CANDIDATE` | Batch D/E |
 | AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/` | `tests/e2e/pwa-lifecycle.spec.ts` | `NOT_IMPLEMENTED`; Section 14 | `DESIGNED_CANDIDATE` | Batch E |
+| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts` | `tests/ui/korean-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Section 3.4 | `DESIGNED_CANDIDATE` | Batches B-D |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

@@ -260,6 +260,41 @@ actor role, and evidence/decision references required by the row.
 `RESULT_REPORTED`, or `REVIEW_PENDING`, captured when entering the waiting state.
 The caller cannot choose a different state without an explicit Advisor correction.
 
+### 6.3 Required observable-name conformance
+
+The primary WorkUnit state and the structured RoleActivity are two independent,
+event-sourced axes. The primary state is the durable lifecycle/audit truth. The
+activity is durable as event history but transient as the current visual
+observable. They must not be flattened into one state machine.
+
+`requiredObservableName` is a deterministic projection field derived from the
+pair. It uses the exact names below; an implementation must not silently rename
+them. An incompatible primary/activity pair is rejected before append.
+
+| Required observable name | Primary WorkUnit state | RoleActivity | Structured trigger | End condition | Persistence semantics | Rationale |
+|---|---|---|---|---|---|---|
+| `QUEUED` | `QUEUED` | `IDLE` or none | Manifest import or `WorkUnitStateTransitioned(..., QUEUED)` | Primary state changes | Primary durable; idle presentation transient | Exact approved-but-not-evaluated lifecycle state |
+| `READY` | `READY` | `IDLE` or none | Accepted readiness transition after dependency/gate checks | Dispatch/block/wait/cancel transition | Primary durable | Ready does not imply dispatch or active work |
+| `DISPATCHING` | `DISPATCHED` | `DELIVERY` with `reasonCode=WORKUNIT_DISPATCH` | Correlated `READY -> DISPATCHED` and `RoleActivityChanged(DELIVERY)` after exact handoff/transport evidence | `RUNNING`, dispatch failure/block/hold, or explicit activity expiry | Primary durable; delivery event durable; current activity transient | `DISPATCHING -> DISPATCHED + DELIVERY` keeps transport evidence separate from the observable in-progress cue |
+| `READING` | `DISPATCHED` or `RUNNING` | `READING` | `RoleActivityChanged(READING)` citing immutable handoff/input acknowledgement | A higher-sequence activity, block/wait/fail, or explicit expiry | Activity event durable; current activity transient | Reading is observable work, not a lifecycle milestone |
+| `WORKING` | `RUNNING` | `WORKING` | Correlated `... -> RUNNING` and `RoleActivityChanged(WORKING)` | Testing, result writing, block/wait/fail, or explicit activity change | Primary durable; activity event durable/current transient | `WORKING -> RUNNING + WORKING` preserves durable execution and visible activity |
+| `TESTING` | `TESTING` | `TESTING` | Accepted `... -> TESTING` plus command/evidence-linked activity | Return to work, result writing/report, block/wait/fail | Primary and activity events durable; current activity transient | Testing is both an auditable lifecycle phase and observable activity |
+| `WRITING_RESULT` | `RUNNING` or `TESTING` | `WRITING_RESULT` | `RoleActivityChanged(WRITING_RESULT)` with `reasonCode=RESULT_DRAFT_STARTED` and accepted work/test source event | `RESULT_REPORTED`, return to work/testing, block/wait/fail, or explicit expiry | Activity event durable; primary remains unchanged until immutable result exists | Result drafting is now observable but cannot claim `RESULT_REPORTED` before durable evidence |
+| `RETURNING_RESULT` | `RESULT_REPORTED` | `RESULT_RETURN` | Verified immutable result/pointer causes `... -> RESULT_REPORTED` and correlated `RoleActivityChanged(RESULT_RETURN)` | Review/Advisor route, block/hold, or explicit activity expiry | Primary durable; return activity event durable/current transient | `RETURNING_RESULT -> RESULT_REPORTED + RESULT_RETURN` distinguishes evidence existence from the bounded return cue |
+| `REVIEWING` | `REVIEW_PENDING` | `REVIEW` | Accepted review route and correlated `RoleActivityChanged(REVIEW)` | Review verdict, route change, block/hold/fail | Primary durable; review activity event durable/current transient | `REVIEWING -> REVIEW_PENDING + REVIEW` preserves independent-review lifecycle truth |
+| `NEEDS_PATCH` | `NEEDS_PATCH` | none required | Review/audit finding accepted under canonical verdict routing | Patch handoff, block/wait/hold/cancel | Primary durable | Exact rework lifecycle state, not inferred animation |
+| `WAITING_DEPENDENCY` | `WAITING_DEPENDENCY` | none required | Dependency evaluation finds an incomplete declared dependency | Dependency readiness, block/hold/cancel | Primary durable | Exact dependency gate state |
+| `WAITING_LEO` | `WAITING_LEO` | `WAITING_LEO` | Material decision request with immutable decision package/evidence | Canonical decision plus resume, route change, hold/cancel | Primary and activity events durable; current cue persists while state persists | Exact authority-waiting state with visible structured cue |
+| `BLOCKED` | `BLOCKED` | `BLOCKED` | Valid `BlockerOpened` and WorkUnit blocked transition | `BlockerResolved` plus valid resume, fail/cancel/hold | Primary/blocker/activity history durable; current cue persists while blocked | Exact fail-closed operational state |
+| `COMPLETED` | `COMPLETED` | none required | Completion policy and required evidence/authority verify | Terminal, except explicit completion revocation to `HOLD` | Primary durable | Exact evidence-backed terminal state |
+| `FAILED` | `FAILED` | none required | Accepted attempt failure with reason/evidence | Authorized retry, hold, or cancel | Primary durable | Exact failed-attempt lifecycle state |
+| `CANCELLED` | `CANCELLED` | none required | Scope authority cancels the WorkUnit | Terminal | Primary durable | Exact authority-backed terminal cancellation |
+
+When a required observable has both axes, both accepted events share a
+`correlationId` and explicit causation links. The projector exposes primary state,
+activity, source event IDs, and `requiredObservableName`; the UI never derives the
+name from prose or substitutes an alias.
+
 ## 7. Message, Blocker, Alert, Decision, and Notification States
 
 ### 7.1 Advisor message
@@ -287,6 +322,72 @@ state may become `SUPERSEDED` with a replacement blocker reference. `RESOLVED` a
 `SUPERSEDED` are terminal. A resolution contains evidence and the exact resume
 destination; closing a UI card is not resolution.
 
+`BlockerKind` is the closed M01 vocabulary:
+
+| BlockerKind | Required safe default | Default resolution owner |
+|---|---|---|
+| `MISSING_LEO_DECISION` | `WAIT_FOR_LEO` | `LEO_GPT` |
+| `MISSING_EVIDENCE` | `STOP_AND_HOLD` | `ADVISOR` |
+| `SESSION_NOT_READY` | `STOP_AND_HOLD` | `ADVISOR` |
+| `SESSION_OFFLINE` | `STOP_AND_HOLD` | `ADVISOR` |
+| `WRONG_ACTOR_OR_WORKSPACE` | `STOP_AND_HOLD` | `ADVISOR` |
+| `GIT_CONFLICT` | `STOP_AND_HOLD` | `ADVISOR` |
+| `DIRTY_WORKTREE_CONFLICT` | `STOP_AND_HOLD` | `ADVISOR` |
+| `TEST_FAILURE` | `STOP_AND_HOLD` | `ASSIGNED_WORKER` |
+| `AUTHENTICATION_REQUIRED` | `NO_AUTOMATIC_ACTION` | `ADVISOR` |
+| `UNEXPECTED_APPROVAL_PROMPT` | `NO_AUTOMATIC_ACTION` | `ADVISOR` |
+| `SCOPE_CONFLICT` | `WAIT_FOR_LEO` | `LEO_GPT` |
+| `DEPENDENCY_FAILED` | `STOP_AND_HOLD` | `ADVISOR` |
+| `TIMEOUT` | `STOP_AND_HOLD` | `ADVISOR` |
+| `ARTIFACT_MISSING` | `STOP_AND_HOLD` | `ASSIGNED_WORKER` |
+| `COMMIT_NOT_PUSHED` | `STOP_AND_HOLD` | `ASSIGNED_WORKER` |
+| `MANUAL_KILL_SWITCH` | `MANUAL_FALLBACK` | `ADVISOR` |
+
+Safe defaults are limited to `STOP_AND_HOLD`, `WAIT_FOR_LEO`,
+`NO_AUTOMATIC_ACTION`, `MANUAL_FALLBACK`, and `READ_ONLY`. A mission policy may
+choose a stricter value but never a weaker automatic action. Resolution-owner
+values are `ADVISOR`, `LEO_GPT`, `ASSIGNED_WORKER`, `FABLE5_REVIEWER`, and
+`LOCAL_OPERATOR`; naming an owner does not grant authority absent a handoff.
+
+The logical `BlockerOpened` record is exactly the event envelope plus this typed
+payload. Envelope fields are shown here for conformance and are serialized only
+once, not duplicated inside `payload`:
+
+```text
+blockerId
+missionId
+entityRefs[]: { entityType, entityId }
+kind: BlockerKind
+reasonCode
+explanation
+safeDefault
+resolutionOwner
+nextAction: { actionCode, description, targetActor, requiresNewHandoff }
+blockedSince
+evidenceRefs[]
+priorWorkUnitState
+resumeTo
+requestId
+manifestVersion
+expectedStreamVersion
+causationId
+correlationId
+```
+
+`explanation` is human-readable but cannot override the typed kind/default/owner.
+`reasonCode` is a stable reviewed code under the kind. `entityRefs` contains at
+least the blocked WorkUnit or mission. `evidenceRefs` may be empty only when the
+kind itself proves evidence is missing; the missing expected pointer is then named
+in `nextAction`. `priorWorkUnitState` and `resumeTo` are required for a WorkUnit
+blocker and must follow Section 6.2.
+
+Opening is idempotent by `requestId` and optimistic-concurrency checked by
+`expectedStreamVersion`/`manifestVersion`. `BlockerResolved` must cite the same
+blocker ID, resolution owner, resolution code, immutable resolution evidence,
+`resolvedAt`, and valid `ResumeProof`. No timeout, UI acknowledgement, reconnect,
+or new observation auto-resolves a blocker. Invalid/unknown kinds or weaker safe
+defaults are rejected atomically.
+
 ### 7.3 Alert
 
 `OPEN -> ACKNOWLEDGED -> SNOOZED -> OPEN | RESOLVED`.
@@ -294,6 +395,56 @@ destination; closing a UI card is not resolution.
 documented deterministic suppression rule and expires to `OPEN` if the condition
 persists. Severity (`INFO`, `WARNING`, `CRITICAL`) is a field, not a state.
 Acknowledgement never resolves the underlying condition.
+
+`AlertKind` is the closed M01 vocabulary:
+
+| AlertKind | Default severity | Canonical action codes |
+|---|---|---|
+| `NEEDS_LEO_DECISION` | `WARNING` | `COPY_GPT_PACKAGE`, `OPEN_EVIDENCE`, `REPLY_TO_ADVISOR`, `HOLD` |
+| `PASS_WITH_RISK` | `WARNING` | `COPY_GPT_PACKAGE`, `OPEN_EVIDENCE`, `HOLD` |
+| `BLOCKED` | `WARNING` | `OPEN_EVIDENCE`, `REPLY_TO_ADVISOR`, `HOLD` |
+| `AUTHENTICATION_REQUIRED` | `WARNING` | `OPEN_EVIDENCE`, `HOLD` |
+| `MANUAL_ACTION_REQUIRED` | `WARNING` | `OPEN_EVIDENCE`, `REPLY_TO_ADVISOR`, `HOLD` |
+| `FINAL_APPROVAL_REQUIRED` | `WARNING` | `COPY_GPT_PACKAGE`, `OPEN_EVIDENCE`, `HOLD` |
+| `MISSION_COMPLETE` | `INFO` | `OPEN_EVIDENCE` |
+| `MISSION_FAILED` | `CRITICAL` | `OPEN_EVIDENCE`, `REPLY_TO_ADVISOR`, `PAUSE_MISSION`, `CANCEL_MISSION` |
+| `INFORMATION` | `INFO` | `OPEN_EVIDENCE` when evidence exists |
+
+The logical `AlertRaised` record (event envelope plus payload, without duplicated
+serialization) is exactly:
+
+```text
+alertId
+missionId
+kind: AlertKind
+severity
+primaryEntityRef: { entityType, entityId }
+relatedEntityRefs[]
+conditionKey
+titleKey
+messageParameters
+actionCodes[]
+sourceEventIds[]
+evidenceRefs[]
+deduplicationKey
+firstObservedAt
+lastObservedAt
+occurrenceCount
+resolutionCondition
+requestId
+manifestVersion
+expectedStreamVersion
+causationId
+correlationId
+```
+
+`deduplicationKey` is exactly the SHA-256 of RFC 8785 canonical JSON containing
+`missionId`, `kind`, `primaryEntityRef`, `conditionKey`, and `manifestVersion`.
+Repeated observations with the same open key fold into the same alert and
+increment `occurrenceCount`/`lastObservedAt`; same request/hash remains idempotent.
+A changed condition produces a new key. Severity/action overrides require a
+reviewed policy ID and may only be stricter. UI and notification adapters consume
+this enum and payload; they cannot invent kinds, dedup keys, or action codes.
 
 ### 7.4 Decision
 
@@ -362,6 +513,42 @@ manifest fields, open decision/blocker records, immutable evidence refs, hashes,
 and current projection revision. It emits canonical JSON plus a deterministic
 Markdown rendering. `packageId` is the SHA-256 of canonical JSON. Terminal prose,
 animation labels, and unverified observations are excluded.
+
+Version 1 contains exactly these fields in this order:
+
+```text
+TARGET_ACTOR
+MISSION
+REQUEST_ID
+SOURCE_ADVISOR_JOB
+READ_DECISION_REQUEST
+CONFIRMED_FACTS
+UNKNOWNS
+QUESTION
+OPTIONS
+ADVISOR_RECOMMENDATION
+SAFE_DEFAULT
+RETURN_RESULT_TO
+DO_NOT_START_ANOTHER_MISSION_AUTOMATICALLY
+```
+
+- `TARGET_ACTOR` is the canonical decision owner, normally `Leo/GPT`.
+- `MISSION` is the exact mission ID.
+- `REQUEST_ID` is the UUIDv7 idempotency/correlation request ID.
+- `SOURCE_ADVISOR_JOB` is the committed job path plus commit and file hash.
+- `READ_DECISION_REQUEST` is the immutable decision-request artifact ref/hash.
+- `CONFIRMED_FACTS` and `UNKNOWNS` are arrays sorted by stable fact/unknown ID.
+- `QUESTION` is one bounded decision question.
+- `OPTIONS` is an ordered array of `{ optionId, label, impact }` from the approved
+  decision request; the builder invents no option.
+- `ADVISOR_RECOMMENDATION` is `{ optionId, rationale }` or explicit `NONE`.
+- `SAFE_DEFAULT` is the fail-closed action while waiting.
+- `RETURN_RESULT_TO` is `Advisor`.
+- `DO_NOT_START_ANOTHER_MISSION_AUTOMATICALLY` is boolean `true`.
+
+Unknown/additional fields are rejected in v1. The deterministic Markdown renderer
+prints the exact uppercase headings in the same order. It cannot add terminal
+prose, hidden instructions, or an automatic execution field.
 
 ### 8.5 Decision and resume proof
 
@@ -498,7 +685,7 @@ the projector never converts them to completion by convenience.
 ```text
 roleInstanceId, missionId, workUnitId,
 activity: IDLE | DELIVERY | READING | WORKING | TESTING | REVIEW |
-          BLOCKED | WAITING_LEO | RESULT_RETURN | RECOVERY,
+          WRITING_RESULT | BLOCKED | WAITING_LEO | RESULT_RETURN | RECOVERY,
 reasonCode, sourceEventIds[], effectiveFrom, optionalExpiresAt
 ```
 
@@ -506,6 +693,12 @@ Activity must be caused by an accepted structured event or an explicit Advisor
 observation record. It cannot be inferred from words in a pane, CPU usage,
 process title, animation state, or elapsed time. Expiry returns the visual to
 `IDLE` or the WorkUnit-derived blocking state without creating a domain event.
+
+`DELIVERY` with `reasonCode=WORKUNIT_DISPATCH` is valid only with primary
+`DISPATCHED`; `WORKING` only with `RUNNING`; `TESTING` only with `TESTING`;
+`WRITING_RESULT` only with `RUNNING` or `TESTING`; `RESULT_RETURN` only with
+`RESULT_REPORTED`; and `REVIEW` only with `REVIEW_PENDING`. These pair constraints
+are command-validated and reproduce Section 6.3 exactly.
 
 ## 14. Schema Evolution
 
@@ -525,10 +718,11 @@ process title, animation state, or elapsed time. Expiry returns the visual to
 |---|---|---|---|---|---|
 | AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | `NOT_IMPLEMENTED`; Sections 3 and 6 | `DESIGNED_CANDIDATE` | Fable5 design PASS, Batch A |
 | AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/`, `src/persistence/file-store/` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts` | `NOT_IMPLEMENTED`; Sections 4-5, 10 | `DESIGNED_CANDIDATE` | Batch A |
-| AO-DOM-003 Complete entity state machines and invalid-transition handling | `src/domain/state-machines/` | `tests/domain/transitions.test.ts`, `tests/property/transition-matrix.test.ts` | `NOT_IMPLEMENTED`; Sections 6-9 | `DESIGNED_CANDIDATE` | Batch A |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/` | `tests/domain/transitions.test.ts`, `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts` | `NOT_IMPLEMENTED`; Sections 6-9 | `DESIGNED_CANDIDATE` | Batch A |
 | AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/application/advisor-inbox/`, `src/domain/decisions/` | `tests/integration/advisor-message-flow.test.ts` | `NOT_IMPLEMENTED`; Sections 7-10 | `DESIGNED_CANDIDATE` | Batch D |
 | AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/`, `src/application/evidence/` | `tests/persistence/replay.test.ts`, `tests/domain/completion-policy.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12 | `DESIGNED_CANDIDATE` | Batches A-D |
-| AO-DOM-006 Structured-event-only activity | `src/domain/activity/` | `tests/domain/activity-source.test.ts` | `NOT_IMPLEMENTED`; Section 13 | `DESIGNED_CANDIDATE` | Batch C |
+| AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/` | `tests/domain/activity-source.test.ts`, `tests/domain/writing-result-activity.test.ts` | `NOT_IMPLEMENTED`; Sections 6.3 and 13 | `DESIGNED_CANDIDATE` | Batch C |
+| AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/`, `src/domain/alerts/`, `src/application/decision-packages/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts` | `NOT_IMPLEMENTED`; Sections 7.2-7.3 and 8.4 | `DESIGNED_CANDIDATE` | Batches A/D |
 
 The cross-document matrix in `docs/FEATURE_INDEX.md` is authoritative for package
 discoverability and links these contract IDs to the remaining security, gateway,
