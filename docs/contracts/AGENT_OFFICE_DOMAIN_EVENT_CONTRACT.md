@@ -1,12 +1,14 @@
 # Agent Office Domain and Event Contract
 
-Status: `CANDIDATE__NOT_IMPLEMENTED__PENDING_FABLE5_DESIGN_REVIEW`
+Status: `REVIEWED_DESIGN__BATCH_A_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
 
 Contract version: `agent-office.domain.v1`
 
-This document is the canonical candidate for mission entities, state machines,
+This document is the canonical contract for mission entities, state machines,
 commands, events, ordering, idempotency, evidence, and deterministic projection.
-It defines contracts only; no schema or runtime exists yet.
+The Batch A local domain/store/projection subset is implemented at code commit
+`7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; browser, gateway, adapter, and
+later-batch application flows remain unimplemented.
 
 ## 1. Contract Principles
 
@@ -25,6 +27,26 @@ It defines contracts only; no schema or runtime exists yet.
    manifest-declared evidence and authority gates.
 8. Browser messages target one logical endpoint, Advisor. There is no Worker,
    Reviewer, session, pane, or raw-command target in the public command schema.
+
+### 1.1 Batch A as-built boundary
+
+Batch A implements:
+
+- strict manifest, scope-change, command/event, activity, state-machine,
+  blocker/alert, message, ResumeProof, GPT-package, evidence, and completion
+  contracts under `src/domain/` and `src/contracts/`;
+- the exact approved M01 manifest bytes plus committed source metadata under
+  `fixtures/manifests/`;
+- canonical hashing, one-writer idempotent event persistence, immutable artifacts,
+  deterministic projection/checkpoint replay, and fail-closed recovery under
+  `src/persistence/file-store/` and `src/application/`; and
+- all 15 required Batch A test paths, totaling 36 passing tests at the code
+  commit above.
+
+The Fable5 R-1 residual is pinned fail-closed: absent, expired, or incompatible
+activity for primary-only `DISPATCHED`, `RUNNING`, `RESULT_REPORTED`, or
+`REVIEW_PENDING`, and the unmapped `WAITING_ADVISOR`/`HOLD` states, projects
+`UNKNOWN_OR_STALE`. No user-facing alias is silently invented.
 
 ## 2. Identity, Encoding, Time, and Hashing
 
@@ -716,13 +738,13 @@ are command-validated and reproduce Section 6.3 exactly.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | `NOT_IMPLEMENTED`; Sections 3 and 6 | `DESIGNED_CANDIDATE` | Fable5 design PASS, Batch A |
-| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/`, `src/persistence/file-store/` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts` | `NOT_IMPLEMENTED`; Sections 4-5, 10 | `DESIGNED_CANDIDATE` | Batch A |
-| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/` | `tests/domain/transitions.test.ts`, `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts` | `NOT_IMPLEMENTED`; Sections 6-9 | `DESIGNED_CANDIDATE` | Batch A |
-| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/application/advisor-inbox/`, `src/domain/decisions/` | `tests/integration/advisor-message-flow.test.ts` | `NOT_IMPLEMENTED`; Sections 7-10 | `DESIGNED_CANDIDATE` | Batch D |
-| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/`, `src/application/evidence/` | `tests/persistence/replay.test.ts`, `tests/domain/completion-policy.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12 | `DESIGNED_CANDIDATE` | Batches A-D |
-| AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/` | `tests/domain/activity-source.test.ts`, `tests/domain/writing-result-activity.test.ts` | `NOT_IMPLEMENTED`; Sections 6.3 and 13 | `DESIGNED_CANDIDATE` | Batch C |
-| AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/`, `src/domain/alerts/`, `src/application/decision-packages/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts` | `NOT_IMPLEMENTED`; Sections 7.2-7.3 and 8.4 | `DESIGNED_CANDIDATE` | Batches A/D |
+| AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
+| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; envelope/hash-chain tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts` | `tests/domain/transitions.test.ts`, `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact 16-name and R-1 fallback tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance; visual use remains Batch C |
+| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/domain/state-machines/entities.ts` | `tests/domain/transitions.test.ts` | Batch A schemas/state machines implemented at `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; delivery/intake application flow absent | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Batch D application/gateway handoff |
+| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/domain/completion/index.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts` | Genesis/checkpoint byte-equivalence and invalid-checkpoint fallback pass at `7edc8f79bedb059ab6697e64ddaf57fbebde2c87` | `IMPLEMENTED_BATCH_A_CORE__PENDING_ADVISOR_ACCEPTANCE` | Later evidence collectors/application flows remain Batches B-D |
+| AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts` | `tests/domain/writing-result-activity.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Domain pairing, expiry, structured-source, and `UNKNOWN_OR_STALE` behavior pass at code commit | `IMPLEMENTED_BATCH_A_DOMAIN_CORE` | UI/animation remains Batch C |
+| AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts` | Closed 16/9 vocabularies, deduplication, and exact ordered 13-field snapshot pass at code commit | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Notification/inbox delivery remains Batch D |
 
 The cross-document matrix in `docs/FEATURE_INDEX.md` is authoritative for package
 discoverability and links these contract IDs to the remaining security, gateway,

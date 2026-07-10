@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `CANDIDATE__NOT_IMPLEMENTED__PENDING_FABLE5_DESIGN_REVIEW`
+Status: `REVIEWED_DESIGN__BATCH_A_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
 
 Canonical owner: Agent Office repository
 
@@ -27,22 +27,27 @@ The intended UI is quiet and operations-focused: low visual noise, explicit
 staleness and authority labels, readable evidence, and animation that reflects
 structured events only.
 
-## 2. Current Truth and Candidate Boundary
+## 2. Current Truth and Batch Boundary
 
-The only implemented Agent Office scope is bootstrap commit
-`937f0c5f92cd3b39d81796c13bc00b4afe3407fb`: six Markdown/configuration files.
-There is no application, package manifest, runtime, data store, PWA, server,
-adapter, asset, test, authentication mechanism, or deployment. Every future path
-in this package is a design target, not as-built evidence.
+Bootstrap commit `937f0c5f92cd3b39d81796c13bc00b4afe3407fb` remains the
+repository-governance baseline. Canonical design commit
+`82821afe48b08f70b6888e3ebf12dee3095cd2bb` received independent Fable5 delta
+`DESIGN_REVIEW: PASS` in foundation-docs commit
+`6c9d94f31ae5dd5424b511afb68188681ff95349`.
 
-The committed governance manifest is version 1 with denominator 15. Its current
-source records AO-WU-01 through AO-WU-03 as `COMPLETED` and AO-WU-04 as `READY`
-(`3/15 COMPLETED`). Those are imported mission-governance facts, not evidence that
-an Agent Office runtime or projection exists.
+Batch A code/config/test commit
+`7edc8f79bedb059ab6697e64ddaf57fbebde2c87` implements the strict TypeScript
+domain contracts, approved manifest import/fixture, local single-writer JSONL
+event store, immutable artifacts, deterministic projections/checkpoints, and
+startup/recovery primitives. It has no runtime dependency and no DB, UI, browser
+server, PWA, adapter, gateway, animation, real authentication, network exposure,
+or deployment implementation. Batch A is pending Advisor acceptance and does not
+authorize Batch B.
 
-These seven documents are canonical candidates. They become an approved design
-only after a separate Fable5 `DESIGN_REVIEW: PASS`. No implementation batch may
-start from this document alone.
+The byte-exact approved governance manifest remains version 1 with denominator
+15. Its imported facts record AO-WU-01 through AO-WU-05 as `COMPLETED`, AO-WU-06
+as `REVIEWING`, and later WorkUnits as `WAITING_DEPENDENCY`. The Batch A projector
+preserves those facts without terminal-text inference.
 
 ## 3. Non-Goals and Fixed Prohibitions
 
@@ -173,10 +178,11 @@ a single repository, with strict module boundaries:
 - `src/ui/`: responsive React UI, scene mapping, and accessible components; and
 - `src/pwa/`: manifest, service worker, cache policy, and update behavior.
 
-The implementation stack is strict TypeScript on a supported Node.js LTS, React,
-a minimal HTTP framework, JSON Schema validation, and locally bundled assets.
-Exact dependency versions are selected and lockfile-pinned in Batch A/E under a
-separate implementation handoff. No dependency is authorized by this candidate.
+The implemented Batch A local core is strict TypeScript on Node.js 24 or later,
+with a lockfile and zero runtime dependencies. TypeScript, Vitest, and ESLint are
+exactly pinned development tools. React, an HTTP framework, browser assets, and
+all server/UI/PWA dependencies remain unselected and deferred to their exact
+later-batch handoffs.
 
 ### 6.2 Single-writer rule
 
@@ -336,12 +342,27 @@ may implement a credential provider contract and test doubles without accessing
 or embedding a real credential; activating a real private-network credential is a
 separate gate.
 
+### 11.2 Batch A as-built evidence
+
+- Code/config/tests: `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`.
+- Domain: `src/domain/`, `src/contracts/`, and
+  `fixtures/manifests/agent-office-m01.v1*.json`.
+- Persistence/recovery: `src/persistence/file-store/` and
+  `src/application/startup/recovery.ts`.
+- Projection/evidence: `src/application/projections/` and
+  `src/application/evidence/`.
+- Verification: 15 required test files, 36 tests passing; lint, strict typecheck,
+  production TypeScript build, and dependency audit all passing with zero known
+  vulnerabilities.
+- Exit state: `IMPLEMENTED__PENDING_ADVISOR_BATCH_A_ACCEPTANCE`; Batch B is not
+  started.
+
 ## 12. Unknowns, Limitations, and Deferred Extensions
 
 | Item | Candidate decision | Current status | Gate |
 |---|---|---|---|
-| Application stack versions | Strict TypeScript/Node/React with minimal reviewed dependencies and lockfile | `NOT_IMPLEMENTED` | Batch A/E handoff and dependency review |
-| Persistence | Local append-only JSONL, immutable artifacts, atomic projections; no DB | `NOT_IMPLEMENTED` | Fable5 design PASS, Batch A |
+| Application stack versions | Batch A strict TypeScript/Node core has zero runtime dependencies and an exact lockfile; React/server/PWA remain unselected | `IMPLEMENTED_BATCH_A_CORE` | Advisor Batch A acceptance; UI/server dependencies only under later handoff |
+| Persistence | Local append-only JSONL, immutable artifacts, atomic projections; no DB | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
 | Real-time | SSE plus POST, no WebSocket | `NOT_IMPLEMENTED` | Fable5 design PASS, Batch E |
 | Loopback authentication | Provider contract, ephemeral/local secure provisioning, no embedded credential | `NOT_IMPLEMENTED` | Batch E and explicit secret-handling authority if a real credential is used |
 | Tailscale/private network | Designed disabled; identity/TLS/trust requirements reserved | `DEFERRED_WITH_GATE` | Leo/GPT private-network approval and threat review |
@@ -370,11 +391,11 @@ separate gate.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/` | `tests/domain/manifest.test.ts` | `NOT_IMPLEMENTED`; Sections 5 and 11 | `DESIGNED_CANDIDATE` | Fable5 design PASS, Batch A |
-| AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | `NOT_IMPLEMENTED`; Sections 6-7 | `DESIGNED_CANDIDATE` | Fable5 design PASS, Batch A |
+| AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact 15-unit fixture/hash and scope properties pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
+| AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; replay/crash/restart/quarantine tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance; backup/restore remains Batch E |
 | AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/server/`, `src/ui/`, `src/pwa/` | `tests/e2e/responsive-pwa.spec.ts`, `tests/integration/sse.test.ts` | `NOT_IMPLEMENTED`; Section 8 | `DESIGNED_CANDIDATE` | Batches B/E |
 | AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/` | `tests/adapters/authority-boundary.test.ts` | `NOT_IMPLEMENTED`; Section 9 | `DESIGNED_CANDIDATE` | Batches B/D; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | future implementation result artifacts | `tests/acceptance/batch-gates.test.ts` | `NOT_IMPLEMENTED`; Section 11 and mission manifest v1 | `DESIGNED_CANDIDATE` | Advisor handoff per batch and required Fable5 reviews |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batch A scope/dependency guard passes at code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87` | `IMPLEMENTED_BATCH_A_GATE__PENDING_ADVISOR_ACCEPTANCE` | Advisor handoff per later batch and required Fable5 reviews |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

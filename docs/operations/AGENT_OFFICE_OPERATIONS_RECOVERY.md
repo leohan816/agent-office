@@ -1,11 +1,13 @@
 # Agent Office Operations and Recovery Design
 
-Status: `CANDIDATE__NOT_IMPLEMENTED__PENDING_FABLE5_DESIGN_REVIEW`
+Status: `REVIEWED_DESIGN__BATCH_A_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
 
-This candidate defines local durability, failure handling, restart, corruption
+This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
-No runtime, data, backup, credential, deployment, or operation has been created or
-performed.
+Batch A implements only the local state-root, ledger, immutable-artifact,
+checkpoint/projection, and startup/replay primitives at code commit
+`7edc8f79bedb059ab6697e64ddaf57fbebde2c87`. Backup, restore, service operation,
+credentials, deployment, and live/private operation remain unimplemented.
 
 ## 1. Operating Model
 
@@ -21,6 +23,26 @@ M01 is a single-instance private service on one local Linux host:
 
 Future private-network/remote-host/Mac capabilities do not change the controller's
 single-writer authority and remain separately gated.
+
+### 1.1 Batch A as-built boundary
+
+- `src/persistence/file-store/path-safety.ts` explicitly initializes and validates
+  an owner-only local state root with a versioned `FORMAT.json` marker.
+- `writer-lock.ts` uses create-exclusive OS-mediated lock-file ownership with
+  PID/boot/build/root metadata; a second writer fails closed, and stale recovery
+  requires explicit operator authorization and preserves the prior lock in
+  quarantine.
+- `artifact-store.ts` uses content addressing, create-exclusive writes,
+  descriptor verification, owner-only modes, no-follow checks, file and directory
+  fsync, and idempotent same-byte reuse.
+- `event-store.ts` implements append-only hash-chained JSONL segments, request
+  replay/conflict across restart, expected stream/manifest versions, rotation,
+  incomplete-tail preservation/recovery, and durable midstream quarantine.
+- `checkpoint-store.ts`, `projection-store.ts`, and
+  `src/application/startup/recovery.ts` implement atomic publication, verified
+  checkpoint use/fallback, genesis equivalence, and deterministic restart replay.
+- `tests/recovery/` plus persistence/acceptance tests pass in the 36-test Batch A
+  suite. No real state root, backup, secret, DB, network, or service was used.
 
 ## 2. Durability Objectives
 
@@ -407,9 +429,9 @@ accessed.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/` | `tests/recovery/crash-consistency.test.ts` | `NOT_IMPLEMENTED`; Sections 3-6 | `DESIGNED_CANDIDATE` | Batch A |
-| AO-OPS-002 Restart/idempotent recovery | `src/application/startup/`, `src/persistence/file-store/` | `tests/recovery/restart-replay.test.ts` | `NOT_IMPLEMENTED`; Sections 6-7 | `DESIGNED_CANDIDATE` | Batch A |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/quarantine/`, `src/application/freshness/` | `tests/recovery/corruption-quarantine.test.ts` | `NOT_IMPLEMENTED`; Sections 8-10 | `DESIGNED_CANDIDATE` | Batch A/E |
+| AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; owner-only init, writer exclusion/stale recovery, artifact/event durability, rotation, and hash-chain tests pass | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
+| AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/checkpoint-store.ts` | `tests/recovery/restart-replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | Same-request replay/conflict, event-before-projection rebuild, verified checkpoint, and invalid-checkpoint genesis fallback pass at code commit | `IMPLEMENTED_BATCH_A__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch A acceptance |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/writer-lock.ts` | `tests/recovery/corruption-quarantine.test.ts` | Incomplete active tail is content-addressed/preserved; midstream tamper creates durable quarantine and prevents reopen | `IMPLEMENTED_BATCH_A_STORE_CORE` | Advisor Batch A acceptance; stale UI/adapter overlays remain Batches B/E |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12, 16 | `DESIGNED_CANDIDATE` | Batch E; off-host/encryption gated |
 | AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/operations/`, `src/adapters/gateways/` | `tests/recovery/rollback-disable.test.ts` | `NOT_IMPLEMENTED`; Sections 13-14 | `DESIGNED_CANDIDATE` | Batch E; external transport remains canonical |
 | AO-OPS-006 Redacted health/observability | `src/server/health/`, `src/application/audit/` | `tests/security/observability-redaction.test.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |
