@@ -1,0 +1,29 @@
+{
+  "name": "agent-office",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent Office M01 local domain, event store, and deterministic projection core",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --maxWorkers=1",
+    "test:unit": "vitest run --maxWorkers=1 tests/domain tests/contract tests/snapshot",
+    "test:property": "vitest run --maxWorkers=1 tests/property",
+    "test:integration": "vitest run --maxWorkers=1 tests/persistence tests/recovery tests/acceptance",
+    "build": "tsc -p tsconfig.build.json",
+    "audit:dependencies": "npm audit --audit-level=high",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "eslint": "10.6.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.63.0",
+    "vitest": "4.1.10"
+  }
+}

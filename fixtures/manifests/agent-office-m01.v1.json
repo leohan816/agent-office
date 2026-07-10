@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "agent-office.mission-manifest.v1",
+  "manifestVersion": 1,
+  "missionId": "AGENT_OFFICE_M01_ADVISOR_MANAGED_OFFICE_WEB_CONTROL_PLANE",
+  "initiative": {
+    "id": "AGENT_OFFICE",
+    "labelKo": "AI 운영 오피스"
+  },
+  "package": {
+    "id": "AGENT_OFFICE_M01",
+    "labelKo": "Advisor 관리형 웹 컨트롤 플레인"
+  },
+  "approvedBy": "Leo/GPT",
+  "counting": {
+    "denominator": 15,
+    "basis": "Only the approved WorkUnits declared in this manifest.",
+    "scopeChangeRequires": ["oldTotal", "newTotal", "changedWorkUnits", "reason", "approvingAuthority"]
+  },
+  "workUnits": [
+    {"id":"AO-WU-01","phase":"ENTRY","actor":"Advisor","title":"Repo, session, reviewer, transport, and conflict inventory","status":"COMPLETED","dependsOn":[]},
+    {"id":"AO-WU-02","phase":"ONBOARDING","actor":"Advisor","title":"Register the existing Agent Office tmux session","status":"COMPLETED","dependsOn":["AO-WU-01"]},
+    {"id":"AO-WU-03","phase":"ONBOARDING","actor":"Agent Office Worker","title":"Bootstrap Git and repo-local role instructions","status":"COMPLETED","dependsOn":["AO-WU-02"]},
+    {"id":"AO-WU-04","phase":"DESIGN","actor":"Agent Office Worker","title":"Author canonical design candidate and contracts","status":"COMPLETED","dependsOn":["AO-WU-03"]},
+    {"id":"AO-WU-05","phase":"DESIGN_REVIEW","actor":"Fable5 Reviewer","title":"Independent Level 3 design review","status":"COMPLETED","dependsOn":["AO-WU-04"]},
+    {"id":"AO-WU-06","phase":"DESIGN_PATCH","actor":"Agent Office Worker + Fable5 Reviewer","title":"Resolve in-scope design findings and re-review","status":"REVIEWING","dependsOn":["AO-WU-05"]},
+    {"id":"AO-WU-07","phase":"IMPLEMENTATION_A","actor":"Agent Office Worker","title":"Domain contracts, manifest, state machine, and local projection","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-05"]},
+    {"id":"AO-WU-08","phase":"IMPLEMENTATION_B","actor":"Agent Office Worker","title":"Read-only tmux, Git, artifact adapters, and dashboard","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-07"]},
+    {"id":"AO-WU-09","phase":"IMPLEMENTATION_C","actor":"Agent Office Worker","title":"Structured event-driven animated office scene","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-08"]},
+    {"id":"AO-WU-10","phase":"IMPLEMENTATION_D","actor":"Agent Office Worker","title":"Advisor Inbox, alerts, GPT package, and acknowledgement","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-09"]},
+    {"id":"AO-WU-11","phase":"IMPLEMENTATION_E","actor":"Agent Office Worker","title":"Responsive PWA, security, recovery, and end-to-end tests","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-10"]},
+    {"id":"AO-WU-12","phase":"WORKER_RESULT","actor":"Agent Office Worker","title":"Publish evidence-bearing implementation result","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-11"]},
+    {"id":"AO-WU-13","phase":"IMPLEMENTATION_REVIEW","actor":"Fable5 Reviewer","title":"Independent Level 3 implementation review","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-12"]},
+    {"id":"AO-WU-14","phase":"PRIVATE_RUN_VERIFY","actor":"Advisor","title":"Verify private server, desktop/mobile UI, PWA, and evidence","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-13"]},
+    {"id":"AO-WU-15","phase":"FINAL_AUDIT","actor":"Advisor","title":"Final mission audit and Leo/GPT pointer","status":"WAITING_DEPENDENCY","dependsOn":["AO-WU-14"]}
+  ],
+  "futureUnapprovedWork": ["public exposure", "real production credentials", "Hermes implementation", "database-backed multi-user deployment"]
+}

@@ -23,3 +23,8 @@ temp/
 coverage/
 build/
 dist/
+node_modules/
+*.tsbuildinfo
+
+# Disposable local state roots created by developers or tests
+.agent-office-state/
