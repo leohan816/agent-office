@@ -36,6 +36,7 @@ export function DeskAsset({ className }: AssetProps) {
       <path className="asset-desk-top" d="M7 9h106v13H7z" />
       <path className="asset-desk-leg" d="M17 22h8v22h-8zM95 22h8v22h-8z" />
       <path className="asset-desk-tray" d="M74 3h31v6H74z" />
+      <path className="asset-desk-keyboard" d="M42 4h33l5 8H37l5-8Z" />
     </svg>
   );
 }

@@ -336,6 +336,7 @@ function cueEventIds(input: RoleSceneProjection, kind: SceneMotionCueKind): stri
 function cueSource(input: RoleSceneProjection, kind: SceneMotionCueKind): OfficeStationId {
   if (kind === 'DELIVERY') return 'advisor';
   if (kind === 'PATCH_RETURN') return 'fable5';
+  if (kind === 'WAITING_LEO') return 'advisor';
   return input.stationId;
 }
 

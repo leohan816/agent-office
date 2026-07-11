@@ -1185,10 +1185,16 @@ td > span {
 
 .asset-desk-top,
 .asset-desk-leg,
-.asset-desk-tray {
+.asset-desk-tray,
+.asset-desk-keyboard {
   fill: #263647;
   stroke: #6f8297;
   stroke-width: 1.5;
+}
+
+.asset-desk-keyboard {
+  fill: #0b121a;
+  stroke: var(--info);
 }
 
 .asset-document-sheet {
@@ -1368,6 +1374,39 @@ td > span {
   animation: scene-recovery-step 1000ms ease-out 1 both;
 }
 
+.scene-station[data-cue="DELIVERY"] .scene-document {
+  animation: scene-target-receive 700ms ease-out 1 both;
+}
+
+.scene-station[data-cue="READING"] .scene-document {
+  animation: scene-reading-document 900ms ease-in-out 1 both;
+}
+
+.scene-station[data-cue="WORKING"] .scene-actor {
+  animation: scene-typing-actor 300ms ease-in-out 3 both;
+}
+
+.scene-station[data-cue="WORKING"] .asset-desk-keyboard {
+  animation: scene-keyboard-input 300ms ease-in-out 3 both;
+}
+
+.scene-station[data-cue="TESTING"] .scene-document {
+  animation: scene-testing-document 1200ms ease-out 1 both;
+}
+
+.scene-station[data-cue="WRITING_RESULT"] .scene-document {
+  transform-origin: bottom;
+  animation: scene-writing-document 900ms ease-out 1 both;
+}
+
+.scene-station[data-cue="REVIEW"] .scene-document {
+  animation: scene-review-document 1000ms ease-in-out 1 both;
+}
+
+.scene-station[data-cue="RECOVERY"] .scene-tool {
+  animation: scene-recovery-tool 1000ms ease-out 1 both;
+}
+
 .scene-route-layer {
   position: absolute;
   z-index: 12;
@@ -1381,9 +1420,30 @@ td > span {
   top: 0;
   left: 0;
   display: block;
-  width: 32px;
-  height: 40px;
+  width: 72px;
+  height: 70px;
   filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.55));
+}
+
+.scene-route-actor,
+.scene-route-paper {
+  position: absolute;
+  display: block;
+}
+
+.scene-route-actor {
+  right: 0;
+  bottom: 0;
+  width: 58px;
+  height: 44px;
+}
+
+.scene-route-paper {
+  z-index: 2;
+  top: 8px;
+  left: 0;
+  width: 24px;
+  height: 30px;
 }
 
 .route-delivery {
@@ -1393,6 +1453,10 @@ td > span {
 .route-result_return,
 .route-patch_return {
   animation: scene-return-route 800ms ease-in-out 1 both;
+}
+
+.route-waiting_leo {
+  animation: scene-decision-route 900ms ease-in-out 1 both;
 }
 
 .scene-selected-detail {
@@ -1458,7 +1522,15 @@ td > span {
 }
 
 .scene-paused .scene-cue-anchor,
-.scene-paused .scene-route-document {
+.scene-paused .scene-route-document,
+.scene-paused .scene-station[data-cue="DELIVERY"] .scene-document,
+.scene-paused .scene-station[data-cue="READING"] .scene-document,
+.scene-paused .scene-station[data-cue="WORKING"] .scene-actor,
+.scene-paused .scene-station[data-cue="WORKING"] .asset-desk-keyboard,
+.scene-paused .scene-station[data-cue="TESTING"] .scene-document,
+.scene-paused .scene-station[data-cue="WRITING_RESULT"] .scene-document,
+.scene-paused .scene-station[data-cue="REVIEW"] .scene-document,
+.scene-paused .scene-station[data-cue="RECOVERY"] .scene-tool {
   animation-play-state: paused !important;
 }
 
@@ -1469,6 +1541,13 @@ td > span {
 
 .office-scene[data-motion="off"] .scene-route-layer {
   display: none;
+}
+
+.office-scene[data-motion="off"] .scene-station .scene-actor,
+.office-scene[data-motion="off"] .scene-station .scene-document,
+.office-scene[data-motion="off"] .scene-station .scene-tool,
+.office-scene[data-motion="off"] .scene-station .asset-desk-keyboard {
+  animation: none !important;
 }
 
 @keyframes scene-reading-sweep {
@@ -1514,6 +1593,48 @@ td > span {
   to { opacity: 1; transform: rotate(270deg); }
 }
 
+@keyframes scene-target-receive {
+  from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scene-reading-document {
+  0%, 100% { opacity: 0.72; transform: translateY(0) rotate(-2deg); }
+  50% { opacity: 1; transform: translateY(-5px) rotate(2deg); }
+}
+
+@keyframes scene-typing-actor {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(2px); }
+}
+
+@keyframes scene-keyboard-input {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@keyframes scene-testing-document {
+  0% { opacity: 0.45; transform: translateY(0) scale(0.94); }
+  40% { opacity: 1; transform: translateY(-4px) scale(1); }
+  75% { opacity: 0.7; transform: translateY(1px) scale(1); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes scene-writing-document {
+  from { opacity: 0.4; transform: scaleY(0.35); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+@keyframes scene-review-document {
+  0%, 100% { opacity: 0.7; transform: rotate(-2deg); }
+  50% { opacity: 1; transform: rotate(3deg); }
+}
+
+@keyframes scene-recovery-tool {
+  from { opacity: 0.45; transform: rotate(0deg); }
+  to { opacity: 1; transform: rotate(270deg); }
+}
+
 @keyframes scene-delivery-route {
   0% { opacity: 0; transform: translate(var(--route-from-x), var(--route-from-y)) scale(0.9); }
   14% { opacity: 1; transform: translate(var(--route-from-x), var(--route-from-y)) scale(1); }
@@ -1529,6 +1650,13 @@ td > span {
   100% { opacity: 0; transform: translate(var(--route-to-x), var(--route-to-y)) scale(0.88); }
 }
 
+@keyframes scene-decision-route {
+  0% { opacity: 0; transform: translate(var(--route-from-x), var(--route-from-y)) scale(0.9); }
+  18% { opacity: 1; transform: translate(var(--route-from-x), var(--route-from-y)) scale(1); }
+  82% { opacity: 1; transform: translate(var(--route-to-x), var(--route-to-y)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--route-to-x), var(--route-to-y)) scale(0.9); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .office-scene .scene-cue-anchor {
     display: none;
@@ -1537,6 +1665,13 @@ td > span {
 
   .office-scene .scene-route-layer {
     display: none;
+  }
+
+  .office-scene .scene-station .scene-actor,
+  .office-scene .scene-station .scene-document,
+  .office-scene .scene-station .scene-tool,
+  .office-scene .scene-station .asset-desk-keyboard {
+    animation: none !important;
   }
 }
 

@@ -102,6 +102,7 @@ test.describe('Batch C deterministic office scene', () => {
     await expect(waitingLeo).toHaveAttribute('data-state', 'WAITING_LEO');
     await expect(waitingLeo).toContainText('DECISION-AO-WU-09 -> LEO_OFFICE');
     await expect(waitingLeo.locator('.scene-state-shape')).toHaveCount(1);
+    await expect(page.locator('[data-station-id="leo"]')).toContainText('LEO_DECISION_DOCUMENT_RECEIVED');
     await expect(blocked).toHaveAttribute('data-state', 'BLOCKED');
     await expect(blocked).toContainText('VERIFIED_POINTER_REQUIRED');
     await expect(needsPatch).toHaveAttribute('data-state', 'NEEDS_PATCH');

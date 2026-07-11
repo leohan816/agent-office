@@ -46,9 +46,21 @@ describe('accessible structured-event office scene', () => {
     const { container } = render(<OfficeScene />);
     fireEvent.change(screen.getByLabelText('구조화 이벤트 장면'), { target: { value: 'safety' } });
     const blocked = container.querySelector('[data-station-id="foundation"]');
+    const leo = container.querySelector('[data-station-id="leo"]');
     expect(blocked?.getAttribute('data-state')).toBe('BLOCKED');
     expect(blocked?.textContent).toContain('MISSING_EVIDENCE / VERIFIED_POINTER_REQUIRED / ADVISOR');
+    expect(leo?.textContent).toContain('LEO_DECISION_DOCUMENT_RECEIVED');
+    expect(container.querySelector('.route-waiting_leo .scene-route-actor')).not.toBeNull();
+    expect(container.querySelector('.route-waiting_leo [data-kind="decision"]')).not.toBeNull();
     expect(screen.getByRole('alert').textContent).toContain('차단 또는 중요 경고');
+  });
+
+  it('uses a visible actor and one work document for the ordered delivery route', () => {
+    const { container } = render(<OfficeScene />);
+    fireEvent.change(screen.getByLabelText('구조화 이벤트 장면'), { target: { value: 'delivery' } });
+    expect(container.querySelectorAll('.route-delivery .scene-route-actor')).toHaveLength(1);
+    expect(container.querySelectorAll('.route-delivery [data-kind="work"]')).toHaveLength(1);
+    expect(container.querySelector('[data-station-id="agent-office"]')?.getAttribute('data-cue')).toBe('DELIVERY');
   });
 
   it('persists a non-sensitive motion preference and clears current cues without replay', () => {

@@ -68,6 +68,9 @@ export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) 
   ]);
   const currentFixture = useMemo(() => getSceneFixture(fixtureId), [fixtureId]);
   const selected = runtime.roles[selectedStation];
+  const leoDecisionWaiting = Object.values(runtime.roles).some(
+    (role) => role.stateName === 'WAITING_LEO' && role.decision?.destinationStationId === 'leo',
+  );
 
   useEffect(() => {
     try {
@@ -234,6 +237,7 @@ export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) 
               focused={focusedStation === station.id}
               selected={selectedStation === station.id}
               mobilePageVisible={page === mobilePage}
+              decisionDestination={station.id === 'leo' && leoDecisionWaiting}
               onSelect={focusStation}
               onKeyDown={handleStationKey}
               onCueEnd={acknowledgeCue}
@@ -277,6 +281,7 @@ function Station({
   focused,
   selected,
   mobilePageVisible,
+  decisionDestination,
   onSelect,
   onKeyDown,
   onCueEnd,
@@ -287,6 +292,7 @@ function Station({
   readonly focused: boolean;
   readonly selected: boolean;
   readonly mobilePageVisible: boolean;
+  readonly decisionDestination: boolean;
   readonly onSelect: (stationId: OfficeStationId) => void;
   readonly onKeyDown: (event: KeyboardEvent<HTMLButtonElement>, stationId: OfficeStationId) => void;
   readonly onCueEnd: (eventId: string) => void;
@@ -298,6 +304,7 @@ function Station({
       data-state={visual.stateName}
       data-freshness={visual.freshness}
       data-alert={visual.alertSeverity}
+      data-cue={cue?.kind ?? 'NONE'}
       data-station-id={station.id}
       role="listitem"
     >
@@ -325,8 +332,11 @@ function Station({
           <ActorAsset className="scene-actor" stateName={visual.stateName} />
           <DeskAsset className="scene-desk" />
           <ToolAsset className="scene-tool" />
-          {usesDocument(visual.stateName) ? (
-            <DocumentAsset className="scene-document" kind={documentKind(visual.stateName)} />
+          {usesDocument(visual.stateName) || decisionDestination ? (
+            <DocumentAsset
+              className="scene-document"
+              kind={decisionDestination ? 'decision' : documentKind(visual.stateName)}
+            />
           ) : null}
           {visual.stateName === 'BLOCKED' ? <BarrierAsset className="scene-barrier" /> : null}
           {visual.alertSeverity === 'CRITICAL' ? <WarningAsset className="scene-warning" /> : null}
@@ -345,7 +355,9 @@ function Station({
           <strong>{visual.stateLabelKo}</strong>
           <span className="mono">{visual.workUnitId ?? 'NO_WORKUNIT'}</span>
         </span>
-        <span className="station-detail mono">{visual.detail}</span>
+        <span className="station-detail mono">
+          {decisionDestination ? 'LEO_DECISION_DOCUMENT_RECEIVED' : visual.detail}
+        </span>
         {visual.lastAcceptedStateName === undefined ? null : (
           <span className="station-stale-detail">마지막 승인 상태: {visual.lastAcceptedStateName}</span>
         )}
@@ -370,7 +382,19 @@ function SceneRoutes({ cues, onCueEnd }: { readonly cues: readonly SceneMotionCu
               onCueEnd(cue.eventId);
             }}
           >
-            <DocumentAsset kind={cue.kind === 'RESULT_RETURN' ? 'result' : cue.kind === 'PATCH_RETURN' ? 'patch' : 'work'} />
+            <ActorAsset className="scene-route-actor" stateName={routeActorState(cue.kind)} />
+            <DocumentAsset
+              className="scene-route-paper"
+              kind={
+                cue.kind === 'RESULT_RETURN'
+                  ? 'result'
+                  : cue.kind === 'PATCH_RETURN'
+                    ? 'patch'
+                    : cue.kind === 'WAITING_LEO'
+                      ? 'decision'
+                      : 'work'
+              }
+            />
           </span>
         );
       })}
@@ -422,7 +446,7 @@ function StateIcon({ state }: { readonly state: SceneStateName }) {
 }
 
 function usesDocument(state: SceneStateName): boolean {
-  return ['DISPATCHING', 'READING', 'WRITING_RESULT', 'RETURNING_RESULT', 'REVIEWING', 'WAITING_LEO', 'NEEDS_PATCH'].includes(state);
+  return ['DISPATCHING', 'READING', 'TESTING', 'WRITING_RESULT', 'RETURNING_RESULT', 'REVIEWING', 'WAITING_LEO', 'NEEDS_PATCH'].includes(state);
 }
 
 function documentKind(state: SceneStateName): 'work' | 'result' | 'decision' | 'patch' {
@@ -440,7 +464,14 @@ function stateShape(state: SceneStateName): 'circle' | 'diamond' | 'square' | 'o
 }
 
 function isRouteCue(kind: SceneMotionCue['kind']): boolean {
-  return kind === 'DELIVERY' || kind === 'RESULT_RETURN' || kind === 'PATCH_RETURN';
+  return kind === 'DELIVERY' || kind === 'RESULT_RETURN' || kind === 'PATCH_RETURN' || kind === 'WAITING_LEO';
+}
+
+function routeActorState(kind: SceneMotionCue['kind']): SceneStateName {
+  if (kind === 'DELIVERY') return 'DISPATCHING';
+  if (kind === 'RESULT_RETURN') return 'RETURNING_RESULT';
+  if (kind === 'PATCH_RETURN') return 'NEEDS_PATCH';
+  return 'WAITING_LEO';
 }
 
 function routeStyle(sourceId: OfficeStationId, targetId: OfficeStationId): CSSProperties {
@@ -448,10 +479,10 @@ function routeStyle(sourceId: OfficeStationId, targetId: OfficeStationId): CSSPr
   const target = OFFICE_STATIONS.find((station) => station.id === targetId);
   if (source === undefined || target === undefined) return {};
   return {
-    '--route-from-x': `calc(${(source.column + 0.5) * 25}% - 16px)`,
-    '--route-from-y': `calc(${(source.row + 0.5) * 50}% - 20px)`,
-    '--route-to-x': `calc(${(target.column + 0.5) * 25}% - 16px)`,
-    '--route-to-y': `calc(${(target.row + 0.5) * 50}% - 20px)`,
+    '--route-from-x': `calc(${(source.column + 0.5) * 25}% - 36px)`,
+    '--route-from-y': `calc(${(source.row + 0.5) * 50}% - 35px)`,
+    '--route-to-x': `calc(${(target.column + 0.5) * 25}% - 36px)`,
+    '--route-to-y': `calc(${(target.row + 0.5) * 50}% - 35px)`,
   } as CSSProperties;
 }
 

@@ -1,6 +1,6 @@
 export const SCENE_ASSET_SOURCE = {
   path: 'src/ui/scene/assets/scene-assets.tsx',
-  sha256: '4033619cf7d0dfd7d20555fa0a424df299e2445ec0149d95594a2830b974a854',
+  sha256: 'abdeeae29cb351a7739684f7e059130e3e1c11cf02f42dd8f8caccb63db5de72',
   owner: 'Agent Office project-authored',
   license: 'Internal project asset; no third-party material',
 } as const;
