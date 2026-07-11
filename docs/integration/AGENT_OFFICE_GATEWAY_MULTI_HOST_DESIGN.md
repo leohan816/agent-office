@@ -1,6 +1,6 @@
 # Agent Office Gateway and Multi-Host Design
 
-Status: `FINAL_COMPOSITION_AND_AUTHORITY_REWORK_IMPLEMENTED__REMOTE_REAL_AUTH_AND_TRANSPORT_GATED__PENDING_DELTA_REVIEW`
+Status: `FINAL_REWORK_ROUND2_OPERATIONAL_INTEGRATION_IMPLEMENTED__REMOTE_REAL_AUTH_AND_TRANSPORT_GATED__PENDING_DELTA_REVIEW`
 
 This reviewed design defines typed integration ports, the M01 Advisor gateway,
 read-only observations, multi-project topology, and designed-but-gated remote host
@@ -33,6 +33,16 @@ adds the executable loopback composition, production HTTP projection/SSE browser
 client, and immutable decision-authority verification integration. It activates
 no external transport, credential, remote host, or provider; delta review and
 Advisor acceptance remain pending.
+
+Final rework round 2 commit `10fdee75dca73c4fb5cde09019c403d4dc1682bb`
+wires the previously isolated local ports into the executable. An explicit
+`agent-office.operational-runtime.v1` document registers projects, roots, Git,
+manifest, exact tmux panes, artifacts, actors, WorkUnits, freshness policies, and
+the optional Advisor transport capability. Startup requires one Git-VERIFIED
+external manifest. The coordinator performs bounded read-only refreshes and
+keeps project/host/mission/WorkUnit/evidence identities isolated. Production
+injects `TmuxAdvisorGateway`, not Hermes; a delivery port remains a trusted
+server-side injection. Real tmux input and real auth remain inactive.
 
 ## 1. Integration Principles
 
@@ -176,8 +186,10 @@ server-side session revocation. It does not call a gateway or mutation port.
 
 The final composition under `src/runtime/` binds these pieces into one executable
 local process. `npm run start:loopback` loads the exact loopback-only descriptor,
-requires an explicit absolute validated state root outside application/static
-roots, opens the approved manifest/event/artifact application, serves the built
+requires explicit absolute state and operational-config paths, validates the
+state root outside application/static/observed roots, imports one registered
+external manifest only after hash/commit/Git verification, opens the event and
+artifact application, serves the built
 production shell, and closes listeners before releasing the writer lock. The
 production `src/ui/runtime/client.ts` fetches public status, then protected
 projection/session context, and consumes SSE using cursor/reconnect/reset rules.
@@ -555,6 +567,25 @@ At `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`,
   routine, claimed-role, mission, scope, hash, missing, mutable, unreadable, and
   stale cases reject without a decision-link event or artifact.
 
+### Final rework round 2
+
+At `10fdee75dca73c4fb5cde09019c403d4dc1682bb`, composition passes
+10/10 and the new coordinator passes 16/16:
+
+- explicit external manifest startup succeeds only with exact verified authority;
+- missing/unverified/stale/hash-mismatched/out-of-scope authority fails startup;
+- all eight stations and all 15 WorkUnits have exact isolated registrations;
+- current/stale/offline/missing/identity-mismatch/dirty/unverified/restart and
+  partial actor failure remain structured and fail closed;
+- periodic semantic observation changes produce monotonic projection SSE without
+  appending a mission event;
+- production composes `TmuxAdvisorGateway` only; absent capability/port, kill,
+  and ambiguity become manual fallback;
+- the deterministic approved test port receives one canonical Advisor pointer,
+  never message text, and the full ack/intake/authority/resume lifecycle completes
+  without duplicate execution; and
+- no real tmux input, provider, credential, remote host, or network is used.
+
 ### Deferred multi-host tests
 
 Use synthetic keys and loopback fixtures only: enrollment, revoked/quarantined
@@ -566,13 +597,13 @@ gated.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/adapters/gateways/tmux-advisor/`, `src/adapters/gateways/advisor.ts` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Exact request/receipt/pointer schema, replay/conflict, time/vocabulary/kill/manual/ambiguous no-resend and no process/network import passed AO-D-R1 and were accepted as the Batch E dependency | `IMPLEMENTED_BATCH_D__ADVISOR_ACCEPTED` | Real approved transport capability remains external and unused |
-| AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/` | `tests/adapters/hermes-disabled.test.ts`, `tests/acceptance/batch-gates.test.ts` | Accepted disabled stub remains byte/behavior compatible; Batch E adds no endpoint/credential/network/process/write/cache or activation path | `IMPLEMENTED_BATCH_D_DISABLED_STUB__ADVISOR_ACCEPTED` | Separate Leo/GPT Hermes mission |
-| AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/adapters/observations/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Fixed argv, no-shell/no-write, hostile input, cap/timeout, bounded file, exact structured tmux, and real read-only smoke were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | None for the local Batch B subset |
-| AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts` | `tests/integration/project-freshness.test.ts` | Stable ID lookup, path-free summary, wrong-project denial, and cross-project overlap rejection were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | Browser registry mutation remains absent |
+| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/runtime/composition.ts`, `src/runtime/composition-core.ts`, `src/adapters/gateways/tmux-advisor/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts` | Executable selects the injected typed gateway; only valid capability plus delivery port is READY; one fixed pointer/lifecycle and absent/kill/ambiguous manual cases pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Real approved capability and delivery port remain external and unused |
+| AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/`, `src/runtime/composition.ts` | `tests/adapters/hermes-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Disabled stub remains contract-compatible but is not imported or instantiated by either production or synthetic M01 composition | `IMPLEMENTED_DISABLED_STUB_NOT_COMPOSED__PENDING_DELTA_REVIEW` | Separate Leo/GPT Hermes mission |
+| AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/adapters/observations/` | `tests/integration/observation-coordinator.test.ts`, `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Existing bounded ports are operationally composed from exact config; external manifest, refresh, stale/offline/error/conflict, restart, partial failure, and no-mutation cases pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Remote adapters remain gated |
+| AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts`, `src/runtime/observation-coordinator.ts` | `tests/integration/project-freshness.test.ts`, `tests/integration/observation-coordinator.test.ts` | Cross-project roots remain disjoint and runtime additionally validates project/host/source/station/WorkUnit/artifact correspondence with exact complete assignments | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Browser registry mutation and remote enrollment remain absent |
 | AO-INT-005 Linux/Mac multi-host trust and observation envelope | `src/adapters/hosts/` | `tests/contract/host-observation.test.ts` | `NOT_IMPLEMENTED`; Sections 7-9 | `DEFERRED_WITH_GATE` | Private-network, key, remote-host mission |
-| AO-INT-006 Offline/reconnect/gap/stale evidence | `src/application/hosts/freshness.ts`, `src/ui/scene/state-machine.ts` | `tests/integration/project-freshness.test.ts`, `tests/ui/activity-mapping.test.ts` | Batch B/C local freshness/presentation is Advisor-accepted; remote envelope/gap/reconnect remains absent | `IMPLEMENTED_BATCH_C_LOCAL_PRESENTATION_SUBSET__ADVISOR_ACCEPTED` | Remote behavior remains gated |
+| AO-INT-006 Offline/reconnect/gap/stale evidence | `src/runtime/observation-coordinator.ts`, `src/application/hosts/freshness.ts`, `src/runtime/composition-core.ts`, `src/ui/scene/state-machine.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/project-freshness.test.ts` | Bounded periodic local refresh uses existing policies; semantic changes publish SSE and active activity requires accepted events plus CURRENT sources; stale/offline/restart/partial failure pass | `IMPLEMENTED_FINAL_REWORK_ROUND2_LOCAL_SUBSET__PENDING_DELTA_REVIEW` | Remote envelope/gap/reconnect remains gated |
 | AO-INT-007 Canonical AlertKind notification, deterministic deduplication, manual fallback, and decision authority port | `src/application/alerts/`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/application.ts`, `src/ui/communication/` | `tests/integration/alert-application.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/security/http-boundary.test.ts` | Accepted alert/manual behavior remains; decision linkage now requires exact immutable registered authority correspondence and preserves the named role separately from the Advisor link actor; the unapproved Advisor routine variant fails closed | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real gateway delivery/re-enable and bounded Advisor routine authority remain externally gated |
-| AO-INT-008 Executable closed HTTP persistence, projection, and read-only SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/application.ts`, `src/server/http/`, `src/server/sse/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/http-advisor-message.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/security/http-boundary.test.ts`, `scripts/runtime-smoke.mjs` | Exact production composition/client now connects shell -> status -> protected projection -> SSE -> application; no-provider remains fail-closed, guarded synthetic proof demonstrates one idempotent message, and smoke proves listener/lock cleanup. Full rework gate passes 52/205 and 18/18 | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth provider/AO-WU-14 decision and remote/multi-host fanout remain gated |
+| AO-INT-008 Executable closed HTTP persistence, projection, and read-only SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/application.ts`, `src/server/http/`, `src/server/sse/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `scripts/runtime-smoke.mjs` | Shell -> status -> protected operational projection -> observation/event SSE -> application is composed; no-provider stays fail-closed, synthetic path proves full Advisor lifecycle and scene, and explicit smoke proves no fixture fallback/cleanup. Gate passes 53/228 and 21/21 | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth/AO-WU-14 and remote fanout remain gated |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

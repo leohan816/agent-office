@@ -1,6 +1,6 @@
 # Agent Office UI and Animation Mapping
 
-Status: `FINAL_PRODUCTION_RUNTIME_CLIENT_REWORK_IMPLEMENTED__REAL_AUTH_OPERATION_GATED__PENDING_DELTA_REVIEW`
+Status: `FINAL_REWORK_ROUND2_APPLICATION_SCENE_IMPLEMENTED__REAL_AUTH_OPERATION_GATED__PENDING_DELTA_REVIEW`
 
 This reviewed design defines the responsive, private PWA surface and the only
 allowed mapping from structured events to visual activity. Batch B implements the
@@ -22,6 +22,16 @@ dependency. Batch E PWA/runtime-strip code/tests/assets are implemented at
 entry with the typed status/projection/SSE client and keeps synthetic fixtures
 behind explicit `test-demo` mode. Real authenticated operation remains gated
 because no real provider/credential is approved.
+
+Final rework round 2 commit `10fdee75dca73c4fb5cde09019c403d4dc1682bb`
+adds `sceneRoles` and durable alert views to the authenticated application
+projection. `ProductionRuntimeApp` now renders the controlled eight-station scene
+instead of disabling it. Fixture selection is absent in this path; animation
+requires accepted structured event IDs plus CURRENT/CONNECTED evidence, while
+unknown/stale/offline/conflict suppresses cues. Three new composed application
+baselines cover desktop, mobile, and reduced motion. They were directly inspected
+under the configured local browser/font runtime. Real authenticated private-run
+visual evidence remains gated.
 
 ## 1. Experience Principles
 
@@ -144,6 +154,27 @@ indicator. It never shows a generic command box.
 - A guarded synthetic composition test exercises this same client against the
   real HTTP/application/store/SSE path; this is test evidence only, not a claim of
   an approved real provider or private authenticated run.
+
+### 2.5 Round-2 authenticated application projection
+
+- `src/runtime/projection.ts` supplies evidence-correct dashboard observations,
+  redacted durable alerts, and exactly eight typed `RoleSceneProjection` records.
+- `src/ui/runtime/runtime-app.tsx` requires dashboard, communication, and scene
+  records together before rendering the authenticated control plane.
+- `OfficeScene` accepts controlled roles, hides fixture selection, suppresses
+  initial/reload replay, and keeps local motion preference, pagination, keyboard,
+  semantic list/live regions, and reduced-motion behavior unchanged.
+- Static verified manifest state may show a non-moving pose, but active
+  reading/working/testing/review/result animation additionally requires accepted
+  activity event IDs and current actor sources. Manifest membership alone cannot
+  create live motion.
+- Alerts retain type/state/count/question/options/recommendation/safe default/
+  evidence/action display from hash-verified detail artifacts. Resolved and
+  suppressed records remain visible but are excluded from open-alert identity.
+- `tests/e2e-composed/application-office-scene.spec.ts` verifies the actual built
+  production entry behind explicit synthetic test auth at 1440x900 and 390x844,
+  reduced motion, containment, eight/two visible stations, no fixture selector,
+  no unverified cue, and WCAG A/AA.
 
 ## 3. Hierarchy and Mission Views
 
@@ -695,17 +726,26 @@ SSE/idempotent message path, expiry/revocation, explicit demo mode, and cleanup.
 The new production fail-closed page was directly inspected at desktop, mobile,
 and reduced motion; it reflows without clipping and caused no snapshot update.
 
+Final rework round 2 expands the complete regression to 53 Vitest files/228
+tests and 21/21 Chromium tests. The existing 18 explicit demo tests and original
+three scene baselines remain unchanged. Three additional composed-path baselines
+capture the authenticated production entry at desktop/mobile/reduced motion;
+all were directly inspected as nonblank, contained, stable, evidence-honest, and
+free of unverified activity motion. The focused composition suite is 10/10 and
+the controlled-scene component case verifies no fixture selector and stale-state
+cue suppression.
+
 ## 16. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/`, `src/ui/runtime/`, `src/ui/pwa/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/dashboard.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/communication-center.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Accepted dashboard/scene/communication remain; production now uses the application runtime client and an exact responsive fail-closed page, while fixtures require explicit demo mode; desktop/mobile/reduced output is directly inspected and 18/18 browser tests pass unchanged | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated data/provider and AO-WU-14 posture remain gated |
-| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts` | Exact Batch C scene mapping is Advisor-accepted and all visual baselines remain unchanged in Batch D | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene mapping |
-| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/communication-center.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Runtime strip uses semantic status/details/buttons; 44px, keyboard, reduced-motion, WCAG A/AA, offline warning, 320/200%-text and landscape gates pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Future live-auth focus transitions require real-provider review |
-| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `public/icons/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/e2e/office-scene.spec.ts` | Accepted scene/local-font runtime remains; Batch E adds two licensed project-authored local PWA SVGs and intentionally updates exactly three inspected baselines for the visible status strip | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Cross-host/browser/font portability remains an operations prerequisite |
-| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/`, `src/ui/runtime/client.ts`, `src/server/application.ts`, `src/server/http/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/integration/http-advisor-message.test.ts`, `tests/e2e/communication-center.spec.ts` | Production client supplies the existing action port only with protected `leo_input` plus CSRF context; guarded synthetic composition proves one PERSISTED/replayed message and SSE update, while production no-provider UI remains read-only | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation requires separate provider/AO-WU-14 authority |
-| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/alerts/`, `src/ui/communication/`, `src/ui/scene/`, `src/ui/pwa/`, `src/operations/` | `tests/integration/alert-application.test.ts`, `tests/recovery/recovery-result.test.ts`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted alert UI remains; PWA runtime exposes read-only/offline/manual/recovery controls while backup/restore success remains evidence artifacts, not a UI toast | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Rich live recovery projection awaits approved real binding |
-| AO-UI-007 PWA install/offline/update and runtime selection | `src/pwa/`, `src/ui/pwa/`, `src/ui/runtime/`, `src/ui/demo-entry.tsx`, `vite.config.ts`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e/pwa-cache-security.spec.ts` | Existing PWA gates pass; production build resolves only the runtime client, explicit `test-demo` resolves fixtures, and smoke verifies the production asset excludes the synthetic critical fixture | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation remains gated |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/`, `src/ui/runtime/`, `src/ui/pwa/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/dashboard.component.test.tsx`, `tests/e2e/`, `tests/e2e-composed/application-office-scene.spec.ts` | Production now renders evidence-backed dashboard, alerts, and controlled office scene; no-provider remains fail-closed, while 18 demo plus 3 composed browser tests and direct inspection pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated data/provider and AO-WU-14 posture remain gated |
+| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts`, `src/ui/scene/` | `tests/integration/observation-coordinator.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Existing exact mapping now receives operational roles; active animation requires accepted event IDs plus CURRENT/CONNECTED evidence, while manifest-only, stale, unknown, offline, conflict, and critical states suppress cues | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote activity sources remain gated |
+| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Existing accessibility remains; authenticated composed desktop/mobile/reduced-motion scene has no WCAG A/AA violations, no overflow, and no unverified cues | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real-provider focus transitions require private-run review |
+| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `public/icons/`, `playwright.config.ts`, `playwright.composed.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Existing assets remain; three new composed-path baselines under the same local browser/font runtime were added and directly inspected without asset changes | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Cross-host/browser/font portability remains an operations prerequisite |
+| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/`, `src/ui/runtime/client.ts`, `src/runtime/composition-core.ts`, `src/server/http/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/integration/http-advisor-message.test.ts` | Protected client still returns PERSISTED; composed approved test path separately proves one pointer delivery/receipt, acknowledgement, intake, verified decision, resume, and duplicate non-execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation and delivery require separate authority |
+| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/alerts/`, `src/runtime/projection.ts`, `src/ui/communication/`, `src/ui/scene/` | `tests/integration/alert-application.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Hash-verified durable alert details and lifecycle now reach application Alerts; observation reason banners and scene connection/freshness remain explicit, redacted, and motion-suppressing | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real live alert/recovery authority remains gated |
+| AO-UI-007 PWA install/offline/update and runtime selection | `src/pwa/`, `src/ui/pwa/`, `src/ui/runtime/`, `src/ui/demo-entry.tsx`, `vite.config.ts`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Production build resolves runtime client and composed operational scene; explicit test-demo alone resolves fixtures; PWA/cache gates and explicit no-fallback smoke pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation remains gated |
 | AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted domain labels remain exact; Batch E security/PWA state codes are deliberately visible stable operational codes with no silent authority translation | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Product localization of new security codes requires a reviewed vocabulary change |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

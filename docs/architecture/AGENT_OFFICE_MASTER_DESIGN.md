@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `FINAL_REWORK_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_ADVISOR_VERIFICATION_AND_LEO_GPT_DECISION`
+Status: `FINAL_REWORK_ROUND2_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_ADVISOR_VERIFICATION_AND_LEO_GPT_DECISION`
 
 Canonical owner: Agent Office repository
 
@@ -114,10 +114,28 @@ variant remains rejected. The 52-file/205-test Vitest gate, 18 Chromium tests,
 gates, exact cleanup smoke, and direct desktop/mobile/reduced-motion inspection
 pass. Same-Reviewer delta review and Advisor/Leo gates remain pending.
 
-The byte-exact approved governance manifest remains version 1 with denominator
-15. Its imported facts record AO-WU-01 through AO-WU-05 as `COMPLETED`, AO-WU-06
-as `REVIEWING`, and later WorkUnits as `WAITING_DEPENDENCY`. The Batch A projector
-preserves those facts without terminal-text inference.
+Final rework round 2 code/config/test commit
+`10fdee75dca73c4fb5cde09019c403d4dc1682bb` closes AO-E-R3 R3.1-R3.8. The
+production CLI now requires an explicit owner-controlled
+`agent-office.operational-runtime.v1` configuration and has no manifest fixture
+fallback. The composition imports one Git-verified registered external manifest,
+then composes isolated read-only manifest, Git, exact-pane tmux, and artifact
+sources through `RuntimeObservationCoordinator`. Projection refresh is bounded,
+periodic, and SSE-visible; unavailable, stale, offline, dirty, unverified, or
+identity-mismatched sources never become fabricated live activity. Durable alert
+details now project into the communication center, and authenticated application
+projection renders the eight-station office scene. The composition injects
+`TmuxAdvisorGateway`; it never instantiates Hermes. Missing capability or delivery
+port, an engaged kill switch, or an ambiguous receipt remains explicit manual
+fallback. A guarded composed test port proves fixed Advisor-only pointer delivery,
+receipt, acknowledgement, intake, verified authority linkage, resume evidence,
+and duplicate-request non-execution without activating real tmux or real auth.
+
+The external canonical governance manifest remains version 1 with denominator
+15. At the round-2 handoff it records AO-WU-01 through AO-WU-12 as `COMPLETED`,
+AO-WU-13 as `NEEDS_PATCH`, and AO-WU-14/AO-WU-15 as
+`WAITING_DEPENDENCY`. The older repository manifest copy remains an explicit
+test/demo fixture only and is not a production authority fallback.
 
 ## 3. Non-Goals and Fixed Prohibitions
 
@@ -566,7 +584,33 @@ separate gate.
   reduced-motion inspection. No visual baseline changed.
 - Exit state:
   `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`;
-  AO-WU-14 remains `NEEDS_LEO_GPT_DECISION`.
+  AO-WU-14 remains `WAITING_DEPENDENCY`, and its auth-posture decision remains
+  unresolved for Leo/GPT.
+
+### 11.8 Final rework round 2 AO-E-R3 as-built evidence
+
+- Code/config/tests: `10fdee75dca73c4fb5cde09019c403d4dc1682bb`.
+- Authority and observations: `src/runtime/operational-config.ts` and
+  `src/runtime/observation-coordinator.ts` require an explicit versioned config,
+  verified external manifest authority, exact project/root/source/host/station
+  registrations, bounded read-only tools, immutable evidence, and deterministic
+  refresh/restart/partial-failure behavior.
+- Projection and UI: `src/runtime/projection.ts` consumes evidence-correct
+  WorkUnit freshness, durable alert detail artifacts, and typed scene roles;
+  `src/ui/runtime/runtime-app.tsx` renders the controlled application scene. New
+  composed desktop/mobile/reduced-motion baselines were directly inspected.
+- Advisor loop: production selects an injected `TmuxAdvisorGateway`. The approved
+  deterministic test port proves one fixed pointer and complete durable lifecycle;
+  absent/kill/ambiguous cases remain manual fallback, and Hermes is not composed.
+- Verification: 53 Vitest files/228 tests, 21 Playwright tests (18 explicit demo
+  plus 3 authenticated composed-path tests), 10/10 composition, 16/16 observation
+  coordinator, lint, typecheck, both builds, zero-vulnerability audit, explicit
+  manifest/no-fallback smoke, boundary scans, and direct image inspection pass.
+- Exit state:
+  `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`.
+  Real provider/credential, real tmux delivery port/capability activation,
+  private/public networking, deployment/live operation, remote hosts, DB, Hermes,
+  and final approval remain closed or separately gated.
 
 ## 12. Unknowns, Limitations, and Deferred Extensions
 
@@ -579,7 +623,7 @@ separate gate.
 | Tailscale/private network | Designed disabled; identity/TLS/trust requirements reserved | `DEFERRED_WITH_GATE` | Leo/GPT private-network approval and threat review |
 | Remote Linux collectors | Signed structured observation interface only | `DEFERRED_WITH_GATE` | Multi-host implementation mission and key-provisioning approval |
 | Future Mac hosts | Same observation contract with platform adapter | `DEFERRED_WITH_GATE` | Mac implementation/test host approval |
-| Hermes gateway | Interface-compatible disabled stub; no endpoint/credential/network/process/write | `IMPLEMENTED_DISABLED_STUB__DEFERRED_WITH_GATE` | Separate Leo/GPT Hermes mission |
+| Hermes gateway | Interface-compatible disabled stub exists but is not instantiated by the M01 executable composition; no endpoint/credential/network/process/write | `IMPLEMENTED_DISABLED_STUB__DEFERRED_WITH_GATE` | Separate Leo/GPT Hermes mission |
 | Database/multi-user service | No design selection beyond replaceable ports | `OUT_OF_SCOPE` | New mission, data/security/operations design |
 | Public exposure | Explicitly unsupported | `OUT_OF_SCOPE` | New Leo/GPT mission; not a deployment toggle |
 
@@ -604,9 +648,10 @@ separate gate.
 |---|---|---|---|---|---|
 | AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 15-unit fixture/hash remains accepted; Batch B declared scope/future-work rendering was accepted as the Batch C dependency | `IMPLEMENTED_THROUGH_BATCH_B__ADVISOR_ACCEPTED` | Any scope change still requires exact authority |
 | AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts`, `src/operations/` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted ledger/replay remains; Batch E adds complete checkpoint/hash manifest and replay-equivalent disjoint restore without active-root overwrite | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
-| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/`, `src/pwa/`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e/pwa-cache-security.spec.ts` | Rework commit `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1` supplies the executable loopback composition and production projection/SSE client; no-provider startup is proven `AUTH_BLOCKED`/mutation-disabled with listener and lock cleanup, while guarded synthetic auth proves the same client/application message path | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth/private network/deployment and AO-WU-14 posture remain gated |
-| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`, `src/adapters/gateways/`, `src/server/application.ts` | `tests/adapters/tmux-readonly.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/security/http-boundary.test.ts` | Batch D is accepted; Batch E binds only typed Advisor application ports and preserves no browser Worker/Reviewer/terminal route; Hermes remains disabled | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real capability activation external; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/decision-authority-evidence.test.ts` | Batches A-D dependencies are accepted; final dual review returned `NEEDS_PATCH`; exact rework passes 52/205 Vitest, 18/18 Chromium, 4/4 composition, 5/5 authority, and all named non-browser gates | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Same Reviewer delta review -> Advisor verification -> AO-WU-14/final Leo/GPT authority |
+| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/`, `src/pwa/`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Round-2 commit `10fdee75dca73c4fb5cde09019c403d4dc1682bb` composes the verified operational projection, observation-change SSE revisions, durable alerts, and authenticated office scene; no-provider startup remains `AUTH_BLOCKED`, while guarded synthetic auth proves the same application path | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth/private network/deployment and AO-WU-14 posture remain gated |
+| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/runtime/observation-coordinator.ts`, `src/adapters/observations/`, `src/adapters/gateways/`, `src/server/application.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Exact isolated manifest/Git/tmux/artifact sources are operationally composed; production injects TmuxAdvisorGateway, never Hermes, and the composed lifecycle/kill/manual/ambiguous tests pass without real input | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real capability plus delivery-port activation remains external; Hermes separately gated |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `playwright.composed.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/decision-authority-evidence.test.ts` | Batches A-D are accepted; AO-E-R3 round 2 passes 53/228 Vitest, 21/21 Chromium, 10/10 composition, 16/16 coordinator, 5/5 authority, and all named non-browser gates | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Same Reviewer delta review -> Advisor verification -> AO-WU-14/final Leo/GPT authority |
+| AO-ARCH-006 Explicit external manifest and evidence-correct operational projection | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Owner/no-follow config plus Git-verified external source starts; missing/unverified/stale/hash/path failures reject; current/stale/offline/missing/identity/dirty/unverified/restart/partial-failure projections pass with no fixture fallback | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Operator must supply the exact local config; remote collector and real authority sources remain gated |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

@@ -1,6 +1,6 @@
 # Agent Office Operations and Recovery Design
 
-Status: `FINAL_EXECUTABLE_RUNTIME_REWORK_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `FINAL_REWORK_ROUND2_OPERATIONAL_RUNTIME_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
@@ -31,6 +31,12 @@ retention, and live transport operation remain unimplemented and gated.
 Final rework commit `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`
 adds the executable local composition and directly verified listener/writer-lock
 cleanup without touching a real root, credential, deployment, or transport.
+Final rework round 2 commit `10fdee75dca73c4fb5cde09019c403d4dc1682bb`
+adds fail-closed operational authority import, periodic read-only observation
+refresh, restart/partial-failure isolation, observation-driven SSE revision,
+durable alert/scene projection, and injected Advisor gateway recovery. Every test
+uses explicit synthetic or disposable inputs. Real-root supervision, provider,
+delivery activation, tmux input, and deployment remain gated.
 
 ## 1. Operating Model
 
@@ -150,19 +156,22 @@ All recovery tests use disposable owner-only roots. No active/real root,
 off-host/cloud target, encryption key, schedule, retention action, deployment,
 Git rollback, process termination, or real transport state is touched.
 
-### 1.6 Final executable-runtime as-built boundary
+### 1.6 Final executable-runtime round-2 as-built boundary
 
-- `npm run start:loopback -- --state-root <absolute-path>` invokes compiled
-  `src/runtime/cli.ts`; no implicit writable root is accepted.
+- `npm run start:loopback -- --state-root <absolute-path> --runtime-config
+  <absolute-path>` invokes compiled `src/runtime/cli.ts`; neither writable state
+  nor manifest/observation authority has an implicit fallback.
 - The CLI loads an absolute owner-owned no-follow bounded UTF-8 JSON deployment
-  descriptor, and composition validates the application/static directories,
-  disjoint state root, approved manifest/source files, loopback binds, and exact
-  Host allowlist before serving.
+  descriptor plus an owner-owned no-follow bounded versioned operational config.
+  Composition validates application/static/observed directories, disjoint state
+  root, exact loopback binds/Host allowlist, and a Git-VERIFIED registered external
+  manifest before opening the writer.
 - `src/runtime/composition-core.ts` opens one event-store writer, artifact store,
-  security audit, default-off delivery control, disabled Hermes gateway, inbox,
-  alerts, application projection, SSE broker, and built static shell in one
-  process. The production wrapper injects no session provider and a rejecting
-  authority verifier.
+  security audit, default-off delivery control, injected `TmuxAdvisorGateway`,
+  inbox, alerts, observation coordinator, application/scene projection, SSE
+  broker, and built static shell in one process. It does not instantiate Hermes.
+  The production wrapper injects no session provider, real delivery port, or
+  decision-authority registration.
 - Startup therefore reports `AUTH_BLOCKED`, `UNAVAILABLE_READ_ONLY`, and mutation
   `DISABLED`; only shell/liveness/readiness/status are unauthenticated. Protected
   projection, SSE, messages, lifecycle, alerts, and delivery control fail closed.
@@ -171,8 +180,10 @@ Git rollback, process termination, or real transport state is touched.
   same order.
 - `scripts/runtime-smoke.mjs` uses a disposable initialized root and ephemeral
   loopback port, serves the production build, verifies no synthetic fixture in
-  its asset, requires exact auth/projection denial, closes the composition, then
-  requires same-port rebind and absent writer lock.
+  its asset, supplies explicit trusted test manifest inputs, proves no CLI fixture
+  fallback and manual delivery without provider, requires exact auth/projection
+  denial, closes the composition, then requires same-port rebind and absent writer
+  lock.
 
 ## 2. Durability Objectives
 
@@ -581,6 +592,15 @@ The disposable production smoke returns shell/asset/status 200,
 `writerLockReleased=true`. Desktop, mobile, and reduced-motion production views
 were inspected directly; no committed PNG changed.
 
+Final rework round 2 passes 53 Vitest files/228 tests, 21/21 sequential
+Playwright tests, 10/10 composition, and 16/16 observation coordinator cases.
+The smoke additionally reports an explicit manifest source ID,
+`noFixtureFallback=true`, `MANUAL_FALLBACK_REQUIRED`, auth denial, listener
+rebind, and writer-lock release. Three composed application-projection baselines
+were added and directly inspected at desktop/mobile/reduced motion for nonblank
+rendering, containment, stable stations, honest unknown state, and absent
+unverified motion.
+
 All tests use disposable local fixtures and synthetic canary data. No real secret,
 DB, production/live system, remote host, protected branch, or public service is
 accessed.
@@ -590,10 +610,10 @@ accessed.
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/`, `src/operations/backup/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted append protocol remains; backup refuses a live writer and captures only a complete exact checkpoint with modes/hashes/source metadata | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
-| AO-OPS-002 Restart/idempotent recovery | `src/runtime/`, `src/application/startup/recovery.ts`, `src/persistence/file-store/`, `src/operations/restore/` | `tests/integration/runtime-composition.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/http-advisor-message.test.ts`, `tests/recovery/backup-restore.test.ts`, `scripts/runtime-smoke.mjs` | Existing replay/restore remains; executable composition now proves one idempotent client message, session cleanup, listener close/rebind, writer-lock release, and restart on the same disposable root/port while the production no-provider path stays `AUTH_BLOCKED` | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real-root supervision, provider, explicit restore selection/re-enable remain gated |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/advisor-inbox/`, `src/application/hosts/freshness.ts`, `src/operations/readiness/` | `tests/recovery/corruption-quarantine.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/operations/readiness.test.ts` | Accepted corruption/manual fallback remains; config/lock/store/replay/auth/stale/SSE failure modes now project mutation-disabled readiness | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Remote collectors/real service supervision remain gated |
+| AO-OPS-002 Restart/idempotent recovery | `src/runtime/`, `src/application/startup/recovery.ts`, `src/persistence/file-store/`, `src/operations/restore/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/recovery/restart-replay.test.ts`, `scripts/runtime-smoke.mjs` | Existing replay remains; round 2 proves fresh coordinator restart, source re-read, outbox reconciliation, duplicate message non-execution, listener/lock cleanup, and no-provider AUTH_BLOCKED/manual fallback | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real-root supervision/provider/restore selection remain gated |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/runtime/observation-coordinator.ts`, `src/application/hosts/freshness.ts`, `src/operations/readiness/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Config/manifest failures block startup; later missing/timeout/identity/dirty/unverified/partial failures project UNKNOWN/ERROR/CONFLICT/STALE/OFFLINE, never cached fabricated CURRENT | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote collectors/service supervision remain gated |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | Complete marker, schema/path/mode/hash/build/tamper checks, disjoint candidate, replay/projection/idempotency equality, and explicit non-selection pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/encryption/schedule/retention/real-root operation gated |
-| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/operations/compatibility/`, `src/operations/readiness/delivery-control.ts` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/recovery/rollback-disable.test.ts` | Accepted external kill/manual behavior plus build compatibility/no-downgrade and default-off durable local disable/replay/conflict pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Deployment/Git rollback and real transport re-enable remain external |
-| AO-OPS-006 Redacted health/observability and recovery proof | `src/runtime/`, `src/application/audit/`, `src/server/security/audit.ts`, `src/server/application.ts`, `src/operations/evidence/` | `tests/integration/runtime-composition.test.ts`, `tests/security/audit-log.test.ts`, `tests/security/http-boundary.test.ts`, `tests/recovery/recovery-result.test.ts`, `scripts/runtime-smoke.mjs` | Redacted status/security audit and immutable recovery result remain; executable smoke publishes only exact non-secret readiness codes and proves cleanup without exposing state paths, bodies, credentials, or terminal data | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth lifecycle audit, metrics, retention, Advisor review remain gated/pending |
+| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/application/advisor-inbox/`, `src/operations/readiness/delivery-control.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/rollback-disable.test.ts` | Production gateway needs capability plus port; absent authority, engaged kill, and ambiguous receipt stay manual with no delivery-port call or duplicate execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real transport re-enable/activation remains external |
+| AO-OPS-006 Redacted health/observability and recovery proof | `src/runtime/`, `src/application/audit/`, `src/server/security/audit.ts`, `src/server/application.ts`, `src/operations/evidence/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/security/audit-log.test.ts`, `scripts/runtime-smoke.mjs` | Redacted status plus path-free source IDs/presentations and semantic SSE revisions expose operational health without absolute roots, bodies, credentials, terminal data, or invented activity; explicit smoke proves cleanup | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth lifecycle audit, metrics, retention, Advisor review remain gated |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

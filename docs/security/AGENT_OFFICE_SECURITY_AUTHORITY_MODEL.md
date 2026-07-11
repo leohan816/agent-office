@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `FINAL_FAIL_CLOSED_COMPOSITION_AND_AUTHORITY_REWORK_IMPLEMENTED__REAL_AUTH_PRIVATE_NETWORK_GATED__PENDING_DELTA_REVIEW`
+Status: `FINAL_REWORK_ROUND2_FAIL_CLOSED_OPERATIONAL_COMPOSITION_IMPLEMENTED__REAL_AUTH_PRIVATE_NETWORK_GATED__PENDING_DELTA_REVIEW`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -22,6 +22,14 @@ private exposure, or live deployment.
 AO-D-R1 rework commit `04809004bfd863181f4af8260879f56bc8b6ede6`
 adds strict runtime capability vocabulary, clock, and temporal validation without
 adding any authority or transport surface.
+
+Final rework round 2 commit `10fdee75dca73c4fb5cde09019c403d4dc1682bb`
+removes the production fixture/disabled-Hermes wiring. Owner-controlled explicit
+configuration registers every read-only authority source and station. Startup
+requires exact external manifest hash/commit/path plus clean Git verification;
+later source failure degrades presentation rather than reusing fabricated live
+state. Production injects the reviewed TmuxAdvisorGateway boundary but no real
+port/provider/capability. The guarded test port is synthetic and loopback-only.
 
 Advisor accepted Batch D as the Batch E dependency. Batch E commit
 `e0a11f69fffc9d35d67cc478cbefbb92d93cf528` implements only the loopback,
@@ -91,9 +99,17 @@ Availability never outranks actor separation or evidence integrity.
   config selects no provider and mutation-disabled read-only mode.
 - `src/runtime/composition.ts` is the only production executable composition:
   it supplies no `BrowserSessionRegistry`, selects no authentication bootstrap,
-  and uses a rejecting decision-authority verifier until exact trusted authority
-  registrations are approved. `src/runtime/test-composition.ts` alone constructs
-  the doubly guarded synthetic provider and exposes no HTTP proof exchange.
+  uses a rejecting decision-authority verifier until exact trusted authority
+  registrations are approved, and injects `TmuxAdvisorGateway` without a delivery
+  port. It never instantiates Hermes. `src/runtime/test-composition.ts` alone
+  constructs the doubly guarded synthetic provider and can accept an explicit
+  deterministic test delivery port; it exposes no HTTP proof exchange.
+- `src/runtime/operational-config.ts` reads only an absolute owner-owned no-follow
+  bounded versioned JSON file. `src/runtime/observation-coordinator.ts` validates
+  exact project/root/source/host/station/WorkUnit/evidence correspondence and
+  exposes only source IDs, relative evidence paths, hashes, commits, and closed
+  presentation codes to projection. Absolute roots and raw tool output stay
+  server-side.
 - `src/ui/runtime/client.ts` accepts only loopback same-origin HTTP, reads public
   status, requires a protected projection-provided session capability/CSRF/expiry
   context before exposing the Advisor action port, and clears projection/session/
@@ -109,8 +125,8 @@ Availability never outranks actor separation or evidence integrity.
 - Adapter/security boundary tests are deterministic and use fake tool runners;
   traversal, symlink, special-file, hostile argv/ref/name, timeout/cap, root
   isolation, malicious inert text, capability matrix, and forbidden-scope cases
-  pass in 52 Vitest files/205 tests plus 18 Chromium tests at final rework commit
-  `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`.
+  pass in 53 Vitest files/228 tests plus 21 Chromium tests at round-2 commit
+  `10fdee75dca73c4fb5cde09019c403d4dc1682bb`.
 
 ## 2. Threat Model
 
@@ -531,15 +547,27 @@ adapter regression. Local built-shell smoke confirms `127.0.0.1`, immutable
 hashed assets, redacted `AUTH_BLOCKED` status, protected projection denial, no
 fixture asset, listener rebind, and writer-lock release.
 
+At final rework round 2 commit
+`10fdee75dca73c4fb5cde09019c403d4dc1682bb`, the complete gate is 53
+Vitest files/228 tests and 21/21 Chromium tests, including 10/10 composition and
+16/16 coordinator cases. Added security evidence covers owner/no-follow config,
+external manifest authority, root/source/actor isolation, missing/stale/dirty/
+unverified/identity/timeout failure, path-free projection, observation-change SSE,
+durable alert detail hash reads, no-Hermes composition, fixed Advisor pointer,
+duplicate non-execution, and absent/kill/ambiguous manual fallback. Smoke proves
+explicit manifest input and no fallback. Tests use no real secret, provider,
+capability, tmux input, external network, or production identity.
+
 ## 17. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-SEC-001 Loopback private fail-closed bind | `src/server/network/`, `src/server/http/static-shell.ts`, `config/agent-office.loopback.json` | `tests/security/bind-policy.test.ts`, `tests/security/static-shell.test.ts`, `tests/security/private-network-disabled.test.ts` | Explicit loopback bind/peer/Host only; proxy/wildcard/nonloopback/private-mode changes and unsafe static paths fail closed; no CORS/TLS/HSTS claim | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Private/public network and deployment separately gated |
-| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/runtime/composition.ts`, `src/runtime/test-composition.ts`, `src/ui/runtime/client.ts`, `src/server/auth/`, `src/server/config.ts` | `tests/integration/runtime-composition.test.ts`, `tests/security/auth-session.test.ts`, `tests/security/http-boundary.test.ts` | Production executable supplies no provider/session registry and stays `AUTH_BLOCKED`; only the separately imported doubly guarded synthetic harness authenticates. Protected projection supplies capability/CSRF/expiry context, and revocation/expiry closes SSE and removes mutation | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real provider/credential, AO-WU-14 posture, and lifecycle audit need explicit authority |
-| AO-SEC-003 CSRF/origin/rate/input/output and decision-authority controls | `src/domain/messages/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/runtime/` | `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts`, `tests/security/rate-limit.test.ts`, `tests/integration/http-advisor-message.test.ts` | Existing request controls remain; the production client gates its message port on capability plus protected CSRF context, and decision linkage independently requires exact immutable named-authority correspondence before any durable link | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Shared limiter/private origin/TLS, real provider, and bounded Advisor routine authority remain gated |
+| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/runtime/composition.ts`, `src/runtime/test-composition.ts`, `src/ui/runtime/client.ts`, `src/server/auth/`, `src/server/config.ts` | `tests/integration/runtime-composition.test.ts`, `tests/security/auth-session.test.ts`, `tests/security/http-boundary.test.ts` | Production still supplies no provider/session and stays AUTH_BLOCKED; synthetic auth plus approved test delivery are separate explicit injections. Capability without delivery port is manual, and revocation/expiry removes SSE/mutation | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real provider/credential, AO-WU-14 posture, and lifecycle audit need explicit authority |
+| AO-SEC-003 CSRF/origin/rate/input/output and decision-authority controls | `src/domain/messages/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/runtime/` | `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts` | Existing request controls remain; composed lifecycle preserves immutable authorityRole/scope/hash evidence through decision and resume, while changed/duplicate input, unapproved authority, and missing evidence fail closed | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Shared limiter/private origin/TLS, real provider, and bounded Advisor routine authority remain gated |
 | AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/acceptance/batch-gates.test.ts` | Six exact typed mutations and read/static routes only; command/target/role/path/Worker/Reviewer/terminal routes and fields reject; server has no process primitive | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Fixed prohibition; real Advisor transport remains external |
-| AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/security/audit-log.test.ts`, `tests/recovery/rollback-disable.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Accepted gateway fail-closed/manual behavior plus owner-only security audit and default-off durable app disable/replay/conflict pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real transport state/re-enable and audit retention remain external/gated |
+| AO-SEC-005 Audit/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/security/audit-log.test.ts` | Executable uses only TmuxAdvisorGateway; capability plus port is required for READY, while absent authority, engaged kill, and ambiguous receipt remain manual with no invented target or duplicate execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real transport state/re-enable and audit retention remain external/gated |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Hashed shell install cache, sensitive-prefix/no-store exclusion, GET-only runtime cache, no sync queue, offline read-only, user update, unregister recovery pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated UI requires separately approved real provider |
+| AO-SEC-007 Operational source authority and projection redaction | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Exact external manifest/root/source/actor registration is owner/no-follow/bounded and fail-closed; projection exposes no absolute root/raw terminal/secret, and unverified activity cannot animate | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real source config approval and remote-host trust remain external |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.
