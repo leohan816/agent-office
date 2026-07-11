@@ -1,5 +1,10 @@
 import type { DecisionAuthorityEvidenceVerifier } from '../application/advisor-inbox/types.js';
 import { RejectingDecisionAuthorityEvidenceVerifier } from '../adapters/observations/artifacts/decision-authority.js';
+import type { ReadonlyToolRunner } from '../adapters/observations/process-runner.js';
+import {
+  TmuxAdvisorGateway,
+  type TmuxPointerDeliveryPort,
+} from '../adapters/gateways/tmux-advisor/index.js';
 import {
   BrowserSessionRegistry,
   TestAuthenticationExchange,
@@ -14,14 +19,14 @@ import {
   type RunningAgentOfficeComposition,
 } from './composition-core.js';
 import type { AgentOfficeRuntimeIdentity } from './identity.js';
+import type { OperationalRuntimeConfiguration } from './operational-config.js';
 
 export interface StartSyntheticTestCompositionOptions {
   readonly configuration: PrivateDeploymentConfiguration;
   readonly appRoot: string;
   readonly stateRoot: string;
   readonly staticRoot: string;
-  readonly manifestPath: string;
-  readonly manifestSourcePath: string;
+  readonly operationalConfiguration: OperationalRuntimeConfiguration;
   readonly buildId: string;
   readonly runtime: AgentOfficeRuntimeIdentity;
   readonly syntheticProof: string;
@@ -31,6 +36,8 @@ export interface StartSyntheticTestCompositionOptions {
   readonly sessionLifetimeMs?: number;
   readonly heartbeatMs?: number;
   readonly authorityEvidenceVerifier?: DecisionAuthorityEvidenceVerifier;
+  readonly readonlyToolRunner?: ReadonlyToolRunner;
+  readonly tmuxDeliveryPort?: TmuxPointerDeliveryPort;
 }
 
 export interface RunningSyntheticTestComposition {
@@ -74,10 +81,19 @@ export async function startSyntheticTestComposition(
     appRoot: options.appRoot,
     stateRoot: options.stateRoot,
     staticRoot: options.staticRoot,
-    manifestPath: options.manifestPath,
-    manifestSourcePath: options.manifestSourcePath,
+    operationalConfiguration: options.operationalConfiguration,
+    ...(options.readonlyToolRunner === undefined
+      ? {}
+      : { readonlyToolRunner: options.readonlyToolRunner }),
     buildId: options.buildId,
     runtime: options.runtime,
+    advisorGateway: new TmuxAdvisorGateway({
+      now: () => options.runtime.now(),
+      ...(options.operationalConfiguration.gateway.capability === undefined
+        ? {}
+        : { capability: options.operationalConfiguration.gateway.capability }),
+      ...(options.tmuxDeliveryPort === undefined ? {} : { deliveryPort: options.tmuxDeliveryPort }),
+    }),
     authorityEvidenceVerifier:
       options.authorityEvidenceVerifier ?? new RejectingDecisionAuthorityEvidenceVerifier(),
     sessions,

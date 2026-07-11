@@ -61,7 +61,8 @@ export function projectSceneRole(input: RoleSceneProjection): SceneRoleVisual {
   const acceptedIds = new Set(input.acceptedEventIds.filter(isAcceptedEventId));
   const stateSourceAccepted =
     input.workUnitState === undefined ||
-    (input.stateSourceEventId !== undefined && acceptedIds.has(input.stateSourceEventId));
+    input.stateSourceEventId === undefined ||
+    acceptedIds.has(input.stateSourceEventId);
   const activitySourcesAccepted =
     input.activity === undefined ||
     (input.activity.sourceEventIds.length > 0 &&

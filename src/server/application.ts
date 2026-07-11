@@ -8,6 +8,7 @@ import type { SourceArtifactRef } from '../contracts/types.js';
 import type { SubmitAdvisorMessage } from '../domain/messages/index.js';
 import type { DashboardViewModel } from '../application/queries/dashboard-view-model.js';
 import type { CommunicationCenterModel } from '../ui/communication/types.js';
+import type { RoleSceneProjection } from '../ui/scene/types.js';
 import type { BrowserCapability } from './auth/index.js';
 
 export interface LocalRuntimeStatus {
@@ -38,6 +39,7 @@ export interface RedactedProjectionSnapshot {
   readonly openAlertIds: readonly string[];
   readonly dashboard?: DashboardViewModel;
   readonly communication?: CommunicationCenterModel;
+  readonly sceneRoles?: readonly RoleSceneProjection[];
 }
 
 export interface AuthenticatedProjectionSnapshot extends RedactedProjectionSnapshot {

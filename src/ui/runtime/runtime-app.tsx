@@ -33,14 +33,19 @@ export function ProductionRuntimeApp({ client }: ProductionRuntimeAppProps) {
           : 'MANUAL_FALLBACK_REQUIRED' as const,
   };
   const projection = state.projection;
-  if (projection?.dashboard !== undefined && projection.communication !== undefined) {
+  if (
+    projection?.dashboard !== undefined &&
+    projection.communication !== undefined &&
+    projection.sceneRoles !== undefined
+  ) {
     return (
       <Dashboard
         model={projection.dashboard}
         communicationModel={projection.communication}
         {...(actionPort === undefined ? {} : { communicationActionPort: actionPort })}
         runtimeBoundary={runtimeBoundary}
-        showOfficeScene={false}
+        showOfficeScene
+        sceneRoles={projection.sceneRoles}
       />
     );
   }

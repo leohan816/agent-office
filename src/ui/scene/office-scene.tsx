@@ -32,6 +32,7 @@ import {
   OFFICE_STATIONS,
   type OfficeStationDefinition,
   type OfficeStationId,
+  type RoleSceneProjection,
   type SceneMotionCue,
   type SceneRoleVisual,
   type SceneStateName,
@@ -50,12 +51,14 @@ const MOBILE_PAGE_COUNT = Math.ceil(OFFICE_STATIONS.length / STATIONS_PER_MOBILE
 
 export interface OfficeSceneProps {
   readonly initialFixtureId?: string;
+  readonly roles?: readonly RoleSceneProjection[];
 }
 
-export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) {
+export function OfficeScene({ initialFixtureId = 'current', roles }: OfficeSceneProps) {
   const initialFixture = getSceneFixture(initialFixtureId);
+  const applicationProjection = roles !== undefined;
   const [fixtureId, setFixtureId] = useState(initialFixture.id);
-  const [runtime, setRuntime] = useState(() => initializeScene(initialFixture.roles));
+  const [runtime, setRuntime] = useState(() => initializeScene(roles ?? initialFixture.roles));
   const [motionEnabled, setMotionEnabled] = useState(readMotionPreference);
   const [paused, setPaused] = useState(false);
   const [mobilePage, setMobilePage] = useState(MOBILE_PAGE_COUNT - 1);
@@ -67,6 +70,10 @@ export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) 
     `${initialFixture.labelKo}: 초기 탐색에서는 동작을 재생하지 않음`,
   ]);
   const currentFixture = useMemo(() => getSceneFixture(fixtureId), [fixtureId]);
+  const currentRoles = roles ?? currentFixture.roles;
+  const displayedActivityLog = applicationProjection
+    ? activityLog.filter((entry) => entry.startsWith('APPLICATION_PROJECTION:'))
+    : activityLog;
   const selected = runtime.roles[selectedStation];
   const leoDecisionWaiting = Object.values(runtime.roles).some(
     (role) => role.stateName === 'WAITING_LEO' && role.decision?.destinationStationId === 'leo',
@@ -85,14 +92,23 @@ export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) 
       const hidden = document.visibilityState === 'hidden';
       setPaused(hidden);
       if (!hidden) {
-        setRuntime((current) => applySceneBurst(current, currentFixture.roles, 'TAB_RESUME'));
+        setRuntime((current) => applySceneBurst(current, currentRoles, 'TAB_RESUME'));
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [currentFixture.roles]);
+  }, [currentRoles]);
+
+  useEffect(() => {
+    if (roles === undefined) return;
+    setRuntime((current) => applySceneBurst(current, roles, 'LIVE'));
+    setActivityLog((entries) => [
+      'APPLICATION_PROJECTION: accepted structured source refresh',
+      ...entries,
+    ].slice(0, 8));
+  }, [roles]);
 
   const selectFixture = (nextId: string): void => {
     const fixture = getSceneFixture(nextId);
@@ -170,9 +186,12 @@ export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) 
         <div className="scene-heading-copy">
           <p className="eyebrow">STRUCTURED EVENT OFFICE / READ ONLY</p>
           <h2 id="office-scene-heading">Agent Office</h2>
-          <p>{currentFixture.descriptionKo}</p>
+          <p>{applicationProjection ? 'Authenticated structured application projection' : currentFixture.descriptionKo}</p>
         </div>
         <div className="scene-controls" aria-label="장면 표시 제어">
+          {applicationProjection ? (
+            <span className="fixture-badge">APPLICATION PROJECTION</span>
+          ) : (
           <label className="scene-fixture-control">
             <Route aria-hidden="true" size={17} />
             <span>장면</span>
@@ -188,6 +207,7 @@ export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) 
               ))}
             </select>
           </label>
+          )}
           <button
             className="scene-control-button"
             type="button"
@@ -258,7 +278,7 @@ export function OfficeScene({ initialFixtureId = 'current' }: OfficeSceneProps) 
       <details className="scene-activity-log">
         <summary>접근 가능한 장면 변경 기록</summary>
         <ol>
-          {activityLog.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
+          {displayedActivityLog.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
         </ol>
       </details>
 

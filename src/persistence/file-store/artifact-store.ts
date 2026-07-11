@@ -76,6 +76,58 @@ export class ImmutableArtifactStore {
     return this.putBytesInDirectory(directory, bytes, extension);
   }
 
+  public async readCanonicalJson(
+    relativePath: string,
+    expectedSha256: string,
+    maxByteLength = 32 * 1024,
+  ): Promise<unknown> {
+    if (
+      !relativePath.startsWith('artifacts/') ||
+      relativePath.startsWith('/') ||
+      relativePath.includes('\\') ||
+      relativePath.split('/').some((segment) => segment.length === 0 || segment === '.' || segment === '..') ||
+      !relativePath.endsWith('.json') ||
+      !/^sha256:[0-9a-f]{64}$/u.test(expectedSha256) ||
+      !Number.isSafeInteger(maxByteLength) ||
+      maxByteLength < 1 ||
+      maxByteLength > 1024 * 1024
+    ) {
+      throw new StoreError('PATH_CONTAINMENT_FAILED', 'immutable artifact read reference is invalid');
+    }
+    const target = path.resolve(this.root, relativePath);
+    if (!target.startsWith(`${this.root}${path.sep}`)) {
+      throw new StoreError('PATH_CONTAINMENT_FAILED', 'immutable artifact read escaped the state root');
+    }
+    const handle = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+      .catch((error: unknown) => {
+        throw new StoreError('IO_DURABILITY_FAILED', 'immutable artifact is unavailable', { cause: error });
+      });
+    try {
+      const info = await handle.stat();
+      const currentUid = process.getuid?.();
+      if (
+        !info.isFile() ||
+        (currentUid !== undefined && info.uid !== currentUid) ||
+        (info.mode & 0o077) !== 0 ||
+        info.size < 1 ||
+        info.size > maxByteLength
+      ) {
+        throw new StoreError('PATH_CONTAINMENT_FAILED', 'immutable artifact read target is invalid');
+      }
+      const bytes = await handle.readFile();
+      if (sha256Bytes(bytes) !== expectedSha256) {
+        throw new StoreError('MIDSTREAM_CORRUPTION', 'immutable artifact read hash mismatched');
+      }
+      try {
+        return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+      } catch {
+        throw new StoreError('MIDSTREAM_CORRUPTION', 'immutable artifact JSON is invalid');
+      }
+    } finally {
+      await handle.close();
+    }
+  }
+
   private async putBytesInDirectory(
     directory: string,
     bytes: Uint8Array,

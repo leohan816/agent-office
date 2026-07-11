@@ -5,17 +5,24 @@ import path from 'node:path';
 
 import { startAgentOfficeComposition } from '../dist/core/runtime/composition.js';
 import { initializeStateRoot } from '../dist/core/persistence/file-store/path-safety.js';
+import { parseArguments } from '../dist/core/runtime/cli.js';
+import {
+  createCurrentTestObservationRunner,
+  createExplicitTestOperationalConfiguration,
+} from './runtime-test-fixture.mjs';
 
 const appRoot = path.resolve(import.meta.dirname, '..');
 const stateRoot = await mkdtemp(path.join(tmpdir(), 'agent-office-runtime-smoke-'));
 let composition;
 
 try {
+  const observationTime = new Date().toISOString();
   await initializeStateRoot(stateRoot, {
     stateRootId: 'runtime-smoke-disposable',
     initializedAt: new Date().toISOString(),
   });
   const port = await reservePort();
+  const operationalConfiguration = await createExplicitTestOperationalConfiguration(appRoot);
   composition = await startAgentOfficeComposition({
     configuration: {
       schemaVersion: 'agent-office.loopback-deployment.v1',
@@ -33,12 +40,9 @@ try {
     appRoot,
     stateRoot,
     staticRoot: path.join(appRoot, 'dist/dashboard'),
-    manifestPath: path.join(appRoot, 'fixtures/manifests/agent-office-m01.v1.json'),
-    manifestSourcePath: path.join(
-      appRoot,
-      'fixtures/manifests/agent-office-m01.v1.source.json',
-    ),
-    buildId: 'agent-office-runtime-smoke',
+    operationalConfiguration,
+    readonlyToolRunner: createCurrentTestObservationRunner(appRoot, observationTime),
+    buildId: 'agent-office-runtime-explicit-input-smoke',
   });
   const origin = composition.primaryOrigin;
   const shellResponse = await fetch(origin);
@@ -71,10 +75,18 @@ try {
   requireSmoke(status.startupState === 'AUTH_BLOCKED', 'STARTUP_STATE_INVALID');
   requireSmoke(status.authMode === 'UNAVAILABLE_READ_ONLY', 'AUTH_MODE_INVALID');
   requireSmoke(status.mutationMode === 'DISABLED', 'MUTATION_MODE_INVALID');
+  requireSmoke(status.deliveryMode === 'MANUAL_FALLBACK_REQUIRED', 'DELIVERY_MODE_INVALID');
   requireSmoke(projectionResponse.status === 503, 'PROJECTION_STATUS_INVALID');
   requireSmoke(projectionFailure.code === 'AUTH_PROVIDER_UNAVAILABLE', 'PROJECTION_CODE_INVALID');
   requireSmoke(listenerRebind, 'LISTENER_NOT_RELEASED');
   requireSmoke(writerLockReleased, 'WRITER_LOCK_NOT_RELEASED');
+  let noFixtureFallback = false;
+  try {
+    parseArguments(['--state-root', stateRoot]);
+  } catch {
+    noFixtureFallback = true;
+  }
+  requireSmoke(noFixtureFallback, 'RUNTIME_CONFIG_FALLBACK_PRESENT');
   process.stdout.write(`${JSON.stringify({
     schemaVersion: 'agent-office.runtime-smoke.v1',
     bind: '127.0.0.1',
@@ -85,10 +97,13 @@ try {
     startupState: status.startupState,
     authMode: status.authMode,
     mutationMode: status.mutationMode,
+    deliveryMode: status.deliveryMode,
     projectionStatus: projectionResponse.status,
     projectionCode: projectionFailure.code,
     listenerRebind,
     writerLockReleased,
+    explicitManifestSourceId: operationalConfiguration.missionSourceId,
+    noFixtureFallback,
   })}\n`);
 } catch (error) {
   process.stderr.write(`${JSON.stringify({

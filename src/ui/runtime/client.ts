@@ -394,7 +394,8 @@ function parseProjection(value: unknown): AuthenticatedProjectionSnapshot {
     !isRecord(value.dashboard) ||
     value.dashboard.fixtureKind !== 'APPLICATION_PROJECTION' ||
     !isRecord(value.communication) ||
-    value.communication.fixtureKind !== 'APPLICATION_PROJECTION'
+    value.communication.fixtureKind !== 'APPLICATION_PROJECTION' ||
+    !Array.isArray(value.sceneRoles)
   ) {
     throw new RuntimeClientError('INVALID_PROJECTION_RESPONSE');
   }

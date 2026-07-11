@@ -1,32 +1,34 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { DomainError } from '../contracts/types.js';
 import { StoreError } from '../persistence/file-store/errors.js';
 import { loadPrivateDeploymentConfiguration } from '../server/config.js';
 import { HttpBoundaryError } from '../server/http/errors.js';
 import { startAgentOfficeComposition } from './composition.js';
+import { loadOperationalRuntimeConfiguration } from './operational-config.js';
 
 interface CliOptions {
   readonly appRoot: string;
   readonly configPath: string;
   readonly stateRoot: string;
   readonly staticRoot: string;
+  readonly operationalConfigPath: string;
 }
 
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2));
   const configuration = await loadPrivateDeploymentConfiguration(options.configPath);
+  const operationalConfiguration = await loadOperationalRuntimeConfiguration(
+    options.operationalConfigPath,
+  );
   const composition = await startAgentOfficeComposition({
     configuration,
+    operationalConfiguration,
     appRoot: options.appRoot,
     stateRoot: options.stateRoot,
     staticRoot: options.staticRoot,
-    manifestPath: path.join(options.appRoot, 'fixtures/manifests/agent-office-m01.v1.json'),
-    manifestSourcePath: path.join(
-      options.appRoot,
-      'fixtures/manifests/agent-office-m01.v1.source.json',
-    ),
-    buildId: 'agent-office-m01-final-rework',
+    buildId: 'agent-office-m01-final-rework-round2',
   });
   process.stdout.write(`${JSON.stringify({
     schemaVersion: 'agent-office.runtime-start.v1',
@@ -43,7 +45,7 @@ async function main(): Promise<void> {
   })}\n`);
 }
 
-function parseArguments(argumentsList: readonly string[]): CliOptions {
+export function parseArguments(argumentsList: readonly string[]): CliOptions {
   const appRootDefault = path.resolve(import.meta.dirname, '../../..');
   const values = new Map<string, string>();
   for (let index = 0; index < argumentsList.length; index += 2) {
@@ -52,7 +54,7 @@ function parseArguments(argumentsList: readonly string[]): CliOptions {
     if (
       key === undefined ||
       value === undefined ||
-      !['--app-root', '--config', '--state-root', '--static-root'].includes(key) ||
+      !['--app-root', '--config', '--state-root', '--static-root', '--runtime-config'].includes(key) ||
       values.has(key)
     ) {
       throw new DomainError('INVALID_SCHEMA', 'runtime arguments are invalid');
@@ -64,6 +66,10 @@ function parseArguments(argumentsList: readonly string[]): CliOptions {
   if (stateRootValue === undefined || !path.isAbsolute(stateRootValue)) {
     throw new DomainError('INVALID_SCHEMA', '--state-root must be an explicit absolute path');
   }
+  const operationalConfigPath = values.get('--runtime-config');
+  if (operationalConfigPath === undefined || !path.isAbsolute(operationalConfigPath)) {
+    throw new DomainError('INVALID_SCHEMA', '--runtime-config must be an explicit absolute path');
+  }
   return {
     appRoot,
     configPath: path.resolve(
@@ -71,6 +77,7 @@ function parseArguments(argumentsList: readonly string[]): CliOptions {
     ),
     stateRoot: stateRootValue,
     staticRoot: path.resolve(values.get('--static-root') ?? path.join(appRoot, 'dist/dashboard')),
+    operationalConfigPath,
   };
 }
 
@@ -95,10 +102,15 @@ function errorCode(error: unknown): string {
   return 'APPLICATION_REJECTED';
 }
 
-void main().catch((error: unknown) => {
-  process.stderr.write(`${JSON.stringify({
-    schemaVersion: 'agent-office.runtime-error.v1',
-    code: errorCode(error),
-  })}\n`);
-  process.exitCode = 1;
-});
+if (
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  void main().catch((error: unknown) => {
+    process.stderr.write(`${JSON.stringify({
+      schemaVersion: 'agent-office.runtime-error.v1',
+      code: errorCode(error),
+    })}\n`);
+    process.exitCode = 1;
+  });
+}

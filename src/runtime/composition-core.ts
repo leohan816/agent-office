@@ -1,17 +1,17 @@
-import { constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
-import { HermesAdvisorGateway } from '../adapters/gateways/hermes/index.js';
+import type { AdvisorGateway } from '../adapters/gateways/advisor.js';
+import type { ReadonlyToolRunner } from '../adapters/observations/process-runner.js';
 import type { DecisionAuthorityEvidenceVerifier } from '../application/advisor-inbox/types.js';
 import { AdvisorInboxService } from '../application/advisor-inbox/service.js';
 import { DurableAlertCenter } from '../application/alerts/index.js';
 import { DomainError } from '../contracts/types.js';
-import { importMissionManifest, parseManifestSourceMetadata } from '../domain/manifest/index.js';
 import { DurableDeliveryControl } from '../operations/readiness/delivery-control.js';
 import { assessStartupReadiness } from '../operations/readiness/index.js';
 import { ImmutableArtifactStore } from '../persistence/file-store/artifact-store.js';
 import { EventStore } from '../persistence/file-store/event-store.js';
+import { hashCanonical } from '../persistence/file-store/hashing.js';
 import { readStateRootFormat, validateStateRoot } from '../persistence/file-store/path-safety.js';
 import {
   bindBatchDApplication,
@@ -30,6 +30,11 @@ import {
 import { FileSecurityAuditLog } from '../server/security/audit.js';
 import { ProjectionSseBroker } from '../server/sse/index.js';
 import type { AgentOfficeRuntimeIdentity } from './identity.js';
+import {
+  RuntimeObservationCoordinator,
+  type RuntimeObservationSnapshot,
+} from './observation-coordinator.js';
+import type { OperationalRuntimeConfiguration } from './operational-config.js';
 import { buildRuntimeProjection } from './projection.js';
 
 export interface CompositionCoreOptions {
@@ -37,10 +42,11 @@ export interface CompositionCoreOptions {
   readonly appRoot: string;
   readonly stateRoot: string;
   readonly staticRoot: string;
-  readonly manifestPath: string;
-  readonly manifestSourcePath: string;
+  readonly operationalConfiguration: OperationalRuntimeConfiguration;
   readonly buildId: string;
   readonly runtime: AgentOfficeRuntimeIdentity;
+  readonly advisorGateway: AdvisorGateway;
+  readonly readonlyToolRunner?: ReadonlyToolRunner;
   readonly authorityEvidenceVerifier: DecisionAuthorityEvidenceVerifier;
   readonly sessions?: BrowserSessionRegistry;
   readonly testMutationEnabled?: boolean;
@@ -54,6 +60,7 @@ export interface RunningAgentOfficeComposition {
   readonly store: EventStore;
   readonly inbox: AdvisorInboxService;
   readonly alerts: DurableAlertCenter;
+  readonly observations: RuntimeObservationCoordinator;
   readonly sse: ProjectionSseBroker;
   readonly sessions?: BrowserSessionRegistry;
   readStatus(): LocalRuntimeStatus;
@@ -70,15 +77,13 @@ export async function startAgentOfficeCompositionCore(
   if (pathsOverlap(stateRoot, appRoot) || pathsOverlap(stateRoot, staticRoot)) {
     throw new DomainError('INVALID_SCHEMA', 'state root must be outside application and static roots');
   }
-  const manifestBytes = await readOwnedFileWithin(appRoot, options.manifestPath, 128 * 1024);
-  const sourceBytes = await readOwnedFileWithin(appRoot, options.manifestSourcePath, 16 * 1024);
-  let sourceValue: unknown;
-  try {
-    sourceValue = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes)) as unknown;
-  } catch {
-    throw new DomainError('INVALID_SCHEMA', 'manifest source metadata is invalid');
-  }
-  const manifest = importMissionManifest(manifestBytes, parseManifestSourceMetadata(sourceValue));
+  await assertObservedRootsOutsideStateRoot(stateRoot, options.operationalConfiguration);
+  const observations = await RuntimeObservationCoordinator.create({
+    configuration: options.operationalConfiguration,
+    now: () => options.runtime.now(),
+    ...(options.readonlyToolRunner === undefined ? {} : { runner: options.readonlyToolRunner }),
+  });
+  const manifest = await observations.start();
   const format = await readStateRootFormat(stateRoot);
   const store = await EventStore.open({
     root: stateRoot,
@@ -91,11 +96,11 @@ export async function startAgentOfficeCompositionCore(
     },
   });
   const servers: RunningAgentOfficeHttpServer[] = [];
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
   try {
     const artifacts = await ImmutableArtifactStore.open(stateRoot);
     const audit = await FileSecurityAuditLog.open(stateRoot);
     const delivery = await DurableDeliveryControl.open(stateRoot);
-    const gateway = new HermesAdvisorGateway(() => options.runtime.now());
     const policy = {
       missionId: manifest.missionId,
       manifestVersion: manifest.manifestVersion,
@@ -104,7 +109,7 @@ export async function startAgentOfficeCompositionCore(
     const inbox = new AdvisorInboxService(
       store,
       artifacts,
-      gateway,
+      options.advisorGateway,
       options.runtime,
       policy,
       options.authorityEvidenceVerifier,
@@ -116,36 +121,69 @@ export async function startAgentOfficeCompositionCore(
       manifest.missionId,
       manifest.manifestVersion,
     );
+    await inbox.recoverOutbox();
     const sse = new ProjectionSseBroker();
-    const readStatus = (): LocalRuntimeStatus => assessStartupReadiness({
-      configValidated: true,
-      writerLock: 'ACQUIRED',
-      store: 'VERIFIED',
-      projection: 'VERIFIED',
-      authentication: options.sessions === undefined ? 'UNAVAILABLE' : 'TEST_READY',
-      mutationConfigured: options.sessions !== undefined && options.testMutationEnabled === true,
-      delivery: delivery.project().mode,
-      sse: 'READY',
-      projectionRevision: store.sequence,
-      lastVerifiedAt: options.runtime.now(),
-    });
-    const application = publishProjectionAfterMutation(
-      bindBatchDApplication({
-        inbox,
-        alerts,
-        readStatus: () => Promise.resolve(readStatus()),
-        readProjection: () => Promise.resolve(buildRuntimeProjection({
+    let projectionRevision = store.sequence;
+    let lastObservationSignature = observationSignature(observations.snapshot());
+    const nextProjectionRevision = (): number => {
+      projectionRevision += 1;
+      return projectionRevision;
+    };
+    const refreshObservations = async (): Promise<void> => {
+      const snapshot = await observations.refresh();
+      const signature = observationSignature(snapshot);
+      if (signature === lastObservationSignature) return;
+      lastObservationSignature = signature;
+      sse.publish({
+        revision: nextProjectionRevision(),
+        notificationIds: Object.keys(inbox.project().notifications).sort(),
+      });
+    };
+    const readStatus = (): LocalRuntimeStatus => {
+      const deliveryControl = delivery.project();
+      const gatewayHealth = options.advisorGateway.health();
+      const deliveryMode = deliveryControl.receiptCount > 0
+        ? 'DISABLED' as const
+        : gatewayHealth.status === 'READY'
+          ? 'ENABLED' as const
+          : 'MANUAL_FALLBACK_REQUIRED' as const;
+      return assessStartupReadiness({
+        configValidated: true,
+        writerLock: 'ACQUIRED',
+        store: 'VERIFIED',
+        projection: 'VERIFIED',
+        authentication: options.sessions === undefined ? 'UNAVAILABLE' : 'TEST_READY',
+        mutationConfigured: options.sessions !== undefined && options.testMutationEnabled === true,
+        delivery: deliveryMode,
+        sse: 'READY',
+        projectionRevision,
+        lastVerifiedAt: options.runtime.now(),
+      });
+    };
+    const boundApplication = bindBatchDApplication({
+      inbox,
+      alerts,
+      readStatus: () => Promise.resolve(readStatus()),
+      readProjection: async () => {
+        await refreshObservations();
+        return buildRuntimeProjection({
           manifest,
           store,
           inbox,
           alerts,
           runtime: options.runtime,
-        })),
-        disableDelivery: (command) => delivery.disable(command),
-      }),
+          observations,
+          projectionRevision,
+        });
+      },
+      disableDelivery: (command) => delivery.disable(command),
+    });
+    const application = publishProjectionAfterMutation(
+      dispatchPersistedAdvisorMessages(boundApplication, inbox),
       store,
       inbox,
       sse,
+      nextProjectionRevision,
     );
     for (const bindAddress of options.configuration.bindAddresses) {
       const server = await startAgentOfficeHttpServer(
@@ -172,6 +210,9 @@ export async function startAgentOfficeCompositionCore(
       }
       servers.push(server);
     }
+    refreshTimer = setInterval(() => {
+      void refreshObservations().catch(() => undefined);
+    }, options.operationalConfiguration.refreshIntervalMs);
     let closed = false;
     const result: RunningAgentOfficeComposition = {
       origins: servers.map((server) => server.origin),
@@ -180,12 +221,14 @@ export async function startAgentOfficeCompositionCore(
       store,
       inbox,
       alerts,
+      observations,
       sse,
       ...(options.sessions === undefined ? {} : { sessions: options.sessions }),
       readStatus,
       close: async () => {
         if (closed) return;
         closed = true;
+        if (refreshTimer !== undefined) clearInterval(refreshTimer);
         let failure: unknown;
         for (const server of [...servers].reverse()) {
           try {
@@ -206,6 +249,7 @@ export async function startAgentOfficeCompositionCore(
     };
     return result;
   } catch (error) {
+    if (refreshTimer !== undefined) clearInterval(refreshTimer);
     for (const server of [...servers].reverse()) await server.close().catch(() => undefined);
     await store.close().catch(() => undefined);
     throw error;
@@ -217,13 +261,14 @@ function publishProjectionAfterMutation(
   store: EventStore,
   inbox: AdvisorInboxService,
   sse: ProjectionSseBroker,
+  nextProjectionRevision: () => number,
 ): AgentOfficeHttpApplication {
   let lastPublishedRevision = store.sequence;
   const publish = (): void => {
     if (store.sequence <= lastPublishedRevision) return;
     lastPublishedRevision = store.sequence;
     sse.publish({
-      revision: store.sequence,
+      revision: nextProjectionRevision(),
       notificationIds: Object.keys(inbox.project().notifications).sort(),
     });
   };
@@ -244,6 +289,21 @@ function publishProjectionAfterMutation(
   };
 }
 
+function dispatchPersistedAdvisorMessages(
+  application: AgentOfficeHttpApplication,
+  inbox: AdvisorInboxService,
+): AgentOfficeHttpApplication {
+  return {
+    ...application,
+    submitAdvisorMessage: async (command, context) => {
+      const receipt = await application.submitAdvisorMessage(command, context);
+      const notification = await inbox.queueMessage(receipt.messageId);
+      await inbox.deliverNotification(notification.notificationId);
+      return receipt;
+    },
+  };
+}
+
 async function canonicalDirectory(directory: string, label: string): Promise<string> {
   if (!path.isAbsolute(directory)) throw new DomainError('INVALID_SCHEMA', `${label} must be absolute`);
   const info = await lstat(directory).catch(() => undefined);
@@ -259,39 +319,17 @@ async function canonicalDirectory(directory: string, label: string): Promise<str
   return realpath(directory);
 }
 
-async function readOwnedFileWithin(
-  root: string,
-  filePath: string,
-  maxBytes: number,
-): Promise<Uint8Array> {
-  if (!path.isAbsolute(filePath)) throw new DomainError('INVALID_SCHEMA', 'runtime file path must be absolute');
-  const canonicalPath = await realpath(filePath).catch(() => undefined);
-  if (
-    canonicalPath === undefined ||
-    (canonicalPath !== root && !canonicalPath.startsWith(`${root}${path.sep}`))
-  ) {
-    throw new DomainError('INVALID_SCHEMA', 'runtime file escapes the application root');
-  }
-  let handle: import('node:fs/promises').FileHandle;
-  try {
-    handle = await open(canonicalPath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-  } catch {
-    throw new DomainError('INVALID_SCHEMA', 'runtime file is unavailable');
-  }
-  try {
-    const info = await handle.stat();
-    const currentUid = process.getuid?.();
-    if (
-      !info.isFile() ||
-      (currentUid !== undefined && info.uid !== currentUid) ||
-      info.size < 1 ||
-      info.size > maxBytes
-    ) {
-      throw new DomainError('INVALID_SCHEMA', 'runtime file is invalid');
+async function assertObservedRootsOutsideStateRoot(
+  stateRoot: string,
+  configuration: OperationalRuntimeConfiguration,
+): Promise<void> {
+  for (const project of configuration.projects) {
+    for (const root of project.roots) {
+      const canonicalRoot = await realpath(root.absolutePath).catch(() => undefined);
+      if (canonicalRoot === undefined || pathsOverlap(stateRoot, canonicalRoot)) {
+        throw new DomainError('INVALID_SCHEMA', 'observed root must be isolated from runtime state');
+      }
     }
-    return await handle.readFile();
-  } finally {
-    await handle.close();
   }
 }
 
@@ -301,4 +339,29 @@ function pathsOverlap(left: string, right: string): boolean {
 
 function failNoListener(): never {
   throw new DomainError('INVALID_SCHEMA', 'composition started without a listener');
+}
+
+function observationSignature(snapshot: RuntimeObservationSnapshot): string {
+  return hashCanonical({
+    missionId: snapshot.missionId,
+    manifestVersion: snapshot.manifestVersion,
+    manifestStatus: snapshot.manifest.status,
+    manifestErrorCode: snapshot.manifest.evidence.errorCode ?? null,
+    actors: Object.values(snapshot.actors)
+      .sort((left, right) => left.roleInstanceId.localeCompare(right.roleInstanceId))
+      .map((actor) => ({
+        roleInstanceId: actor.roleInstanceId,
+        presentation: actor.presentation,
+        connectionState: actor.connectionState,
+        reasonCode: actor.reasonCode,
+        evidenceRefs: actor.evidenceRefs,
+      })),
+    artifacts: Object.values(snapshot.artifacts)
+      .sort((left, right) => left.evidence.evidenceId.localeCompare(right.evidence.evidenceId))
+      .map((artifact) => ({
+        evidenceId: artifact.evidence.evidenceId,
+        status: artifact.status,
+        errorCode: artifact.evidence.errorCode ?? null,
+      })),
+  });
 }

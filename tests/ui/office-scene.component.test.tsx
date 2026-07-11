@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OfficeScene } from '../../src/ui/scene/office-scene.js';
+import { getSceneFixture } from '../../src/ui/scene/fixtures.js';
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -91,5 +92,22 @@ describe('accessible structured-event office scene', () => {
     fireEvent(document, new Event('visibilitychange'));
     expect(container.querySelector('#office-scene')?.classList.contains('scene-paused')).toBe(false);
     expect(container.querySelectorAll('[data-motion-cue]')).toHaveLength(0);
+  });
+
+  it('renders a controlled application projection without exposing fixture selection or unverified motion', () => {
+    const roles = getSceneFixture('activity').roles.map((role) => role.stationId === 'agent-office'
+      ? {
+          ...role,
+          evidenceFreshness: 'STALE' as const,
+          connectionState: 'UNKNOWN' as const,
+        }
+      : role);
+    const { container } = render(<OfficeScene roles={roles} />);
+    expect(container.querySelector('.scene-fixture-control')).toBeNull();
+    expect(screen.getByText('APPLICATION PROJECTION')).not.toBeNull();
+    const station = container.querySelector('[data-station-id="agent-office"]');
+    expect(station?.getAttribute('data-state')).toBe('UNKNOWN_OR_STALE');
+    expect(station?.getAttribute('data-cue')).toBe('NONE');
+    expect(station?.querySelector('[data-motion-cue]')).toBeNull();
   });
 });

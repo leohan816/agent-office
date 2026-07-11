@@ -14,7 +14,9 @@ import type { MissionManifest } from '../domain/manifest/index.js';
 import type { EventStore } from '../persistence/file-store/event-store.js';
 import type { RedactedProjectionSnapshot } from '../server/application.js';
 import type { CommunicationCenterModel } from '../ui/communication/types.js';
+import type { RoleSceneProjection } from '../ui/scene/types.js';
 import type { AgentOfficeRuntimeIdentity } from './identity.js';
+import type { RuntimeObservationCoordinator } from './observation-coordinator.js';
 
 export interface RuntimeProjectionServices {
   readonly manifest: MissionManifest;
@@ -22,37 +24,46 @@ export interface RuntimeProjectionServices {
   readonly inbox: AdvisorInboxService;
   readonly alerts: DurableAlertCenter;
   readonly runtime: AgentOfficeRuntimeIdentity;
+  readonly observations: RuntimeObservationCoordinator;
+  readonly projectionRevision: number;
 }
 
-export function buildRuntimeProjection(
+export async function buildRuntimeProjection(
   services: RuntimeProjectionServices,
-): RedactedProjectionSnapshot {
+): Promise<RedactedProjectionSnapshot> {
   const mission = foldMissionProjection(services.manifest, services.store);
   const inbox = services.inbox.project();
   const alerts = services.alerts.project();
   const now = services.runtime.now();
+  const events = services.store.readAll();
   const dashboard = buildDashboardViewModel({
     fixtureKind: 'APPLICATION_PROJECTION',
     mission,
-    observations: Object.values(mission.workUnits).map((workUnit) => ({
-      workUnitId: workUnit.id,
-      presentation: 'CURRENT',
-      observedAt: now,
-      evidenceRef: 'MISSION_EVENT_PROJECTION',
-      reasonCode: 'VERIFIED_LOCAL_EVENT_PROJECTION',
-    })),
+    observations: services.observations.workUnitObservations(mission, events),
     blockers: [],
-    evidence: [{
-      evidenceId: 'MISSION_MANIFEST_SOURCE',
-      label: 'M01 approved mission manifest',
-      relativePath: services.manifest.source.path,
-      sha256: services.manifest.source.sha256,
-      commit: services.manifest.source.commit,
-      verificationState: 'VERIFIED',
-    }],
+    evidence: services.observations.dashboardEvidence(),
     requiredGates: runtimeGates(mission),
     futureUnapprovedWork: services.manifest.futureUnapprovedWork,
   });
+  const alertViews = await Promise.all(
+    Object.values(alerts)
+      .sort((left, right) => left.alertId.localeCompare(right.alertId))
+      .map(async (alert) => {
+        const detail = await services.alerts.readDetail(alert);
+        return {
+          alertId: alert.alertId,
+          kind: alert.payload.kind,
+          severity: alert.payload.severity,
+          state: alert.state,
+          title: alert.payload.titleKey,
+          summary: alert.payload.resolutionCondition,
+          occurrenceCount: alert.payload.occurrenceCount,
+          deduplicationKey: alert.deduplicationKey,
+          actionCodes: alert.payload.actionCodes,
+          detail,
+        };
+      }),
+  );
   const communication: CommunicationCenterModel = {
     fixtureKind: 'APPLICATION_PROJECTION',
     manifestVersion: mission.manifestVersion,
@@ -78,11 +89,16 @@ export function buildRuntimeProjection(
           evidenceRef: item.evidenceRef,
         })),
       })),
-    alerts: [],
+    alerts: alertViews,
   };
+  const sceneRoles: readonly RoleSceneProjection[] = services.observations.sceneRoles(
+    mission,
+    events,
+    alerts,
+  );
   return {
     schemaVersion: 'agent-office.redacted-projection.v1',
-    revision: services.store.sequence,
+    revision: services.projectionRevision,
     missionId: mission.missionId,
     notificationIds: Object.keys(inbox.notifications).sort(),
     openAlertIds: Object.values(alerts)
@@ -91,6 +107,7 @@ export function buildRuntimeProjection(
       .sort(),
     dashboard,
     communication,
+    sceneRoles,
   };
 }
 

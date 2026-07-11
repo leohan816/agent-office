@@ -1,5 +1,5 @@
 import { DomainError } from '../../contracts/types.js';
-import { asJsonValue, isRecord } from '../../contracts/validation.js';
+import { asJsonValue, assertExactKeys, isRecord } from '../../contracts/validation.js';
 import {
   ALERT_POLICIES,
   assertAlertPayload,
@@ -80,6 +80,49 @@ export class DurableAlertCenter {
     return projectDurableAlerts(this.eventStore.readAll());
   }
 
+  public async readDetail(alert: DurableAlertProjection): Promise<AdvisorAlertDetail> {
+    const value = await this.artifacts.readCanonicalJson(
+      alert.detailArtifactRef,
+      alert.detailArtifactHash,
+      32 * 1024,
+    );
+    if (!isRecord(value)) {
+      throw new DomainError('STORE_QUARANTINED', 'alert detail artifact is not an object');
+    }
+    assertExactKeys(
+      value,
+      [
+        'schemaVersion',
+        'initiativeId',
+        'packageId',
+        'missionId',
+        'requestId',
+        'phaseId',
+        'workUnitId',
+        'confirmedFacts',
+        'unknowns',
+        'question',
+        'options',
+        'recommendation',
+        'safeDefault',
+        'blockedCapability',
+        'blockerReason',
+        'resolutionOwner',
+        'nextAction',
+        'evidenceRefs',
+      ],
+      'AdvisorAlertDetail artifact',
+    );
+    if (value.schemaVersion !== 'agent-office.advisor-alert-detail.v1') {
+      throw new DomainError('STORE_QUARANTINED', 'alert detail artifact version is invalid');
+    }
+    const { schemaVersion: ignored, ...detailValue } = value;
+    void ignored;
+    const detail = detailValue as unknown as AdvisorAlertDetail;
+    assertAdvisorAlertDetail(detail);
+    return detail;
+  }
+
   public async raise(
     payload: AlertRaisedPayload,
     detail: AdvisorAlertDetail,
@@ -90,7 +133,6 @@ export class DurableAlertCenter {
     if (
       payload.missionId !== this.missionId ||
       payload.manifestVersion !== this.manifestVersion ||
-      payload.expectedStreamVersion !== this.eventStore.sequence ||
       detail.missionId !== this.missionId ||
       detail.requestId !== payload.requestId
     ) {
@@ -110,6 +152,9 @@ export class DurableAlertCenter {
       const replayed = this.project()[payloadString(priorRequest, 'alertId')];
       if (replayed === undefined) throw new DomainError('STORE_QUARANTINED', 'replayed alert is missing');
       return replayed;
+    }
+    if (payload.expectedStreamVersion !== this.eventStore.sequence) {
+      throw new DomainError('MANIFEST_VERSION_CONFLICT', 'alert stream authority is stale');
     }
     const projected = this.project();
     const active = Object.values(projected).find(

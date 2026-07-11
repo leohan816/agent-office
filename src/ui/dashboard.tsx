@@ -19,6 +19,7 @@ import { OfficeScene } from './scene/office-scene.js';
 import { CommunicationCenter } from './communication/communication-center.js';
 import type { CommunicationCenterActionPort, CommunicationCenterModel } from './communication/types.js';
 import { RuntimeBoundary, type RuntimeBoundaryProps } from './pwa/runtime-boundary.js';
+import type { RoleSceneProjection } from './scene/types.js';
 
 type FilterValue = 'ALL' | 'ATTENTION' | 'WAITING' | 'COMPLETED';
 
@@ -28,6 +29,7 @@ export interface DashboardProps {
   readonly communicationActionPort?: CommunicationCenterActionPort;
   readonly runtimeBoundary?: Omit<RuntimeBoundaryProps, 'controller'>;
   readonly showOfficeScene?: boolean;
+  readonly sceneRoles?: readonly RoleSceneProjection[];
 }
 
 export function Dashboard({
@@ -36,6 +38,7 @@ export function Dashboard({
   communicationActionPort,
   runtimeBoundary,
   showOfficeScene = true,
+  sceneRoles,
 }: DashboardProps) {
   const [filter, setFilter] = useState<FilterValue>('ALL');
   const firstAttention = model.workUnits.find((workUnit) => workUnit.blocker !== undefined);
@@ -87,7 +90,7 @@ export function Dashboard({
         </section>
       ) : null}
 
-      {showOfficeScene ? <OfficeScene /> : null}
+      {showOfficeScene ? <OfficeScene {...(sceneRoles === undefined ? {} : { roles: sceneRoles })} /> : null}
 
       <div className="dashboard-grid">
         <aside className="hierarchy-panel" aria-labelledby="hierarchy-heading">

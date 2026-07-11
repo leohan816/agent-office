@@ -69,9 +69,17 @@ export class TmuxAdvisorGateway implements AdvisorGateway {
 
   public health(): AdvisorGatewayHealth {
     const failureCode = capabilityFailure(this.options.capability, this.options.now());
-    return failureCode === 'NONE'
-      ? { adapter: 'TMUX_ADVISOR', status: 'READY', failureCode }
-      : { adapter: 'TMUX_ADVISOR', status: 'MANUAL_FALLBACK_REQUIRED', failureCode };
+    const effectiveFailure =
+      failureCode === 'NONE' && this.options.deliveryPort === undefined
+        ? 'TRANSPORT_INACTIVE'
+        : failureCode;
+    return effectiveFailure === 'NONE'
+      ? { adapter: 'TMUX_ADVISOR', status: 'READY', failureCode: effectiveFailure }
+      : {
+          adapter: 'TMUX_ADVISOR',
+          status: 'MANUAL_FALLBACK_REQUIRED',
+          failureCode: effectiveFailure,
+        };
   }
 
   public async queueAdvisorNotification(
@@ -152,7 +160,7 @@ function capabilityFailure(
 
 function isValidCapability(value: unknown): value is AdvisorTransportCapability {
   try {
-    assertCapability(value);
+    assertAdvisorTransportCapability(value);
     return true;
   } catch (error) {
     if (error instanceof DomainError) return false;
@@ -160,7 +168,9 @@ function isValidCapability(value: unknown): value is AdvisorTransportCapability 
   }
 }
 
-function assertCapability(value: unknown): asserts value is AdvisorTransportCapability {
+export function assertAdvisorTransportCapability(
+  value: unknown,
+): asserts value is AdvisorTransportCapability {
   if (!isRecord(value)) {
     throw new DomainError('GATEWAY_DISABLED', 'Advisor transport capability is invalid');
   }
