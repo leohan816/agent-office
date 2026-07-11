@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `FINAL_REWORK_ROUND2_FAIL_CLOSED_OPERATIONAL_COMPOSITION_IMPLEMENTED__REAL_AUTH_PRIVATE_NETWORK_GATED__PENDING_DELTA_REVIEW`
+Status: `OPERATIONAL_CONFIG_MODE_PATCH_IMPLEMENTED__FINAL_REWORK_ROUND2_BOUNDARIES_PRESERVED__PENDING_DELTA_REVIEW`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -30,6 +30,13 @@ requires exact external manifest hash/commit/path plus clean Git verification;
 later source failure degrades presentation rather than reusing fabricated live
 state. Production injects the reviewed TmuxAdvisorGateway boundary but no real
 port/provider/capability. The guarded test port is synthetic and loopback-only.
+
+Operational config mode patch commit
+`ae7dd5ea1d92b025dd74b79806a26c086ab76de0` additionally enforces that the
+authority-bearing configuration has no group or other write bit
+(`mode & 0o022 === 0`). Owner-controlled read modes such as `0400` and `0600`
+remain accepted. Owner UID, regular-file, no-follow, bounded-size, and fatal
+UTF-8 JSON checks are unchanged; no secret policy or credential was added.
 
 Advisor accepted Batch D as the Batch E dependency. Batch E commit
 `e0a11f69fffc9d35d67cc478cbefbb92d93cf528` implements only the loopback,
@@ -104,8 +111,10 @@ Availability never outranks actor separation or evidence integrity.
   port. It never instantiates Hermes. `src/runtime/test-composition.ts` alone
   constructs the doubly guarded synthetic provider and can accept an explicit
   deterministic test delivery port; it exposes no HTTP proof exchange.
-- `src/runtime/operational-config.ts` reads only an absolute owner-owned no-follow
-  bounded versioned JSON file. `src/runtime/observation-coordinator.ts` validates
+- `src/runtime/operational-config.ts` reads only an absolute owner-owned,
+  group/other-non-writable, no-follow, bounded versioned JSON regular file. It
+  accepts owner-controlled `0400`/`0600` and rejects any mode for which
+  `(info.mode & 0o022) !== 0`. `src/runtime/observation-coordinator.ts` validates
   exact project/root/source/host/station/WorkUnit/evidence correspondence and
   exposes only source IDs, relative evidence paths, hashes, commits, and closed
   presentation codes to projection. Absolute roots and raw tool output stay
@@ -558,6 +567,13 @@ duplicate non-execution, and absent/kill/ambiguous manual fallback. Smoke proves
 explicit manifest input and no fallback. Tests use no real secret, provider,
 capability, tmux input, external network, or production identity.
 
+At operational config mode patch commit
+`ae7dd5ea1d92b025dd74b79806a26c086ab76de0`, direct mode tests accept `0400`
+and `0600` and reject `0620`, `0602`, and `0666`. The coordinator file passes
+21/21, the complete Vitest gate passes 53 files/233 tests, and all 21 Chromium
+tests, runtime smoke, and dependency audit pass. Generated Playwright result
+directories remain untracked and uncommitted.
+
 ## 17. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
@@ -568,6 +584,6 @@ capability, tmux input, external network, or production identity.
 | AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/acceptance/batch-gates.test.ts` | Six exact typed mutations and read/static routes only; command/target/role/path/Worker/Reviewer/terminal routes and fields reject; server has no process primitive | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Fixed prohibition; real Advisor transport remains external |
 | AO-SEC-005 Audit/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/security/audit-log.test.ts` | Executable uses only TmuxAdvisorGateway; capability plus port is required for READY, while absent authority, engaged kill, and ambiguous receipt remain manual with no invented target or duplicate execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real transport state/re-enable and audit retention remain external/gated |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Hashed shell install cache, sensitive-prefix/no-store exclusion, GET-only runtime cache, no sync queue, offline read-only, user update, unregister recovery pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated UI requires separately approved real provider |
-| AO-SEC-007 Operational source authority and projection redaction | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Exact external manifest/root/source/actor registration is owner/no-follow/bounded and fail-closed; projection exposes no absolute root/raw terminal/secret, and unverified activity cannot animate | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real source config approval and remote-host trust remain external |
+| AO-SEC-007 Operational source authority and projection redaction | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Exact external manifest/root/source/actor registration is owner/no-follow/bounded and fail-closed; config mode must have `0o022` clear, with `0400`/`0600` accepted and `0620`/`0602`/`0666` rejected; projection exposes no absolute root/raw terminal/secret, and unverified activity cannot animate | `IMPLEMENTED_OPERATIONAL_CONFIG_MODE_PATCH__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real source config approval and remote-host trust remain external |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

@@ -1,6 +1,6 @@
 # Agent Office Operations and Recovery Design
 
-Status: `FINAL_REWORK_ROUND2_OPERATIONAL_RUNTIME_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `OPERATIONAL_CONFIG_MODE_PATCH_IMPLEMENTED__FINAL_REWORK_ROUND2_RUNTIME_PRESERVED__PENDING_FABLE5_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
@@ -37,6 +37,11 @@ refresh, restart/partial-failure isolation, observation-driven SSE revision,
 durable alert/scene projection, and injected Advisor gateway recovery. Every test
 uses explicit synthetic or disposable inputs. Real-root supervision, provider,
 delivery activation, tmux input, and deployment remain gated.
+Operational config mode patch commit
+`ae7dd5ea1d92b025dd74b79806a26c086ab76de0` makes the existing owner-controlled
+startup claim executable by rejecting group- or other-writable operational
+configuration. It changes no runtime composition, recovery state, gateway,
+provider, delivery, or network behavior.
 
 ## 1. Operating Model
 
@@ -163,9 +168,11 @@ Git rollback, process termination, or real transport state is touched.
   nor manifest/observation authority has an implicit fallback.
 - The CLI loads an absolute owner-owned no-follow bounded UTF-8 JSON deployment
   descriptor plus an owner-owned no-follow bounded versioned operational config.
-  Composition validates application/static/observed directories, disjoint state
-  root, exact loopback binds/Host allowlist, and a Git-VERIFIED registered external
-  manifest before opening the writer.
+  The operational config must be a regular file with `(mode & 0o022) === 0`;
+  owner-controlled `0400` and `0600` are accepted, while any group/other write
+  bit blocks startup. Composition validates application/static/observed
+  directories, disjoint state root, exact loopback binds/Host allowlist, and a
+  Git-VERIFIED registered external manifest before opening the writer.
 - `src/runtime/composition-core.ts` opens one event-store writer, artifact store,
   security audit, default-off delivery control, injected `TmuxAdvisorGateway`,
   inbox, alerts, observation coordinator, application/scene projection, SSE
@@ -601,6 +608,14 @@ were added and directly inspected at desktop/mobile/reduced motion for nonblank
 rendering, containment, stable stations, honest unknown state, and absent
 unverified motion.
 
+Operational config mode patch commit
+`ae7dd5ea1d92b025dd74b79806a26c086ab76de0` adds five direct mode cases:
+`0400`/`0600` accept and `0620`/`0602`/`0666` reject. The focused coordinator
+file passes 21/21, the complete Vitest gate passes 53 files/233 tests, and all
+21 sequential Playwright tests, runtime smoke, dependency audit, lint, strict
+typecheck, builds, and diff check pass. No generated result directory is tracked
+or staged.
+
 All tests use disposable local fixtures and synthetic canary data. No real secret,
 DB, production/live system, remote host, protected branch, or public service is
 accessed.
@@ -611,7 +626,7 @@ accessed.
 |---|---|---|---|---|---|
 | AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/`, `src/operations/backup/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted append protocol remains; backup refuses a live writer and captures only a complete exact checkpoint with modes/hashes/source metadata | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
 | AO-OPS-002 Restart/idempotent recovery | `src/runtime/`, `src/application/startup/recovery.ts`, `src/persistence/file-store/`, `src/operations/restore/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/recovery/restart-replay.test.ts`, `scripts/runtime-smoke.mjs` | Existing replay remains; round 2 proves fresh coordinator restart, source re-read, outbox reconciliation, duplicate message non-execution, listener/lock cleanup, and no-provider AUTH_BLOCKED/manual fallback | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real-root supervision/provider/restore selection remain gated |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/runtime/observation-coordinator.ts`, `src/application/hosts/freshness.ts`, `src/operations/readiness/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Config/manifest failures block startup; later missing/timeout/identity/dirty/unverified/partial failures project UNKNOWN/ERROR/CONFLICT/STALE/OFFLINE, never cached fabricated CURRENT | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote collectors/service supervision remain gated |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/application/hosts/freshness.ts`, `src/operations/readiness/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Config/manifest failures block startup, including any operational config with group/other write bits; `0400`/`0600` accept and `0620`/`0602`/`0666` reject; later missing/timeout/identity/dirty/unverified/partial failures project UNKNOWN/ERROR/CONFLICT/STALE/OFFLINE, never cached fabricated CURRENT | `IMPLEMENTED_OPERATIONAL_CONFIG_MODE_PATCH__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote collectors/service supervision remain gated |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | Complete marker, schema/path/mode/hash/build/tamper checks, disjoint candidate, replay/projection/idempotency equality, and explicit non-selection pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/encryption/schedule/retention/real-root operation gated |
 | AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/application/advisor-inbox/`, `src/operations/readiness/delivery-control.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/rollback-disable.test.ts` | Production gateway needs capability plus port; absent authority, engaged kill, and ambiguous receipt stay manual with no delivery-port call or duplicate execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real transport re-enable/activation remains external |
 | AO-OPS-006 Redacted health/observability and recovery proof | `src/runtime/`, `src/application/audit/`, `src/server/security/audit.ts`, `src/server/application.ts`, `src/operations/evidence/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/security/audit-log.test.ts`, `scripts/runtime-smoke.mjs` | Redacted status plus path-free source IDs/presentations and semantic SSE revisions expose operational health without absolute roots, bodies, credentials, terminal data, or invented activity; explicit smoke proves cleanup | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth lifecycle audit, metrics, retention, Advisor review remain gated |
