@@ -71,8 +71,11 @@ export class ProjectionSseBroker {
       }
     }
 
+    const clientReference: { value?: SseClient } = {};
     const heartbeat = setInterval(() => {
       void input.validateSession().then((valid) => {
+        const activeClient = clientReference.value;
+        if (activeClient === undefined || !this.clients.has(activeClient)) return;
         if (!valid) {
           writeEvent(input.response, 'session_revoked', undefined, { reason: 'SESSION_REVOKED' });
           input.response.end();
@@ -91,6 +94,7 @@ export class ProjectionSseBroker {
       validateSession: input.validateSession,
       heartbeat,
     };
+    clientReference.value = client;
     this.clients.add(client);
     input.response.on('close', () => this.removeResponse(input.response));
   }
@@ -170,6 +174,7 @@ function writeEvent(
   id: number | undefined,
   data: Readonly<Record<string, unknown>>,
 ): void {
+  if (response.writableEnded || response.destroyed) return;
   if (id !== undefined) response.write(`id: ${id}\n`);
   response.write(`event: ${event}\n`);
   response.write(`data: ${JSON.stringify(data)}\n\n`);

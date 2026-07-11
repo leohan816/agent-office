@@ -18,7 +18,7 @@ import type {
 import { OfficeScene } from './scene/office-scene.js';
 import { CommunicationCenter } from './communication/communication-center.js';
 import type { CommunicationCenterActionPort, CommunicationCenterModel } from './communication/types.js';
-import { RuntimeBoundary } from './pwa/runtime-boundary.js';
+import { RuntimeBoundary, type RuntimeBoundaryProps } from './pwa/runtime-boundary.js';
 
 type FilterValue = 'ALL' | 'ATTENTION' | 'WAITING' | 'COMPLETED';
 
@@ -26,9 +26,17 @@ export interface DashboardProps {
   readonly model: DashboardViewModel;
   readonly communicationModel?: CommunicationCenterModel;
   readonly communicationActionPort?: CommunicationCenterActionPort;
+  readonly runtimeBoundary?: Omit<RuntimeBoundaryProps, 'controller'>;
+  readonly showOfficeScene?: boolean;
 }
 
-export function Dashboard({ model, communicationModel, communicationActionPort }: DashboardProps) {
+export function Dashboard({
+  model,
+  communicationModel,
+  communicationActionPort,
+  runtimeBoundary,
+  showOfficeScene = true,
+}: DashboardProps) {
   const [filter, setFilter] = useState<FilterValue>('ALL');
   const firstAttention = model.workUnits.find((workUnit) => workUnit.blocker !== undefined);
   const [selectedId, setSelectedId] = useState(firstAttention?.id ?? model.workUnits[0]?.id ?? '');
@@ -58,12 +66,14 @@ export function Dashboard({ model, communicationModel, communicationActionPort }
           <span className="status-token status-current">
             <ShieldCheck aria-hidden="true" size={16} /> 읽기 전용
           </span>
-          <span className="status-token">LOCAL FIXTURE</span>
+          <span className="status-token">
+            {model.fixtureKind === 'APPLICATION_PROJECTION' ? 'APPLICATION PROJECTION' : 'LOCAL FIXTURE'}
+          </span>
           <span className="status-token">projection #{model.projectionSequence}</span>
         </div>
       </header>
 
-      <RuntimeBoundary />
+      <RuntimeBoundary {...runtimeBoundary} />
 
       {model.banners.length > 0 ? (
         <section className="banner-stack" aria-label="관측 상태 경고">
@@ -77,7 +87,7 @@ export function Dashboard({ model, communicationModel, communicationActionPort }
         </section>
       ) : null}
 
-      <OfficeScene />
+      {showOfficeScene ? <OfficeScene /> : null}
 
       <div className="dashboard-grid">
         <aside className="hierarchy-panel" aria-labelledby="hierarchy-heading">
@@ -142,9 +152,13 @@ export function Dashboard({ model, communicationModel, communicationActionPort }
                 <p className="eyebrow">DECLARED PROGRESS</p>
                 <h2 id="progress-heading">근거 기반 진행</h2>
               </div>
+              {model.fixtureKind === 'APPLICATION_PROJECTION' ? (
+                <span className="fixture-badge">APPLICATION PROJECTION</span>
+              ) : (
               <span className="fixture-badge">
                 {model.fixtureKind === 'CURRENT_APPROVED_SOURCE' ? '승인 소스 스냅샷' : '합성 검토 픽스처'}
               </span>
+              )}
             </div>
             <div className="progress-grid">
               <ProgressMetric

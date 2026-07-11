@@ -248,7 +248,16 @@ async function handleRequest(
       const session = await authorize(request, options.sessions, 'viewer', false);
       context.subjectRef = session.subjectId;
       requireRateLimit(limiter, session.subjectId, RATE_LIMIT_POLICIES.read, receivedAt);
-      sendJson(response, 200, await options.application.readProjection());
+      sendJson(response, 200, {
+        ...await options.application.readProjection(),
+        session: {
+          schemaVersion: 'agent-office.browser-session-context.v1',
+          subjectId: session.subjectId,
+          capabilities: session.capabilities,
+          csrfToken: session.csrfToken,
+          expiresAt: session.expiresAt,
+        },
+      });
       return;
     }
     if (route.kind === 'SSE') {

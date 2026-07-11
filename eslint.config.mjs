@@ -27,7 +27,7 @@ export default tseslint.config(
   },
   {
     ...tseslint.configs.disableTypeChecked,
-    files: ['public/**/*.js'],
+    files: ['public/**/*.js', 'scripts/**/*.mjs'],
     languageOptions: {
       ...tseslint.configs.disableTypeChecked.languageOptions,
       globals: {
@@ -35,6 +35,7 @@ export default tseslint.config(
         Response: 'readonly',
         caches: 'readonly',
         fetch: 'readonly',
+        process: 'readonly',
         self: 'readonly',
       },
     },

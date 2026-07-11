@@ -60,7 +60,7 @@ export interface RequiredGateInput {
 }
 
 export interface DashboardViewModelInput {
-  readonly fixtureKind: 'CURRENT_APPROVED_SOURCE' | 'SYNTHETIC_REVIEW';
+  readonly fixtureKind: 'CURRENT_APPROVED_SOURCE' | 'SYNTHETIC_REVIEW' | 'APPLICATION_PROJECTION';
   readonly mission: DashboardMissionSnapshot;
   readonly observations: readonly DashboardObservationInput[];
   readonly blockers: readonly DashboardBlockerInput[];

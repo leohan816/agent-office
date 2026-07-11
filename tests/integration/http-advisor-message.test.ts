@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { HermesAdvisorGateway } from '../../src/adapters/gateways/hermes/index.js';
+import { RejectingDecisionAuthorityEvidenceVerifier } from '../../src/adapters/observations/artifacts/decision-authority.js';
 import { AdvisorInboxService } from '../../src/application/advisor-inbox/service.js';
 import type { AdvisorInboxRuntime } from '../../src/application/advisor-inbox/types.js';
 import { ImmutableArtifactStore } from '../../src/persistence/file-store/artifact-store.js';
@@ -94,6 +95,7 @@ async function startDurableFixture(root: string, idStart: number) {
       manifestVersion: 1,
       allowlistedEntityIds: new Set(['AO-WU-11']),
     },
+    new RejectingDecisionAuthorityEvidenceVerifier(),
   );
   const application: AgentOfficeHttpApplication = {
     readStatus: () => Promise.resolve({

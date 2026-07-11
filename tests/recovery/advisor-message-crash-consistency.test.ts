@@ -7,6 +7,7 @@ import type {
   AdvisorGateway,
   AdvisorGatewayHealth,
 } from '../../src/adapters/gateways/advisor.js';
+import { RejectingDecisionAuthorityEvidenceVerifier } from '../../src/adapters/observations/artifacts/decision-authority.js';
 import { AdvisorInboxService } from '../../src/application/advisor-inbox/service.js';
 import type { AdvisorInboxRuntime } from '../../src/application/advisor-inbox/types.js';
 import { ImmutableArtifactStore } from '../../src/persistence/file-store/artifact-store.js';
@@ -152,7 +153,7 @@ function makeService(
     missionId: MISSION_ID,
     manifestVersion: 1,
     allowlistedEntityIds: new Set(['AO-WU-10']),
-  });
+  }, new RejectingDecisionAuthorityEvidenceVerifier());
 }
 
 function messageCommand() {

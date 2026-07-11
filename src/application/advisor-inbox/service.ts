@@ -23,6 +23,7 @@ import type {
   AdvisorMessageProjection,
   ApplicationCommandContext,
   CloseAdvisorMessage,
+  DecisionAuthorityEvidenceVerifier,
   LinkAdvisorDecision,
   NotificationProjection,
   RecordAdvisorAcknowledgement,
@@ -39,6 +40,7 @@ export class AdvisorInboxService {
     private readonly gateway: AdvisorGateway,
     private readonly runtime: AdvisorInboxRuntime,
     private readonly policy: AdvisorInboxPolicy,
+    private readonly authorityEvidenceVerifier: DecisionAuthorityEvidenceVerifier,
   ) {}
 
   public project(): AdvisorInboxProjection {
@@ -364,6 +366,10 @@ export class AdvisorInboxService {
     assertUuidV7(command.messageId, 'messageId');
     assertUuidV7(command.decisionId, 'decisionId');
     assertUtcTimestamp(command.recordedAt, 'recordedAt');
+    const claimedAuthorityRole: unknown = command.authorityRole;
+    if (claimedAuthorityRole !== 'Leo/GPT' && claimedAuthorityRole !== 'Advisor') {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'decision authority role is invalid');
+    }
     assertSourceArtifact(command.decisionArtifact);
     const commandHash = commandHashWithActor(command, context.actor);
     const replay = this.findLifecycleReplay('AdvisorMessageDecisionLinked', command.requestId, commandHash);
@@ -372,10 +378,23 @@ export class AdvisorInboxService {
     if (message.state !== 'INTAKE_RECORDED') {
       throw new DomainError('INVALID_TRANSITION', 'decision link requires canonical intake');
     }
+    const authorityEvidence = await this.authorityEvidenceVerifier.verify({
+      decisionId: command.decisionId,
+      missionId: this.policy.missionId,
+      authorityRole: command.authorityRole,
+      decisionArtifact: command.decisionArtifact,
+      expectedWorkUnitIds: message.referencedEntityIds,
+      recordedAt: command.recordedAt,
+    });
+    assertVerifiedAuthorityEvidence(command, authorityEvidence, message, this.policy.missionId);
     const artifact = await this.artifacts.putScopedCanonicalJson(
       'advisor-decisions',
       [this.policy.missionId, command.messageId, command.requestId],
-      { schemaVersion: 'agent-office.advisor-decision-link.v1', ...command },
+      {
+        schemaVersion: 'agent-office.advisor-decision-link.v2',
+        ...command,
+        authorityEvidence,
+      },
       16 * 1024,
     );
     await this.appendWithIdentity(
@@ -386,6 +405,11 @@ export class AdvisorInboxService {
       {
         messageId: command.messageId,
         decisionId: command.decisionId,
+        authorityRole: command.authorityRole,
+        authoritySubjectId: authorityEvidence.authoritySubjectId,
+        authorityEvidenceRef: command.decisionArtifact,
+        authorityEvidenceHash: authorityEvidence.evidenceHash,
+        decisionScopeWorkUnitIds: authorityEvidence.scope.workUnitIds,
         decisionArtifactRef: artifact.relativePath,
         decisionArtifactHash: artifact.sha256,
         canonicalDecisionHash: command.decisionArtifact.sha256,
@@ -702,6 +726,43 @@ function assertSourceArtifact(value: SourceArtifactRef): void {
   ) {
     throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'decision artifact reference is invalid');
   }
+}
+
+function assertVerifiedAuthorityEvidence(
+  command: LinkAdvisorDecision,
+  evidence: Awaited<ReturnType<DecisionAuthorityEvidenceVerifier['verify']>>,
+  message: AdvisorMessageProjection,
+  missionId: string,
+): void {
+  const expectedScope = [...message.referencedEntityIds].sort();
+  const actualScope = [...evidence.scope.workUnitIds].sort();
+  const evidenceSchemaVersion: unknown = evidence.schemaVersion;
+  const evidenceScopeKind: unknown = evidence.scope.kind;
+  const { evidenceHash, ...evidenceCore } = evidence;
+  if (
+    evidenceSchemaVersion !== 'agent-office.verified-decision-authority.v1' ||
+    evidence.decisionId !== command.decisionId ||
+    evidence.missionId !== missionId ||
+    evidence.authorityRole !== command.authorityRole ||
+    evidenceScopeKind !== 'WORK_UNIT_SET' ||
+    evidence.decisionArtifact.repository !== command.decisionArtifact.repository ||
+    evidence.decisionArtifact.commit !== command.decisionArtifact.commit ||
+    evidence.decisionArtifact.path !== command.decisionArtifact.path ||
+    evidence.decisionArtifact.sha256 !== command.decisionArtifact.sha256 ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(evidence.authoritySubjectId) ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$/u.test(evidence.verifierId) ||
+    !isSha256(evidenceHash) ||
+    hashCanonical(evidenceCore) !== evidenceHash ||
+    Date.parse(evidence.decidedAt) > Date.parse(command.recordedAt) ||
+    Date.parse(evidence.verifiedAt) < Date.parse(evidence.decidedAt) ||
+    expectedScope.length === 0 ||
+    expectedScope.length !== actualScope.length ||
+    expectedScope.some((value, index) => value !== actualScope[index])
+  ) {
+    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'verified decision authority evidence mismatched');
+  }
+  assertUtcTimestamp(evidence.decidedAt, 'authority decision time');
+  assertUtcTimestamp(evidence.verifiedAt, 'authority verification time');
 }
 
 function commandHashWithActor(command: unknown, actor: ActorReference): string {

@@ -63,6 +63,8 @@ const requiredTests = [
   'tests/ui/runtime-boundary.component.test.tsx',
   'tests/e2e/pwa-lifecycle.spec.ts',
   'tests/e2e/pwa-cache-security.spec.ts',
+  'tests/integration/runtime-composition.test.ts',
+  'tests/integration/decision-authority-evidence.test.ts',
 ] as const;
 
 describe('Batch A-D regression and Batch E scope gates', () => {
@@ -86,12 +88,16 @@ describe('Batch A-D regression and Batch E scope gates', () => {
       'test',
       'test:property',
       'test:integration',
+      'test:composition',
+      'test:authority',
       'test:security',
       'test:recovery',
       'test:pwa',
       'test:ui',
       'test:e2e',
       'build',
+      'start:loopback',
+      'smoke:runtime',
       'audit:dependencies',
     ]) {
       expect(typeof packageJson.scripts[script]).toBe('string');
@@ -111,6 +117,7 @@ describe('Batch A-D regression and Batch E scope gates', () => {
       'operations',
       'persistence',
       'pwa',
+      'runtime',
       'server',
       'ui',
     ]);

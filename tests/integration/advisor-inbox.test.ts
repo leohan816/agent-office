@@ -14,9 +14,11 @@ import { AdvisorInboxService } from '../../src/application/advisor-inbox/service
 import type {
   AdvisorInboxRuntime,
   ApplicationCommandContext,
+  DecisionAuthorityEvidenceVerifier,
 } from '../../src/application/advisor-inbox/types.js';
 import { ImmutableArtifactStore } from '../../src/persistence/file-store/artifact-store.js';
 import { EventStore } from '../../src/persistence/file-store/event-store.js';
+import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
 import {
   FIXED_TIME,
   MISSION_ID,
@@ -98,6 +100,7 @@ describe('durable Advisor inbox application', () => {
         requestId: uuidV7(430),
         messageId: persisted.messageId,
         decisionId: uuidV7(431),
+        authorityRole: 'Leo/GPT',
         decisionArtifact: {
           repository: 'foundation-docs',
           commit: 'a'.repeat(40),
@@ -235,7 +238,7 @@ async function setup() {
     missionId: MISSION_ID,
     manifestVersion: 1,
     allowlistedEntityIds: new Set(['AO-WU-10']),
-  });
+  }, acceptingAuthorityVerifier());
   return { root, store, artifacts, runtime, gateway, service };
 }
 
@@ -275,5 +278,25 @@ function idRuntime(start: number): AdvisorInboxRuntime {
   return {
     nextId: () => uuidV7(next++),
     now: () => FIXED_TIME,
+  };
+}
+
+function acceptingAuthorityVerifier(): DecisionAuthorityEvidenceVerifier {
+  return {
+    verify: (input) => {
+      const evidenceCore = {
+        schemaVersion: 'agent-office.verified-decision-authority.v1' as const,
+        decisionId: input.decisionId,
+        missionId: input.missionId,
+        authorityRole: input.authorityRole,
+        authoritySubjectId: 'leo-gpt',
+        scope: { kind: 'WORK_UNIT_SET' as const, workUnitIds: [...input.expectedWorkUnitIds].sort() },
+        decidedAt: FIXED_TIME,
+        decisionArtifact: input.decisionArtifact,
+        verifiedAt: FIXED_TIME,
+        verifierId: 'synthetic-test-verifier',
+      };
+      return Promise.resolve({ ...evidenceCore, evidenceHash: hashCanonical(evidenceCore) });
+    },
   };
 }

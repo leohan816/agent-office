@@ -1,3 +1,7 @@
+import { constants } from 'node:fs';
+import { open } from 'node:fs/promises';
+import path from 'node:path';
+
 import { DomainError } from '../contracts/types.js';
 import { assertExactKeys, assertRecord } from '../contracts/validation.js';
 import { LOOPBACK_BIND_ADDRESSES, type LoopbackBindAddress } from './network/policy.js';
@@ -29,6 +33,44 @@ export const DEFAULT_LOOPBACK_CONFIGURATION: PrivateDeploymentConfiguration = {
   tls: false,
   hsts: false,
 };
+
+export async function loadPrivateDeploymentConfiguration(
+  configPath: string,
+): Promise<PrivateDeploymentConfiguration> {
+  if (!path.isAbsolute(configPath)) {
+    throw new DomainError('INVALID_SCHEMA', 'deployment configuration path must be absolute');
+  }
+  let handle: import('node:fs/promises').FileHandle;
+  try {
+    handle = await open(configPath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  } catch {
+    throw new DomainError('INVALID_SCHEMA', 'deployment configuration is unavailable');
+  }
+  let bytes: Buffer;
+  try {
+    const info = await handle.stat();
+    const currentUid = process.getuid?.();
+    if (
+      !info.isFile() ||
+      (currentUid !== undefined && info.uid !== currentUid) ||
+      info.size < 1 ||
+      info.size > 16 * 1024
+    ) {
+      throw new DomainError('INVALID_SCHEMA', 'deployment configuration file is invalid');
+    }
+    bytes = await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+  } catch {
+    throw new DomainError('INVALID_SCHEMA', 'deployment configuration is not valid UTF-8 JSON');
+  }
+  assertPrivateDeploymentConfiguration(value);
+  return value;
+}
 
 export function assertPrivateDeploymentConfiguration(
   value: unknown,

@@ -1,4 +1,5 @@
 export * from './artifacts/source.js';
+export * from './artifacts/decision-authority.js';
 export * from './errors.js';
 export * from './filesystem.js';
 export * from './git/source.js';

@@ -6,6 +6,9 @@ import type { AdvisorInboxService } from '../application/advisor-inbox/service.j
 import type { DurableAlertCenter, DurableAlertProjection } from '../application/alerts/index.js';
 import type { SourceArtifactRef } from '../contracts/types.js';
 import type { SubmitAdvisorMessage } from '../domain/messages/index.js';
+import type { DashboardViewModel } from '../application/queries/dashboard-view-model.js';
+import type { CommunicationCenterModel } from '../ui/communication/types.js';
+import type { BrowserCapability } from './auth/index.js';
 
 export interface LocalRuntimeStatus {
   readonly schemaVersion: 'agent-office.local-runtime-status.v1';
@@ -33,6 +36,18 @@ export interface RedactedProjectionSnapshot {
   readonly missionId: string;
   readonly notificationIds: readonly string[];
   readonly openAlertIds: readonly string[];
+  readonly dashboard?: DashboardViewModel;
+  readonly communication?: CommunicationCenterModel;
+}
+
+export interface AuthenticatedProjectionSnapshot extends RedactedProjectionSnapshot {
+  readonly session: {
+    readonly schemaVersion: 'agent-office.browser-session-context.v1';
+    readonly subjectId: string;
+    readonly capabilities: readonly BrowserCapability[];
+    readonly csrfToken: string;
+    readonly expiresAt: string;
+  };
 }
 
 export interface HttpCommandContext {
@@ -157,6 +172,7 @@ export function bindBatchDApplication(
           requestId: command.requestId,
           messageId: command.messageId,
           decisionId: command.decisionId,
+          authorityRole: command.authorityRole,
           decisionArtifact: command.decisionArtifact,
           recordedAt: command.recordedAt,
         },

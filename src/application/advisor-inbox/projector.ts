@@ -1,4 +1,4 @@
-import { DomainError } from '../../contracts/types.js';
+import { DomainError, type SourceArtifactRef } from '../../contracts/types.js';
 import { isRecord } from '../../contracts/validation.js';
 import type { EventEnvelope } from '../../domain/events/index.js';
 import type { AdvisorMessageKind } from '../../domain/messages/index.js';
@@ -15,6 +15,7 @@ import {
   type AdvisorGatewayReceipt,
 } from '../../adapters/gateways/advisor.js';
 import { ADVISOR_MESSAGE_KINDS } from '../../domain/messages/index.js';
+import { isSha256 } from '../../persistence/file-store/hashing.js';
 import type {
   AdvisorInboxProjection,
   AdvisorMessageProjection,
@@ -38,6 +39,7 @@ export function projectAdvisorInbox(events: readonly EventEnvelope[]): AdvisorIn
             missionId: event.missionId,
             manifestVersion: event.manifestVersion,
             kind: messageKind(payload),
+            referencedEntityIds: stringArrayField(payload, 'referencedEntityIds'),
             messageArtifactRef: stringField(payload, 'messageArtifactRef'),
             messageArtifactHash: stringField(payload, 'messageArtifactHash'),
             messagePayloadHash: stringField(payload, 'messagePayloadHash'),
@@ -97,9 +99,17 @@ export function projectAdvisorInbox(events: readonly EventEnvelope[]): AdvisorIn
       case 'AdvisorMessageDecisionLinked': {
         const message = requireMessage(messages, payload);
         const artifactRef = stringField(payload, 'decisionArtifactRef');
+        const authorityRole = authorityRoleField(payload);
+        const authorityEvidenceHash = stringField(payload, 'authorityEvidenceHash');
+        if (!isSha256(authorityEvidenceHash)) corrupt('decision authority evidence hash is invalid');
         messages = updateMessage(messages, {
           ...transitionMessage(message, 'DECISION_LINKED', event, artifactRef),
           decisionArtifactRef: artifactRef,
+          authorityRole,
+          authoritySubjectId: stringField(payload, 'authoritySubjectId'),
+          authorityEvidenceRef: sourceArtifactField(payload, 'authorityEvidenceRef'),
+          authorityEvidenceHash,
+          decisionScopeWorkUnitIds: stringArrayField(payload, 'decisionScopeWorkUnitIds'),
         });
         break;
       }
@@ -265,6 +275,50 @@ function messageKind(payload: Record<string, unknown>): AdvisorMessageKind {
     corrupt('persisted Advisor message kind is invalid');
   }
   return value as AdvisorMessageKind;
+}
+
+function authorityRoleField(
+  payload: Record<string, unknown>,
+): 'Leo/GPT' | 'Advisor' {
+  const value = stringField(payload, 'authorityRole');
+  if (value !== 'Leo/GPT' && value !== 'Advisor') {
+    corrupt('decision authority role is invalid');
+  }
+  return value;
+}
+
+function stringArrayField(payload: Record<string, unknown>, key: string): readonly string[] {
+  const value = payload[key];
+  if (
+    !Array.isArray(value) ||
+    value.length > 50 ||
+    value.some((item) => typeof item !== 'string' || item.length === 0)
+  ) {
+    corrupt(`${key} must be a bounded string array`);
+  }
+  return value as string[];
+}
+
+function sourceArtifactField(
+  payload: Record<string, unknown>,
+  key: string,
+): SourceArtifactRef {
+  const value = payload[key];
+  if (
+    !isRecord(value) ||
+    typeof value.repository !== 'string' ||
+    typeof value.commit !== 'string' ||
+    typeof value.path !== 'string' ||
+    typeof value.sha256 !== 'string'
+  ) {
+    corrupt(`${key} must be an authority artifact reference`);
+  }
+  return {
+    repository: value.repository,
+    commit: value.commit,
+    path: value.path,
+    sha256: value.sha256,
+  };
 }
 
 function corrupt(message: string): never {
