@@ -374,7 +374,23 @@ function activeAdvisorProjection(manifest: MissionManifest): {
   readonly projection: ReturnType<typeof createInitialProjection>;
   readonly events: readonly EventEnvelope[];
 } {
-  let projection = createInitialProjection(manifest);
+  const activityFixtureManifest: MissionManifest = {
+    ...manifest,
+    workUnits: manifest.workUnits.map((workUnit) => {
+      if (workUnit.id !== 'AO-WU-15') return workUnit;
+      return {
+        id: workUnit.id,
+        phase: workUnit.phase,
+        actor: workUnit.actor,
+        title: workUnit.title,
+        status: 'WAITING_DEPENDENCY',
+        dependsOn: workUnit.dependsOn,
+        initialState: 'WAITING_DEPENDENCY',
+        requiredObservableName: 'WAITING_DEPENDENCY',
+      };
+    }),
+  };
+  let projection = createInitialProjection(activityFixtureManifest);
   const inputs = [
     {
       eventType: 'WorkUnitStateTransitioned' as const,
