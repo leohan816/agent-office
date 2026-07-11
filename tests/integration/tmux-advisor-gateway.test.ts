@@ -74,6 +74,74 @@ describe('fixed Advisor-only tmux gateway', () => {
     expect(deliverPointer).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['state', { state: 'READY' }],
+    ['killSwitch', { killSwitch: 'OFF' }],
+    ['synchronization', { synchronization: 'SYNCHRONIZED' }],
+  ])('fails closed for invalid runtime %s vocabulary', async (_label, overrides) => {
+    const { gateway, deliverPointer, lookupPointerReceipt } = gatewayHarness(
+      runtimeCapability(overrides),
+    );
+
+    expect(gateway.health()).toEqual({
+      adapter: 'TMUX_ADVISOR',
+      status: 'MANUAL_FALLBACK_REQUIRED',
+      failureCode: 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED',
+    });
+    await expect(gateway.getDeliveryReceipt(uuidV7(711))).resolves.toBeUndefined();
+    await expect(gateway.queueAdvisorNotification(gatewayRequest())).resolves.toMatchObject({
+      status: 'MANUAL_FALLBACK_REQUIRED',
+      failureCode: 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED',
+    });
+    expect(deliverPointer).not.toHaveBeenCalled();
+    expect(lookupPointerReceipt).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'future-issued',
+      capability({ issuedAt: '2026-07-10T00:00:00.001Z' }),
+    ],
+    [
+      'exact-expiry',
+      capability({ expiresAt: FIXED_TIME }),
+    ],
+  ])('fails closed at the %s capability boundary', async (_label, value) => {
+    const { gateway, deliverPointer, lookupPointerReceipt } = gatewayHarness(value);
+
+    expect(gateway.health()).toMatchObject({
+      status: 'MANUAL_FALLBACK_REQUIRED',
+      failureCode: 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED',
+    });
+    await expect(gateway.getDeliveryReceipt(uuidV7(712))).resolves.toBeUndefined();
+    await expect(gateway.queueAdvisorNotification(gatewayRequest())).resolves.toMatchObject({
+      status: 'MANUAL_FALLBACK_REQUIRED',
+      failureCode: 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED',
+    });
+    expect(deliverPointer).not.toHaveBeenCalled();
+    expect(lookupPointerReceipt).not.toHaveBeenCalled();
+  });
+
+  it('validates the runtime clock in health, queue, and receipt lookup', async () => {
+    const health = gatewayHarness(capability(), () => 'not-a-timestamp');
+    expect(() => health.gateway.health()).toThrow(
+      expect.objectContaining({ code: 'INVALID_SCHEMA' }),
+    );
+
+    const queue = gatewayHarness(capability(), () => 'not-a-timestamp');
+    await expect(queue.gateway.queueAdvisorNotification(gatewayRequest())).rejects.toMatchObject({
+      code: 'INVALID_SCHEMA',
+    });
+
+    const lookup = gatewayHarness(capability(), () => 'not-a-timestamp');
+    await expect(lookup.gateway.getDeliveryReceipt(uuidV7(713))).rejects.toMatchObject({
+      code: 'INVALID_SCHEMA',
+    });
+    expect(health.deliverPointer).not.toHaveBeenCalled();
+    expect(queue.deliverPointer).not.toHaveBeenCalled();
+    expect(lookup.lookupPointerReceipt).not.toHaveBeenCalled();
+  });
+
   it('classifies an ambiguous outcome as manual and never blindly repeats it', async () => {
     const deliverPointer = vi.fn<TmuxPointerDeliveryPort['deliverPointer']>(() => Promise.resolve({
       status: 'AMBIGUOUS',
@@ -127,5 +195,32 @@ function capability(
     activationSnapshotHash: `sha256:${'2'.repeat(64)}`,
     registrySnapshotHash: `sha256:${'3'.repeat(64)}`,
     ...overrides,
+  };
+}
+
+function runtimeCapability(overrides: Record<string, unknown>): unknown {
+  return { ...capability(), ...overrides };
+}
+
+function gatewayHarness(
+  value: unknown,
+  now: () => string = () => FIXED_TIME,
+) {
+  const deliverPointer = vi.fn<TmuxPointerDeliveryPort['deliverPointer']>(() => Promise.resolve({
+    status: 'DELIVERED',
+    evidenceRefs: [],
+  }));
+  const lookupPointerReceipt = vi.fn<TmuxPointerDeliveryPort['lookupPointerReceipt']>(() =>
+    Promise.resolve('NOT_FOUND'),
+  );
+  const deliveryPort: TmuxPointerDeliveryPort = { deliverPointer, lookupPointerReceipt };
+  return {
+    gateway: new TmuxAdvisorGateway({
+      capability: value as AdvisorTransportCapability,
+      deliveryPort,
+      now,
+    }),
+    deliverPointer,
+    lookupPointerReceipt,
   };
 }

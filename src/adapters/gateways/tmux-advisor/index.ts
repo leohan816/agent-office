@@ -90,7 +90,6 @@ export class TmuxAdvisorGateway implements AdvisorGateway {
       return prior.receipt;
     }
     const now = this.options.now();
-    assertUtcTimestamp(now, 'gateway now');
     const failureCode = capabilityFailure(this.options.capability, now);
     if (failureCode !== 'NONE' || this.options.deliveryPort === undefined) {
       const receipt = manualReceipt(
@@ -131,19 +130,34 @@ export class TmuxAdvisorGateway implements AdvisorGateway {
 }
 
 function capabilityFailure(
-  capability: AdvisorTransportCapability | undefined,
+  capability: unknown,
   now: string,
 ): GatewayFailureCode {
-  if (capability === undefined || capability.state === 'DISABLED') return 'TRANSPORT_INACTIVE';
-  assertCapability(capability);
+  assertUtcTimestamp(now, 'gateway now');
+  if (capability === undefined) return 'TRANSPORT_INACTIVE';
+  if (!isValidCapability(capability)) return 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED';
+  if (capability.state === 'DISABLED') return 'TRANSPORT_INACTIVE';
   if (capability.killSwitch === 'ENGAGED') return 'KILL_SWITCH_ENGAGED';
   if (capability.state === 'CONFLICT' || capability.synchronization === 'CONFLICT') {
     return 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED';
   }
-  if (Date.parse(now) > Date.parse(capability.expiresAt)) {
+  if (
+    Date.parse(now) < Date.parse(capability.issuedAt) ||
+    Date.parse(now) >= Date.parse(capability.expiresAt)
+  ) {
     return 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED';
   }
   return 'NONE';
+}
+
+function isValidCapability(value: unknown): value is AdvisorTransportCapability {
+  try {
+    assertCapability(value);
+    return true;
+  } catch (error) {
+    if (error instanceof DomainError) return false;
+    throw error;
+  }
 }
 
 function assertCapability(value: unknown): asserts value is AdvisorTransportCapability {
@@ -165,6 +179,12 @@ function assertCapability(value: unknown): asserts value is AdvisorTransportCapa
     capability.schemaVersion !== 'agent-office.advisor-transport-capability.v1' ||
     capability.logicalRoute !== 'ADVISOR_ONLY' ||
     capability.transport !== 'TMUX' ||
+    (capability.state !== 'ACTIVE' &&
+      capability.state !== 'DISABLED' &&
+      capability.state !== 'CONFLICT') ||
+    (capability.killSwitch !== 'DISENGAGED' && capability.killSwitch !== 'ENGAGED') ||
+    (capability.synchronization !== 'SINGLE_PREVALIDATED_DESTINATION' &&
+      capability.synchronization !== 'CONFLICT') ||
     typeof capability.authoritySnapshotHash !== 'string' ||
     typeof capability.activationSnapshotHash !== 'string' ||
     typeof capability.registrySnapshotHash !== 'string' ||
