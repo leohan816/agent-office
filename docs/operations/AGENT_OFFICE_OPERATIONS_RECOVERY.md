@@ -83,6 +83,13 @@ single-writer authority and remain separately gated.
   pauses CSS animation, and resume renders the current projection without replay.
 - Batch C regression/browser tests pass without creating a state root, running a
   recovery operation, or mutating observed repositories/tmux.
+- Batch C visual verification is a test-only local-runtime operation. Commit
+  `243d3a5731a6b22c29caeaba6567aed505f78d59` normalizes Playwright,
+  Chromium, and the loopback Vite server to `ko_KR.UTF-8`; the ordinary 10-test
+  command passes from both `C.UTF-8` and `ko_KR.UTF-8` callers. The installed
+  Korean locale plus configured local browser/font root remain host
+  prerequisites, while cross-host/browser/font portability remains a Batch E
+  operations verification item. No product or service process locale is changed.
 
 ## 2. Durability Objectives
 

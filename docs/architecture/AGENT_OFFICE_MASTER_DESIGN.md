@@ -57,12 +57,17 @@ structured-event-only office scene, eight stable stations, deterministic
 precedence/deduplication/bounded cue runtime, local code-native assets, responsive
 mobile pagination, reduced-motion and visibility handling, semantic/live-region
 accessibility, visible courier/keyboard/checklist/document/tool cues, and
-deterministic Chromium visual/layout audits. The full
-regression suite is 27 Vitest files/123 tests plus 10 Playwright tests, with lint,
-strict typecheck, production builds, dependency audit, and diff/boundary checks
-passing. It does not implement an HTTP server, auth, PWA, SSE, Advisor Inbox,
-gateway, remote collector, DB, network exposure, deployment, or durable mutation.
-Batch C is pending Advisor acceptance and does not authorize Batch D.
+deterministic Chromium visual/layout audits. Visual baselines were corrected at
+`ad74b9e8f98298269534676237a66cfaac055e00`; config/test commit
+`243d3a5731a6b22c29caeaba6567aed505f78d59` now pins `ko_KR.UTF-8` for the
+Playwright process, Chromium launch, and loopback Vite server regardless of the
+caller locale. The full regression suite is 27 Vitest files/124 tests plus 10
+Playwright tests, with the ordinary browser command passing under both
+`C.UTF-8` and `ko_KR.UTF-8` callers and lint, strict typecheck, production builds,
+dependency audit, and diff/boundary checks passing. It does not implement an
+HTTP server, auth, PWA, SSE, Advisor Inbox, gateway, remote collector, DB,
+network exposure, deployment, or durable mutation. Batch C is pending Advisor
+acceptance and does not authorize Batch D.
 
 The byte-exact approved governance manifest remains version 1 with denominator
 15. Its imported facts record AO-WU-01 through AO-WU-05 as `COMPLETED`, AO-WU-06
@@ -401,6 +406,11 @@ separate gate.
 
 - Code/config/tests/assets:
   `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`.
+- Visual-baseline and process-locale corrections:
+  `ad74b9e8f98298269534676237a66cfaac055e00` and
+  `243d3a5731a6b22c29caeaba6567aed505f78d59`; the latter normalizes
+  `LANG`/`LC_ALL` to `ko_KR.UTF-8` for the Playwright process, Chromium launch,
+  and loopback web server without changing product UI behavior.
 - Scene projection/runtime: `src/ui/scene/types.ts` and
   `src/ui/scene/state-machine.ts`; accepted event IDs, exact primary/activity
   mapping, safety precedence, deduplication, burst coalescing, reload/resume
@@ -410,10 +420,12 @@ separate gate.
   assets and SHA-256 inventory under `src/ui/scene/assets/`, responsive rules in
   `src/ui/styles.css`, semantic status list, polite/assertive live regions,
   persisted non-sensitive motion preference, and visibility pause.
-- Verification: 27 Vitest files/123 tests plus 10 Playwright Chromium tests;
+- Verification: 27 Vitest files/124 tests plus 10 Playwright Chromium tests;
   1440x900, 390x844, reduced-motion baselines; tablet/320px/landscape/200% text,
   bounding/no-overlap, keyboard/touch, WCAG A/AA axe audits, lint, strict
   typecheck, production builds, dependency audit, and boundary/diff checks pass.
+  The ordinary 10-test browser command passes from both `C.UTF-8` and
+  `ko_KR.UTF-8` callers with unchanged final baseline bytes.
 - Exit state: `IMPLEMENTED__PENDING_ADVISOR_BATCH_C_ACCEPTANCE`; Batch D is not
   started.
 
@@ -455,7 +467,7 @@ separate gate.
 | AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; replay/crash/restart/quarantine tests pass and Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
 | AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/ui/`; future `src/server/`, `src/pwa/` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts`; future SSE/PWA tests | Responsive read-only dashboard and structured-event office scene implemented through Batch C; HTTP authority, SSE, auth, and PWA remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_C_UI_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Batch C acceptance; server/SSE/PWA remain Batch E |
 | AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`; future `src/adapters/gateways/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Read-only observation subset was Advisor-accepted after Batch B; Advisor/Hermes gateways remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_B_OBSERVATION_SUBSET__ADVISOR_ACCEPTED` | Advisor gateway Batch D; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `tests/acceptance/batch-gates.test.ts`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batch A/B dependencies accepted; Batch A/B regression plus Batch D/E forbidden-scope guards pass in the 123-test Batch C Vitest suite and 10-test browser suite | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept Batch C before any Batch D handoff |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batch A/B dependencies accepted; Batch A/B regression, explicit Playwright process-locale contract, and Batch D/E forbidden-scope guards pass in the 124-test Batch C Vitest suite; the 10-test browser suite passes from both approved caller locales | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept Batch C before any Batch D handoff |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

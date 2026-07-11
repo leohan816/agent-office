@@ -46,9 +46,13 @@ deduplication, burst coalescing, bounded delivery/result/patch cues, static
 load/reload/resume behavior; local code-native assets with pinned dimensions,
 ownership/license, and SHA-256; explicit mobile pagination; reduced motion,
 visibility pause, semantic/live-region accessibility; and committed deterministic
-desktop/mobile/reduced-motion baselines. All 27 Vitest files pass (123 tests), all
-10 Playwright Chromium tests pass, and lint, strict typecheck, production builds,
-dependency audit, diff, source boundary, axe, and layout/no-overlap gates pass.
+desktop/mobile/reduced-motion baselines. All 27 Vitest files pass (124 tests), all
+10 Playwright Chromium tests pass from both `C.UTF-8` and `ko_KR.UTF-8` callers,
+and lint, strict typecheck, production builds, dependency audit, diff, source
+boundary, axe, and layout/no-overlap gates pass. Playwright process-locale
+normalization is committed at `243d3a5731a6b22c29caeaba6567aed505f78d59`;
+the final baseline bytes from `ad74b9e8f98298269534676237a66cfaac055e00`
+remain unchanged.
 
 There is still no HTTP authority server, PWA/service worker, SSE, Advisor Inbox or
 gateway, real authentication/secret, DB, remote collector,
@@ -131,7 +135,7 @@ evidence only. A document section is not proof that behavior exists.
 | AO-REQ-036 Structured activity and exact observable mapping: dispatching/reading/working/testing/writing-result/returning-result/reviewing/block/wait/recovery | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/contract/required-observable-conformance.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/scene-boundary.test.ts` | Accepted domain pairing plus all exact scene mappings, result/pointer gate, stale/unaccepted failure, and prose exclusion pass at Batch C code commit | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-REQ-037 Animation precedence, dedup, bounded motion | `src/ui/scene/state-machine.ts`, `src/ui/styles.css` | `tests/ui/activity-precedence.test.ts`, `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts` | Exact precedence, event-ID dedup, maximum-three burst queue, no reload/resume replay, bounded ordered transform/opacity cues, and visibility pause pass | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-REQ-038 Accessibility and reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/office-scene.spec.ts` | Semantic/status/live-region/focus/touch behavior, persisted motion toggle, media reduced motion, and axe A/AA audits pass; later dialogs/PWA absent | `IMPLEMENTED_BATCH_C_SCENE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Later dialog/PWA accessibility remains Batch D/E |
-| AO-REQ-039 Local visual asset/icon/license strategy | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts` | Locally bundled Lucide plus project-authored actor/desk/document/barrier/tool/warning assets have exact dimensions, ownership/license, source hash, and visual baselines | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
+| AO-REQ-039 Local visual asset/icon/license strategy | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts`, `tests/acceptance/batch-gates.test.ts` | Locally bundled Lucide plus project-authored assets have exact dimensions, ownership/license, source hash, and visual baselines; explicit Korean UTF-8 process locale makes the unchanged baselines pass from both approved caller locales on the configured host | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance; cross-host/browser/font portability remains Batch E |
 | AO-REQ-040 Desktop/mobile stable dimensions, overflow, Korean expansion, and no silent translation | `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/dashboard.tsx`, `src/ui/scene/` | `tests/ui/layout-contract.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/e2e/office-scene.spec.ts` | Batch B reflow/vocabulary plus Batch C 1440/1024/390/320/landscape/200%-text, pagination, no-overlap, and screenshot gates pass | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Later inbox/PWA content remains Batch D/E |
 | AO-REQ-041 PWA installability/update/offline UX | `src/pwa/`, `src/ui/pwa/` | `tests/e2e/pwa-lifecycle.spec.ts` | `NOT_IMPLEMENTED`; [UI Section 14](ui/AGENT_OFFICE_UI_ANIMATION_MAPPING.md#14-pwa-install-offline-and-update-ux) | `DESIGNED_CANDIDATE` | Batch E |
 | AO-REQ-042 SSE over WebSocket with cursor/reset | `src/server/sse/`, `src/ui/live/` | `tests/integration/sse-reconnect.test.ts` | `NOT_IMPLEMENTED`; [Master 8.2](architecture/AGENT_OFFICE_MASTER_DESIGN.md#82-sse-decision) | `DESIGNED_CANDIDATE` | Batch E; WebSocket needs new reviewed decision |
@@ -140,7 +144,7 @@ evidence only. A document section is not proof that behavior exists.
 | AO-REQ-045 Backup and isolated restore | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | `NOT_IMPLEMENTED`; [Operations Sections 11-12](operations/AGENT_OFFICE_OPERATIONS_RECOVERY.md#11-backup-design) | `DESIGNED_CANDIDATE` | Batch E; off-host/encryption separately gated |
 | AO-REQ-046 Application rollback and disable strategy | `src/operations/`, `src/application/startup/` | `tests/recovery/rollback-disable.test.ts` | `NOT_IMPLEMENTED`; [Operations Sections 13-14](operations/AGENT_OFFICE_OPERATIONS_RECOVERY.md#13-application-rollback-and-data-compatibility) | `DESIGNED_CANDIDATE` | Batch E; no Git/deployment authority implied |
 | AO-REQ-047 Evidence-bearing proof of recovery | `src/operations/evidence/` | `tests/recovery/recovery-result.test.ts` | `NOT_IMPLEMENTED`; [Operations Section 16](operations/AGENT_OFFICE_OPERATIONS_RECOVERY.md#16-proof-of-recovery) | `DESIGNED_CANDIDATE` | Batch E and Advisor audit |
-| AO-REQ-048 Batch A-E dependencies, acceptance tests, reviews | `package.json`, `tests/acceptance/batch-gates.test.ts`, future result artifacts | `tests/acceptance/batch-gates.test.ts` | Batches A/B accepted; 123-test regression includes exact Batch C dependencies/tests plus Batch D/E forbidden-scope guards, and 10 browser tests pass | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept before any Batch D handoff |
+| AO-REQ-048 Batch A-E dependencies, acceptance tests, reviews | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, future result artifacts | `tests/acceptance/batch-gates.test.ts` | Batches A/B accepted; 124-test regression includes the Playwright process-locale contract, exact Batch C dependencies/tests, and Batch D/E forbidden-scope guards; 10 browser tests pass from both approved caller locales | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept before any Batch D handoff |
 | AO-REQ-049 Current bootstrap truth, unknowns, limitations | canonical docs and `README.md` | `tests/acceptance/batch-gates.test.ts` | Bootstrap/design/A/B acceptance and exact Batch C commit, paths, tests, assets, local browser limits, and later-batch exclusions are recorded as-built | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Update only from later reviewed as-built evidence |
 | AO-REQ-050 No DB/public/prod/Hermes implementation/automatic next mission | module/import/route/build policy | `tests/acceptance/batch-gates.test.ts` | Batch C source-tree/import/route guards prove these surfaces remain absent | `OUT_OF_SCOPE` | New explicit Leo/GPT mission where applicable; Hermes separately gated |
 
@@ -159,7 +163,7 @@ evidence only. A document section is not proof that behavior exists.
 | Candidate design | Exact seven files in this index | Fable5 Level 3 `DESIGN_REVIEW` over exact commit | Delta `DESIGN_REVIEW: PASS` over `82821afe48b08f70b6888e3ebf12dee3095cd2bb`, recorded in foundation-docs `6c9d94f31ae5dd5424b511afb68188681ff95349` |
 | Batch A | Domain contract, manifest, state machines, single-writer store, projections | Prior design PASS; Advisor batch acceptance | Code/config/tests `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; 15 files/36 tests plus lint/typecheck/build/audit pass; Advisor verdict `PASS__BATCH_A_ACCEPTED_AS_BATCH_B_DEPENDENCY` |
 | Batch B | Read-only adapters and base dashboard | Batch A dependency/evidence accepted | Code/config/tests/assets `85e66d856e33a0df73041cb4b33aba30a8f9f96d`; 23 files/84 tests, lint/typecheck/build/audit/diff and read-only smoke pass; Advisor verdict `PASS__BATCH_B_ACCEPTED_AS_BATCH_C_DEPENDENCY` |
-| Batch C | Structured-event office scene/responsive accessibility | Batch B dependency/evidence accepted | Code/config/tests/assets `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; 27 Vitest files/123 tests and 10 Playwright tests, lint/typecheck/build/audit/diff/boundary/axe/visual/layout pass; pending Advisor acceptance |
+| Batch C | Structured-event office scene/responsive accessibility | Batch B dependency/evidence accepted | Scene code/config/tests/assets `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; visual baselines `ad74b9e8f98298269534676237a66cfaac055e00`; locale config/test `243d3a5731a6b22c29caeaba6567aed505f78d59`; 27 Vitest files/124 tests and 10 Playwright tests from both approved caller locales, lint/typecheck/build/audit/diff/boundary/axe/visual/layout pass; pending Advisor acceptance |
 | Batch D | Advisor Inbox, alerts, GPT package, TmuxAdvisorGateway, acknowledgement/resume | Batch C dependency/evidence accepted; transport profile gate | `NOT_IMPLEMENTED` |
 | Batch E | PWA, security, recovery, full end-to-end tests | Batch D dependency/evidence accepted; any real auth/private gate | `NOT_IMPLEMENTED` |
 | Worker result | Exact as-built evidence package | Advisor verification | `NOT_IMPLEMENTED` |
@@ -188,15 +192,21 @@ tests, evidence, commits, and limitations. `CURRENT_EVIDENCE` changes from
 ### 6.1 Batch C divergence classification
 
 - `DOCUMENTATION_STALE`: Batch B-pending and Batch C-not-implemented statements,
-  future scene/asset/test paths, and F-1 visual evidence became stale after
+  future scene/asset/test paths, F-1 visual evidence, the 123-test count, and an
+  unqualified visual-determinism claim became stale after
   Advisor accepted Batch B and code commit
-  `e30a6cda52e14a4bf30b2d1b7445fa26645496e5` landed; this docs commit corrects
-  only materially affected canonical rows and `README.md`.
+  `e30a6cda52e14a4bf30b2d1b7445fa26645496e5` landed and Advisor reproduced the
+  caller-locale split at `ad74b9e8f98298269534676237a66cfaac055e00`;
+  this docs commit corrects only materially affected canonical evidence.
 - `DEFERRED_WITH_GATE`: Batch D-E, private-network, real-auth, remote-host/Mac,
   Hermes, DB, public, production/live, backup/restore, server/SSE/PWA, inbox,
-  gateway, and remote collector capabilities remain at named gates.
-- `CODE_DEFECT`: none known after the passing 123-test Vitest and 10-test
-  Playwright Batch C verification.
+  gateway, remote collectors, and cross-host/browser/font portability remain at
+  named gates.
+- `CODE_DEFECT`: Playwright inherited the invoking shell locale, so
+  `C.UTF-8` callers rendered fallback font metrics while `ko_KR.UTF-8` callers
+  matched the baselines. Config/test commit
+  `243d3a5731a6b22c29caeaba6567aed505f78d59` fixes the test-runtime boundary;
+  the 124-test Vitest suite and both 10-test caller-locale browser runs pass.
 - `DESIGN_DEFECT`: none encountered.
 - `NEEDS_LEO_GPT_DECISION`: none.
 
@@ -226,7 +236,8 @@ tests, evidence, commits, and limitations. `CURRENT_EVIDENCE` changes from
 - the approved 15-WorkUnit source bytes, path, source commit, hash, labels,
   dependencies, and current facts are preserved;
 - all required Batch A/B regression and Batch C unit/browser/visual/accessibility
-  paths plus lint/typecheck/build/audit/diff/boundary gates pass;
+  paths plus the process-locale contract, both approved caller-locale browser
+  runs, and lint/typecheck/build/audit/diff/boundary gates pass;
 - only a static read-only base UI, local observation subset, and structured-event
   scene were created; no server, PWA, gateway, DB, secret, auth action, remote collector,
   network exposure, production/live operation, Hermes implementation, or role

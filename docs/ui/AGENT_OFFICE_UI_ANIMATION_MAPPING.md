@@ -9,8 +9,12 @@ layout at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d`.
 Advisor accepted that base as the Batch C dependency. The structured-event office
 scene, bounded presentation cues, responsive mapping, local assets, reduced
 motion, and Batch C accessibility/visual tests are implemented at code commit
-`e30a6cda52e14a4bf30b2d1b7445fa26645496e5`. Advisor Inbox, HTTP/live data,
-auth, SSE, PWA, and service worker remain unimplemented.
+`e30a6cda52e14a4bf30b2d1b7445fa26645496e5`. Visual baseline correction
+`ad74b9e8f98298269534676237a66cfaac055e00` and Playwright process-locale
+correction `243d3a5731a6b22c29caeaba6567aed505f78d59` make the committed images
+reproducible across the approved `C.UTF-8` and `ko_KR.UTF-8` caller contexts on
+the configured local browser/font runtime. Advisor Inbox, HTTP/live data, auth,
+SSE, PWA, and service worker remain unimplemented.
 
 ## 1. Experience Principles
 
@@ -555,9 +559,14 @@ Batch B component/view-model tests cover the base hierarchy, all reviewed
 Korean labels including the three R-1 entries, separate progress denominators,
 typed freshness banners, blocker detail, evidence copy, terminal-prose exclusion,
 long IDs/hashes/Korean expansion, table scrolling, 320px rules, and absence of
-PWA/server surfaces. Batch C adds 27 Vitest files/123 total regression tests and
+PWA/server surfaces. Batch C adds 27 Vitest files/124 total regression tests and
 10 Playwright Chromium tests, including three committed deterministic visual
-baselines; the remaining Batch D/E scope stays gated.
+baselines. `playwright.config.ts` normalizes `LANG` and `LC_ALL` to
+`ko_KR.UTF-8` in the Playwright process and explicitly passes the same locale to
+Chromium and the loopback Vite server; a focused acceptance contract verifies
+that configuration without self-spawning the browser suite. The ordinary
+10-test command passes from both `C.UTF-8` and `ko_KR.UTF-8` callers. The
+remaining Batch D/E scope stays gated.
 
 Batch C test paths now cover:
 
@@ -573,7 +582,9 @@ Batch C test paths now cover:
 - long IDs, hashes, labels, messages, tables, and translated content without page
   overflow or layout shift;
 - deterministic visual regression snapshots using projection fixtures, not live
-  tmux/prose.
+  tmux/prose; and
+- caller-locale-independent browser/font selection on the configured host, with
+  the three baseline bytes unchanged after process-locale normalization.
 
 Remaining Batch D/E test paths must cover:
 
@@ -592,7 +603,7 @@ Remaining Batch D/E test paths must cover:
 | AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/application/queries/dashboard-view-model.ts`, `src/ui/i18n/ko.ts` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/dashboard-view-model.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/layout-contract.test.ts` | Responsive Batch B operations base was Advisor-accepted; Batch C preserves it and inserts the scene before the grid | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Live/server/PWA behavior remains Batch E |
 | AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Exact mapping, accepted-ID provenance, evidence fail-closed, precedence, bounded order, dedup/burst/reload/resume, and prose exclusion pass at `e30a6cda52e14a4bf30b2d1b7445fa26645496e5` | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/office-scene.spec.ts` | Semantic list/live regions/roving focus/44px controls, motion toggle, visibility pause, reduced-motion suppression, axe A/AA, and responsive browser gates pass | `IMPLEMENTED_BATCH_C_SCENE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Later dialog/drawer/PWA accessibility remains Batch D/E |
-| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts` | Exact-pinned Lucide plus project-authored local actor/desk/document/barrier/tool/warning SVG source with pinned SHA-256, ownership/license inventory, explicit dimensions, and stable screenshots | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
+| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts`, `tests/acceptance/batch-gates.test.ts` | Exact-pinned Lucide plus project-authored local asset source, ownership/license inventory, dimensions, and hashes remain stable; explicit Korean UTF-8 process locale makes unchanged screenshots pass from both approved caller locales on the configured host | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance; cross-host/browser/font portability remains Batch E |
 | AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/inbox/` | `tests/e2e/advisor-inbox.spec.ts` | `NOT_IMPLEMENTED`; Section 12 | `DESIGNED_CANDIDATE` | Batch D/E |
 | AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/queries/dashboard-view-model.ts`, `src/ui/dashboard.tsx`, `src/ui/scene/` | `tests/ui/dashboard-view-model.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/e2e/office-scene.spec.ts` | Accepted Batch B blocker/freshness detail plus Batch C immediate typed blocker, WAITING_LEO, patch, bounded recovery, critical, and stale scene overlays; lifecycle controls remain absent | `IMPLEMENTED_BATCH_C_PRESENTATION_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full alert/recovery controls remain Batch D/E |
 | AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/` | `tests/e2e/pwa-lifecycle.spec.ts` | `NOT_IMPLEMENTED`; Section 14 | `DESIGNED_CANDIDATE` | Batch E |
