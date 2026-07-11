@@ -1,0 +1,173 @@
+.project-identity {
+  --project-accent: #83b6ff;
+  --project-surface: #27343f;
+  --project-text: #f4f8fb;
+  min-width: 0;
+  border-color: var(--project-accent);
+  color: var(--project-text);
+}
+
+.project-identity[data-theme="light"] {
+  --project-surface: var(--project-light-surface);
+  --project-text: var(--project-light-text);
+}
+
+.project-identity__chip {
+  display: inline-grid;
+  min-width: 0;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 9px;
+  border: 2px var(--project-edge, solid) var(--project-accent);
+  border-radius: 8px;
+  background-color: var(--project-surface);
+  color: var(--project-text);
+  overflow-wrap: anywhere;
+}
+
+.project-identity__glyph {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 2px solid currentColor;
+  background: transparent;
+  color: currentColor;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.project-identity[data-glyph="circle"] .project-identity__glyph {
+  border-radius: 50%;
+}
+
+.project-identity[data-glyph="diamond"] .project-identity__glyph {
+  transform: rotate(45deg) scale(0.75);
+}
+
+.project-identity[data-glyph="diamond"] .project-identity__glyph > span {
+  transform: rotate(-45deg) scale(1.33);
+}
+
+.project-identity[data-glyph="triangle"] .project-identity__glyph {
+  border-radius: 2px 2px 9px 9px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.project-identity[data-glyph="hexagon"] .project-identity__glyph {
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+
+.project-identity[data-glyph="star"] .project-identity__glyph {
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 94%, 50% 72%, 21% 94%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.project-identity[data-glyph="cross"] .project-identity__glyph {
+  clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%);
+}
+
+.project-identity[data-glyph="wave"] .project-identity__glyph {
+  border-radius: 50% 20% 50% 20%;
+}
+
+.project-identity[data-pattern="diagonal"] .project-identity__chip {
+  background-image: repeating-linear-gradient(135deg, transparent 0 8px, rgb(255 255 255 / 10%) 8px 11px);
+}
+
+.project-identity[data-pattern="crosshatch"] .project-identity__chip {
+  background-image:
+    repeating-linear-gradient(45deg, transparent 0 9px, rgb(255 255 255 / 9%) 9px 11px),
+    repeating-linear-gradient(135deg, transparent 0 9px, rgb(255 255 255 / 9%) 9px 11px);
+}
+
+.project-identity[data-pattern="dots"] .project-identity__chip {
+  background-image: radial-gradient(circle, rgb(255 255 255 / 18%) 1.5px, transparent 2px);
+  background-size: 10px 10px;
+}
+
+.project-identity[data-pattern="horizontal"] .project-identity__chip {
+  background-image: repeating-linear-gradient(0deg, transparent 0 7px, rgb(255 255 255 / 11%) 7px 9px);
+}
+
+.project-identity[data-pattern="stepped"] .project-identity__chip {
+  background-image:
+    linear-gradient(45deg, rgb(255 255 255 / 11%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 11%) 25%, transparent 25%);
+  background-position: 0 0, 6px 6px;
+  background-size: 12px 12px;
+}
+
+.project-identity[data-edge="double"] .project-identity__chip {
+  border-style: double;
+  border-width: 4px;
+}
+
+.project-identity[data-edge="dashed"] .project-identity__chip {
+  border-style: dashed;
+}
+
+.project-identity[data-edge="dot-dash"] .project-identity__chip {
+  border-style: dashed dotted;
+}
+
+.project-identity[data-severity="CRITICAL"],
+.project-identity[data-severity="WARNING"],
+.project-identity[data-freshness="STALE"],
+.project-identity[data-freshness="UNKNOWN"],
+.project-identity[data-freshness="CONFLICT"],
+.project-identity[data-freshness="ERROR"],
+.project-identity[data-authority="UNVERIFIED"],
+.project-identity[data-authority="UNKNOWN"],
+.project-identity[data-authority="CONFLICT"] {
+  --project-surface: var(--surface-muted);
+  --project-text: var(--text);
+}
+
+.project-identity[data-severity="CRITICAL"] .project-identity__chip {
+  border-color: var(--critical);
+}
+
+.project-identity[data-severity="WARNING"] .project-identity__chip {
+  border-color: var(--warning);
+}
+
+.project-identity[data-freshness="STALE"] .project-identity__chip,
+.project-identity[data-freshness="UNKNOWN"] .project-identity__chip,
+.project-identity[data-freshness="CONFLICT"] .project-identity__chip,
+.project-identity[data-freshness="ERROR"] .project-identity__chip,
+.project-identity[data-authority="UNVERIFIED"] .project-identity__chip,
+.project-identity[data-authority="UNKNOWN"] .project-identity__chip,
+.project-identity[data-authority="CONFLICT"] .project-identity__chip {
+  border-color: var(--unknown);
+}
+
+.project-identity :focus-visible {
+  outline-color: var(--focus);
+}
+
+@media (prefers-contrast: more) {
+  .project-identity__chip {
+    background-image: none !important;
+    border-width: 3px;
+  }
+}
+
+@media (forced-colors: active) {
+  .project-identity,
+  .project-identity__chip,
+  .project-identity__glyph {
+    forced-color-adjust: auto;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .project-identity__chip {
+    border-color: CanvasText;
+  }
+
+  .project-identity :focus-visible {
+    outline-color: Highlight;
+  }
+}

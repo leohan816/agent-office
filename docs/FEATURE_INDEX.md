@@ -12,16 +12,18 @@ capability/port instance, actual tmux input from Agent Office, implementation
 review `PASS`, rehearsal, Leo/GPT final approval, or mission closure.
 
 The additive M1.2 spatial Advisor-team office package is at status
-`IMPLEMENTED_M1_2_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED`.
+`IMPLEMENTED_M1_2_AO12_B_STATIC_FIXTURE__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_C_NOT_AUTHORIZED`.
 The original design review and clean same-context Level-3 design delta review
-passed, Advisor froze the 14-WorkUnit manifest, and the exact AO12-A handoff
-authorized only `AO12-IWU-01..04`. AO12-A now supplies closed spatial projection
-contracts, a static M1 compatibility adapter, pure Team Pod and assignment
-projection, and the current-name gate. It does not mount the new projection in
-the production/private surface, add an asset or cue runtime, or change M01
-authority, transport, authentication, delivery, persistence, or network
-behavior. AO12-B remains unauthorized pending independent focused review and
-Advisor acceptance of AO12-A.
+passed, Advisor froze the 14-WorkUnit manifest, AO12-A was independently reviewed
+and Advisor-accepted, and the exact AO12-B handoff authorized
+`AO12-IWU-05..08` at base `ecd2652`. AO12-B now adds deterministic project
+identity, original code-native actor/Channy/facility placeholders, one static
+shared floor and complete mission boards, and responsive/accessibility proof
+only behind the explicit test-demo URL parameter. It does not mount in the
+production/private surface, add a cue runtime, or change M01 authority,
+transport, authentication, delivery, persistence, dependency, or network
+behavior. AO12-C remains unauthorized pending independent focused review and
+Advisor acceptance of AO12-B.
 
 ## 1. Current Implemented Scope
 
@@ -185,7 +187,7 @@ baselines. No real credential or private run was created.
 | [`architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md) | Shared wide open-office floor, exact Advisor Team ownership/assignments, selected-detail/non-selected spatial visibility, complete mission boards, resolved Channy and placeholder direction, responsive/accessibility architecture, and M1 adapter |
 | [`contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md`](contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md) | Accepted structured handoff/dispatch/work/test/review/result/patch/decision/completion cues, Channy status reflection, provenance, precedence, deduplication, stale/reload suppression, budgets, and static equivalence |
 | [`ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md`](ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md) | Advisor Team-first identity, fixed approved project palette, SIASIU naming rule, current/future Advisor-character uniqueness, Channy Bedlington Terrier boundary, and project-authored placeholder inventory/hash contract |
-| [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Frozen `AO12-IWU-01` through `AO12-IWU-14`, serial reversible batches, exact tests/rollback/acceptance, AO12-U01-U14 traceability, and AO12-A as-built status pending focused review; AO12-B remains unauthorized |
+| [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Frozen `AO12-IWU-01` through `AO12-IWU-14`, serial reversible batches, exact tests/rollback/acceptance, AO12-U01-U14 traceability, and AO12-A/AO12-B as-built status; AO12-C remains unauthorized |
 | [`architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md) | DQ-01 through DQ-08, exact fixed-pane pointer bridge, durable no-resend transport, Git-verified Advisor evidence ingress, rehearsal, and nine-criterion traceability |
 | [`architecture/AGENT_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_MASTER_DESIGN.md) | Purpose, authority/source precedence, topology, stack boundary, SSE/PWA decision, batches/gates, unknowns |
 | [`contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md) | Manifest, event envelope, entity states, transitions, idempotency, ordering, decisions, projections, evidence completion |
@@ -228,20 +230,28 @@ governance, review evidence, results, and pointers but no competing canonical co
   `APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
   Neither decision by itself authorizes a batch, external assets, operational
   behavior, authority, transport, or state inference. The separate exact
-  handoff authorized AO12-A contracts/invariants only; no asset was created.
+  AO12-B handoff authorized original code-native placeholders only; no external
+  or production asset and no Channy behavior was created.
 
 AO12-A is additive and not production-selected. Its as-built paths are
 `src/application/spatial-office/`, the focused contract/UI tests, and the exact
 SIASIU current-name compatibility correction. The existing `sceneRoles` M1
 surface remains authoritative, unknown spatial versions retain the static M1
 view, and all six M1 baselines remain byte-identical to design base `b7d8cdb`.
+AO12-B is likewise non-production-selected: `src/ui/spatial/` is reachable only
+from `test-demo` plus exact `surface=spatial-static`; default M1 and production
+entry behavior remains unchanged. Four focused files pass 24 tests, the static
+browser spec passes 10 tests, the full regression passes 65/342 Vitest plus
+28/28 default-demo and 3/3 composed Chromium tests, and six new
+configured-runtime PNGs were directly inspected.
 
 ## 3. Status and Gate Vocabulary
 
 | Status | Meaning |
 |---|---|
-| `DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS` | The four M1.2 canonical design documents and this discoverability pointer contain the authorized narrow product-intent patch; no source/config/test/dependency/asset/runtime implementation is started or authorized until clean same-context Fable5 delta PASS, Advisor freeze, exact manifest, and separate handoff |
-| `IMPLEMENTED_M1_2_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED` | `AO12-IWU-01..04` are implemented and locally verified as an additive non-production-selected layer; independent focused review and Advisor acceptance remain required before AO12-B |
+| `DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS` | Historical pre-implementation state for the five-document narrow patch; superseded for `AO12-IWU-01..08` only by the clean delta `PASS`, manifest freeze, serial reviews/acceptance, and exact AO12-A/AO12-B handoffs |
+| `IMPLEMENTED_M1_2_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED` | Historical pre-acceptance state: `AO12-IWU-01..04` were locally implemented but not yet accepted; superseded by corrected focused `PASS`, Advisor acceptance, and the exact AO12-B handoff |
+| `IMPLEMENTED_M1_2_AO12_B_STATIC_FIXTURE__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_C_NOT_AUTHORIZED` | AO12-A is accepted and `AO12-IWU-05..08` are locally implemented/verified as explicit test-demo-only static UI; no motion, production mount, external asset, dependency, authority, transport, authentication, DB, or network change exists; focused review and Advisor acceptance are required before AO12-C |
 | `IMPLEMENTED_BOOTSTRAP_ONLY` | Present in bootstrap commit; documentation/configuration only |
 | `DESIGNED_CANDIDATE` | Reviewed design target that is not yet implemented; its named implementation gate still applies |
 | `DESIGNED_FOR_EXTENSION` | Interface/invariant reserved; only local subset may be in M01 |
@@ -320,6 +330,11 @@ evidence only. A document section is not proof that behavior exists.
 | AO-REQ-048 Batch A-E dependencies, acceptance tests, reviews | `package.json`, `playwright.config.ts`, `playwright.composed.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts` | LocalBootstrap commit `2623922877bd52dc7f5b6c6cd45fae755e5ff228` passes 55/255 Vitest and 21/21 Chromium tests, builds, zero-high audit, disposable smoke, diff/secret scan and direct visual gates | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Fable5 code/security review, Advisor private-run authority/evidence, and final approval |
 | AO-REQ-049 Current bootstrap truth, unknowns, limitations | eight canonical docs, README, both preparation runbooks, disabled example, and result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/exact-advisor-delivery.test.ts` | Canonical manifest v5 is required from the actual foundation-docs root; LocalBootstrap private-run evidence passed and was cleaned up. AO-WU-19 exact delivery is implemented disabled with no committed activation/lease/capability/input | `IMPLEMENTED_EXACT_DELIVERY_DISABLED__PENDING_FABLE5_SECURITY_REVIEW` | AO-WU-20 Fable5 PASS -> AO-WU-21 Advisor synthetic actual rehearsal |
 | AO-REQ-050 No DB/public/prod/Hermes implementation/automatic next mission | module/import/route/build policy and exact delivery implementation scope | `tests/acceptance/batch-gates.test.ts`, `tests/security/private-network-disabled.test.ts`, exact delivery boundary scans | Source/config/route scans prove no DB, public/prod or private-network mode, real secret, Hermes implementation, generic terminal/role dispatch, enabled descriptor, browser target, or automatic next mission | `OUT_OF_SCOPE` | Hermes/network/DB/prod remain separate missions; exact fixed Advisor pointer delivery alone follows its reviewed train |
+| AO12-REQ-004 Deterministic project identity and current naming | `src/ui/spatial/project-identity.ts`, `project-identity.css` | `tests/ui/project-identity.test.ts`, current-product name gate | Six fixed families, exact catalog-v1 SHA-256 fallback, collision labels, contrast, severity/freshness/authority/focus precedence, and SIASIU output pass without mutable storage | `IMPLEMENTED_AO12_B__PENDING_FOCUSED_REVIEW` | AO12-B Fable5 UI/accessibility/asset review and Advisor acceptance |
+| AO12-REQ-005 Original character/Channy/facility placeholder boundary | `src/ui/spatial/character.tsx`, `assets/placeholder-characters.tsx`, `asset-registry.ts`, `assets/ASSET_INVENTORY.md` | `tests/ui/spatial-asset-contract.test.ts` | Stable seven semantic slots plus office facilities, internal license, actual source SHA-256 `adacf982a568bffefe1a6eddefb58584ff706f9408fdf5ab81a42ce49b19bd63`, no external/script behavior, neutral fallback, and static non-actor Channy pass | `IMPLEMENTED_AO12_B_PLACEHOLDER_ONLY__PENDING_FOCUSED_REVIEW` | Production art/external source and all Channy behavior remain separate gates |
+| AO12-REQ-006 Static shared floor and exact mission board | `src/ui/spatial/spatial-office.tsx`, `team-pod.tsx`, `mission-board.tsx`, `fixtures.ts` | `tests/ui/spatial-office.component.test.tsx`, `tests/e2e/spatial-office-static.spec.ts` | Every desktop Team Pod remains an office area, selection expands in place, all board/zones/redaction facts render, each roleInstanceId appears once, and no route/cue/adapter exists | `IMPLEMENTED_AO12_B_TEST_DEMO_ONLY__PENDING_FOCUSED_REVIEW` | Production projection wiring remains AO12-D; motion remains AO12-C |
+| AO12-REQ-010 Responsive/a11y/static equivalence | `src/ui/spatial/spatial-office.css`, exact parameter gate in `src/ui/demo-entry.tsx` | `tests/ui/spatial-accessibility.test.tsx`, `tests/e2e/spatial-office-static.spec.ts`, six new static baselines | 24 focused tests and 10 Chromium tests pass desktop/tablet/mobile/320/200%/landscape, axe A/AA, roving focus, dialog restore, 44px, forced colors, SVG/color removal, and zero animation; every new PNG was directly inspected | `IMPLEMENTED_AO12_B_TEST_DEMO_ONLY__PENDING_FOCUSED_REVIEW` | Configured local browser/font runtime only; no portability claim |
+| AO12-REQ-012/014 M1 compatibility and no authority/transport expansion | explicit test-demo-only import plus unchanged production entry/package/lock/M1 baselines | full Vitest, default demo/composed Playwright, package/lock and baseline SHA-256 audits | Default M1 and production selection remain unchanged; six M1 baseline bytes and package/lock hashes equal exact base; spatial source has no adapter/process/network/write/dispatch capability | `IMPLEMENTED_AO12_B_ADDITIVE_ONLY__PENDING_FOCUSED_REVIEW` | AO12-C unauthorized; production/authority/transport remain fixed prohibitions |
 
 ### 4.1 Fable5 F-1/F-2/F-3 rework anchors
 
@@ -358,6 +373,8 @@ evidence only. A document section is not proof that behavior exists.
 | LocalBootstrap private run | Exact loopback login/logout/expiry/restart/recovery/private UI evidence | Fable5 code/security PASS, then Advisor run | `PASS`; target remains `9c403da5662aeedc28a8c677c37a134aaa44dce3`, server/proof/listener/lock cleaned up, delivery still manual |
 | Exact delivery design | DQ-01 through DQ-08, schemas/order, fixed port, durable no-resend, Advisor evidence ingress, threats/rehearsal | Fable5 Level-3 design review of `d170880` | `PASS`, recorded at foundation-docs `62973c4` |
 | Exact delivery implementation | Trusted config/composition, exact port/journal/latch, Git evidence ingress, UI state separation, SIASIU | Fable5 implementation/security review | AO-WU-19 code/tests/docs implemented disabled; no activation/lease/capability/server/tmux input |
+| M1.2 AO12-A | Projection/validation, M1 adapter, Team Pod/assignment invariants, current-name gate | Focused Fable5 contract/authority review plus Advisor acceptance | Corrected focused review `PASS`; Advisor accepted exact base `ecd2652501df55aba0aa0f55c236b1933c6dc1e3` as AO12-B dependency |
+| M1.2 AO12-B | Deterministic identity, original placeholders, fixture-only shared static floor/boards, responsive/a11y proof | Focused Fable5 UI/accessibility/asset-boundary review plus Advisor acceptance | 24/24 focused and 65/342 full Vitest, 10/10 static and 28/28 default-demo plus 3/3 composed Chromium pass; six new configured-runtime PNGs directly inspected; exact commit is recorded in the Worker result; review/acceptance pending and AO12-C unauthorized |
 | Worker result | Exact final-rework-round-2 as-built evidence package | Advisor verification | Published after this canonical docs commit through the exact foundation-docs result/pointer paths; approval pending |
 | Implementation review | Actual code/tests/design conformance | Fable5 `IMPLEMENTATION_REVIEW` | Original final dual review and first rework delta review returned `NEEDS_PATCH`; this round-2 patch is pending the same Reviewer's next delta review |
 | Exact delivery implementation/rehearsal/final audit | Reviewed bridge implementation, Fable5 security review, one Advisor synthetic actual rehearsal, final audit | Strict AO-WU-19 -> AO-WU-20 -> AO-WU-21 -> AO-WU-15 dependency | AO-WU-19 implemented disabled; AO-WU-20/21/15 remain pending; safe state is stopped/manual/no capability instance |

@@ -1,6 +1,6 @@
 # Agent Office M1.2 Character and Project Identity System
 
-Status: `AO12_A_CURRENT_NAME_GATE_IMPLEMENTED__NO_ASSET_CREATED_OR_SELECTED__AO12_B_NOT_AUTHORIZED`
+Status: `AO12_B_IDENTITY_AND_CODE_NATIVE_PLACEHOLDERS_IMPLEMENTED__PENDING_FOCUSED_REVIEW__PRODUCTION_ASSETS_DEFERRED`
 
 Identity catalog candidate: `agent-office.project-identity.v1`
 
@@ -8,8 +8,10 @@ Asset manifest candidate: `agent-office.character-assets.v1`
 
 This document defines supplemental project and actor presentation identity for
 M1.2. Identity never changes actor authority, assignment, mission state,
-freshness, severity, evidence, or transport. No image, SVG, font, animation,
-purchase, license, import, generation, or dependency is added by this design.
+freshness, severity, evidence, or transport. AO12-B now implements original
+code-native inline SVG/CSS/DOM placeholders and an internal license record only;
+it adds no external image, font, animation, purchase, import, generation, or
+dependency.
 
 ## 1. Current evidence and limitations
 
@@ -25,12 +27,15 @@ The current M1 scene uses:
   `src/ui/styles.css`; and
 - exact ownership/licensing records in `src/ui/assets/LICENSES.md`.
 
-This paragraph is historical M1 evidence: at exact base M1 there is no project
+This paragraph is historical M1 evidence: at exact base M1 there was no project
 identity palette, character customization, role-specific silhouette, Channy
 definition, production art style, asset vendor, or asset-generation pipeline.
-The M1.2 design decisions below do not claim any asset now exists. Model/provider
-names and tmux identities are not character identities. The six current visual
-baselines prove the generic M1 assets only.
+AO12-B adds only the fixture/test-scoped `src/ui/spatial/project-identity.ts`,
+`character.tsx`, original placeholder source, registry, and inventory. It does
+not change the existing M1 generic asset, production presentation, model/person
+identity, or authority. The six existing M1 baselines still prove the generic
+M1 assets only; six separate M1.2 static baselines prove the new placeholders
+under the configured local browser/font runtime.
 
 ## 2. Identity-layer precedence
 
@@ -126,7 +131,7 @@ Candidate catalogs contain at least:
 - 4 edge styles: solid, double, dashed, and dot-dash.
 
 Exact light/dark/high-contrast values for both fixed and fallback palettes are
-an implementation deliverable and must pass the contrast gate before use. A hue
+implemented in `project-identity.ts/css` and pass the focused contrast gate. A hue
 whose tested values are too close to an operational semantic token must be
 adjusted within its approved family or replaced in the fallback catalog, not
 accepted by relying on pattern alone.
@@ -403,8 +408,8 @@ terminal actor, or inferred presence.
 
 The exact product decision is
 `APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
-Future authorized implementation may create only original project-authored
-CSS/DOM/SVG/simple local sprite-like placeholders. The direction is cute
+AO12-B implements only original project-authored CSS/DOM/SVG/simple local
+sprite-like placeholders. The direction is cute
 2D/2.5D pixel or pixel-inspired, warm retro 16/32-bit console, friendly and
 blocky, in an American startup/open-office setting. Environmental placeholders
 may include wood desks, glass meeting room, coffee lounge, shared paths, project
@@ -415,7 +420,7 @@ style.
 
 ### 8.1 Slot geometry
 
-Future project-authored placeholders use deterministic slots:
+AO12-B project-authored placeholders use deterministic slots:
 
 | Slot | Candidate intrinsic size/viewBox | Use |
 |---|---|---|
@@ -432,7 +437,7 @@ M1.2 slot selection does not resize or replace the historical asset.
 
 ### 8.2 Required asset-manifest fields
 
-Every future asset entry must include:
+Every current or future asset entry must include:
 
 ```text
 schemaVersion: agent-office.character-assets.v1
@@ -520,7 +525,8 @@ same reviewed implementation batch.
 
 ## 11. Contrast and visual verification gates
 
-Future implementation must prove:
+AO12-B implementation proves for its static fixture, and every replacement must
+continue to prove:
 
 - normal text contrast >= 4.5:1 and large text >= 3:1;
 - focus and essential graphical/state objects >= 3:1 against adjacent colors;
@@ -532,7 +538,7 @@ Future implementation must prove:
 - no remote asset request or executable SVG behavior; and
 - M1 asset hash, inventory, dimensions, and six baseline bytes remain unchanged.
 
-Candidate future tests are named in
+Current AO12-B tests and later train tests are named in
 [`../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md).
 
 ## 12. Resolved Leo/GPT decisions and implementation gate
@@ -544,12 +550,17 @@ Candidate future tests are named in
 The chained decision status is
 `DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
 
-The clean delta review, Advisor freeze, exact manifest, and separate AO12-A
-handoff occurred. AO12-A implements only the current-name gate and identity-safe
-projection references; no asset has been created or selected. Independent
-focused review and Advisor acceptance remain required, and AO12-B is not
-authorized. No customization, likeness, purchase, import, external generation,
-or runtime activation is implied.
+The clean delta review, Advisor freeze, AO12-A focused `PASS`/Advisor acceptance,
+and exact AO12-B handoff occurred. AO12-A retains the current-name gate and
+identity-safe projection references. AO12-B implements deterministic fixed and
+fallback identities plus only original placeholder assets with stable geometry,
+internal license, and actual source hash
+`adacf982a568bffefe1a6eddefb58584ff706f9408fdf5ab81a42ce49b19bd63`.
+Four focused files pass 24 tests and six static configured-runtime baselines were
+directly inspected. Independent focused AO12-B review and Advisor acceptance
+remain required; AO12-C and production selection are not authorized. No
+personalized likeness, purchase, import, external generation, production-art
+approval, Channy behavior, or runtime activation is implied.
 
 ## 13. Authority, security, and privacy non-change
 

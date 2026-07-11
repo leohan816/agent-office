@@ -1,6 +1,6 @@
 # Agent Office M1.2 Spatial Event and Animation Contract
 
-Status: `AO12_A_PROJECTION_CONTRACT_IMPLEMENTED__SPATIAL_CUES_NOT_STARTED__PENDING_FOCUSED_REVIEW`
+Status: `AO12_B_STATIC_EQUIVALENT_IMPLEMENTED__SPATIAL_CUES_NOT_STARTED__AO12_C_NOT_AUTHORIZED`
 
 Contract candidate: `agent-office.spatial-cue.v1`
 
@@ -12,11 +12,13 @@ authority, transport route, timer-based mission transition, or persistence
 requirement. The canonical M1 event and activity contract remains
 [`AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md).
 The design patch received a clean delta `PASS`, Advisor freeze, exact manifest,
-and separate AO12-A handoff. AO12-A implements the versioned source projection,
-closed validation, M1 fallback, pure Team Pod projection, and assignment/name
-invariants only. Spatial cue projection/reduction/rendering remains AO12-C work
-and is not started or authorized; no production projection selects this
-contract.
+and separate AO12-A/AO12-B handoffs. AO12-A implements the versioned source
+projection, closed validation, M1 fallback, pure Team Pod projection, and
+assignment/name invariants. AO12-B implements only the test-demo static shared
+floor and the immediate text/icon/shape/list equivalents: it creates zero cue or
+animation object and consumes no live delta. Spatial cue projection/reduction/
+rendering remains AO12-C work and is not started or authorized; no production
+projection selects this contract.
 
 ## 1. Contract principles
 
@@ -519,9 +521,13 @@ fail to the verified M1/static view.
 ## 14. Verification contract
 
 AO12-A implements focused projection/adapter/projector/assignment/current-name
-tests for the applicable items below. Cue, rendering, accessibility, responsive,
-and performance proofs remain future work under their separately authorized
-batches. The complete train must prove at least:
+tests. AO12-B implements the applicable static rendering, identity, mission-board,
+responsive, keyboard/focus, forced-color, WCAG A/AA, and zero-motion proofs in
+four focused Vitest files (24 tests) and one Playwright file (10 tests). Six new
+configured-runtime static baselines were directly inspected, with desktop and
+reduced-motion bytes identical. Cue-source, cue-reducer, route, animated
+rendering, and performance proofs remain future AO12-C work. The complete train
+must prove at least:
 
 - every cue row has valid and invalid source/evidence cases;
 - terminal/model/process-shaped prose cannot change a cue;
@@ -551,7 +557,7 @@ batches. The complete train must prove at least:
 - source modules have no observation/process/network/write/dispatch import; and
 - every benchmark target is measured and honestly classified.
 
-Exact as-built AO12-A and proposed later paths/WorkUnits are in
+Exact as-built AO12-A/AO12-B and proposed later paths/WorkUnits are in
 [`../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md).
 
 ## 15. Authority and transport non-change

@@ -1,10 +1,10 @@
 # Agent Office M1.2 Implementation WorkUnit Plan
 
-Status: `AO12_A_IMPLEMENTED__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED`
+Status: `AO12_B_IMPLEMENTED__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_C_NOT_AUTHORIZED`
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-This plan records the frozen reversible implementation train and AO12-A
+This plan records the frozen reversible implementation train and AO12-A/AO12-B
 as-built status. It is not an implementation launcher, handoff, permission,
 review verdict, branch decision, asset approval, or authority change. Every
 later batch requires a new exact Advisor handoff after the preceding dependency
@@ -34,11 +34,13 @@ five canonical design documents. It cannot start an implementation WorkUnit.
 The clean same-context Level-3 design delta review returned `PASS` with no risk,
 unresolved defect, new decision, or scope expansion. Advisor then froze
 `AO12-IWU-01` through `AO12-IWU-14` in the exact versioned implementation
-manifest. The separate AO12-A handoff authorized `AO12-IWU-01..04`, which are
-implemented pending independent focused review and Advisor acceptance.
-`AO12-IWU-05..14` remain waiting and unauthorized. These implementation IDs do
-not change the five-WorkUnit design-mission denominator and no later batch may be
-projected as active scope.
+manifest. The separate AO12-A handoff authorized `AO12-IWU-01..04`; focused
+review passed and Advisor accepted them as the AO12-B dependency. The exact
+AO12-B handoff then authorized `AO12-IWU-05..08`, which are implemented pending
+independent focused UI/accessibility/asset-boundary review and Advisor
+acceptance. `AO12-IWU-09..14` remain waiting and unauthorized. These
+implementation IDs do not change the five-WorkUnit design-mission denominator
+and no later batch may be projected as active scope.
 
 No Designer session is assumed or created. The existing Agent Office Worker is
 the candidate implementation owner unless a later exact manifest identifies an
@@ -63,9 +65,9 @@ No `AO12-IWU-*` may start unless all are true:
 `NEEDS_PATCH`, any risk, or any new decision returns to Advisor. `FAIL` stops.
 Silence, a design commit, or a passing local check is not authorization.
 
-These entry conditions were satisfied for the exact AO12-A handoff only. Local
-AO12-A verification is not independent review or Advisor acceptance and does not
-satisfy the gate for AO12-B.
+These entry conditions were satisfied for the exact AO12-A and AO12-B handoffs
+only. Local AO12-B verification is not independent review or Advisor acceptance
+and does not satisfy the gate for AO12-C.
 
 ## 3. Reversible batch overview
 
@@ -80,15 +82,16 @@ No batch may be combined to bypass its dependency or review. No batch may add
 an auth, network, Advisor delivery, role dispatch, DB, secret, or asset-purchase
 change.
 
-Current batch state: AO12-A is implemented and locally verified, pending focused
-Fable5 review and Advisor acceptance. AO12-B, AO12-C, and AO12-D remain
-unauthorized.
+Current batch state: AO12-A is independently reviewed and Advisor-accepted.
+AO12-B is implemented and locally verified, pending focused Fable5 UI,
+accessibility, and asset-boundary review plus Advisor acceptance. AO12-C and
+AO12-D remain unauthorized.
 
 ## 4. Batch AO12-A - contracts, compatibility, Team/Advisor invariants, and SIASIU correction
 
 ### `AO12-IWU-01` Spatial projection types and validators
 
-State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_A__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_B_DEPENDENCY`
 
 As-built scope:
 
@@ -112,7 +115,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-02` M1 fixed-station compatibility adapter
 
-State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_A__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_B_DEPENDENCY`
 
 As-built scope:
 
@@ -134,7 +137,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-03` Dynamic Team Pod projector
 
-State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_A__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_B_DEPENDENCY`
 
 As-built scope:
 
@@ -162,7 +165,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-04` Assignment, Single Advisor, and SIASIU current-name invariants
 
-State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_A__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_B_DEPENDENCY`
 
 As-built scope:
 
@@ -213,7 +216,7 @@ Required checks:
   fixtures, actor labels, locale strings, tests, and baselines; and
 - exact changed-path/staged-path audit.
 
-AO12-A local as-built evidence, pending independent review:
+AO12-A accepted as-built evidence:
 
 - five focused files pass 22 tests;
 - the full sequential Vitest suite passes 61 files and 318 tests;
@@ -233,16 +236,16 @@ The prior M1 surface remains operable but is ineligible for M1.2 until the
 SIASIU correction is reapplied. No ledger, manifest, projection store,
 authority, transport, or baseline bytes change.
 
-Gate: independent focused design/contract implementation review and Advisor
-acceptance before AO12-B.
+Gate: satisfied by the corrected focused Fable5 `PASS`, Advisor acceptance, and
+the exact AO12-B handoff at base `ecd2652501df55aba0aa0f55c236b1933c6dc1e3`.
 
 ## 5. Batch AO12-B - shared static floor and identity
 
 ### `AO12-IWU-05` Deterministic project identity catalog
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/ui/spatial/project-identity.ts`
 - `src/ui/spatial/project-identity.css`
@@ -266,9 +269,9 @@ Acceptance criteria:
 
 ### `AO12-IWU-06` Project-authored character placeholders and inventory
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/ui/spatial/character.tsx`
 - `src/ui/spatial/assets/placeholder-characters.tsx`
@@ -301,14 +304,16 @@ The placeholder decision is
 
 ### `AO12-IWU-07` Static Team Pod, mission board, and semantic zones
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/ui/spatial/spatial-office.tsx`
 - `src/ui/spatial/team-pod.tsx`
 - `src/ui/spatial/mission-board.tsx`
+- `src/ui/spatial/fixtures.ts`
 - `src/ui/spatial/spatial-office.css`
+- exact `surface=spatial-static` test-demo gate in `src/ui/demo-entry.tsx`
 - `tests/ui/spatial-office.component.test.tsx`
 
 Acceptance criteria:
@@ -336,15 +341,15 @@ Acceptance criteria:
 
 ### `AO12-IWU-08` Responsive and accessible static architecture
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - static component/style refinements within the AO12-B allowlist;
-- reviewed new locale entries in `src/ui/i18n/ko.ts` only if an exact handoff
-  supplies approved vocabulary;
 - `tests/ui/spatial-accessibility.test.tsx`
 - `tests/e2e/spatial-office-static.spec.ts`
+- six new PNGs only under
+  `tests/e2e/baselines/spatial-office-static.spec.ts/`
 
 Acceptance criteria:
 
@@ -370,6 +375,42 @@ Required checks:
 - asset inventory/hash/license/source-boundary scans;
 - lint, typecheck, builds, audit, diff, exact path, and no dependency/lockfile
   change unless separately authorized.
+
+AO12-B local as-built evidence, pending independent review:
+
+- four focused Vitest files pass 24 tests for deterministic identity, actual
+  asset hash/license/safety, static components, and keyboard/focus semantics;
+- the full sequential Vitest regression passes 65 files and 342 tests;
+- `tests/e2e/spatial-office-static.spec.ts` passes 10 Chromium tests with exact
+  default-M1 isolation, desktop/tablet/mobile/320px/200%-text/short-landscape,
+  WCAG A/AA, roving focus, modal focus restore, 44px controls, forced colors,
+  color/SVG removal, zero animation objects, and loopback-only request proof;
+- full browser regression passes 28/28 default test-demo Chromium tests and
+  3/3 authenticated composed Chromium tests;
+- six new configured-runtime static PNGs were directly inspected; desktop and
+  reduced-motion bytes are intentionally identical because AO12-B is static;
+- new PNG SHA-256 values are desktop
+  `dc6d9f6c27db2a6a19748b3d4458af57ac2125ef55ae16068145f044c15dac41`,
+  tablet
+  `8f04a08303280ddff61d992e00bf68ffbe0935d6d128221193ae7ba29a9da852`,
+  mobile
+  `30785ee5dc77b02fc3b7ca270713aded572dbfcda23b7380a4f45c77e0071d23`,
+  reduced/static
+  `dc6d9f6c27db2a6a19748b3d4458af57ac2125ef55ae16068145f044c15dac41`,
+  forced colors
+  `f92d7cdce598e475780919e6bf6dea7200d73735042cf27017f04da03f8ae7e3`,
+  and 200%-text
+  `a667a3b7de849f2d4dd8245142ada4f9459e85363c6f343c9cffa0c7447aba54`;
+- placeholder source SHA-256 is
+  `adacf982a568bffefe1a6eddefb58584ff706f9408fdf5ab81a42ce49b19bd63`;
+- package and lockfile SHA-256 remain
+  `dac88fec3e9a2c5ff57923626de21d29dfd3b5ca1b466f815ab42efcfa73a2e3`
+  and `fcb946aeb785b12f80176372874e5fed3f892fd4fed628384ff578d3f4d696d4`;
+- all six existing M1 baseline SHA-256 values remain byte-identical to exact
+  base `ecd2652`; and
+- no production mount, cue/motion/runtime, dependency, authority, transport,
+  authentication, DB, network, external asset, or operational Channy behavior
+  was added.
 
 Rollback: the new component remains test/fixture-only and can be removed without
 changing `src/runtime/projection.ts`, production entry, ledger, config, or M1
