@@ -19,6 +19,9 @@ gateway, disabled Hermes stub, content-redacted lifecycle audit projection, iner
 Inbox/Alerts rendering, and no-role-target acceptance tests. It adds no HTTP,
 auth credential, CSRF/rate server, real tmux input, process/network gateway,
 private exposure, or live deployment.
+AO-D-R1 rework commit `04809004bfd863181f4af8260879f56bc8b6ede6`
+adds strict runtime capability vocabulary, clock, and temporal validation without
+adding any authority or transport surface.
 
 ## 1. Security Objectives
 
@@ -67,11 +70,11 @@ Availability never outranks actor separation or evidence integrity.
   summaries.
 - `src/adapters/gateways/` exposes no process/network primitive. A prevalidated
   opaque `ADVISOR_ONLY` capability gates the canonical pointer envelope; any
-  disabled/kill/stale/conflict/ambiguous state is manual fallback.
+  disabled/kill/malformed/stale/conflict/ambiguous state is manual fallback.
 - Adapter/security boundary tests are deterministic and use fake tool runners;
   traversal, symlink, special-file, hostile argv/ref/name, timeout/cap, root
   isolation, malicious inert text, capability matrix, and Batch E forbidden-scope
-  cases pass in the 149-test suite plus 15 Chromium tests.
+  cases pass in the 155-test suite plus 15 Chromium tests.
 
 ## 2. Threat Model
 
@@ -361,6 +364,9 @@ TMUX transport tag, active/disabled/conflict and kill/synchronization state,
 issue/expiry times, and authority/activation/registry hashes. Locator and process
 details stay outside Agent Office. The injected delivery port receives only the
 capability ID, notification ID, and canonical pointer-envelope bytes.
+Runtime checks accept only the exact three closed vocabularies, require a
+canonical UTC clock on health/new-queue/uncached-lookup paths, reject a future
+`issuedAt`, and treat `expiresAt` as an exclusive boundary.
 
 ## 13. Audit and Redaction
 
@@ -406,10 +412,11 @@ Two distinct controls exist:
 Neither switch terminates role processes, deletes data, or authorizes rollback.
 
 Batch D implements the gateway side of these semantics only: absent, disabled,
-kill-switched, stale, or conflicting capability invokes no delivery port and
-returns manual fallback; ambiguous started delivery performs lookup only and
-persists manual evidence when no receipt exists. It does not read or mutate the
-real external transport state.
+malformed, future-issued, expired, kill-switched, stale, or conflicting
+capability invokes no delivery port and returns manual fallback; invalid
+authority also suppresses receipt lookup. Ambiguous started delivery performs
+lookup only and persists manual evidence when no receipt exists. It does not read
+or mutate the real external transport state.
 The UI always shows delivery state and the manual pointer path. Re-enable requires
 fresh configuration/authority validation and an audit receipt; it is never timed
 or automatic.
@@ -439,7 +446,8 @@ Batch E must include at least:
 - command/target field rejection and proof no browser route reaches Worker/Reviewer;
 - direct-exec argv tests proving no shell and no writable Git/tmux observation;
 - same-ID/same-hash replay and same-ID/different-hash conflict after restart;
-- gateway inactive/kill-switch/registry mismatch/manual fallback tests;
+- gateway invalid-vocabulary/inactive/kill-switch/registry/time-boundary/manual
+  fallback tests;
 - audit redaction tests seeded with canary secret-like values; and
 - service-worker cache inspection proving API/auth/message data is absent.
 
@@ -454,7 +462,7 @@ Tailscale action, or production identity is permitted by this design.
 | AO-SEC-002 Auth/session/capability model without embedded secrets | `src/server/auth/` | `tests/security/auth-session.test.ts` | `NOT_IMPLEMENTED`; Sections 3 and 6 | `DESIGNED_CANDIDATE` | Batch E and real-secret authority if activated |
 | AO-SEC-003 CSRF/origin/rate/input/output controls | `src/domain/messages/`, `src/ui/communication/`; future `src/server/security/` | `tests/domain/transitions.test.ts`, `tests/ui/communication-center.component.test.tsx` | Batch D implements closed fields, message/artifact bounds, allowlisted refs, control rejection, and inert text/code rendering only; CSRF/origin/rate/HTTP controls remain absent | `IMPLEMENTED_BATCH_D_CONTENT_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | HTTP security remains Batch E |
 | AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/ui/communication/`; future `src/server/routes/` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/acceptance/batch-gates.test.ts` | Batch D form exposes no target field; gateway accepts one exact pointer schema, has no process/network import, and cannot route Worker/Reviewer/session/pane/command | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Re-prove at Batch E HTTP boundary |
-| AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/`, `src/application/advisor-inbox/` | `tests/integration/lifecycle-audit.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Redacted ledger projection, capability/kill/stale/conflict fail-closed behavior, durable receipt/manual evidence, and ambiguous no-resend pass | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Separate security audit/server and real transport remain Batch E/external |
+| AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/`, `src/application/advisor-inbox/` | `tests/integration/lifecycle-audit.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Redacted ledger projection, strict capability vocabulary/clock/time boundary, kill/stale/conflict fail-closed behavior, durable receipt/manual evidence, and ambiguous no-resend pass | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Separate security audit/server and real transport remain Batch E/external |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/` | `tests/e2e/pwa-cache-security.spec.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

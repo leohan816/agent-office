@@ -76,11 +76,13 @@ communication application, scoped immutable message and lifecycle artifacts,
 durable message/notification outbox projection and crash reconciliation,
 capability-gated fixed `TmuxAdvisorGateway`, disabled Hermes stub, canonical
 alert application, redacted lifecycle audit, deterministic GPT-package copy,
-and responsive Inbox/Alerts UI. The complete suite is 35 Vitest files/149 tests
-and 15 sequential Chromium tests. No HTTP/SSE/auth/PWA, real tmux input, Hermes
-implementation, DB, secret, remote host, network exposure, deployment, or live
-runtime was added. Batch D is pending Advisor acceptance and does not authorize
-Batch E.
+and responsive Inbox/Alerts UI. AO-D-R1 rework commit
+`04809004bfd863181f4af8260879f56bc8b6ede6` makes malformed runtime capability
+vocabulary and both temporal edges fail closed before transport access. The
+complete suite is 35 Vitest files/155 tests and 15 sequential Chromium tests. No
+HTTP/SSE/auth/PWA, real tmux input, Hermes implementation, DB, secret, remote
+host, network exposure, deployment, or live runtime was added. Batch D is pending
+Advisor acceptance and does not authorize Batch E.
 
 The byte-exact approved governance manifest remains version 1 with denominator
 15. Its imported facts record AO-WU-01 through AO-WU-05 as `COMPLETED`, AO-WU-06
@@ -455,7 +457,9 @@ separate gate.
 
 ### 11.5 Batch D as-built evidence
 
-- Code/config/tests: `7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`.
+- Code/config/tests: `7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`;
+  AO-D-R1 capability-validation rework:
+  `04809004bfd863181f4af8260879f56bc8b6ede6`.
 - Inbox/application: `src/application/advisor-inbox/`, scoped owner-only
   artifacts in `src/persistence/file-store/artifact-store.ts`, and exact five
   message kinds in `src/domain/messages/index.ts`.
@@ -465,7 +469,7 @@ separate gate.
 - UI: `src/ui/communication/`, with read-only fixture behavior, deterministic
   GPT copy, separate evidence stages, persistent critical alerts, inert content,
   and no role/session/pane/command/path input.
-- Verification: 35 Vitest files/149 tests plus 15 sequential Chromium tests;
+- Verification: 35 Vitest files/155 tests plus 15 sequential Chromium tests;
   1440/1024/390/320/mobile-landscape/200%-text, 44px controls, keyboard focus,
   WCAG A/AA, direct visual inspection, lint, strict typecheck, core/dashboard
   builds, zero-vulnerability audit, diff, and forbidden-boundary checks pass.
@@ -509,8 +513,8 @@ separate gate.
 | AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 15-unit fixture/hash remains accepted; Batch B declared scope/future-work rendering was accepted as the Batch C dependency | `IMPLEMENTED_THROUGH_BATCH_B__ADVISOR_ACCEPTED` | Any scope change still requires exact authority |
 | AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; replay/crash/restart/quarantine tests pass and Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
 | AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/ui/`; future `src/server/`, `src/pwa/` | `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts`; future SSE/PWA tests | Responsive local dashboard/scene/Inbox/Alerts are implemented through Batch D; HTTP authority, SSE, auth, and PWA remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_D_UI_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Server/SSE/PWA remain Batch E |
-| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`, `src/adapters/gateways/` | `tests/adapters/tmux-readonly.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/adapters/hermes-disabled.test.ts` | Accepted read-only observation remains unchanged; Batch D adds fixed capability-gated Advisor pointer delivery and disabled Hermes stub with no real transport side effect | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Real capability activation external; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batches A-C dependencies are accepted; 35 Vitest files/149 tests and 15 Chromium tests pass with Batch E forbidden | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept Batch D before Batch E |
+| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`, `src/adapters/gateways/` | `tests/adapters/tmux-readonly.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/adapters/hermes-disabled.test.ts` | Accepted read-only observation remains unchanged; fixed Advisor pointer delivery now validates exact runtime capability vocabulary, clock, future issue, and exclusive expiry before the inert port; Hermes remains disabled | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Real capability activation external; Hermes separately gated |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batches A-C dependencies are accepted; 35 Vitest files/155 tests and 15 Chromium tests pass with Batch E forbidden | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept Batch D before Batch E |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

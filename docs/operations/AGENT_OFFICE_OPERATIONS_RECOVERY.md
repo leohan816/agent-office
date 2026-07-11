@@ -325,7 +325,7 @@ No corrupt artifact is deleted automatically.
 | Manifest source unavailable/changed | Authority source stale/conflict | Scope/completion mutations disabled | Restore exact commit/path/hash or Advisor resolves |
 | Git/artifact adapter timeout | Evidence stale | Completion blocked; other safe writes may continue | Retry bounded read; no shell/alternate root |
 | tmux observation unavailable | Session observation stale | No inferred state; domain writes unaffected | Manual evidence; adapter retry |
-| Transport inactive/kill switch | Manual fallback required | Inbox persistence continues; delivery disabled | Canonical revalidation, no auto re-enable |
+| Transport capability inactive/invalid/stale/kill-switched | Manual fallback required | Inbox persistence continues; delivery and receipt lookup disabled | Canonical revalidation, no auto re-enable |
 | Ambiguous delivery receipt | Delivery ambiguous | No blind resend | Advisor reconciles and records receipt/ack |
 | Auth provider unavailable | Auth blocked | Mutations disabled; health redacted | Restore approved provider/config |
 | SSE disconnect | Offline/reconnecting banner | POST remains independently idempotent if online | Resume by cursor or full snapshot reset |
@@ -477,15 +477,17 @@ include:
 
 ### Batch D
 
-At `7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`,
+At `7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`, with AO-D-R1 correction
+`04809004bfd863181f4af8260879f56bc8b6ede6`,
 `tests/recovery/advisor-message-crash-consistency.test.ts`,
 `tests/persistence/scoped-artifact.test.ts`, and the inbox/gateway integration
 tests pass:
 
 - artifact/event/outbox/started-delivery/receipt crash points;
 - ambiguous receipt produces durable manual fallback and no blind resend; and
-- kill-switch/inactive/stale/conflicting transport persists messages without
-  delivery loss or process side effect.
+- malformed vocabulary, future issue, exact expiry, kill-switch, inactive,
+  stale, and conflicting transport persist messages without delivery loss or
+  process side effect; all clock-consuming gateway paths validate UTC time.
 
 ### Batch E
 
@@ -509,7 +511,7 @@ accessed.
 | AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/checkpoint-store.ts` | `tests/recovery/restart-replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | Same-request replay/conflict, event-before-projection rebuild, verified checkpoint, and invalid-checkpoint genesis fallback pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Service recovery remains Batch E |
 | AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/advisor-inbox/`, `src/application/hosts/freshness.ts`, `src/ui/scene/` | `tests/recovery/corruption-quarantine.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/integration/project-freshness.test.ts` | Batch A-C quarantine/freshness/presentation is accepted; Batch D scoped-artifact conflict and ambiguous delivery recover to replay/manual without blind resend | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Remote/service recovery remains Batch E |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12, 16 | `DESIGNED_CANDIDATE` | Batch E; off-host/encryption gated |
-| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/adapters/gateways/`, `src/application/advisor-inbox/`; future `src/operations/` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch D implements transport disable/kill/manual fallback only; service rollback/backup controls remain absent | `IMPLEMENTED_BATCH_D_GATEWAY_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full operations controls remain Batch E; external transport is canonical |
+| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/adapters/gateways/`, `src/application/advisor-inbox/`; future `src/operations/` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch D implements transport disable/kill/malformed/stale manual fallback with strict clock and temporal boundaries; service rollback/backup controls remain absent | `IMPLEMENTED_BATCH_D_GATEWAY_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full operations controls remain Batch E; external transport is canonical |
 | AO-OPS-006 Redacted health/observability | `src/application/audit/`, `src/adapters/gateways/`; future `src/server/health/` | `tests/integration/lifecycle-audit.test.ts`, `tests/adapters/hermes-disabled.test.ts` | Batch D provides typed gateway health and redacted event-chain lifecycle audit with no body/secret/terminal content; server health/metrics remain absent | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Server observability remains Batch E |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

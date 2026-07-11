@@ -21,6 +21,9 @@ contract, fixed logical Advisor-only tmux adapter over an injected inert pointer
 delivery port, disabled Hermes stub, durable outbox/receipt application, and
 manual fallback. Tests used fakes only; no tmux input, launcher execution,
 network, credential, host mutation, or remote capability was used.
+AO-D-R1 rework commit `04809004bfd863181f4af8260879f56bc8b6ede6`
+closes runtime vocabulary and temporal boundary validation without adding a
+transport, target, retry, repair, process, or network path.
 
 ## 1. Integration Principles
 
@@ -82,11 +85,13 @@ network, credential, host mutation, or remote capability was used.
   canonical pointer envelope, receipt vocabulary, and receipt hash.
 - `src/adapters/gateways/tmux-advisor/` accepts one immutable
   `ADVISOR_ONLY` capability snapshot with authority/activation/registry hashes,
-  active/kill/synchronization state, and expiry. It has no role/session/pane,
-  executable, argv, shell, or generic target method.
-- Missing, disabled, stale, conflicting, or kill-switched capability produces a
-  typed manual receipt without invoking the delivery port. An ambiguous started
-  delivery is looked up and never blindly resent.
+  exact active/kill/synchronization vocabulary, issue time, and exclusive expiry.
+  It has no role/session/pane, executable, argv, shell, or generic target method.
+- Missing, disabled, malformed, future-issued, expired, conflicting, or
+  kill-switched capability produces a typed manual receipt without invoking the
+  delivery port. Health, new queue, and uncached receipt lookup validate their
+  runtime clock; an ambiguous started delivery is looked up and never blindly
+  resent.
 - `src/adapters/gateways/hermes/` has health/queue/lookup interface parity only;
   it returns disabled/not implemented and stores no endpoint or receipt cache.
 
@@ -185,6 +190,13 @@ hashes. Locator details stay behind the external port and never cross the Agent
 Office request schema. Without a valid capability, the gateway returns
 `MANUAL_FALLBACK_REQUIRED`. Agent Office cannot synthesize or repair it.
 
+Runtime validation admits only `ACTIVE | DISABLED | CONFLICT`,
+`DISENGAGED | ENGAGED`, and
+`SINGLE_PREVALIDATED_DESTINATION | CONFLICT` for the state, kill-switch, and
+synchronization fields respectively. A non-canonical gateway clock, `now` before
+`issuedAt`, or `now` equal to or later than `expiresAt` cannot reach delivery or
+receipt lookup.
+
 ### 4.3 Required preflight evidence
 
 Before each delivery attempt, the adapter requires a fresh, immutable reference
@@ -197,9 +209,9 @@ showing:
 - unique notification receipt identity; and
 - bounded expiry and external receipt lookup behavior.
 
-Any absent, stale, or conflicting field produces no tmux write and routes to
-manual fallback. The gateway never retries a successful receipt, switches target,
-sends Ctrl-C, answers auth/approval, or terminates a process.
+Any absent, malformed, stale, or conflicting field produces no tmux write and
+routes to manual fallback. The gateway never retries a successful receipt,
+switches target, sends Ctrl-C, answers auth/approval, or terminates a process.
 
 ### 4.4 Manual fallback
 
@@ -496,7 +508,7 @@ gated.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/adapters/gateways/tmux-advisor/`, `src/adapters/gateways/advisor.ts` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Exact request/receipt/pointer schema, same-ID replay/conflict, active/kill/stale/conflict/manual matrix, ambiguous lookup/no resend, and no process/network import pass at Batch D commit | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Real approved transport capability remains external and unused |
+| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/adapters/gateways/tmux-advisor/`, `src/adapters/gateways/advisor.ts` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Exact request/receipt/pointer schema, same-ID replay/conflict, strict runtime vocabulary, valid-clock/future-issued/exclusive-expiry checks, manual fallback, ambiguous lookup/no resend, and no process/network import pass through AO-D-R1 | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Real approved transport capability remains external and unused |
 | AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/` | `tests/adapters/hermes-disabled.test.ts` | Health is `DISABLED_NOT_IMPLEMENTED`; queue returns typed `DISABLED`; lookup returns undefined with no endpoint/credential/network/process/write/cache | `IMPLEMENTED_BATCH_D_DISABLED_STUB__PENDING_ADVISOR_ACCEPTANCE` | Separate Leo/GPT Hermes mission |
 | AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/adapters/observations/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Fixed argv, no-shell/no-write, hostile input, cap/timeout, bounded file, exact structured tmux, and real read-only smoke were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | None for the local Batch B subset |
 | AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts` | `tests/integration/project-freshness.test.ts` | Stable ID lookup, path-free summary, wrong-project denial, and cross-project overlap rejection were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | Browser registry mutation remains absent |
