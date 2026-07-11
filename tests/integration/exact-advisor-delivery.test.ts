@@ -1,5 +1,8 @@
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -23,6 +26,7 @@ import { AdvisorInboxService } from '../../src/application/advisor-inbox/service
 import { projectAdvisorInbox } from '../../src/application/advisor-inbox/projector.js';
 import {
   ExactAdvisorAuthorityValidator,
+  NodeExactGitAuthorityReader,
   type ExactGitAuthorityReader,
   type ExactGitBlob,
   type ExactGitSnapshot,
@@ -54,6 +58,7 @@ const roots: string[] = [];
 const stores: EventStore[] = [];
 const NOW = '2026-07-10T00:00:10.000Z';
 const UPSTREAM = 'f'.repeat(40);
+const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
   await Promise.all(stores.splice(0).map((store) => store.close().catch(() => undefined)));
@@ -268,6 +273,55 @@ describe('reviewed exact Advisor delivery bridge', () => {
     await expect(changedAuthority.validateStaticAuthority()).rejects.toMatchObject({
       code: 'AUTHORITY_ARTIFACT_INVALID',
     });
+  });
+
+  it('keeps similar decision files in distinct exact-path Git histories without following copies', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-office-exact-path-history-'));
+    roots.push(root);
+    await runFixtureGit(root, ['init', '-q']);
+    await runFixtureGit(root, ['config', 'user.name', 'Agent Office Test']);
+    await runFixtureGit(root, ['config', 'user.email', 'agent-office-test@example.invalid']);
+    const prefix =
+      'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/advisor-evidence';
+    const firstPath = `${prefix}/${uuidV7(120)}/03_DECISION.json`;
+    const secondPath = `${prefix}/${uuidV7(121)}/03_DECISION.json`;
+    const identicalDecision = `${JSON.stringify({
+      schemaVersion: 'agent-office.advisor-decision-evidence.v1',
+      decisionCode: 'ROUTE_ALREADY_AUTHORIZED_WORK',
+    })}\n`;
+    await mkdir(path.join(root, path.dirname(firstPath)), { recursive: true });
+    await writeFile(path.join(root, firstPath), identicalDecision, { mode: 0o600 });
+    await runFixtureGit(root, ['add', '--', firstPath]);
+    await runFixtureGit(root, ['commit', '--no-gpg-sign', '-q', '-m', 'add first decision']);
+    await mkdir(path.join(root, path.dirname(secondPath)), { recursive: true });
+    await writeFile(path.join(root, secondPath), identicalDecision, { mode: 0o600 });
+    await runFixtureGit(root, ['add', '--', secondPath]);
+    await runFixtureGit(root, ['commit', '--no-gpg-sign', '-q', '-m', 'add second decision']);
+
+    const followed = lines(await runFixtureGit(
+      root,
+      ['log', '--format=%H', '--follow', '--', secondPath],
+    ));
+    expect(followed).toHaveLength(2);
+    const reader = new NodeExactGitAuthorityReader(
+      root,
+      { timeoutMs: 2_000, maxOutputBytes: 16 * 1024 },
+      () => NOW,
+    );
+    const firstHistory = await reader.pathHistory(firstPath);
+    const secondHistory = await reader.pathHistory(secondPath);
+    expect(firstHistory).toHaveLength(1);
+    expect(secondHistory).toHaveLength(1);
+    expect(secondHistory[0]).not.toBe(firstHistory[0]);
+
+    await writeFile(
+      path.join(root, secondPath),
+      identicalDecision.replace('ROUTE_ALREADY_AUTHORIZED_WORK', 'REWRITTEN_DECISION'),
+      { mode: 0o600 },
+    );
+    await runFixtureGit(root, ['add', '--', secondPath]);
+    await runFixtureGit(root, ['commit', '--no-gpg-sign', '-q', '-m', 'rewrite second decision']);
+    await expect(reader.pathHistory(secondPath)).resolves.toHaveLength(2);
   });
 
   it('writes byte-exact pointer evidence and invokes only load, paste-to-%9, and Enter once', async () => {
@@ -1441,4 +1495,27 @@ function contractEvidenceRecords() {
       },
     },
   };
+}
+
+async function runFixtureGit(root: string, argv: readonly string[]): Promise<string> {
+  const result = await execFileAsync('/usr/bin/git', [...argv], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: 5_000,
+    maxBuffer: 64 * 1024,
+    env: {
+      HOME: '/nonexistent',
+      PATH: '/usr/bin:/bin',
+      LANG: 'C.UTF-8',
+      LC_ALL: 'C.UTF-8',
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_TERMINAL_PROMPT: '0',
+    },
+  });
+  return result.stdout;
+}
+
+function lines(value: string): readonly string[] {
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? [] : trimmed.split('\n');
 }

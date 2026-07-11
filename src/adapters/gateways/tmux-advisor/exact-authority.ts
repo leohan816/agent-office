@@ -418,7 +418,7 @@ export class NodeExactGitAuthorityReader implements ExactGitAuthorityReader {
 
   public async pathHistory(relativePath: string): Promise<readonly string[]> {
     assertRelativePath(relativePath);
-    const result = await this.run(['log', '--format=%H', '--follow', '--', relativePath]);
+    const result = await this.run(['log', '--format=%H', '--', relativePath]);
     const text = utf8(result.stdout, 'Git path history').trim();
     if (text.length === 0) return [];
     const commits = text.split('\n');
