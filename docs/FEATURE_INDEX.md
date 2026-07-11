@@ -11,6 +11,13 @@ disabled implementation. It does not claim an enabled descriptor, live
 capability/port instance, actual tmux input from Agent Office, implementation
 review `PASS`, rehearsal, Leo/GPT final approval, or mission closure.
 
+The additive M1.2 spatial Advisor-team office package is a design-only candidate
+at status
+`DESIGNED_M1_2_SPATIAL_OFFICE_CANDIDATE__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED__PENDING_FABLE5_REVIEW`.
+Its four canonical documents are indexed in Section 2. This pointer does not
+change M01 runtime behavior, authority, transport, security, assets, mission
+scope, or implementation status.
+
 ## 1. Current Implemented Scope
 
 The LocalBootstrap private-run gate passed against Agent Office base
@@ -170,6 +177,10 @@ baselines. No real credential or private run was created.
 
 | Document | Canonical subject |
 |---|---|
+| [`architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md) | M1.2 as-is evidence, Team Pods, Single Advisor Team Principle, spatial IA, responsive/accessibility architecture, M1 adapter, founder and asset gates |
+| [`contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md`](contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md) | Versioned structured spatial cues, provenance, precedence, deduplication, reload/stale suppression, cue/performance budgets, and static equivalence |
+| [`ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md`](ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md) | Deterministic non-color-only project identity, canonical actor/role presentation, Channy decision gate, and deferred asset inventory/license/hash contract |
+| [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Five-unit design mission separation, unauthorized reversible implementation batches, dependencies, tests, rollback, acceptance, and AO12-U01-U14 traceability |
 | [`architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md) | DQ-01 through DQ-08, exact fixed-pane pointer bridge, durable no-resend transport, Git-verified Advisor evidence ingress, rehearsal, and nine-criterion traceability |
 | [`architecture/AGENT_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_MASTER_DESIGN.md) | Purpose, authority/source precedence, topology, stack boundary, SSE/PWA decision, batches/gates, unknowns |
 | [`contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md) | Manifest, event envelope, entity states, transitions, idempotency, ordering, decisions, projections, evidence completion |
@@ -186,6 +197,7 @@ governance, review evidence, results, and pointers but no competing canonical co
 
 | Status | Meaning |
 |---|---|
+| `DESIGNED_M1_2_SPATIAL_OFFICE_CANDIDATE__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED__PENDING_FABLE5_REVIEW` | The four M1.2 canonical design documents and this discoverability pointer exist on the dedicated design branch; no source/config/test/dependency/asset/runtime implementation or implementation permission is claimed |
 | `IMPLEMENTED_BOOTSTRAP_ONLY` | Present in bootstrap commit; documentation/configuration only |
 | `DESIGNED_CANDIDATE` | Reviewed design target that is not yet implemented; its named implementation gate still applies |
 | `DESIGNED_FOR_EXTENSION` | Interface/invariant reserved; only local subset may be in M01 |
