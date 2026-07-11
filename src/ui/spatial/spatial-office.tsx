@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -13,22 +14,39 @@ import type {
   SpatialTeamPodProjection,
 } from '../../application/spatial-office/types.js';
 import { FacilityPlaceholder } from './assets/placeholder-characters.js';
+import { type SpatialPresentationTier } from './actor-zone.js';
+import { ChannyPresentation } from './channy-presentation.js';
 import { SpatialCharacter, StaticChanny } from './character.js';
+import type { SpatialCueEnvelope } from './cue-projector.js';
+import type { SpatialCueReducerState } from './cue-reducer.js';
 import { STATIC_SPATIAL_OFFICE_FIXTURE } from './fixtures.js';
+import { VerifiedIdleLounge, type VerifiedIdlePresentationInput } from './lounge.js';
 import {
   resolveProjectIdentity,
   resolveVisibleProjectIdentities,
   type ProjectIdentity,
 } from './project-identity.js';
 import { TeamPod } from './team-pod.js';
+import { SpatialRoutes, type SpatialZoneEndpoint } from './spatial-routes.js';
 import './project-identity.css';
 import './spatial-office.css';
 
 export interface SpatialOfficeProps {
   readonly projection?: SpatialOfficeProjectionV1;
+  readonly cueState?: SpatialCueReducerState;
+  readonly verifiedIdle?: readonly VerifiedIdlePresentationInput[];
+  readonly requestedTier?: SpatialPresentationTier;
+  readonly frozenMotionProgress?: number | null;
 }
 
-export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.projection }: SpatialOfficeProps) {
+export function SpatialOffice({
+  projection = STATIC_SPATIAL_OFFICE_FIXTURE.projection,
+  cueState,
+  verifiedIdle = [],
+  requestedTier = 'FULL',
+  frozenMotionProgress = null,
+}: SpatialOfficeProps) {
+  const motionFixture = cueState !== undefined;
   const initialPodId = projection.selectedPodId ?? projection.pods[0]?.podId ?? null;
   const [selectedPodId, setSelectedPodId] = useState(initialPodId);
   const [podFocusIndex, setPodFocusIndex] = useState(() =>
@@ -36,10 +54,17 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
   const [focusedActorId, setFocusedActorId] = useState<string | null>(null);
   const [podAnnouncement, setPodAnnouncement] = useState('');
   const [inspectedActor, setInspectedActor] = useState<SpatialActorProjection | null>(null);
+  const [activeCues, setActiveCues] = useState<readonly SpatialCueEnvelope[]>(() => cueState?.pendingCues ?? []);
+  const [motionOff, setMotionOff] = useState(false);
+  const [mediaStatic, setMediaStatic] = useState(() => mediaRequiresStaticTier());
   const podControlRefs = useRef(new Map<string, HTMLButtonElement>());
   const actorControlRefs = useRef(new Map<string, HTMLButtonElement>());
   const inspectorCloseRef = useRef<HTMLButtonElement>(null);
   const inspectorInvokerRef = useRef<HTMLElement | null>(null);
+  const effectiveTier: SpatialPresentationTier = !motionFixture || motionOff || mediaStatic
+    ? 'STATIC'
+    : requestedTier;
+  const presentedCues = effectiveTier === 'RESTRAINED' ? activeCues.slice(0, 1) : activeCues;
 
   const identities = useMemo(
     () => resolveVisibleProjectIdentities(projection.pods.map((pod) => ({
@@ -80,6 +105,44 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
     if (inspectedActor !== null) inspectorCloseRef.current?.focus();
   }, [inspectedActor]);
 
+  useEffect(() => {
+    if (!motionFixture) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const mobile = window.matchMedia('(max-width: 767px)');
+    const orientation = window.matchMedia('(orientation: portrait)');
+    const updateStaticTier = () => {
+      setMediaStatic(reduced.matches || mobile.matches);
+    };
+    const cancelForOrientation = () => {
+      if (frozenMotionProgress === null) setActiveCues([]);
+      updateStaticTier();
+    };
+    updateStaticTier();
+    reduced.addEventListener('change', updateStaticTier);
+    mobile.addEventListener('change', updateStaticTier);
+    orientation.addEventListener('change', cancelForOrientation);
+    const cancelForHidden = () => {
+      if (document.hidden) setActiveCues([]);
+    };
+    document.addEventListener('visibilitychange', cancelForHidden);
+    return () => {
+      reduced.removeEventListener('change', updateStaticTier);
+      mobile.removeEventListener('change', updateStaticTier);
+      orientation.removeEventListener('change', cancelForOrientation);
+      document.removeEventListener('visibilitychange', cancelForHidden);
+    };
+  }, [frozenMotionProgress, motionFixture]);
+
+  useEffect(() => {
+    if (!motionFixture || frozenMotionProgress !== null || cueState.pendingCues.length === 0) return;
+    const timers = cueState.pendingCues.map((cue) => window.setTimeout(() => {
+      setActiveCues((current) => current.filter((candidate) => candidate.cueId !== cue.cueId));
+    }, cue.durationMs));
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer);
+    };
+  }, [cueState, frozenMotionProgress, motionFixture]);
+
   const selectPod = (pod: SpatialTeamPodProjection) => {
     setSelectedPodId(pod.podId);
     const nextActors = actorsForPod(pod, projection);
@@ -87,7 +150,12 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
     setPodAnnouncement(
       `${pod.advisorTeamId} selected, ${pod.evidenceFreshness}, ${pod.connectionState}`,
     );
+    if (motionFixture) setActiveCues([]);
   };
+
+  const completeCue = useCallback((cueId: string) => {
+    setActiveCues((current) => current.filter((cue) => cue.cueId !== cueId));
+  }, []);
 
   const onPodKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const last = projection.pods.length - 1;
@@ -147,8 +215,8 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
   return (
     <div
       className="spatial-office-shell"
-      data-fixture-kind="SYNTHETIC_NON_OPERATIONAL_STATIC"
-      data-motion-tier="STATIC"
+      data-fixture-kind={motionFixture ? 'SYNTHETIC_STRUCTURED_EVENT_MOTION' : 'SYNTHETIC_NON_OPERATIONAL_STATIC'}
+      data-motion-tier={effectiveTier}
       id="spatial-office"
     >
       <a className="skip-link spatial-skip-status" href="#spatial-status">Global status</a>
@@ -159,9 +227,11 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
 
       <header className="spatial-global-status" id="spatial-status" tabIndex={-1}>
         <div>
-          <p className="eyebrow">AGENT OFFICE / M1.2 / AO12-B</p>
-          <h1>Static Advisor-team shared office</h1>
-          <p>One synthetic test/demo floor. Non-operational, read-only, and motion-free.</p>
+          <p className="eyebrow">AGENT OFFICE / M1.2 / {motionFixture ? 'AO12-C' : 'AO12-B'}</p>
+          <h1>{motionFixture ? 'Evidence-backed spatial office' : 'Static Advisor-team shared office'}</h1>
+          <p>{motionFixture
+            ? 'Synthetic test/demo only. Accepted structured cue presentation; no authority or transport effect.'
+            : 'One synthetic test/demo floor. Non-operational, read-only, and motion-free.'}</p>
         </div>
         <dl>
           <div><dt>Projection</dt><dd>#{projection.projectionRevision}</dd></div>
@@ -169,8 +239,20 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
           <div><dt>Floor</dt><dd>{projection.floorMode}</dd></div>
           <div><dt>Catalog</dt><dd className="mono">{projection.identityCatalogVersion}</dd></div>
           <div><dt>Evaluated</dt><dd>{projection.evaluatedAt}</dd></div>
-          <div><dt>Mode</dt><dd>STATIC / FIXTURE ONLY</dd></div>
+          <div><dt>Mode</dt><dd>{effectiveTier} / FIXTURE ONLY</dd></div>
         </dl>
+        {motionFixture ? (
+          <button
+            aria-pressed={motionOff}
+            className="spatial-motion-control"
+            onClick={() => {
+              setMotionOff((current) => !current);
+            }}
+            type="button"
+          >
+            Motion {motionOff ? 'off' : 'on'} / static facts always visible
+          </button>
+        ) : null}
       </header>
 
       <nav aria-label="Registered Advisor Team navigation" className="spatial-pod-navigation" id="spatial-pod-nav">
@@ -222,7 +304,9 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
             <p className="eyebrow">ONE SHARED AMERICAN-STYLE OPEN OFFICE FLOOR</p>
             <h2 id="spatial-floor-heading">Every registered Team remains visible</h2>
           </div>
-          <span className="spatial-static-badge">STATIC / NO CUES / NO ROUTES</span>
+          <span className="spatial-static-badge">{motionFixture
+            ? `${effectiveTier} / ACCEPTED LIVE_DELTA ONLY`
+            : 'STATIC / NO CUES / NO ROUTES'}</span>
         </header>
 
         <div className="spatial-shared-facilities" aria-label="Shared code-native static facilities">
@@ -265,16 +349,44 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
               key={pod.podId}
               onActorKeyDown={onActorKeyDown}
               onInspectActor={openInspector}
+              operationalCues={pod.podId === selectedPod?.podId ? presentedCues : []}
               pod={pod}
+              presentationTier={effectiveTier}
               projectionRevision={projection.projectionRevision}
               selected={pod.podId === selectedPod?.podId}
             />
           ))}
         </div>
 
+        {motionFixture ? (
+          <>
+            <SpatialRoutes
+              activityLog={cueState.activityLog}
+              cues={presentedCues}
+              endpoints={routeEndpoints(presentedCues, selectedPod, projection)}
+              frozenProgress={frozenMotionProgress}
+              onCueComplete={completeCue}
+              tier={effectiveTier}
+            />
+            <VerifiedIdleLounge
+              candidates={verifiedIdle}
+              operationalCues={presentedCues}
+              tier={effectiveTier}
+            />
+          </>
+        ) : null}
+
         <section aria-labelledby="spatial-channy-heading" className="spatial-channy-zone" data-zone="channy-static-facility">
-          <h3 className="visually-hidden" id="spatial-channy-heading">Channy static non-operational area</h3>
-          <StaticChanny />
+          <h3 className="visually-hidden" id="spatial-channy-heading">Channy non-operational presentation area</h3>
+          {motionFixture ? (
+            <ChannyPresentation input={{
+              cues: presentedCues,
+              evidenceFreshness: selectedPod?.evidenceFreshness ?? 'UNKNOWN',
+              connectionState: selectedPod?.connectionState ?? 'UNKNOWN',
+              missionComplete: selectedPod?.operationalState === 'COMPLETED',
+              tier: effectiveTier,
+            }} />
+          ) : <StaticChanny />}
           <FacilityPlaceholder kind="CHANNY_FACILITIES" />
         </section>
       </section>
@@ -351,11 +463,42 @@ export function SpatialOffice({ projection = STATIC_SPATIAL_OFFICE_FIXTURE.proje
   );
 }
 
+function mediaRequiresStaticTier(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    || window.matchMedia('(max-width: 767px)').matches;
+}
+
+function routeEndpoints(
+  cues: readonly SpatialCueEnvelope[],
+  selectedPod: SpatialTeamPodProjection | null,
+  projection: SpatialOfficeProjectionV1,
+): readonly SpatialZoneEndpoint[] {
+  if (selectedPod === null) return [];
+  const visibleZones = new Set([
+    'pod-header',
+    'mission-board',
+    'testing-bench',
+    'result-desk',
+    'independent-review-desk',
+    'advisor-anchor',
+    'leo-decision-destination',
+    'evidence-cabinet',
+    'lounge',
+    'shared-path',
+    ...actorsForPod(selectedPod, projection).map((actor) => `work:${actor.roleInstanceId}`),
+  ]);
+  return unique(cues.flatMap((cue) => [cue.sourceZoneId, cue.targetZoneId ?? cue.sourceZoneId]))
+    .filter((zoneId) => visibleZones.has(zoneId))
+    .map((zoneId) => ({ zoneId, visible: true, ambiguous: false }));
+}
+
 function actorsForPod(
   pod: SpatialTeamPodProjection,
   projection: SpatialOfficeProjectionV1,
 ): readonly SpatialActorProjection[] {
   const actorIds = unique(pod.actorAssignments
+    .filter((assignment) => assignment.fullCharacter)
     .map((assignment) => assignment.roleInstanceId)
     .filter((roleInstanceId): roleInstanceId is string => roleInstanceId !== null));
   return actorIds

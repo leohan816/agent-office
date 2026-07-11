@@ -6,6 +6,8 @@ import type {
 } from '../../application/spatial-office/types.js';
 import { ProjectIdentityChip, SpatialCharacter } from './character.js';
 import { FacilityPlaceholder } from './assets/placeholder-characters.js';
+import { ActorZonePresentation, type SpatialPresentationTier } from './actor-zone.js';
+import type { SpatialCueEnvelope } from './cue-projector.js';
 import { MissionBoard } from './mission-board.js';
 import type { ProjectIdentity } from './project-identity.js';
 
@@ -19,6 +21,8 @@ export interface TeamPodProps {
   readonly actorControlRef: (roleInstanceId: string) => Ref<HTMLButtonElement>;
   readonly onActorKeyDown: (event: KeyboardEvent<HTMLButtonElement>, roleInstanceId: string) => void;
   readonly onInspectActor: (actor: SpatialActorProjection) => void;
+  readonly operationalCues?: readonly SpatialCueEnvelope[];
+  readonly presentationTier?: SpatialPresentationTier;
 }
 
 export function TeamPod({
@@ -31,6 +35,8 @@ export function TeamPod({
   actorControlRef,
   onActorKeyDown,
   onInspectActor,
+  operationalCues = [],
+  presentationTier = 'STATIC',
 }: TeamPodProps) {
   const manifestVersion = selectedMissionManifestVersion(pod);
   return (
@@ -132,6 +138,8 @@ export function TeamPod({
           </>
         ) : null}
       </div>
+
+      {selected ? <ActorZonePresentation cues={operationalCues} tier={presentationTier} /> : null}
 
       {selected ? (
         <MissionBoard

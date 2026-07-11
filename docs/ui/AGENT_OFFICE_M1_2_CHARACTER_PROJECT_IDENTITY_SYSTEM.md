@@ -1,6 +1,6 @@
 # Agent Office M1.2 Character and Project Identity System
 
-Status: `AO12_B_IDENTITY_AND_CODE_NATIVE_PLACEHOLDERS_IMPLEMENTED__PENDING_FOCUSED_REVIEW__PRODUCTION_ASSETS_DEFERRED`
+Status: `AO12_C_IDENTITY_OVERLAYS_AND_CHANNY_PRESENTATION_IMPLEMENTED_TEST_DEMO_ONLY__PENDING_FOCUSED_REVIEW__PRODUCTION_ASSETS_DEFERRED`
 
 Identity catalog candidate: `agent-office.project-identity.v1`
 
@@ -9,8 +9,9 @@ Asset manifest candidate: `agent-office.character-assets.v1`
 This document defines supplemental project and actor presentation identity for
 M1.2. Identity never changes actor authority, assignment, mission state,
 freshness, severity, evidence, or transport. AO12-B now implements original
-code-native inline SVG/CSS/DOM placeholders and an internal license record only;
-it adds no external image, font, animation, purchase, import, generation, or
+code-native inline SVG/CSS/DOM placeholders and an internal license record only.
+AO12-C reuses those exact bytes for bounded, structured-event presentation and
+adds no external image, font, asset, purchase, import, generation, or
 dependency.
 
 ## 1. Current evidence and limitations
@@ -404,6 +405,14 @@ collaboration. Session/system checks remain structured-adapter responsibility.
 Channy is not an Advisor, Worker, Reviewer, router, notification authority,
 terminal actor, or inferred presence.
 
+AO12-C implements this presentation boundary only in
+`channy-presentation.tsx` behind the explicit synthetic motion selector. Its
+fixed precedence is stale/offline static reflection, structured `BLOCKED`,
+structured `WAITING_LEO`, completion, accepted-route follow, then neutral
+ambient. It receives only already-reduced cue/status inputs, renders one global
+non-actor, has no control or direct event subscription, and leaves primary
+status, alerts, mission board, and activity log independently complete.
+
 ## 8. Approved placeholder asset contract
 
 The exact product decision is
@@ -551,16 +560,20 @@ The chained decision status is
 `DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
 
 The clean delta review, Advisor freeze, AO12-A focused `PASS`/Advisor acceptance,
-and exact AO12-B handoff occurred. AO12-A retains the current-name gate and
+corrected AO12-B review/Advisor acceptance, and exact AO12-C handoff occurred.
+AO12-A retains the current-name gate and
 identity-safe projection references. AO12-B implements deterministic fixed and
 fallback identities plus only original placeholder assets with stable geometry,
 internal license, and actual source hash
 `adacf982a568bffefe1a6eddefb58584ff706f9408fdf5ab81a42ce49b19bd63`.
-Four focused files pass 24 tests and six static configured-runtime baselines were
-directly inspected. Independent focused AO12-B review and Advisor acceptance
-remain required; AO12-C and production selection are not authorized. No
-personalized likeness, purchase, import, external generation, production-art
-approval, Channy behavior, or runtime activation is implied.
+Four AO12-B focused files pass 24 tests and six static configured-runtime
+baselines were directly inspected. AO12-C adds the bounded verified-idle and
+Channy/status-reflector behavior above, with 76 focused/benchmark tests, 15
+browser cases, and seven directly inspected configured-runtime baselines.
+Independent AO12-C review and Advisor acceptance remain required; AO12-D
+production selection is not authorized. No personalized likeness, purchase,
+import, external generation, production-art approval, operational Channy
+behavior, authority, transport, or runtime activation is implied.
 
 ## 13. Authority, security, and privacy non-change
 

@@ -1,10 +1,10 @@
 # Agent Office M1.2 Implementation WorkUnit Plan
 
-Status: `AO12_B_IMPLEMENTED__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_C_NOT_AUTHORIZED`
+Status: `AO12_C_IMPLEMENTED_TEST_DEMO_ONLY__PENDING_FOCUSED_FABLE5_EVENT_ACCESSIBILITY_PERFORMANCE_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_D_NOT_AUTHORIZED`
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-This plan records the frozen reversible implementation train and AO12-A/AO12-B
+This plan records the frozen reversible implementation train and AO12-A/AO12-B/AO12-C
 as-built status. It is not an implementation launcher, handoff, permission,
 review verdict, branch decision, asset approval, or authority change. Every
 later batch requires a new exact Advisor handoff after the preceding dependency
@@ -36,9 +36,11 @@ unresolved defect, new decision, or scope expansion. Advisor then froze
 `AO12-IWU-01` through `AO12-IWU-14` in the exact versioned implementation
 manifest. The separate AO12-A handoff authorized `AO12-IWU-01..04`; focused
 review passed and Advisor accepted them as the AO12-B dependency. The exact
-AO12-B handoff then authorized `AO12-IWU-05..08`, which are implemented pending
-independent focused UI/accessibility/asset-boundary review and Advisor
-acceptance. `AO12-IWU-09..14` remain waiting and unauthorized. These
+AO12-B handoff then authorized `AO12-IWU-05..08`; corrected independent review
+passed and Advisor accepted them. The exact AO12-C handoff authorized
+`AO12-IWU-09..11`, which are now implemented pending independent focused
+event-truth/accessibility/performance review and Advisor acceptance.
+`AO12-IWU-12..14` remain waiting and unauthorized. These
 implementation IDs do not change the five-WorkUnit design-mission denominator
 and no later batch may be projected as active scope.
 
@@ -65,9 +67,9 @@ No `AO12-IWU-*` may start unless all are true:
 `NEEDS_PATCH`, any risk, or any new decision returns to Advisor. `FAIL` stops.
 Silence, a design commit, or a passing local check is not authorization.
 
-These entry conditions were satisfied for the exact AO12-A and AO12-B handoffs
-only. Local AO12-B verification is not independent review or Advisor acceptance
-and does not satisfy the gate for AO12-C.
+These entry conditions were satisfied for the exact AO12-A, AO12-B, and AO12-C
+handoffs only. Local AO12-C verification is not independent review or Advisor
+acceptance and does not satisfy the gate for AO12-D.
 
 ## 3. Reversible batch overview
 
@@ -82,10 +84,10 @@ No batch may be combined to bypass its dependency or review. No batch may add
 an auth, network, Advisor delivery, role dispatch, DB, secret, or asset-purchase
 change.
 
-Current batch state: AO12-A is independently reviewed and Advisor-accepted.
-AO12-B is implemented and locally verified, pending focused Fable5 UI,
-accessibility, and asset-boundary review plus Advisor acceptance. AO12-C and
-AO12-D remain unauthorized.
+Current batch state: AO12-A and AO12-B are independently reviewed and
+Advisor-accepted. AO12-C is implemented and locally verified, pending focused
+Fable5 event-truth, accessibility, and performance review plus Advisor
+acceptance. AO12-D remains unauthorized.
 
 ## 4. Batch AO12-A - contracts, compatibility, Team/Advisor invariants, and SIASIU correction
 
@@ -243,7 +245,7 @@ the exact AO12-B handoff at base `ecd2652501df55aba0aa0f55c236b1933c6dc1e3`.
 
 ### `AO12-IWU-05` Deterministic project identity catalog
 
-State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_C_DEPENDENCY`
 
 As-built scope:
 
@@ -269,7 +271,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-06` Project-authored character placeholders and inventory
 
-State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_C_DEPENDENCY`
 
 As-built scope:
 
@@ -304,7 +306,7 @@ The placeholder decision is
 
 ### `AO12-IWU-07` Static Team Pod, mission board, and semantic zones
 
-State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_C_DEPENDENCY`
 
 As-built scope:
 
@@ -341,7 +343,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-08` Responsive and accessible static architecture
 
-State: `IMPLEMENTED_AO12_B__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_B__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_C_DEPENDENCY`
 
 As-built scope:
 
@@ -376,7 +378,7 @@ Required checks:
 - lint, typecheck, builds, audit, diff, exact path, and no dependency/lockfile
   change unless separately authorized.
 
-AO12-B local as-built evidence, pending independent review:
+AO12-B accepted as-built evidence:
 
 - four focused Vitest files pass 24 tests for deterministic identity, actual
   asset hash/license/safety, static components, and keyboard/focus semantics;
@@ -416,16 +418,16 @@ Rollback: the new component remains test/fixture-only and can be removed without
 changing `src/runtime/projection.ts`, production entry, ledger, config, or M1
 surface.
 
-Gate: Fable5 UI/accessibility/asset-boundary review and Advisor acceptance before
-AO12-C.
+Gate: satisfied by corrected Fable5 UI/accessibility/asset-boundary review,
+Advisor acceptance, and the exact AO12-C handoff at base `4b751c6`.
 
 ## 6. Batch AO12-C - evidence-backed spatial motion
 
 ### `AO12-IWU-09` Spatial cue projector and reducer
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_C__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/ui/spatial/cue-projector.ts`
 - `src/ui/spatial/cue-reducer.ts`
@@ -448,15 +450,19 @@ Acceptance criteria:
 
 ### `AO12-IWU-10` Spatial routes, poses, and lounge
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_C__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/ui/spatial/spatial-routes.tsx`
 - `src/ui/spatial/actor-zone.tsx`
 - `src/ui/spatial/lounge.tsx`
+- `src/ui/spatial/channy-presentation.tsx`
+- focused integration in `spatial-office.tsx`, `team-pod.tsx`, `fixtures.ts`,
+  `demo-entry.tsx`, and `spatial-office.css`;
 - bounded transform/opacity rules in the spatial stylesheet;
 - `tests/ui/spatial-routes.component.test.tsx`
+- `tests/ui/spatial-channy-presentation.test.tsx`
 
 Acceptance criteria:
 
@@ -479,14 +485,15 @@ Acceptance criteria:
 
 ### `AO12-IWU-11` Motion, visual, accessibility, and performance proof
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_C__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `tests/e2e/spatial-office-motion.spec.ts`
 - `tests/e2e/spatial-office-accessibility.spec.ts`
 - `tests/performance/spatial-office-budget.test.ts`
-- new M1.2 baseline paths named by an exact implementation handoff only
+- seven new PNGs only under the exact AO12-C baseline directories named by the
+  implementation handoff
 
 Acceptance criteria:
 
@@ -508,6 +515,36 @@ Acceptance criteria:
 Required checks include all AO12-A/B checks plus the full cue matrix, source-
 boundary scans, reduced motion, axe, layout, benchmark, composed fixture, and M1
 unchanged-baseline gates.
+
+AO12-C local as-built evidence, pending independent review:
+
+- five focused files pass 76 tests across all 16 cue kinds, canonical SHA-256
+  IDs, exact source/evidence correspondence, suppression, precedence,
+  deduplication, caps, conflict reset, semantic routes, Channy, verified idle,
+  resource cleanup, and the exact synthetic performance fixture;
+- the two AO12-C Playwright specs pass 15/15 configured Chromium cases for
+  full/restrained/static equivalence, no replay, axe, keyboard/focus/live
+  regions, 44px controls, desktop/tablet/mobile/320px/200%-text/short-landscape,
+  forced colors, no external request, bounded completion, and teardown;
+- the full sequential regression passes 70/70 files and 418/418 Vitest cases,
+  43/43 default-demo Chromium cases, and 3/3 composed Chromium cases, with
+  lint, typecheck, production build, current-name, and dependency-audit gates
+  passing;
+- all seven new configured-runtime PNGs were directly inspected; their modes
+  are full desktop, restrained desktop, reduced/static desktop, tablet, mobile
+  static, forced colors, and 200%-text mobile;
+- exact benchmark fixture hash is
+  `sha256:6fc7fe9aee1811575c99b4c6b9972626053f26e645827b16e77c2363b4f201cf`;
+  reducer p95 is 0.252ms, Chromium pod-switch p95 is 51.4ms desktop and 68.1ms
+  under 4x CPU throttling, active-frame p95 is 0.4ms over 600 samples, long
+  tasks over 50ms are zero in 10 seconds, exact design-load DOM/SVG counts are
+  1324/224, and CDP retained-heap growth is 197548 bytes after 20 cycles;
+- configured-reference classification is `FULL`; production selection remains
+  absent, the production JavaScript selection-boundary delta is zero, and the
+  AO12-C presentation source diagnostic is 12314 gzip bytes; and
+- package/lockfile, M1/AO12-B baseline bytes, M1 event/activity/authority,
+  authentication, exact delivery, transport, and production runtime remain
+  unchanged.
 
 Rollback: remove/disable the cue layer while retaining the reviewed static M1.2
 component; if the static component is also unsafe, return to the unchanged M1

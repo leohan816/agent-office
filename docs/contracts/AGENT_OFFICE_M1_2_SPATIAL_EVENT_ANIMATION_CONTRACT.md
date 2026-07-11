@@ -1,6 +1,6 @@
 # Agent Office M1.2 Spatial Event and Animation Contract
 
-Status: `AO12_B_STATIC_EQUIVALENT_IMPLEMENTED__SPATIAL_CUES_NOT_STARTED__AO12_C_NOT_AUTHORIZED`
+Status: `AO12_C_SPATIAL_CUES_IMPLEMENTED_TEST_DEMO_ONLY__FULL_TIER_MEASURED__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_D_NOT_AUTHORIZED`
 
 Contract candidate: `agent-office.spatial-cue.v1`
 
@@ -12,13 +12,16 @@ authority, transport route, timer-based mission transition, or persistence
 requirement. The canonical M1 event and activity contract remains
 [`AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md).
 The design patch received a clean delta `PASS`, Advisor freeze, exact manifest,
-and separate AO12-A/AO12-B handoffs. AO12-A implements the versioned source
+and separate AO12-A/AO12-B/AO12-C handoffs. AO12-A implements the versioned source
 projection, closed validation, M1 fallback, pure Team Pod projection, and
 assignment/name invariants. AO12-B implements only the test-demo static shared
 floor and the immediate text/icon/shape/list equivalents: it creates zero cue or
-animation object and consumes no live delta. Spatial cue projection/reduction/
-rendering remains AO12-C work and is not started or authorized; no production
-projection selects this contract.
+animation object and consumes no live delta. After corrected AO12-B review and
+Advisor acceptance, AO12-C implements the pure cue projector/reducer and bounded
+route, pose, verified-idle, and Channy presentation behind the explicit
+`surface=spatial-motion` synthetic test-demo selector. No authenticated or
+production projection selects this contract; that remains AO12-D-only and
+unauthorized.
 
 ## 1. Contract principles
 
@@ -476,7 +479,7 @@ Tier selection is browser-local presentation state. It cannot alter a projection
 freshness, severity, authority, or event. Runtime CPU/process heuristics must not
 silently label state or fabricate activity.
 
-The future implementation must benchmark a synthetic, non-secret fixture with
+The AO12-C implementation benchmarks a synthetic, non-secret fixture with
 12 registered pods, 64 actor assignments, 200 WorkUnits, long Korean/English
 labels, six open alerts, and a three-cue burst. These are design-load targets,
 not claims about current supported production scale.
@@ -496,9 +499,24 @@ Candidate measurable targets:
 
 Implementation must record reference host/browser/build, fixture hash, sample
 count, percentile calculation, bundle report, DOM/SVG counts, heap method, and
-results. These values are unmeasured design targets now. A miss blocks `FULL`
-tier acceptance or returns a design adjustment; it must not be reported as met,
-hidden by snapshot tolerance, or solved by removing accessible semantics.
+results. AO12-C configured-reference evidence uses fixture SHA-256
+`sha256:6fc7fe9aee1811575c99b4c6b9972626053f26e645827b16e77c2363b4f201cf`,
+200 reducer samples after 20 warm-ups, nearest-rank p95, configured Playwright
+Chromium, and a 4x-CPU-throttled constrained profile. The measured reducer p95
+is 0.252ms; configured-browser selected-Team p95 is 51.4ms desktop and 68.1ms
+constrained; 600 active frames have p95 0.4ms; the scripted 10-second sequence
+has a supported long-task observer and zero long tasks over 50ms; the exact
+design-load render has 1324 DOM and 224 SVG nodes; and Chromium CDP garbage
+collection around 20 selection cycles records 197548 bytes retained-heap
+growth. The production entry remains
+unchanged and excludes the test-demo spatial modules, so incremental production
+JavaScript at this selection boundary is zero; the six AO12-C presentation
+source modules are separately 12314 gzip bytes as a diagnostic. Unmount and
+navigation retain zero cue animation; component cleanup removes its timers and
+media/visibility listeners. These results select `FULL` only on this configured
+reference runtime and remain pending independent review. A future miss blocks
+`FULL` or selects a reviewed lower tier; accessible semantics cannot be removed
+to meet a budget.
 
 ## 13. M1 compatibility adapter
 
@@ -525,9 +543,11 @@ tests. AO12-B implements the applicable static rendering, identity, mission-boar
 responsive, keyboard/focus, forced-color, WCAG A/AA, and zero-motion proofs in
 four focused Vitest files (24 tests) and one Playwright file (10 tests). Six new
 configured-runtime static baselines were directly inspected, with desktop and
-reduced-motion bytes identical. Cue-source, cue-reducer, route, animated
-rendering, and performance proofs remain future AO12-C work. The complete train
-must prove at least:
+reduced-motion bytes identical. AO12-C adds 76 focused cue/route/Channy/
+performance tests, 15 motion/accessibility browser cases, and seven directly
+inspected configured-runtime PNGs covering full, restrained, reduced/static,
+tablet, mobile, forced-colors, and 200%-text presentation. The complete train
+must continue to prove at least:
 
 - every cue row has valid and invalid source/evidence cases;
 - terminal/model/process-shaped prose cannot change a cue;
