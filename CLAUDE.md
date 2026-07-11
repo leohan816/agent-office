@@ -37,6 +37,8 @@ boundary is unclear or conflicting, stop and return the exception to Advisor.
 
 The six-file bootstrap allowlist is closed historical evidence. A later exact,
 committed Advisor handoff controls the current repo-local file and behavior scope;
-it grants nothing beyond its own mission. The current exact-delivery assignment
-is design/instruction-only and authorizes no runtime source, configuration, test,
-capability, server, credential, or tmux-input change.
+it grants nothing beyond its own mission. Exact-delivery work follows the exact
+current Advisor handoff: implementation and synthetic tests never imply an
+activation or rehearsal grant. Do not start a server, create usable authority
+material, or send tmux input unless a later exact Advisor handoff explicitly
+authorizes that separate step.

@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { AdvisorGateway } from '../adapters/gateways/advisor.js';
 import type { ReadonlyToolRunner } from '../adapters/observations/process-runner.js';
 import type { DecisionAuthorityEvidenceVerifier } from '../application/advisor-inbox/types.js';
+import { AdvisorEvidenceIngress } from '../application/advisor-inbox/evidence-ingress.js';
 import { AdvisorInboxService } from '../application/advisor-inbox/service.js';
 import { DurableAlertCenter } from '../application/alerts/index.js';
 import { DomainError } from '../contracts/types.js';
@@ -55,12 +56,18 @@ export interface CompositionCoreOptions {
   readonly advisorGateway: AdvisorGateway;
   readonly readonlyToolRunner?: ReadonlyToolRunner;
   readonly authorityEvidenceVerifier: DecisionAuthorityEvidenceVerifier;
+  readonly deliveryControl?: DurableDeliveryControl;
+  readonly advisorEvidenceIngressFactory?: (input: {
+    readonly inbox: AdvisorInboxService;
+    readonly store: EventStore;
+  }) => Promise<AdvisorEvidenceIngress>;
   readonly sessions?: BrowserSessionRegistry;
   readonly authenticationProvider?: AuthenticationProvider;
   readonly authenticationReadiness?: AuthenticationReadiness;
   readonly bootstrapExchange?: AuthenticationExchange;
   readonly mutationConfigured?: boolean;
   readonly authenticationStartup?: () => Promise<void>;
+  readonly deliveryActivationStartup?: () => Promise<void>;
   readonly authenticationCleanup?: () => Promise<void>;
   readonly heartbeatMs?: number;
 }
@@ -76,7 +83,9 @@ export interface RunningAgentOfficeComposition {
   readonly sse: ProjectionSseBroker;
   readonly sessions?: BrowserSessionRegistry;
   readonly authenticationProvider?: AuthenticationProvider;
+  readonly advisorEvidenceIngress?: AdvisorEvidenceIngress;
   readStatus(): LocalRuntimeStatus;
+  refreshAdvisorEvidence(): Promise<number>;
   close(): Promise<void>;
 }
 
@@ -120,7 +129,7 @@ export async function startAgentOfficeCompositionCore(
   try {
     const artifacts = await ImmutableArtifactStore.open(stateRoot);
     const audit = await FileSecurityAuditLog.open(stateRoot);
-    const delivery = await DurableDeliveryControl.open(stateRoot);
+    const delivery = options.deliveryControl ?? await DurableDeliveryControl.open(stateRoot);
     const policy = {
       missionId: manifest.missionId,
       manifestVersion: manifest.manifestVersion,
@@ -134,6 +143,7 @@ export async function startAgentOfficeCompositionCore(
       policy,
       options.authorityEvidenceVerifier,
     );
+    const advisorEvidenceIngress = await options.advisorEvidenceIngressFactory?.({ inbox, store });
     const alerts = new DurableAlertCenter(
       store,
       artifacts,
@@ -142,6 +152,7 @@ export async function startAgentOfficeCompositionCore(
       manifest.manifestVersion,
     );
     await inbox.recoverOutbox();
+    await advisorEvidenceIngress?.refresh();
     const sse = new ProjectionSseBroker();
     let projectionRevision = store.sequence;
     let lastObservationSignature = observationSignature(observations.snapshot());
@@ -150,9 +161,11 @@ export async function startAgentOfficeCompositionCore(
       return projectionRevision;
     };
     const refreshObservations = async (): Promise<void> => {
+      const sequenceBeforeEvidence = store.sequence;
+      await advisorEvidenceIngress?.refresh();
       const snapshot = await observations.refresh();
       const signature = observationSignature(snapshot);
-      if (signature === lastObservationSignature) return;
+      if (signature === lastObservationSignature && store.sequence === sequenceBeforeEvidence) return;
       lastObservationSignature = signature;
       sse.publish({
         revision: nextProjectionRevision(),
@@ -164,9 +177,9 @@ export async function startAgentOfficeCompositionCore(
     const readStatus = (): LocalRuntimeStatus => {
       const deliveryControl = delivery.project();
       const gatewayHealth = options.advisorGateway.health();
-      const deliveryMode = deliveryControl.receiptCount > 0
+      const deliveryMode = deliveryControl.mode === 'DISABLED_LATCHED'
         ? 'DISABLED' as const
-        : gatewayHealth.status === 'READY'
+        : deliveryControl.mode === 'ENABLED_BY_EXACT_GRANT' && gatewayHealth.status === 'READY'
           ? 'ENABLED' as const
           : 'MANUAL_FALLBACK_REQUIRED' as const;
       return assessStartupReadiness({
@@ -196,6 +209,8 @@ export async function startAgentOfficeCompositionCore(
           runtime: options.runtime,
           observations,
           projectionRevision,
+          deliveryControl: delivery.project(),
+          gatewayHealth: options.advisorGateway.health(),
         });
       },
       disableDelivery: (command) => delivery.disable(command),
@@ -236,6 +251,7 @@ export async function startAgentOfficeCompositionCore(
       }
       servers.push(server);
     }
+    await options.deliveryActivationStartup?.();
     refreshTimer = setInterval(() => {
       void refreshObservations().catch(() => undefined);
     }, options.operationalConfiguration.refreshIntervalMs);
@@ -253,7 +269,9 @@ export async function startAgentOfficeCompositionCore(
       ...(options.authenticationProvider === undefined
         ? {}
         : { authenticationProvider: options.authenticationProvider }),
+      ...(advisorEvidenceIngress === undefined ? {} : { advisorEvidenceIngress }),
       readStatus,
+      refreshAdvisorEvidence: async () => advisorEvidenceIngress?.refresh() ?? 0,
       close: async () => {
         if (closed) return;
         closed = true;

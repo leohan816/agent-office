@@ -1,6 +1,6 @@
 # Agent Office UI and Animation Mapping
 
-Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_UI_CANDIDATE_PENDING_FABLE5`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_DELIVERY_UI_IMPLEMENTED_DISABLED__PENDING_FABLE5_REVIEW`
 
 This reviewed design defines the responsive, private PWA surface and the only
 allowed mapping from structured events to visual activity. Batch B implements the
@@ -45,12 +45,13 @@ reduced-motion composed paths pass with proof absent from URLs, browser stores,
 IndexedDB and caches. No real credential/private-run visual evidence is claimed.
 
 That private run subsequently passed and was cleaned up at base `9c403da`.
-Leo/GPT then opened a separate exact Advisor delivery design. Its canonical
-candidate is
+Leo/GPT then opened a separate exact Advisor delivery design. Its Fable5-reviewed
+design is
 [`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
-This docs-only pass specifies future visible delivery/evidence states but adds no
-component, control, source/config/test behavior, capability, server, credential,
-or tmux input.
+AO-WU-19 implements status-only activation, transport, ACK, intake, decision,
+resume, authority-role, and evidence-hash projection. It adds no browser
+destination/process/enable control and exposes no message body, state-root path,
+capability, proof, or terminal content. No server or actual tmux input occurred.
 
 ## 1. Experience Principles
 
@@ -393,7 +394,7 @@ outlined unavailable station with last verified time. The scene never invents a
 person/avatar from a model name.
 
 Batch C fixes the visible plan to Leo/GPT, Advisor, Control, Fable5 Reviewer,
-Foundation Worker, Shashu Worker, Cosmile Worker, and Agent Office Worker. Neutral
+Foundation Worker, SIASIU Worker, Cosmile Worker, and Agent Office Worker. Neutral
 project-authored actor shapes represent stations rather than model/person
 identity. Leo is the decision-document destination; Advisor is the dispatch and
 result-tray destination.
@@ -827,6 +828,6 @@ and inspected. No portable cross-runtime visual-determinism claim is added.
 | AO-UI-007 PWA install/offline/update and runtime selection | `src/pwa/`, `src/ui/pwa/`, `src/ui/runtime/`, `src/ui/demo-entry.tsx`, `vite.config.ts`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Production resolves runtime client and trusted LocalBootstrap states; explicit test-demo alone resolves fixtures. Static-only cache excludes auth/API and proof canary scans pass | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private-run operation remains gated |
 | AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted domain labels remain exact; Batch E security/PWA state codes are deliberately visible stable operational codes with no silent authority translation | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Product localization of new security codes requires a reviewed vocabulary change |
 | AO-UI-009 LocalBootstrap proof-login/logout and delivery distinction | `src/ui/runtime/runtime-app.tsx`, `src/ui/runtime/client.ts`, `src/ui/pwa/runtime-boundary.tsx`, `src/ui/styles.css` | `tests/e2e-composed/application-office-scene.spec.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts` | Restrained Korean one-time-proof form clears value before request; fixed local badges/logout/manual fallback, no storage/URL/cache disclosure and scene removal on logout pass at desktop/mobile/reduced motion | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real proof entry/private-run review requires Fable5 PASS and Advisor authority |
-| AO-UI-010 Exact delivery/ACK/intake/decision/resume distinction | planned runtime projection and communication center status-only changes | planned component/E2E/accessibility/reduced-motion/no-control/security scans plus actual rehearsal inspection | Candidate freezes separate activation, transport, and Advisor-evidence vocabulary with no browser transport/operator control; no UI implementation exists | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Fable5 design PASS before UI patch; vocabulary/localization reviewed with implementation |
+| AO-UI-010 Exact delivery/ACK/intake/decision/resume distinction | runtime projection and communication-center status/hash-only changes | component, runtime composition, exact ingress, E2E/accessibility/reduced-motion/no-control suites | Activation, transport, ACK/intake/needs-Leo/decision/resume and authority role remain separate; no browser transport/enable/editor control exists | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 and later actual rehearsal inspection |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

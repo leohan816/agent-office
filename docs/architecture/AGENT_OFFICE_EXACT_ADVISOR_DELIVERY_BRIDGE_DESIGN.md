@@ -1,6 +1,6 @@
 # Agent Office Exact Advisor Delivery Bridge Design
 
-Status: `DESIGN_CANDIDATE__NO_CAPABILITY__PENDING_FABLE5_DESIGN_REVIEW`
+Status: `DESIGN_PASS__AO_WU_19_IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW`
 
 Mission: `AGENT_OFFICE_M01_EXACT_ADVISOR_DELIVERY_ACTIVATION`
 
@@ -8,6 +8,8 @@ Governed mission:
 `AGENT_OFFICE_M01_ADVISOR_MANAGED_OFFICE_WEB_CONTROL_PLANE`
 
 Design WorkUnit: `AO-WU-17`
+
+Implementation WorkUnit: `AO-WU-19`
 
 Canonical owner: Agent Office repository
 
@@ -26,7 +28,8 @@ immutable Agent Office Leo message artifact
   -> Agent Office durable projection and visible state
 ```
 
-This file is design, not runtime evidence. At this candidate commit:
+This file remains the reviewed design, not runtime/rehearsal evidence. At the
+reviewed candidate commit `d170880`:
 
 - no delivery activation configuration exists;
 - no runtime transport capability exists;
@@ -36,10 +39,11 @@ This file is design, not runtime evidence. At this candidate commit:
 - no server was started and no tmux input was sent; and
 - manual fallback remains the only real delivery behavior.
 
-Implementation is forbidden until an independent Fable5 Level-3
-`DESIGN_REVIEW` returns `PASS`. `PASS_WITH_RISK` returns to Leo/GPT. The later
-implementation, implementation/security review, and actual rehearsal remain
-strictly serial.
+Fable5 Level-3 design review returned `PASS` at foundation-docs commit
+`62973c4`. AO-WU-19 subsequently implemented this design with no enabled
+descriptor, readiness lease, capability instance, credential, listener, or real
+tmux input. Implementation/security review and the actual rehearsal remain
+strictly serial AO-WU-20 then AO-WU-21.
 
 ## 2. Governing evidence read for this design
 
@@ -186,8 +190,11 @@ For every ref, the runtime requires the registered repository/root, a 40-hex
 commit, bounded normalized relative path, exact Git blob bytes at that commit,
 and matching `sha256:` value. The configured commits must be ancestors of the
 currently configured local upstream ref; the current HEAD and upstream must
-agree for the trusted authority namespace. A worktree change to any trusted path
-is a conflict even if unrelated repository dirt exists elsewhere.
+agree for the trusted authority namespace, and the current upstream blob at
+each trusted path must still match the frozen ref. A worktree or later committed
+change to any trusted path is a conflict even if unrelated repository dirt
+exists elsewhere. The complete set is checked once while composing and again
+after buffer load immediately before pane input.
 
 The runtime parses closed fields rather than accepting hashes alone:
 
@@ -564,6 +571,12 @@ all of the following are proven:
 6. the governing Leo artifact and Advisor route artifact are both immutable and
    exactly correlated.
 
+The as-built exact verifier additionally requires every cited manifest WorkUnit
+to be currently `READY`, all declared dependencies to be `COMPLETED`, and the
+phase not to be `FINAL_AUDIT`. This is the executable current-state proof for the
+already-authorized routine subset; it cannot create review, final-audit, or new
+scope authority.
+
 If any condition is absent, the record must use `authorityRole=Leo/GPT` and cite
 an exact immutable Leo/GPT decision artifact, or classification remains
 `NEEDS_LEO_DECISION` and no decision/resume is ingested. This implements existing
@@ -664,11 +677,11 @@ The bridge exposes no generic process runner to the server or UI. Hermes remains
 an uncomposed disabled stub. Worker and Reviewer sessions are unrepresentable as
 gateway destinations.
 
-## 13. Implementation plan after design PASS
+## 13. AO-WU-19 implementation as built after design PASS
 
 The same Agent Office Worker may implement only the reviewed plan in AO-WU-19:
 
-| Surface | Planned change |
+| Surface | As-built change |
 |---|---|
 | `src/server/config.ts`, `src/runtime/operational-config.ts` | Add closed v3/v2 two-key selection and exact activation registration; preserve v1/v2 defaults and all owner/mode/no-follow/loopback checks. |
 | `src/runtime/composition.ts`, `composition-core.ts`, `cli.ts`, test composition | Construct the production bridge internally only after trusted validation; move arbitrary capability/port injection behind an unmistakable synthetic-only factory; compose evidence polling without a browser port. |
@@ -676,7 +689,7 @@ The same Agent Office Worker may implement only the reviewed plan in AO-WU-19:
 | `src/adapters/observations/process-runner.ts` and tmux/Git adapters | Keep read-only observation vocabulary separate; add only closed exact-pointer tmux operations and exact committed-blob reads with fixed argv/no shell. |
 | `src/operations/readiness/delivery-control.ts` | Add durable default-disabled/enabled-by-grant/latched-disable state, replay, hash/integrity checks, and no automatic re-enable. |
 | `src/application/advisor-inbox/` | Make durable port lookup authoritative, ingest closed Advisor evidence stages idempotently, preserve strict ordering, and keep receipt separate from ACK. |
-| `src/adapters/observations/artifacts/decision-authority.ts` | Verify exact Leo/GPT decisions and the narrowly bounded V2 Advisor routine-route subset without conflating link actor and authority role. |
+| `src/adapters/observations/artifacts/decision-authority.ts` | Verify exact Leo/GPT decisions and the narrowly bounded V2 Advisor routine-route subset against the immutable governing decision plus current manifest `READY`/dependency state, without conflating link actor and authority role. |
 | `src/runtime/projection.ts`, `src/ui/runtime/`, `src/ui/communication/` | Project separate activation/transport/ACK/intake/decision/resume states and evidence without transport controls or sensitive paths/body. |
 | configuration/runbook docs | Provide disabled examples and exact rehearsal preparation only. Do not commit a live activation grant, readiness lease, capability, proof, credential, or enabled production descriptor. |
 
@@ -685,6 +698,18 @@ structured evidence files through its existing foundation-docs write boundary.
 Before rehearsal, Advisor must publish the refreshed destination row, readiness
 lease, evidence templates, and narrow read/reload instruction under its governed
 authority, and Fable5 must review the actual cross-boundary schemas/instruction.
+
+### 13.1 Safe restrictive divergence
+
+Classification:
+`DESIGN_DEFECT__PRIOR_DISABLE_RESOLUTION_CORRELATION_NOT_CLOSED_IN_V1_SCHEMA`.
+Section 11 requires a later reviewed grant to cite resolution of the prior local
+disable, but activation v1 defines no closed field that can carry and bind that
+prior transition hash. AO-WU-19 therefore does not guess: v1 permits the initial
+`DISABLED_DEFAULT -> ENABLED_BY_EXACT_GRANT` transition and permanently refuses
+re-enable after `DISABLED_LATCHED`. A later reviewed schema/version must add the
+exact prior-transition/resolution correlation before re-enable can exist. This
+is a fail-closed restriction, not acceptance of an under-specified grant.
 
 ## 14. Required verification and threat cases
 
@@ -811,7 +836,7 @@ The nine criteria are the nine boundaries in the approved Option A decision.
 | 9 | Dual Fable5 review and synthetic actual rehearsal before use | AO-WU-18 -> 19 -> 20 -> 21 -> 15 train | Two independent PASS artifacts; no skipped dependency | Advisor AO-WU-21 package and final audit evidence |
 
 No criterion is complete from this design candidate. Each remains
-`DESIGNED_CANDIDATE__PENDING_FABLE5_DESIGN_REVIEW`.
+`IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW`.
 
 ## 17. Deferred gates and explicit non-goals
 
@@ -831,6 +856,8 @@ Deferred or separately governed:
   repositories from Agent Office runtime; and
 - final closure or automatic next-mission selection.
 
-The safe current state remains: server stopped, delivery capability absent,
-production port absent, global manual fallback available, Agent Office local
-delivery disabled, and no tmux input.
+The safe current state remains: server stopped, enabled deployment/operational
+descriptor absent, readiness lease and capability instance absent, global manual
+fallback available, Agent Office exact delivery unconfigured/default-disabled,
+and no tmux input. The reviewed production port code exists but is unreachable
+from committed configuration until later authority gates are satisfied.

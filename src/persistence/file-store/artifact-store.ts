@@ -68,6 +68,41 @@ export class ImmutableArtifactStore {
     return this.putBytesInDirectory(directory, bytes, 'json');
   }
 
+  public async putScopedBytes(
+    kind: string,
+    identitySegments: readonly string[],
+    bytes: Uint8Array,
+    extension: string,
+    maxByteLength = 32 * 1024,
+  ): Promise<ImmutableArtifactReceipt> {
+    if (
+      !ARTIFACT_KIND.test(kind) ||
+      identitySegments.length === 0 ||
+      identitySegments.some((segment) => !IDENTITY_SEGMENT.test(segment)) ||
+      !/^[a-z0-9]{1,16}$/u.test(extension) ||
+      !Number.isSafeInteger(maxByteLength) ||
+      maxByteLength < 1 ||
+      bytes.byteLength < 1 ||
+      bytes.byteLength > maxByteLength
+    ) {
+      throw new StoreError('PATH_CONTAINMENT_FAILED', 'scoped artifact bytes are invalid');
+    }
+    const directory = await ensurePrivateDirectory(
+      this.root,
+      path.join('artifacts', kind, ...identitySegments),
+    );
+    const sha256 = sha256Bytes(bytes);
+    const filename = `${sha256.slice('sha256:'.length)}.${extension}`;
+    const existingNames = (await readdir(directory)).filter((name) => name.endsWith(`.${extension}`));
+    if (existingNames.some((name) => name !== filename)) {
+      throw new StoreError(
+        'IMMUTABLE_ARTIFACT_CONFLICT',
+        'scoped artifact identity already contains different immutable bytes',
+      );
+    }
+    return this.putBytesInDirectory(directory, bytes, extension);
+  }
+
   public async putBytes(kind: string, bytes: Uint8Array, extension = 'bin'): Promise<ImmutableArtifactReceipt> {
     if (!ARTIFACT_KIND.test(kind) || !/^[a-z0-9]{1,16}$/u.test(extension)) {
       throw new StoreError('PATH_CONTAINMENT_FAILED', 'artifact kind or extension is invalid');

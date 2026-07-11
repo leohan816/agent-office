@@ -1,6 +1,6 @@
 # Agent Office Domain and Event Contract
 
-Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_CONTRACT_CANDIDATE_PENDING_FABLE5`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_DELIVERY_CONTRACT_IMPLEMENTED_DISABLED__PENDING_FABLE5_REVIEW`
 
 Contract version: `agent-office.domain.v1`
 
@@ -46,14 +46,15 @@ session handles never enter domain commands, artifacts, events or projections.
 
 The LocalBootstrap private run subsequently passed and was cleaned up at base
 `9c403da`. Leo/GPT then authorized a separate exact Advisor delivery design. Its
-canonical candidate is
+reviewed design is
 [`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
-This docs-only pass defines external transport/evidence schemas and ordering; it
-does not yet add a domain event, transition, capability, source/config/test
-change, or tmux input. Any implementation-time schema change remains subject to
-Fable5 design `PASS` and the normal evolution rules below.
-The actual canonical manifest instance is now manifest version 2 under the same
-version-1 manifest schema and denominator 15.
+Fable5 design review returned `PASS`, and AO-WU-19 implements the external
+transport/evidence schemas without adding a browser authority route or treating
+receipt as ACK/intake/decision/resume. Existing message/notification/work-unit
+events remain version-compatible; source refs and `authorityRole` are preserved
+through artifacts, events, replay, projection, and UI. No actual input occurred.
+The actual canonical manifest instance is now manifest version 5 under the same
+version-1 manifest schema and denominator 21.
 
 ## 1. Contract Principles
 
@@ -140,9 +141,12 @@ Missing, unreadable, mutable, stale, malformed, hash/path/commit/repository,
 mission, scope, or named-authority mismatch returns the stable
 `AUTHORITY_ARTIFACT_INVALID` code and appends neither a decision-link artifact nor
 event. Advisor remains the actor recording the link; this does not grant Advisor
-the recorded canonical authority. The current approved contract defines no safe
-bounded Advisor routine decision scope, so `authorityRole=Advisor` rejects closed
-until a separate authority decision defines one.
+the recorded canonical authority. The generic version-1 verifier still rejects
+bounded Advisor authority. AO-WU-19 adds a separate exact Git verifier for the
+reviewed version-2 `ROUTE_ALREADY_AUTHORIZED_WORK` subset only: the immutable
+governing Leo decision must match, every exact manifest WorkUnit must be `READY`
+with completed dependencies, and `FINAL_AUDIT` is excluded. Every other
+`authorityRole=Advisor` claim rejects closed.
 
 ### 1.5 LocalBootstrap as-built domain boundary
 
@@ -905,7 +909,7 @@ or intake as a resume transition.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| Version-1 manifest schema plus current versioned instance remains sole scope authority | `src/domain/manifest/index.ts`, `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/domain/manifest.test.ts` | Current manifest instance version 2 must match actual foundation root/hash/commit/path and be Git VERIFIED before proof/store/bind; fixture, alternate root, mismatch, stale, unverified, missing and path escape reject | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Advisor approval of real-run config remains external |
+| Version-1 manifest schema plus current versioned instance remains sole scope authority | `src/domain/manifest/index.ts`, `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/domain/manifest.test.ts` | Current manifest instance version 5/denominator 21 must match actual foundation root/hash/commit/path and be Git VERIFIED before proof/store/bind; fixture, alternate root, mismatch, stale, unverified, missing and path escape reject | `IMPLEMENTED_EXACT_DELIVERY_DISABLED__PENDING_FABLE5_REVIEW` | Advisor approval of any later run config remains external |
 | Structured events plus fresh verified observation, never manifest status alone, prove live activity | `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts`, `src/application/hosts/freshness.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts` | Active WorkUnits require accepted activity event IDs and CURRENT actor evidence; stale/offline/missing/identity/dirty/unverified/restart cases project fail-closed | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Remote host event envelopes remain gated |
 | Durable alerts and Advisor lifecycle preserve existing event authority | `src/application/alerts/index.ts`, `src/application/advisor-inbox/`, `src/runtime/projection.ts` | `tests/integration/alert-application.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/decision-authority-evidence.test.ts` | Open/resolved/suppressed/idempotent alert projection and persist/deliver/ack/intake/verified-decision/resume/duplicate lifecycle pass without a new event type or automatic authority | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Real auth and delivery authority remain gated |
 
@@ -924,11 +928,11 @@ or intake as a resume transition.
 | AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Dashboard consumption implemented in Batch B; later scope changes still require authority |
 | AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts`, `src/application/audit/`, `src/server/security/audit.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/integration/lifecycle-audit.test.ts`, `tests/security/audit-log.test.ts`, `tests/security/local-bootstrap-http.test.ts` | Domain ledger remains intact; LocalBootstrap exchange/logout writes only redacted security outcomes and never proof/session payload hashes or domain sequence | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real-run audit evidence and retention remain gated |
 | AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/runtime/observation-coordinator.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/integration/observation-coordinator.test.ts` | LocalBootstrap changes no transition table; 255-test regression preserves rejections, and active observables remain unknown unless accepted activity events and verified fresh sources agree | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | None for local domain rules; remote evidence remains gated |
-| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/runtime/composition-core.ts`, `src/server/http/` | `tests/integration/advisor-inbox.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts` | LocalBootstrap permits durable Leo-to-Advisor message persistence but grants no Advisor operator or transport authority; gateway remains manual. Existing deterministic full-lifecycle test coverage remains synthetic | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real private-run message evidence and transport authority remain gated; Advisor routine authority undefined |
+| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/runtime/composition-core.ts`, `src/server/http/` | `tests/integration/advisor-inbox.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/exact-advisor-delivery.test.ts`, `tests/integration/runtime-composition.test.ts` | LocalBootstrap still grants no browser Advisor operator authority. Exact committed ACK/intake/decision/resume ingress freezes stage refs before append; the V2 Advisor route subset requires immutable Leo authority plus manifest READY/completed-dependency proof and preserves the named role | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 and AO-WU-21 actual evidence remain gated |
 | AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts`, `src/operations/restore/`, `src/server/sse/` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts` | Canonical mission projection is unchanged; read-only source freshness is a separate overlay, semantic observation changes get monotonic SSE revisions, and no observation/scene/alert projection creates completion truth | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote evidence remains gated |
 | AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch C event-ID-only activity/result mapping is Advisor-accepted and remains unchanged in Batch D regression | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene activity |
 | AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts`, `src/application/alerts/`, `src/runtime/projection.ts`, `src/ui/communication/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, `tests/integration/alert-application.test.ts`, `tests/integration/runtime-composition.test.ts` | Closed vocabularies remain; hash-verified durable detail now projects type, question/options/recommendation/safe default/evidence/actions for open/resolved/suppressed alerts without raw terminal or secret data | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real Advisor/Leo decision and delivery authority remain external |
-| AO-DOM-008 Exact pointer receipt versus Git-verified Advisor evidence chain | planned gateway journal, inbox evidence ingress, authority verifier, ResumeProof, event/projector replay | planned exact-schema/order/idempotency/forgery/authority/crash tests plus actual rehearsal | Candidate preserves v1 pointer/message events and freezes the external ACK/intake/decision/resume trust path; no domain/runtime implementation exists | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Fable5 design PASS before any schema or code patch |
+| AO-DOM-008 Exact pointer receipt versus Git-verified Advisor evidence chain | gateway journal, inbox evidence ingress, exact Git authority verifier, ResumeProof, event/projector replay | `tests/integration/exact-advisor-delivery.test.ts`, inbox/authority/recovery suites | v1 pointer/message compatibility remains; external ACK/intake/decision/resume refs are frozen before append, stage ordered, rewrite protected, and role-preserving | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 then actual evidence rehearsal |
 
 The cross-document matrix in `docs/FEATURE_INDEX.md` is authoritative for package
 discoverability and links these contract IDs to the remaining security, gateway,

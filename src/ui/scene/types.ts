@@ -10,7 +10,7 @@ export const OFFICE_STATION_IDS = [
   'control',
   'fable5',
   'foundation',
-  'shashu',
+  'siasiu',
   'cosmile',
   'agent-office',
 ] as const;
@@ -31,10 +31,17 @@ export const OFFICE_STATIONS: readonly OfficeStationDefinition[] = [
   { id: 'control', label: 'Control station', actorRole: 'Control', column: 2, row: 0 },
   { id: 'fable5', label: 'Independent review desk', actorRole: 'Fable5 Reviewer', column: 3, row: 0 },
   { id: 'foundation', label: 'Foundation desk', actorRole: 'Foundation Worker', column: 0, row: 1 },
-  { id: 'shashu', label: 'Shashu desk', actorRole: 'Shashu Worker', column: 1, row: 1 },
+  { id: 'siasiu', label: 'SIASIU desk', actorRole: 'SIASIU Worker', column: 1, row: 1 },
   { id: 'cosmile', label: 'Cosmile desk', actorRole: 'Cosmile Worker', column: 2, row: 1 },
   { id: 'agent-office', label: 'Agent Office desk', actorRole: 'Agent Office Worker', column: 3, row: 1 },
 ] as const;
+
+export function normalizeOfficeStationId(value: unknown): OfficeStationId | undefined {
+  const normalized = value === 'shashu' ? 'siasiu' : value;
+  return typeof normalized === 'string' && OFFICE_STATION_IDS.includes(normalized as OfficeStationId)
+    ? normalized as OfficeStationId
+    : undefined;
+}
 
 export type SceneConnectionState = 'CONNECTED' | 'OFFLINE' | 'UNKNOWN' | 'CONFLICT';
 export type SceneAlertSeverity = 'NONE' | 'INFO' | 'WARNING' | 'CRITICAL';

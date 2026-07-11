@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `LOCAL_BOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_DESIGN_CANDIDATE_PENDING_FABLE5`
+Status: `LOCAL_BOOTSTRAP_PRIVATE_RUN_PASS__EXACT_DELIVERY_IMPLEMENTED_DISABLED__PENDING_FABLE5_REVIEW`
 
 Canonical owner: Agent Office repository
 
@@ -152,15 +152,17 @@ separate exact Advisor delivery train, and AO-WU-15 depends on AO-WU-21. The
 LocalBootstrap private-run gate passed against base `9c403da`; its proof was
 consumed/removed and its server, listener, and writer lock were cleaned up.
 
-Leo/GPT then authorized the design-first exact delivery mission. Its canonical
-candidate is
+Leo/GPT then authorized the design-first exact delivery mission. Its reviewed
+design is
 [`AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
 It resolves DQ-01 through DQ-08 with a fixed `foundation-advisor/$9/%9`
 pointer-only transport, durable no-resend journal, Git-verified structured
-Advisor evidence ingress, and a nine-criterion rehearsal plan. This is a
-design/instruction change only: no capability, production port, source/config/
-test change, server, credential, or tmux input exists. Fable5 Level-3 design
-`PASS` is required before implementation.
+Advisor evidence ingress, and a nine-criterion rehearsal plan. Fable5 Level-3
+design review returned `PASS`; AO-WU-19 now implements the bridge behind closed
+v3/v2 production selection with default-disabled/latching behavior. Committed
+configuration contains no activation descriptor, lease, capability instance, or
+usable authority material, and AO-WU-19 started no server and sent no tmux input.
+AO-WU-20 implementation/security review remains the next gate.
 
 ## 3. Non-Goals and Fixed Prohibitions
 
@@ -687,7 +689,7 @@ separate gate.
 | Persistence | Local append-only JSONL, immutable artifacts, atomic projections, owner-only complete backup and disjoint restore; no DB | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/encryption/schedule/retention and real-root operation remain gated |
 | Real-time | Authenticated bounded SSE plus independent idempotent POST, no WebSocket | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | WebSocket/shared multi-host fanout requires a new reviewed decision |
 | Loopback authentication | Default remains no-provider/read-only; exact trusted v2 LocalBootstrap passed its authorized private run with verifier-only proof delivery, server sessions, login/logout and exact port 4317, then was fully cleaned up | `LOCAL_BOOTSTRAP_PRIVATE_RUN_PASS__SERVER_STOPPED` | A future synthetic run creates a fresh one-use proof; authentication still grants no transport authority |
-| Exact Advisor delivery | Fixed local `$9/%9` pointer-only bridge, double structured preflight, durable no-resend journal, and Git-verified Advisor evidence ingress | `DESIGNED_CANDIDATE__NO_CAPABILITY__PENDING_FABLE5_DESIGN_REVIEW` | Fable5 design PASS -> same Worker implementation -> Fable5 implementation/security PASS -> Advisor actual rehearsal |
+| Exact Advisor delivery | Fixed local `$9/@9/%9` pointer-only bridge, double structured preflight, durable no-resend journal, and Git-verified Advisor evidence ingress | `IMPLEMENTED_DISABLED__NO_ENABLED_DESCRIPTOR_OR_CAPABILITY_INSTANCE` | Fable5 implementation/security PASS -> Advisor actual rehearsal |
 | Tailscale/private network | Designed disabled; identity/TLS/trust requirements reserved | `DEFERRED_WITH_GATE` | Leo/GPT private-network approval and threat review |
 | Remote Linux collectors | Signed structured observation interface only | `DEFERRED_WITH_GATE` | Multi-host implementation mission and key-provisioning approval |
 | Future Mac hosts | Same observation contract with platform adapter | `DEFERRED_WITH_GATE` | Mac implementation/test host approval |
@@ -720,10 +722,10 @@ separate gate.
 | AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 15-unit fixture/hash remains accepted; Batch B declared scope/future-work rendering was accepted as the Batch C dependency | `IMPLEMENTED_THROUGH_BATCH_B__ADVISOR_ACCEPTED` | Any scope change still requires exact authority |
 | AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts`, `src/operations/` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted ledger/replay remains; Batch E adds complete checkpoint/hash manifest and replay-equivalent disjoint restore without active-root overwrite | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
 | AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/`, `src/pwa/`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Default no-provider stays `AUTH_BLOCKED`; exact trusted LocalBootstrap now proves production login, protected projection, `viewer`/`leo_input`, logout/SSE revocation, static-only PWA caching and manual delivery on the same application path | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run, private network and deployment remain gated |
-| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/adapters/observations/`, `src/adapters/gateways/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts` | LocalBootstrap requires the actual canonical source and rejects fixture fallback; it composes TmuxAdvisorGateway without capability/port and rejects either injection before bind, so no real delivery occurs | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real capability/delivery remains external; Hermes and remote sources separately gated |
+| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/adapters/observations/`, `src/adapters/gateways/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/integration/exact-advisor-delivery.test.ts` | LocalBootstrap still requires canonical source and rejects production capability/port injection. Matching trusted v3/v2 config can internally compose only the fixed journaled Advisor bridge; committed config remains read-only/disabled and no actual delivery occurred | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 review and AO-WU-21 actual rehearsal; Hermes/remote sources separately gated |
 | AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `playwright.composed.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts` | LocalBootstrap gate passes 55/255 Vitest, 21/21 Chromium, builds, audit, smoke, diff/secret scan and direct visual inspection at the named commit | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Fable5 code/security review -> Advisor private-run authority/evidence -> final approval |
-| AO-ARCH-006 Explicit external manifest and evidence-correct operational projection | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Owner/no-follow config and Git-verified actual foundation manifest start; fixture/alternate root, missing/unverified/stale/hash/path failures reject before LocalBootstrap proof/bind; manifest v2 projects without fallback | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Advisor must prepare exact current config; remote collectors remain gated |
-| AO-ARCH-007 Exact Advisor delivery extension | planned `src/adapters/gateways/tmux-advisor/`, runtime trusted config/composition, durable delivery control, internal Advisor evidence ingress, and UI projection | planned gateway/inbox/crash/security/runtime/E2E regressions plus Advisor rehearsal | Exact DQ-01 through DQ-08 and nine-criterion candidate; no runtime change or capability | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | AO-WU-18 design PASS before AO-WU-19 implementation |
+| AO-ARCH-006 Explicit external manifest and evidence-correct operational projection | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Owner/no-follow config and Git-verified actual foundation manifest start; fixture/alternate root, missing/unverified/stale/hash/path failures reject before LocalBootstrap proof/bind; manifest v5 projects without fallback | `IMPLEMENTED_EXACT_DELIVERY_DISABLED__PENDING_FABLE5_REVIEW` | Advisor must prepare exact later config; remote collectors remain gated |
+| AO-ARCH-007 Exact Advisor delivery extension | `src/adapters/gateways/tmux-advisor/`, runtime trusted config/composition, delivery-control v2, internal Advisor evidence ingress, and separated UI projection | `tests/integration/exact-advisor-delivery.test.ts` plus gateway/inbox/recovery/security/runtime/E2E regressions | DQ-01 through DQ-08 are implemented disabled: two-key selection, immutable pointer, fixed argv, no-resend journal, one-use lease, latch, exact Git stages, no browser transport surface | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 before AO-WU-21 actual rehearsal |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_SECURITY_DESIGN_PENDING_FABLE5`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_DELIVERY_SECURITY_IMPLEMENTED_DISABLED__PENDING_FABLE5_REVIEW`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -64,10 +64,13 @@ authority remain mandatory before that operation.
 That private-run gate subsequently passed and was cleaned up at Agent Office base
 `9c403da`; no proof, listener, writer lock, or delivery capability remains.
 Leo/GPT then opened the separate exact Advisor delivery activation mission. Its
-design-only security boundary is canonical in
+Fable5-reviewed security boundary is canonical in
 [`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
-No source/config/test behavior, usable capability, production port, or tmux input
-is present until the separate Fable5 design and implementation/security gates.
+AO-WU-19 implements the closed config, authority validator, fixed production
+port, journal, latch, evidence ingress, and role verifier. The committed safe
+state still contains no enabled descriptor, readiness lease, capability
+instance, usable proof/credential, server, or tmux input. Fable5
+implementation/security review remains mandatory before rehearsal.
 
 ## 1. Security Objectives
 
@@ -115,9 +118,11 @@ Availability never outranks actor separation or evidence integrity.
   intake, decision link, ResumeProof, and close evidence. Message content stays
   in the scoped immutable artifact and is excluded from event/gateway/audit
   summaries.
-- `src/adapters/gateways/` exposes no process/network primitive. A prevalidated
-  opaque `ADVISOR_ONLY` capability gates the canonical pointer envelope; any
-  disabled/kill/malformed/stale/conflict/ambiguous state is manual fallback.
+- `src/adapters/gateways/` exposes no generic process or network primitive. Its
+  exact internal transport owns only fixed no-shell `/usr/bin/tmux` operations
+  and its exact authority reader owns only fixed no-shell `/usr/bin/git` reads.
+  A notification-bound `ADVISOR_ONLY` capability gates the canonical pointer;
+  any disabled/kill/malformed/stale/conflict/ambiguous state is manual fallback.
 - `src/server/network/`, `src/server/auth/`, and `src/server/security/` enforce
   loopback peer/bind, exact Host/same origin, no forwarding/CORS, guarded test
   auth, opaque revocable sessions, capability/CSRF/Fetch Metadata, strict JSON,
@@ -146,7 +151,9 @@ Availability never outranks actor separation or evidence integrity.
   immutable `ArtifactSource` bytes whose repository, commit, path, SHA-256,
   mission, decision, named authority, and exact nonempty WorkUnit scope correspond.
   Any missing/unreadable/mutable/stale/mismatch rejects before link artifact/event;
-  no bounded Advisor routine scope is approved, so that role remains fail-closed.
+  its generic V1 Advisor role remains fail-closed. The separate AO-WU-19 exact
+  V2 verifier accepts only `ROUTE_ALREADY_AUTHORIZED_WORK` with immutable Leo
+  governance and exact manifest READY/completed-dependency/non-final-audit scope.
 - `src/pwa/`, `public/sw.js`, and `src/ui/pwa/` precache the built hashed shell,
   exclude all API/auth/message/evidence routes, provide no sync queue, and show
   loopback/auth/read-only/delivery/offline/update/recovery state.
@@ -488,7 +495,7 @@ canonical UTC clock on health/new-queue/uncached-lookup paths, reject a future
 
 ### 12.1 Exact-delivery candidate security refinement
 
-The new candidate does not grant the browser or LocalBootstrap session transport
+The as-built exact bridge does not grant the browser or LocalBootstrap session transport
 authority. A later production composition must require owner-only deployment and
 operational configuration to agree, validate exact Git-visible V2/transport/
 activation/registry/kill/mission blobs, consume a committed one-use Advisor
@@ -668,12 +675,12 @@ named synthetic proofs and disposable loopback roots were used.
 |---|---|---|---|---|---|
 | AO-SEC-001 Loopback private fail-closed bind | `src/server/network/`, `src/server/http/static-shell.ts`, `src/server/config.ts`, `config/agent-office.loopback.json` | `tests/security/bind-policy.test.ts`, `tests/security/static-shell.test.ts`, `tests/security/private-network-disabled.test.ts` | Default exact loopback read-only remains; LocalBootstrap accepts only one IPv4 bind/Host/origin at port 4317. Proxy/wildcard/nonloopback/private-mode/CORS/TLS/HSTS changes fail closed | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Private/public network and deployment remain separately gated |
 | AO-SEC-002 Auth/session/capability model without embedded secrets | `src/runtime/composition.ts`, `src/runtime/test-composition.ts`, `src/ui/runtime/client.ts`, `src/server/auth/`, `src/server/config.ts` | `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/auth-session.test.ts` | Default stays AUTH_BLOCKED; trusted production LocalBootstrap uses verifier-only owner-file proof, fixed `viewer`/`leo_input`, opaque server sessions and logout/revocation/SSE close while gateway stays manual | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run requires Fable5 PASS and Advisor authority |
-| AO-SEC-003 CSRF/origin/rate/input/output and decision-authority controls | `src/domain/messages/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/runtime/` | `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/http-boundary.test.ts` | Bootstrap has exact unauthenticated-origin/body/rate controls and no disclosure; authenticated routes keep session/capability/CSRF. Local session cannot call Advisor decision paths; immutable authority controls remain unchanged | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Private origin/TLS and bounded Advisor routine authority remain gated |
-| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/acceptance/batch-gates.test.ts` | Six exact typed mutations and read/static routes only; command/target/role/path/Worker/Reviewer/terminal routes and fields reject; server has no process primitive | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Fixed prohibition; real Advisor transport remains external |
-| AO-SEC-005 Audit/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/audit-log.test.ts` | LocalBootstrap rejects gateway capability/port before bind and keeps delivery manual; proof is absent from audit. Existing kill/ambiguity/no-duplicate rules remain | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real transport and audit retention remain external/gated |
+| AO-SEC-003 CSRF/origin/rate/input/output and decision-authority controls | `src/domain/messages/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/runtime/` | `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/exact-advisor-delivery.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/http-boundary.test.ts` | Browser sessions still cannot call Advisor decision paths. Exact committed evidence preserves role and permits only the governed V2 routine subset with READY/dependency proof; material scope remains Leo/GPT-only | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 and actual AO-WU-21 evidence |
+| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/integration/exact-advisor-delivery.test.ts`, `tests/acceptance/batch-gates.test.ts` | Browser command/target/role/path/Worker/Reviewer/terminal routes remain absent. The internal bridge exposes only fixed no-shell Git reads and `/usr/bin/tmux` preflight/load/paste-to-%9/Enter operations | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | Actual one-send proof remains AO-WU-21 gated |
+| AO-SEC-005 Audit/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/integration/exact-advisor-delivery.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/audit-log.test.ts` | Default remains manual; production rejects injected capability/port values. Exact authority is revalidated before paste, committed kill changes and local disable latch closed, and every ambiguous journal phase remains non-retryable across restart | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | Actual transport/audit proof remains AO-WU-21 gated |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js`, `src/ui/runtime/` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Hashed static-only cache/no sync/offline read-only remains; composed proof canary is absent from storage, IndexedDB, caches and URLs while cookie is HttpOnly/Strict | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private-run browser inspection remains gated |
 | AO-SEC-007 Operational source authority and projection redaction | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Exact external manifest/root/source/actor registration is owner/no-follow/bounded and fail-closed; config mode must have `0o022` clear, with `0400`/`0600` accepted and `0620`/`0602`/`0666` rejected; projection exposes no absolute root/raw terminal/secret, and unverified activity cannot animate | `IMPLEMENTED_OPERATIONAL_CONFIG_MODE_PATCH__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real source config approval and remote-host trust remain external |
 | AO-SEC-008 LocalBootstrap proof-file and non-disclosure boundary | `src/server/auth/local-bootstrap.ts`, `src/runtime/composition-core.ts`, `src/server/http/server.ts` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/integration/runtime-composition.test.ts` | Entropy/verifier/single-use/expiry/restart plus owner/exact-0600/owner-only-directory/no-follow/special/stale/race and cross-surface canary scans pass; proof never enters durable/application/browser evidence | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Execute real handling only after independent PASS and Advisor authority |
-| AO-SEC-009 Exact Advisor delivery authority/no-resend/evidence ingress | planned trusted v3/v2 config, exact tmux port/journal, local latch, Git evidence observer, and immutable authority verifier | planned authority/preflight/argv/crash/forgery/kill/no-browser-route suites plus Fable5 threat review | Canonical candidate resolves DQ-01 through DQ-08 and maps all nine Leo/GPT criteria; current runtime remains capability-less/manual | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Design PASS, implementation/security PASS, then one Advisor synthetic actual rehearsal |
+| AO-SEC-009 Exact Advisor delivery authority/no-resend/evidence ingress | trusted v3/v2 config, exact tmux port/journal, local latch, Git evidence observer, and immutable authority verifier | `tests/integration/exact-advisor-delivery.test.ts` plus authority/preflight/gateway/recovery/no-browser-route suites | Production rejects injected capability/port and mints one-use v2 only after exact authority/lease/preflight; ambiguity latches and cannot resend; role remains explicit | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 then one Advisor synthetic actual rehearsal |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

@@ -178,7 +178,7 @@ describe('executable loopback composition and production runtime client', () => 
     });
     const message = await postJson(
       `${composition.primaryOrigin}/api/v1/advisor/messages`,
-      { ...messageCommand(15_100), manifestVersion: 2 },
+      { ...messageCommand(15_100), manifestVersion: 5 },
       {
         ...productionMutationHeaders(composition.primaryOrigin),
         Cookie: cookie,

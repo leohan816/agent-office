@@ -14,6 +14,8 @@ import type { MissionManifest } from '../domain/manifest/index.js';
 import type { EventStore } from '../persistence/file-store/event-store.js';
 import type { RedactedProjectionSnapshot } from '../server/application.js';
 import type { CommunicationCenterModel } from '../ui/communication/types.js';
+import type { AdvisorGatewayHealth } from '../adapters/gateways/advisor.js';
+import type { DeliveryControlProjection } from '../operations/readiness/delivery-control.js';
 import type { RoleSceneProjection } from '../ui/scene/types.js';
 import type { AgentOfficeRuntimeIdentity } from './identity.js';
 import type { RuntimeObservationCoordinator } from './observation-coordinator.js';
@@ -26,6 +28,8 @@ export interface RuntimeProjectionServices {
   readonly runtime: AgentOfficeRuntimeIdentity;
   readonly observations: RuntimeObservationCoordinator;
   readonly projectionRevision: number;
+  readonly deliveryControl: DeliveryControlProjection;
+  readonly gatewayHealth: AdvisorGatewayHealth;
 }
 
 export async function buildRuntimeProjection(
@@ -71,9 +75,14 @@ export async function buildRuntimeProjection(
     allowlistedEntityIds: Object.keys(mission.workUnits).sort(),
     draftRequestId: services.runtime.nextId(),
     draftCreatedAt: now,
+    deliveryActivation: activationProjection(services.deliveryControl, services.gatewayHealth),
     messages: Object.values(inbox.messages)
       .sort((left, right) => left.persistedMissionSequence - right.persistedMissionSequence)
-      .map((message) => ({
+      .map((message) => {
+        const notification = message.notificationId === undefined
+          ? undefined
+          : inbox.notifications[message.notificationId];
+        return {
         messageId: message.messageId,
         requestId: message.requestId,
         missionId: message.missionId,
@@ -83,12 +92,22 @@ export async function buildRuntimeProjection(
         payloadHash: message.messagePayloadHash,
         artifactRef: message.messageArtifactRef,
         artifactHash: message.messageArtifactHash,
+        transportState: transportProjection(notification),
+        advisorEvidenceState: advisorEvidenceProjection(message),
+        ...(message.authorityRole === undefined ? {} : { authorityRole: message.authorityRole }),
+        evidenceHashes: [
+          message.acknowledgementEvidenceRef?.sha256,
+          message.intakeEvidenceRef?.sha256,
+          message.decisionEvidenceRef?.sha256,
+          ...(message.resumeEvidenceRefs ?? []).map((reference) => reference.sha256),
+        ].filter((value): value is string => value !== undefined),
         timeline: message.timeline.map((item) => ({
           state: item.state,
           occurredAt: item.recordedAt,
           evidenceRef: item.evidenceRef,
         })),
-      })),
+        };
+      }),
     alerts: alertViews,
   };
   const sceneRoles: readonly RoleSceneProjection[] = services.observations.sceneRoles(
@@ -109,6 +128,40 @@ export async function buildRuntimeProjection(
     communication,
     sceneRoles,
   };
+}
+
+function activationProjection(
+  control: DeliveryControlProjection,
+  health: AdvisorGatewayHealth,
+): CommunicationCenterModel['deliveryActivation'] {
+  if (control.mode === 'DISABLED_DEFAULT') return 'DISABLED';
+  if (control.mode === 'DISABLED_LATCHED') return 'KILLED';
+  if (health.status === 'READY') return 'READY';
+  return health.failureCode === 'ADVISOR_LOCATOR_STALE_OR_MISMATCHED' ? 'STALE' : 'CONFLICTED';
+}
+
+function transportProjection(
+  notification: ReturnType<AdvisorInboxService['project']>['notifications'][string] | undefined,
+): CommunicationCenterModel['messages'][number]['transportState'] {
+  if (notification === undefined || notification.state === 'QUEUED') return 'QUEUED';
+  if (notification.state === 'DELIVERING') return 'DELIVERING';
+  if (notification.state === 'DELIVERED' || notification.state === 'ACKNOWLEDGED') return 'DELIVERED';
+  if (notification.receipt?.failureCode === 'DELIVERY_RECEIPT_AMBIGUOUS') return 'AMBIGUOUS';
+  return 'MANUAL_FALLBACK_REQUIRED';
+}
+
+function advisorEvidenceProjection(
+  message: ReturnType<AdvisorInboxService['project']>['messages'][string],
+): CommunicationCenterModel['messages'][number]['advisorEvidenceState'] {
+  if ((message.resumeEvidenceRefs?.length ?? 0) > 0) return 'RESUME_RECORDED';
+  if (message.state === 'DECISION_LINKED' || message.state === 'CLOSED') return 'DECISION_LINKED';
+  if (message.state === 'INTAKE_RECORDED') {
+    return message.intakeClassification === 'NEEDS_LEO_DECISION'
+      ? 'NEEDS_LEO_DECISION'
+      : 'INTAKE_RECORDED';
+  }
+  if (message.state === 'ACKNOWLEDGED') return 'ACKNOWLEDGED';
+  return 'NOT_ACKNOWLEDGED';
 }
 
 function foldMissionProjection(

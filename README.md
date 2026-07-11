@@ -4,7 +4,9 @@ Agent Office is the loopback-only M01 web control plane for canonical mission
 projection and structured Leo-to-Advisor communication. The repository contains
 the accepted Batch A-D foundation, Batch E runtime/PWA/recovery work, the final
 runtime reworks, and the LocalBootstrap private-run gate implemented at
-`2623922877bd52dc7f5b6c6cd45fae755e5ff228`.
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228`. The reviewed exact Advisor
+pointer bridge is implemented but deliberately unconfigured and disabled pending
+Fable5 implementation/security review and a separately authorized rehearsal.
 
 ## Current as-built boundary
 
@@ -22,20 +24,27 @@ runtime reworks, and the LocalBootstrap private-run gate implemented at
 - Production LocalBootstrap accepts only the current Git-verified canonical M01
   manifest from the sibling `foundation-docs` repository. Fixture fallback is
   rejected before proof creation or listener binding.
-- Advisor delivery remains `MANUAL_FALLBACK_REQUIRED`. LocalBootstrap rejects a
-  usable tmux capability or delivery-port injection, and no real tmux input is
-  sent.
+- Committed configuration still reports Advisor delivery as
+  `MANUAL_FALLBACK_REQUIRED`. Production now supports only a matching, trusted
+  v3/v2 exact-delivery selection; no such descriptor or usable authority
+  material is committed. Caller-injected ports/capabilities are production-
+  rejected and remain explicit synthetic-test seams only.
+- The implemented bridge verifies eight exact Git authority snapshots, a
+  one-use readiness lease, and two fixed `$9/@9/%9` preflights before minting an
+  in-memory notification capability. Its immutable pointer, fixed no-shell tmux
+  argv, fsynced no-resend journal, local disable latch, and committed Advisor
+  evidence ingress have no browser target/control surface.
 - The production UI has a restrained Korean proof-login state, explicit
   LocalBootstrap authentication/mutation badges, logout, responsive containment,
   reduced-motion behavior, and static-only PWA caching. Proofs and session values
   are not placed in URLs, browser storage, service-worker caches, logs, audit
   payloads, source, or committed artifacts.
 
-The Worker pass created no real credential, started no real private run, and
-left no server running. Those actions remain deferred until independent Fable5
-code/security `PASS` and a separately authorized Advisor private-run step. The
-non-secret preparation procedure is
-[docs/operations/LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md](docs/operations/LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md).
+AO-WU-19 created no credential, readiness lease, activation descriptor,
+capability, proof, state root, listener, or real tmux input and left no server
+running. Exact-delivery preparation is documented in
+[docs/operations/EXACT_ADVISOR_DELIVERY_PREPARATION.md](docs/operations/EXACT_ADVISOR_DELIVERY_PREPARATION.md);
+AO-WU-21 remains separately gated.
 
 ## Verification
 
@@ -48,11 +57,11 @@ npm run audit:dependencies
 git diff --check
 ```
 
-The LocalBootstrap implementation gate passes 55 Vitest files / 255 tests,
-18 demo/PWA Playwright tests plus 3 composed LocalBootstrap tests, lint, strict
-typecheck, core/dashboard builds, the disposable read-only runtime smoke, a
-zero-high-vulnerability audit, diff hygiene, credential-pattern scanning, and
-direct inspection of the desktop/mobile/reduced-motion composed baselines.
+The complete verification includes the existing LocalBootstrap regressions plus
+focused exact-delivery authority/config/preflight/argv/journal/crash/latch and
+Git evidence-ingress tests, lint, strict typecheck, core/dashboard builds,
+Playwright, the disposable read-only runtime smoke, dependency audit, diff
+hygiene, credential-pattern scanning, and direct baseline inspection.
 Tests use only disposable roots, deterministic read-only adapters, and named
 synthetic proofs; they clean their listeners and state.
 

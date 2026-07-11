@@ -62,12 +62,17 @@ describe('rollback compatibility and app-local delivery disable', () => {
       receivedAt: FIXED_TIME,
     };
     const first = await DurableDeliveryControl.open(root);
-    expect(first.project()).toEqual({ mode: 'DISABLED', receiptCount: 0 });
+    expect(first.project()).toEqual({
+      mode: 'DISABLED_DEFAULT',
+      receiptCount: 0,
+      transitionCount: 0,
+    });
     expect(await first.disable(command)).toMatchObject({ status: 'DISABLED', replayed: false });
     const restarted = await DurableDeliveryControl.open(root);
     expect(restarted.project()).toMatchObject({
-      mode: 'DISABLED',
+      mode: 'DISABLED_LATCHED',
       receiptCount: 1,
+      transitionCount: 1,
       lastReasonCode: 'OPERATOR_DISABLE',
     });
     expect(await restarted.disable(command)).toMatchObject({ status: 'DISABLED', replayed: true });

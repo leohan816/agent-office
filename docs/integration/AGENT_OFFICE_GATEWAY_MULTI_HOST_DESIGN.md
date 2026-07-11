@@ -1,6 +1,6 @@
 # Agent Office Gateway and Multi-Host Design
 
-Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_DESIGN_CANDIDATE__REAL_TRANSPORT_STILL_INACTIVE`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_DELIVERY_IMPLEMENTED_DISABLED__REAL_TRANSPORT_INACTIVE__PENDING_FABLE5_REVIEW`
 
 This reviewed design defines typed integration ports, the M01 Advisor gateway,
 read-only observations, multi-project topology, and designed-but-gated remote host
@@ -154,10 +154,10 @@ manual fallback and no tmux input, remote host, key, or network is activated.
 
 ### 2.4 Exact Advisor delivery design extension
 
-The separately authorized design candidate is canonical at
+The separately authorized, Fable5-reviewed design is canonical at
 [`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
-It does not change the as-built boundary above. It specifies the later reviewed
-production integration as:
+AO-WU-19 implements the following production integration while committed
+configuration keeps it unselected/default-disabled:
 
 ```text
 trusted loopback deployment v3 + operational runtime v2
@@ -264,9 +264,11 @@ separate test composition and no proof route exists.
 Decision linkage remains a typed Advisor application operation, not a gateway
 delivery action. `ArtifactDecisionAuthorityEvidenceVerifier` binds the registered
 repository, commit, path, SHA-256, mission, exact message WorkUnit scope, decision,
-and named authority before `AdvisorMessageDecisionLinked`. The current contract
-contains no approved bounded Advisor routine scope, so that authority variant is
-rejected rather than inferred.
+and named authority before `AdvisorMessageDecisionLinked`. Its generic V1 path
+still rejects Advisor routine authority. The AO-WU-19 exact Git verifier accepts
+only the reviewed V2 route code with immutable governing Leo evidence and exact
+manifest WorkUnits that are `READY`, dependency-complete, and not `FINAL_AUDIT`;
+all material variants reject rather than being inferred.
 
 ## 4. TmuxAdvisorGateway
 
@@ -677,15 +679,15 @@ gated.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/runtime/composition.ts`, `src/runtime/composition-core.ts`, `src/adapters/gateways/tmux-advisor/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts` | Existing synthetic gateway lifecycle remains; production LocalBootstrap explicitly rejects a capability or delivery port and always reports manual fallback, so local login cannot activate tmux | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Any real capability/delivery requires separate authority and is unused |
+| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/runtime/composition.ts`, `src/runtime/composition-core.ts`, `src/adapters/gateways/tmux-advisor/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/integration/exact-advisor-delivery.test.ts` | Synthetic lifecycle remains isolated. Production rejects injected capability/port values; only matching trusted v3/v2 selection can compose the exact fixed bridge, and no enabled descriptor or authority material is committed | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 then AO-WU-21 actual activation/rehearsal |
 | AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/`, `src/runtime/composition.ts` | `tests/adapters/hermes-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Disabled stub remains contract-compatible but is not imported or instantiated by either production or synthetic M01 composition | `IMPLEMENTED_DISABLED_STUB_NOT_COMPOSED__PENDING_DELTA_REVIEW` | Separate Leo/GPT Hermes mission |
 | AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/adapters/observations/` | `tests/integration/observation-coordinator.test.ts`, `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Existing bounded ports are operationally composed from exact config; external manifest, refresh, stale/offline/error/conflict, restart, partial failure, and no-mutation cases pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Remote adapters remain gated |
 | AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts`, `src/runtime/observation-coordinator.ts` | `tests/integration/project-freshness.test.ts`, `tests/integration/observation-coordinator.test.ts` | Cross-project roots remain disjoint and runtime additionally validates project/host/source/station/WorkUnit/artifact correspondence with exact complete assignments | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Browser registry mutation and remote enrollment remain absent |
 | AO-INT-005 Linux/Mac multi-host trust and observation envelope | `src/adapters/hosts/` | `tests/contract/host-observation.test.ts` | `NOT_IMPLEMENTED`; Sections 7-9 | `DEFERRED_WITH_GATE` | Private-network, key, remote-host mission |
 | AO-INT-006 Offline/reconnect/gap/stale evidence | `src/runtime/observation-coordinator.ts`, `src/application/hosts/freshness.ts`, `src/runtime/composition-core.ts`, `src/ui/scene/state-machine.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/project-freshness.test.ts` | Bounded periodic local refresh uses existing policies; semantic changes publish SSE and active activity requires accepted events plus CURRENT sources; stale/offline/restart/partial failure pass | `IMPLEMENTED_FINAL_REWORK_ROUND2_LOCAL_SUBSET__PENDING_DELTA_REVIEW` | Remote envelope/gap/reconnect remains gated |
-| AO-INT-007 Canonical AlertKind notification, deterministic deduplication, manual fallback, and decision authority port | `src/application/alerts/`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/application.ts`, `src/ui/communication/` | `tests/integration/alert-application.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/security/http-boundary.test.ts` | Accepted alert/manual behavior remains; decision linkage now requires exact immutable registered authority correspondence and preserves the named role separately from the Advisor link actor; the unapproved Advisor routine variant fails closed | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real gateway delivery/re-enable and bounded Advisor routine authority remain externally gated |
+| AO-INT-007 Canonical AlertKind notification, deterministic deduplication, manual fallback, and decision authority port | `src/application/alerts/`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/application.ts`, `src/ui/communication/` | `tests/integration/alert-application.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/exact-advisor-delivery.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/security/http-boundary.test.ts` | Decision linkage preserves named authority separately from the Advisor link actor. Generic Advisor authority remains closed; exact V2 routine routing is limited by immutable Leo evidence, current READY/dependency state, and the non-final-audit boundary | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | Actual evidence chain remains AO-WU-21 gated |
 | AO-INT-008 Executable closed HTTP persistence, projection, and SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/application.ts`, `src/server/http/`, `src/server/sse/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `scripts/runtime-smoke.mjs` | Default no-provider remains fail-closed; trusted LocalBootstrap composes production login/projection/message/logout/SSE over actual canonical manifest while delivery stays manual. Gate passes 55/255 and 21/21 | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run and remote fanout remain gated |
 | AO-INT-009 LocalBootstrap proof/session integration | `src/server/auth/local-bootstrap.ts`, `src/server/http/server.ts`, `src/server/config.ts`, `src/runtime/composition.ts`, `src/ui/runtime/` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/private-network-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Exact port 4317, verifier-only owner-file proof, bounded exchange, host-only session, logout/revocation and actual-manifest/no-delivery composition pass with no secret disclosure | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real proof and private-run evidence require Fable5 PASS plus Advisor authority |
-| AO-INT-010 Exact Advisor delivery bridge | planned trusted config/composition, `src/adapters/gateways/tmux-advisor/`, durable delivery control, and internal Advisor evidence ingress | planned gateway/runtime/inbox/crash/security/E2E suites plus Advisor actual rehearsal | DQ-01 through DQ-08, exact argv, crash matrix, fixed destination, Git trust, and nine criteria are frozen in the canonical candidate; no source/config/test/capability/port/input exists | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | AO-WU-18 design PASS before implementation; refreshed exact window-ID registry evidence required before activation |
+| AO-INT-010 Exact Advisor delivery bridge | trusted config/composition, `src/adapters/gateways/tmux-advisor/`, durable delivery control, and internal Advisor evidence ingress | `tests/integration/exact-advisor-delivery.test.ts` plus gateway/runtime/inbox/crash/security/E2E suites | DQ-01 through DQ-08 are implemented: exact argv, crash journal, fixed destination, Git trust, one-use lease, latch, stage ingress, and no browser process/target route; no actual input occurred | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20; actual lease/capability/input only in later AO-WU-21 |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

@@ -41,8 +41,8 @@ describe('operational observation/import coordinator', () => {
     const manifest = await coordinator.start();
 
     expect(manifest.source.path).toBe(manifestRelativePath);
-    expect(manifest.manifestVersion).toBe(2);
-    expect(manifest.workUnits).toHaveLength(15);
+    expect(manifest.manifestVersion).toBe(5);
+    expect(manifest.workUnits).toHaveLength(21);
     expect(coordinator.snapshot()).toMatchObject({
       missionId: manifest.missionId,
       manifestVersion: manifest.manifestVersion,
@@ -264,9 +264,22 @@ async function externalConfiguration(): Promise<MutableOperationalConfiguration>
       expectedCommit: 'a'.repeat(40),
       gitSourceId: 'agent-office-git',
     }],
-    actors: base.actors.map((actor) => actor.stationId === 'agent-office'
-      ? { ...actor, artifactIds: ['runtime-source-evidence'] }
-      : { ...actor }),
+    actors: base.actors.map((actor) => {
+      if (actor.stationId === 'advisor') {
+        return { ...actor, workUnitIds: [...actor.workUnitIds, 'AO-WU-16', 'AO-WU-21'] };
+      }
+      if (actor.stationId === 'fable5') {
+        return { ...actor, workUnitIds: [...actor.workUnitIds, 'AO-WU-18', 'AO-WU-20'] };
+      }
+      if (actor.stationId === 'agent-office') {
+        return {
+          ...actor,
+          artifactIds: ['runtime-source-evidence'],
+          workUnitIds: [...actor.workUnitIds, 'AO-WU-17', 'AO-WU-19'],
+        };
+      }
+      return { ...actor };
+    }),
     missionSourceId: 'external-mission-manifest',
   } satisfies OperationalRuntimeConfiguration;
   return configuration as MutableOperationalConfiguration;

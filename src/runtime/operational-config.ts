@@ -11,6 +11,10 @@ import {
   assertAdvisorTransportCapability,
   type AdvisorTransportCapability,
 } from '../adapters/gateways/tmux-advisor/index.js';
+import {
+  parseExactAdvisorDeliveryActivation,
+  type ExactAdvisorDeliveryActivation,
+} from '../adapters/gateways/tmux-advisor/exact-config.js';
 import type { FreshnessPolicy } from '../application/hosts/freshness.js';
 import {
   ROOT_CAPABILITIES,
@@ -28,6 +32,7 @@ import {
 import { parseManifestSourceMetadata } from '../domain/manifest/index.js';
 import {
   OFFICE_STATION_IDS,
+  normalizeOfficeStationId,
   type OfficeStationId,
 } from '../ui/scene/types.js';
 
@@ -45,7 +50,9 @@ export interface RuntimeActorRegistration {
 }
 
 export interface OperationalRuntimeConfiguration {
-  readonly schemaVersion: 'agent-office.operational-runtime.v1';
+  readonly schemaVersion:
+    | 'agent-office.operational-runtime.v1'
+    | 'agent-office.operational-runtime.v2';
   readonly missionSourceId: string;
   readonly projects: readonly LocalProjectRegistration[];
   readonly gitSources: readonly GitSourceRegistration[];
@@ -61,6 +68,7 @@ export interface OperationalRuntimeConfiguration {
   readonly gateway: {
     readonly adapter: 'TMUX_ADVISOR';
     readonly capability?: AdvisorTransportCapability;
+    readonly activation?: ExactAdvisorDeliveryActivation;
   };
 }
 
@@ -123,7 +131,8 @@ export function parseOperationalRuntimeConfiguration(
     ],
     'OperationalRuntimeConfiguration',
   );
-  if (value.schemaVersion !== 'agent-office.operational-runtime.v1') {
+  const exactDelivery = value.schemaVersion === 'agent-office.operational-runtime.v2';
+  if (value.schemaVersion !== 'agent-office.operational-runtime.v1' && !exactDelivery) {
     throw new DomainError('INVALID_SCHEMA', 'unsupported operational configuration version');
   }
   const refreshIntervalMs = requireInteger(value.refreshIntervalMs, 'refreshIntervalMs', 250);
@@ -133,17 +142,21 @@ export function parseOperationalRuntimeConfiguration(
   assertRecord(value.freshnessPolicies, 'freshnessPolicies');
   assertExactKeys(value.freshnessPolicies, ['git', 'tmux'], 'freshnessPolicies');
   assertRecord(value.gateway, 'gateway');
-  const gatewayKeys = Object.hasOwn(value.gateway, 'capability')
-    ? ['adapter', 'capability']
-    : ['adapter'];
+  const gatewayKeys = exactDelivery
+    ? ['adapter', 'activation']
+    : Object.hasOwn(value.gateway, 'capability')
+      ? ['adapter', 'capability']
+      : ['adapter'];
   assertExactKeys(value.gateway, gatewayKeys, 'gateway');
   if (value.gateway.adapter !== 'TMUX_ADVISOR') {
     throw new DomainError('INVALID_SCHEMA', 'M01 runtime gateway must be TMUX_ADVISOR');
   }
-  const capability = value.gateway.capability;
+  const capability = exactDelivery ? undefined : value.gateway.capability;
   if (capability !== undefined) assertAdvisorTransportCapability(capability);
-  return {
-    schemaVersion: 'agent-office.operational-runtime.v1',
+  const activation = exactDelivery
+    ? parseExactAdvisorDeliveryActivation(value.gateway.activation)
+    : undefined;
+  const common = {
     missionSourceId: requireString(value.missionSourceId, 'missionSourceId', { maxLength: 128 }),
     projects: parseProjects(value.projects),
     gitSources: parseGitSources(value.gitSources),
@@ -156,11 +169,47 @@ export function parseOperationalRuntimeConfiguration(
       tmux: parseFreshnessPolicy(value.freshnessPolicies.tmux, 'tmux freshness policy'),
     },
     refreshIntervalMs,
-    gateway: {
-      adapter: 'TMUX_ADVISOR',
-      ...(capability === undefined ? {} : { capability }),
-    },
   };
+  return exactDelivery
+    ? {
+        ...common,
+        schemaVersion: 'agent-office.operational-runtime.v2',
+        gateway: {
+          adapter: 'TMUX_ADVISOR',
+          activation: requireActivation(activation),
+        },
+      }
+    : {
+        ...common,
+        schemaVersion: 'agent-office.operational-runtime.v1',
+        gateway: {
+          adapter: 'TMUX_ADVISOR',
+          ...(capability === undefined ? {} : { capability }),
+        },
+      };
+}
+
+export function legacyGatewayCapability(
+  configuration: OperationalRuntimeConfiguration,
+): AdvisorTransportCapability | undefined {
+  return configuration.schemaVersion === 'agent-office.operational-runtime.v1'
+    ? configuration.gateway.capability
+    : undefined;
+}
+
+export function exactGatewayActivation(
+  configuration: OperationalRuntimeConfiguration,
+): ExactAdvisorDeliveryActivation | undefined {
+  return configuration.schemaVersion === 'agent-office.operational-runtime.v2'
+    ? requireActivation(configuration.gateway.activation)
+    : undefined;
+}
+
+function requireActivation(
+  activation: ExactAdvisorDeliveryActivation | undefined,
+): ExactAdvisorDeliveryActivation {
+  if (activation === undefined) throw new DomainError('INVALID_SCHEMA', 'exact activation is missing');
+  return activation;
 }
 
 function parseProjects(value: unknown): readonly LocalProjectRegistration[] {
@@ -327,8 +376,12 @@ function parseTmuxSources(value: unknown): readonly TmuxSourceRegistration[] {
       sessionId: requireString(item.sessionId, 'sessionId', { maxLength: 32 }),
       windowId: requireString(item.windowId, 'windowId', { maxLength: 32 }),
       paneId: requireString(item.paneId, 'paneId', { maxLength: 32 }),
-      sessionNameEscaped: requireString(item.sessionNameEscaped, 'sessionNameEscaped', { maxLength: 4096 }),
-      windowNameEscaped: requireString(item.windowNameEscaped, 'windowNameEscaped', { maxLength: 4096 }),
+      sessionNameEscaped: normalizedLegacyText(
+        requireString(item.sessionNameEscaped, 'sessionNameEscaped', { maxLength: 4096 }),
+      ),
+      windowNameEscaped: normalizedLegacyText(
+        requireString(item.windowNameEscaped, 'windowNameEscaped', { maxLength: 4096 }),
+      ),
       windowIndex: requireInteger(item.windowIndex, 'windowIndex', 0),
       paneIndex: requireInteger(item.paneIndex, 'paneIndex', 0),
       workspaceRootId: requiredId(item.workspaceRootId, 'workspaceRootId'),
@@ -361,8 +414,8 @@ function parseActors(value: unknown): readonly RuntimeActorRegistration[] {
     const tmuxSourceId = optionalId(item.tmuxSourceId, `actors[${index}].tmuxSourceId`);
     return {
       roleInstanceId: requiredId(item.roleInstanceId, `actors[${index}].roleInstanceId`),
-      stationId: requireEnum(item.stationId, OFFICE_STATION_IDS, `actors[${index}].stationId`),
-      actorRole: requireString(item.actorRole, `actors[${index}].actorRole`, { maxLength: 256 }),
+      stationId: normalizedStationId(item.stationId, `actors[${index}].stationId`),
+      actorRole: normalizedActorRole(item.actorRole, `actors[${index}].actorRole`),
       acceptedManifestActorRoles: stringList(item.acceptedManifestActorRoles, `actors[${index}].acceptedManifestActorRoles`),
       projectId: requiredId(item.projectId, `actors[${index}].projectId`),
       hostId: requiredId(item.hostId, `actors[${index}].hostId`),
@@ -384,6 +437,20 @@ function parseFreshnessPolicy(value: unknown, label: string): FreshnessPolicy {
   };
 }
 
+function normalizedStationId(value: unknown, label: string): OfficeStationId {
+  const normalized = normalizeOfficeStationId(value);
+  if (normalized === undefined) {
+    requireEnum(value, OFFICE_STATION_IDS, label);
+    throw new DomainError('INVALID_SCHEMA', `${label} is invalid`);
+  }
+  return normalized;
+}
+
+function normalizedActorRole(value: unknown, label: string): string {
+  const role = requireString(value, label, { maxLength: 256 });
+  return role === 'Shashu Worker' ? 'SIASIU Worker' : role;
+}
+
 function parseLimits(value: unknown, label: string): ToolReadLimits {
   assertRecord(value, label);
   assertExactKeys(value, ['timeoutMs', 'maxOutputBytes'], label);
@@ -395,11 +462,15 @@ function parseLimits(value: unknown, label: string): ToolReadLimits {
 
 function stringList(value: unknown, label: string): readonly string[] {
   return requireArray(value, label).map((item, index) =>
-    requireString(item, `${label}[${index}]`, { maxLength: 256 }));
+    normalizedLegacyText(requireString(item, `${label}[${index}]`, { maxLength: 256 })));
 }
 
 function requiredId(value: unknown, label: string): string {
-  return requireString(value, label, { maxLength: 128 });
+  return normalizedLegacyText(requireString(value, label, { maxLength: 128 }));
+}
+
+function normalizedLegacyText(value: string): string {
+  return value.replaceAll('Shashu Worker', 'SIASIU Worker').replaceAll('shashu', 'siasiu');
 }
 
 function optionalId(value: unknown, label: string): string | undefined {

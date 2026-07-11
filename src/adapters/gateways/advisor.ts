@@ -11,6 +11,7 @@ export const ADVISOR_GATEWAY_REQUEST_FIELDS = [
   'messageId',
   'messageArtifactRef',
   'messageArtifactHash',
+  'messagePayloadHash',
   'persistedEventId',
   'persistedMissionSequence',
   'correlationId',
@@ -23,6 +24,7 @@ export interface AdvisorNotificationRequest {
   readonly messageId: string;
   readonly messageArtifactRef: string;
   readonly messageArtifactHash: string;
+  readonly messagePayloadHash: string;
   readonly persistedEventId: string;
   readonly persistedMissionSequence: number;
   readonly correlationId: string;
@@ -84,6 +86,7 @@ export function assertAdvisorNotificationRequest(
   const messageId = requireString(value.messageId, 'messageId');
   const messageArtifactRef = requireString(value.messageArtifactRef, 'messageArtifactRef');
   const messageArtifactHash = requireString(value.messageArtifactHash, 'messageArtifactHash');
+  const messagePayloadHash = requireString(value.messagePayloadHash, 'messagePayloadHash');
   const persistedEventId = requireString(value.persistedEventId, 'persistedEventId');
   const correlationId = requireString(value.correlationId, 'correlationId');
   requireInteger(value.persistedMissionSequence, 'persistedMissionSequence', 1);
@@ -96,7 +99,11 @@ export function assertAdvisorNotificationRequest(
   ] as const) {
     assertUuidV7(id, label);
   }
-  if (!/^[A-Z0-9][A-Z0-9._-]{0,127}$/u.test(missionId) || !isSha256(messageArtifactHash)) {
+  if (
+    !/^[A-Z0-9][A-Z0-9._-]{0,127}$/u.test(missionId) ||
+    !isSha256(messageArtifactHash) ||
+    !isSha256(messagePayloadHash)
+  ) {
     throw new DomainError('INVALID_SCHEMA', 'gateway mission or artifact hash is invalid');
   }
   const expectedPrefix = `artifacts/inbox/${missionId}/${requestId}/`;

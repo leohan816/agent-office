@@ -182,7 +182,8 @@ describe('Batch A-D regression and Batch E scope gates', () => {
   it('contains the approved LocalBootstrap extension while keeping forbidden capabilities absent', async () => {
     const source = await readSourceTree(path.join(root, 'src'));
     const gatewaySource = await readSourceTree(path.join(root, 'src/adapters/gateways'));
-    expect(gatewaySource).not.toMatch(/node:child_process|node:(?:http|https|net|tls)/u);
+    expect(gatewaySource).toMatch(/node:child_process/u);
+    expect(gatewaySource).not.toMatch(/node:(?:http|https|net|tls)/u);
     const serverSource = await readSourceTree(path.join(root, 'src/server'));
     expect(serverSource).toMatch(/node:http/u);
     expect(serverSource).not.toMatch(/node:child_process|node:https|node:tls/u);
@@ -192,7 +193,10 @@ describe('Batch A-D regression and Batch E scope gates', () => {
     expect(source).toMatch(/AdvisorInboxService/u);
     expect(source).toMatch(/serviceWorker/u);
     expect(source).not.toMatch(/WebSocket/u);
-    expect(source).not.toMatch(/send-keys|capture-pane|run-shell|paste-buffer|load-buffer/u);
+    expect(source).toMatch(/load-buffer/u);
+    expect(source).toMatch(/paste-buffer/u);
+    expect(source).toMatch(/send-keys/u);
+    expect(source).not.toMatch(/capture-pane|run-shell|new-session|new-window|split-window/u);
     await expect(access(path.join(root, 'src/ui/scene'))).resolves.toBeUndefined();
     await expect(access(path.join(root, 'src/ui/communication'))).resolves.toBeUndefined();
     await expect(access(path.join(root, 'src/adapters/gateways/tmux-advisor/index.ts'))).resolves.toBeUndefined();

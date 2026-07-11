@@ -35,7 +35,7 @@ const activityRoles: readonly RoleSceneProjection[] = [
   role('control', { sequence: 22, state: 'RUNNING', activity: 'WORKING', workUnitId: 'AO-WU-09' }),
   role('fable5', { sequence: 23, state: 'REVIEW_PENDING', activity: 'REVIEW', workUnitId: 'AO-WU-09' }),
   role('foundation', { sequence: 24, state: 'TESTING', activity: 'TESTING', workUnitId: 'AO-WU-09' }),
-  role('shashu', {
+  role('siasiu', {
     sequence: 25,
     state: 'RUNNING',
     activity: 'WRITING_RESULT',
@@ -80,7 +80,7 @@ const safetyRoles: readonly RoleSceneProjection[] = [
     critical: true,
     workUnitId: 'AO-WU-09',
   }),
-  role('shashu', { sequence: 65, state: 'HOLD', workUnitId: 'AO-WU-09' }),
+  role('siasiu', { sequence: 65, state: 'HOLD', workUnitId: 'AO-WU-09' }),
   role('cosmile', { sequence: 66, state: 'RUNNING', activity: 'WORKING', stale: true, workUnitId: 'AO-WU-09' }),
   role('agent-office', {
     sequence: 67,

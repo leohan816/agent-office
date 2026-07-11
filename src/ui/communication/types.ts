@@ -20,6 +20,21 @@ export interface CommunicationMessageView {
   readonly payloadHash: string;
   readonly artifactRef: string;
   readonly artifactHash: string;
+  readonly transportState:
+    | 'QUEUED'
+    | 'DELIVERING'
+    | 'DELIVERED'
+    | 'AMBIGUOUS'
+    | 'MANUAL_FALLBACK_REQUIRED';
+  readonly advisorEvidenceState:
+    | 'NOT_ACKNOWLEDGED'
+    | 'ACKNOWLEDGED'
+    | 'INTAKE_RECORDED'
+    | 'NEEDS_LEO_DECISION'
+    | 'DECISION_LINKED'
+    | 'RESUME_RECORDED';
+  readonly authorityRole?: 'Leo/GPT' | 'Advisor';
+  readonly evidenceHashes: readonly string[];
   readonly timeline: readonly CommunicationTimelineItem[];
 }
 
@@ -44,6 +59,7 @@ export interface CommunicationCenterModel {
   readonly allowlistedEntityIds: readonly string[];
   readonly draftRequestId: string;
   readonly draftCreatedAt: string;
+  readonly deliveryActivation: 'DISABLED' | 'READY' | 'STALE' | 'KILLED' | 'CONFLICTED';
   readonly messages: readonly CommunicationMessageView[];
   readonly alerts: readonly CommunicationAlertView[];
 }

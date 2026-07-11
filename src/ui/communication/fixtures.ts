@@ -17,6 +17,7 @@ export const COMMUNICATION_CENTER_FIXTURE: CommunicationCenterModel = {
   allowlistedEntityIds: ['AO-WU-10'],
   draftRequestId: '018f0000-0000-7000-8000-00000000d001',
   draftCreatedAt: '2026-07-11T00:00:00.000Z',
+  deliveryActivation: 'DISABLED',
   messages: [
     {
       messageId: '018f0000-0000-7000-8000-00000000d002',
@@ -28,6 +29,9 @@ export const COMMUNICATION_CENTER_FIXTURE: CommunicationCenterModel = {
       payloadHash: HASH_A,
       artifactRef: `artifacts/inbox/${MISSION_ID}/018f0000-0000-7000-8000-00000000d003/${'a'.repeat(64)}.json`,
       artifactHash: HASH_A,
+      transportState: 'MANUAL_FALLBACK_REQUIRED',
+      advisorEvidenceState: 'NOT_ACKNOWLEDGED',
+      evidenceHashes: [],
       timeline: [
         { state: 'PERSISTED', occurredAt: '2026-07-11T00:00:00.000Z', evidenceRef: HASH_A },
         { state: 'DELIVERY_PENDING', occurredAt: '2026-07-11T00:00:01.000Z', evidenceRef: 'OUTBOX' },

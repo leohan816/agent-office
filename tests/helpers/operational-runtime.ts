@@ -27,7 +27,7 @@ const ACTOR_STATIONS = [
   ['control', 'Control', []],
   ['fable5', 'Fable5 Reviewer', ['AO-WU-05', 'AO-WU-13']],
   ['foundation', 'Foundation Worker', []],
-  ['shashu', 'Shashu Worker', []],
+  ['siasiu', 'SIASIU Worker', []],
   ['cosmile', 'Cosmile Worker', []],
   [
     'agent-office',
@@ -176,6 +176,18 @@ export async function actualCanonicalOperationalRuntime(): Promise<{
       },
       gitSourceId: 'foundation-git',
     }],
+    actors: base.actors.map((actor) => {
+      if (actor.stationId === 'advisor') {
+        return { ...actor, workUnitIds: [...actor.workUnitIds, 'AO-WU-16', 'AO-WU-21'] };
+      }
+      if (actor.stationId === 'fable5') {
+        return { ...actor, workUnitIds: [...actor.workUnitIds, 'AO-WU-18', 'AO-WU-20'] };
+      }
+      if (actor.stationId === 'agent-office') {
+        return { ...actor, workUnitIds: [...actor.workUnitIds, 'AO-WU-17', 'AO-WU-19'] };
+      }
+      return actor;
+    }),
   };
   return {
     configuration,

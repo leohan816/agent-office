@@ -10,9 +10,11 @@ import {
   type NotificationState,
 } from '../../domain/state-machines/entities.js';
 import {
+  ADVISOR_GATEWAY_REQUEST_FIELDS,
   assertAdvisorGatewayReceipt,
   assertAdvisorNotificationRequest,
   type AdvisorGatewayReceipt,
+  type AdvisorNotificationRequest,
 } from '../../adapters/gateways/advisor.js';
 import { ADVISOR_MESSAGE_KINDS } from '../../domain/messages/index.js';
 import { isSha256 } from '../../persistence/file-store/hashing.js';
@@ -81,18 +83,23 @@ export function projectAdvisorInbox(events: readonly EventEnvelope[]): AdvisorIn
       case 'AdvisorMessageAcknowledged': {
         const message = requireMessage(messages, payload);
         const artifactRef = stringField(payload, 'acknowledgementArtifactRef');
+        const evidenceRef = optionalSourceArtifactField(payload, 'acknowledgementEvidenceRef');
         messages = updateMessage(messages, {
           ...transitionMessage(message, 'ACKNOWLEDGED', event, artifactRef),
           acknowledgementArtifactRef: artifactRef,
+          ...(evidenceRef === undefined ? {} : { acknowledgementEvidenceRef: evidenceRef }),
         });
         break;
       }
       case 'AdvisorIntakeRecorded': {
         const message = requireMessage(messages, payload);
         const artifactRef = stringField(payload, 'intakeArtifactRef');
+        const evidenceRef = optionalSourceArtifactField(payload, 'intakeEvidenceRef');
         messages = updateMessage(messages, {
           ...transitionMessage(message, 'INTAKE_RECORDED', event, artifactRef),
           intakeArtifactRef: artifactRef,
+          intakeClassification: intakeClassificationField(payload),
+          ...(evidenceRef === undefined ? {} : { intakeEvidenceRef: evidenceRef }),
         });
         break;
       }
@@ -100,11 +107,13 @@ export function projectAdvisorInbox(events: readonly EventEnvelope[]): AdvisorIn
         const message = requireMessage(messages, payload);
         const artifactRef = stringField(payload, 'decisionArtifactRef');
         const authorityRole = authorityRoleField(payload);
+        const decisionEvidenceRef = optionalSourceArtifactField(payload, 'decisionEvidenceRef');
         const authorityEvidenceHash = stringField(payload, 'authorityEvidenceHash');
         if (!isSha256(authorityEvidenceHash)) corrupt('decision authority evidence hash is invalid');
         messages = updateMessage(messages, {
           ...transitionMessage(message, 'DECISION_LINKED', event, artifactRef),
           decisionArtifactRef: artifactRef,
+          ...(decisionEvidenceRef === undefined ? {} : { decisionEvidenceRef }),
           authorityRole,
           authoritySubjectId: stringField(payload, 'authoritySubjectId'),
           authorityEvidenceRef: sourceArtifactField(payload, 'authorityEvidenceRef'),
@@ -119,14 +128,25 @@ export function projectAdvisorInbox(events: readonly EventEnvelope[]): AdvisorIn
       case 'NotificationQueued': {
         const notificationId = stringField(payload, 'notificationId');
         if (notifications[notificationId] !== undefined) corrupt('notification identity was queued twice');
-        const request = payload.gatewayRequest;
-        if (!isRecord(request)) corrupt('notification gateway request is missing');
-        assertAdvisorNotificationRequest(request);
+        const messageId = stringField(payload, 'messageId');
+        const message = messages[messageId];
+        if (message === undefined) corrupt('notification message is missing');
+        const request = normalizedGatewayRequest(payload.gatewayRequest, message);
+        if (
+          request.notificationId !== notificationId || request.messageId !== messageId ||
+          request.requestId !== message.requestId || request.missionId !== message.missionId ||
+          request.messageArtifactRef !== message.messageArtifactRef ||
+          request.messageArtifactHash !== message.messageArtifactHash ||
+          request.messagePayloadHash !== message.messagePayloadHash ||
+          request.persistedEventId !== message.persistedEventId ||
+          request.persistedMissionSequence !== message.persistedMissionSequence ||
+          request.correlationId !== message.correlationId
+        ) corrupt('notification gateway request does not match its immutable message');
         notifications = {
           ...notifications,
           [notificationId]: {
             notificationId,
-            messageId: stringField(payload, 'messageId'),
+            messageId,
             state: 'QUEUED',
             request,
             attempt: 0,
@@ -158,7 +178,14 @@ export function projectAdvisorInbox(events: readonly EventEnvelope[]): AdvisorIn
           typeof payload.resumeProofArtifactRef === 'string' ? payload.resumeProofArtifactRef : undefined;
         const message = messageId === undefined ? undefined : messages[messageId];
         if (message !== undefined && artifactRef !== undefined) {
-          messages = updateMessage(messages, { ...message, resumeProofArtifactRef: artifactRef });
+          const resumeEvidence = optionalSourceArtifactField(payload, 'resumeEvidenceRef');
+          messages = updateMessage(messages, {
+            ...message,
+            resumeProofArtifactRef: artifactRef,
+            ...(resumeEvidence === undefined
+              ? {}
+              : { resumeEvidenceRefs: [...(message.resumeEvidenceRefs ?? []), resumeEvidence] }),
+          });
         }
         break;
       }
@@ -167,6 +194,22 @@ export function projectAdvisorInbox(events: readonly EventEnvelope[]): AdvisorIn
     }
   }
   return { messages, notifications };
+}
+
+function normalizedGatewayRequest(
+  value: unknown,
+  message: AdvisorMessageProjection,
+): AdvisorNotificationRequest {
+  if (!isRecord(value)) corrupt('notification gateway request is missing');
+  const legacyFields = ADVISOR_GATEWAY_REQUEST_FIELDS.filter((field) => field !== 'messagePayloadHash');
+  const candidate = Object.hasOwn(value, 'messagePayloadHash')
+    ? value
+    : Object.keys(value).length === legacyFields.length &&
+        Object.keys(value).every((key) => legacyFields.includes(key as (typeof legacyFields)[number]))
+      ? { ...value, messagePayloadHash: message.messagePayloadHash }
+      : value;
+  assertAdvisorNotificationRequest(candidate);
+  return candidate;
 }
 
 function transitionFromPayload(
@@ -285,6 +328,23 @@ function authorityRoleField(
     corrupt('decision authority role is invalid');
   }
   return value;
+}
+
+function intakeClassificationField(
+  payload: Record<string, unknown>,
+): 'ROUTINE_ROUTE' | 'NEEDS_LEO_DECISION' | 'NO_ACTION' | 'REJECTED_OUT_OF_SCOPE' {
+  const value = stringField(payload, 'classification');
+  if (!['ROUTINE_ROUTE', 'NEEDS_LEO_DECISION', 'NO_ACTION', 'REJECTED_OUT_OF_SCOPE'].includes(value)) {
+    corrupt('Advisor intake classification is invalid');
+  }
+  return value as 'ROUTINE_ROUTE' | 'NEEDS_LEO_DECISION' | 'NO_ACTION' | 'REJECTED_OUT_OF_SCOPE';
+}
+
+function optionalSourceArtifactField(
+  payload: Record<string, unknown>,
+  key: string,
+): SourceArtifactRef | undefined {
+  return payload[key] === undefined ? undefined : sourceArtifactField(payload, key);
 }
 
 function stringArrayField(payload: Record<string, unknown>, key: string): readonly string[] {

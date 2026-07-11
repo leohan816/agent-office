@@ -50,6 +50,7 @@ export interface RecordAdvisorAcknowledgement {
   readonly acknowledgementId: string;
   readonly acknowledgedAt: string;
   readonly evidenceRefs: readonly string[];
+  readonly sourceArtifact?: SourceArtifactRef;
 }
 
 export interface RecordAdvisorIntake {
@@ -59,6 +60,7 @@ export interface RecordAdvisorIntake {
   readonly classification: AdvisorIntakeClassification;
   readonly recordedAt: string;
   readonly evidenceRefs: readonly string[];
+  readonly sourceArtifact?: SourceArtifactRef;
 }
 
 export const DECISION_AUTHORITY_ROLES = ['Leo/GPT', 'Advisor'] as const;
@@ -88,6 +90,7 @@ export interface VerifyDecisionAuthorityEvidenceInput {
   readonly decisionArtifact: SourceArtifactRef;
   readonly expectedWorkUnitIds: readonly string[];
   readonly recordedAt: string;
+  readonly intakeClassification?: AdvisorIntakeClassification;
 }
 
 export interface DecisionAuthorityEvidenceVerifier {
@@ -101,6 +104,7 @@ export interface LinkAdvisorDecision {
   readonly authorityRole: DecisionAuthorityRole;
   readonly decisionArtifact: SourceArtifactRef;
   readonly recordedAt: string;
+  readonly sourceArtifact?: SourceArtifactRef;
 }
 
 export interface ResumeAdvisorWork {
@@ -109,6 +113,7 @@ export interface ResumeAdvisorWork {
   readonly from: 'BLOCKED' | 'WAITING_ADVISOR' | 'WAITING_LEO' | 'HOLD';
   readonly proof: ResumeProof;
   readonly recordedAt: string;
+  readonly sourceArtifact?: SourceArtifactRef;
 }
 
 export interface CloseAdvisorMessage {
@@ -141,14 +146,19 @@ export interface AdvisorMessageProjection {
   readonly state: MessageState;
   readonly notificationId?: string;
   readonly acknowledgementArtifactRef?: string;
+  readonly acknowledgementEvidenceRef?: SourceArtifactRef;
   readonly intakeArtifactRef?: string;
+  readonly intakeEvidenceRef?: SourceArtifactRef;
+  readonly intakeClassification?: AdvisorIntakeClassification;
   readonly decisionArtifactRef?: string;
+  readonly decisionEvidenceRef?: SourceArtifactRef;
   readonly authorityRole?: DecisionAuthorityRole;
   readonly authoritySubjectId?: string;
   readonly authorityEvidenceRef?: SourceArtifactRef;
   readonly authorityEvidenceHash?: string;
   readonly decisionScopeWorkUnitIds?: readonly string[];
   readonly resumeProofArtifactRef?: string;
+  readonly resumeEvidenceRefs?: readonly SourceArtifactRef[];
   readonly timeline: readonly MessageTimelineEntry[];
 }
 

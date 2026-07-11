@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "agent-office.exact-delivery-disabled-example.v1",
+  "deliveryStatus": "DISABLED_TEMPLATE_ONLY",
+  "productionSelection": {
+    "deploymentSchema": "agent-office.loopback-deployment.v3",
+    "operationalSchema": "agent-office.operational-runtime.v2",
+    "requiredMode": "EXACT_ADVISOR_POINTER"
+  },
+  "fixedDestination": {
+    "sessionName": "foundation-advisor",
+    "sessionId": "$9",
+    "windowIndex": 0,
+    "paneIndex": 0,
+    "paneId": "%9",
+    "workspace": "/home/leo/Project/foundation-advisor",
+    "currentCommand": "codex"
+  },
+  "activationDescriptorPresent": false,
+  "readinessLeasePresent": false,
+  "capabilityPresent": false,
+  "usableAuthorityMaterialPresent": false,
+  "note": "Documentation-only disabled example. Production parsers intentionally reject this schema."
+}

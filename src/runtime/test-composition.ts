@@ -21,6 +21,8 @@ import {
 } from './composition-core.js';
 import type { AgentOfficeRuntimeIdentity } from './identity.js';
 import type { OperationalRuntimeConfiguration } from './operational-config.js';
+import { DurableDeliveryControl } from '../operations/readiness/delivery-control.js';
+import { hashCanonical } from '../persistence/file-store/hashing.js';
 
 export interface StartSyntheticTestCompositionOptions {
   readonly configuration: PrivateDeploymentConfiguration;
@@ -92,6 +94,17 @@ export async function startSyntheticTestComposition(
     () => Date.parse(options.runtime.now()),
   );
   const session = await exchange.exchange('127.0.0.1', options.syntheticProof);
+  const syntheticCapability = options.operationalConfiguration.gateway.capability;
+  const syntheticDeliveryControl = syntheticCapability !== undefined && options.tmuxDeliveryPort !== undefined
+    ? await DurableDeliveryControl.open(options.stateRoot)
+    : undefined;
+  if (syntheticDeliveryControl !== undefined && syntheticCapability !== undefined) {
+    await syntheticDeliveryControl.armValidatedGrant({
+      activationId: syntheticCapability.capabilityId,
+      grantHash: hashCanonical(syntheticCapability),
+      activatedAt: options.runtime.now(),
+    });
+  }
   const composition = await startAgentOfficeCompositionCore({
     configuration: options.configuration,
     appRoot: options.appRoot,
@@ -112,6 +125,7 @@ export async function startSyntheticTestComposition(
     }),
     authorityEvidenceVerifier:
       options.authorityEvidenceVerifier ?? new RejectingDecisionAuthorityEvidenceVerifier(),
+    ...(syntheticDeliveryControl === undefined ? {} : { deliveryControl: syntheticDeliveryControl }),
     sessions,
     authenticationProvider: provider,
     authenticationReadiness: 'TEST_READY',

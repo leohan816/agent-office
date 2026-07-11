@@ -32,11 +32,13 @@ export type PointerDeliveryOutcome =
   | {
       readonly status: 'DELIVERED' | 'ALREADY_DELIVERED';
       readonly evidenceRefs: readonly string[];
+      readonly receiptTime?: string;
     }
   | {
-      readonly status: 'RETRYABLE_FAILURE' | 'AMBIGUOUS';
-      readonly failureCode: 'TOOL_TIMEOUT_OR_OUTPUT_LIMIT' | 'DELIVERY_RECEIPT_AMBIGUOUS';
+      readonly status: 'RETRYABLE_FAILURE' | 'AMBIGUOUS' | 'MANUAL_FALLBACK';
+      readonly failureCode: GatewayFailureCode;
       readonly evidenceRefs: readonly string[];
+      readonly receiptTime?: string;
     };
 
 export interface TmuxPointerDeliveryPort {
@@ -54,7 +56,20 @@ export interface TmuxPointerDeliveryPort {
 export interface TmuxAdvisorGatewayOptions {
   readonly capability?: AdvisorTransportCapability;
   readonly deliveryPort?: TmuxPointerDeliveryPort;
+  readonly exactDelivery?: ExactAdvisorDeliveryPort;
   readonly now: () => string;
+}
+
+export interface ExactAdvisorDeliveryPort {
+  health(): AdvisorGatewayHealth;
+  deliverPointer(input: {
+    readonly request: AdvisorNotificationRequest;
+    readonly requestHash: string;
+    readonly pointerEnvelope: string;
+  }): Promise<PointerDeliveryOutcome>;
+  lookupPointerReceipt(input: {
+    readonly notificationId: string;
+  }): Promise<PointerDeliveryOutcome | 'NOT_FOUND'>;
 }
 
 interface CachedDelivery {
@@ -65,9 +80,17 @@ interface CachedDelivery {
 export class TmuxAdvisorGateway implements AdvisorGateway {
   private readonly deliveries = new Map<string, CachedDelivery>();
 
-  public constructor(private readonly options: TmuxAdvisorGatewayOptions) {}
+  public constructor(private readonly options: TmuxAdvisorGatewayOptions) {
+    if (
+      options.exactDelivery !== undefined &&
+      (options.capability !== undefined || options.deliveryPort !== undefined)
+    ) {
+      throw new DomainError('INVALID_SCHEMA', 'exact and synthetic tmux delivery modes cannot be combined');
+    }
+  }
 
   public health(): AdvisorGatewayHealth {
+    if (this.options.exactDelivery !== undefined) return this.options.exactDelivery.health();
     const failureCode = capabilityFailure(this.options.capability, this.options.now());
     const effectiveFailure =
       failureCode === 'NONE' && this.options.deliveryPort === undefined
@@ -98,6 +121,16 @@ export class TmuxAdvisorGateway implements AdvisorGateway {
       return prior.receipt;
     }
     const now = this.options.now();
+    if (this.options.exactDelivery !== undefined) {
+      const outcome = await this.options.exactDelivery.deliverPointer({
+        request,
+        requestHash,
+        pointerEnvelope: canonicalAdvisorPointerEnvelope(request),
+      });
+      const receipt = outcomeReceipt(request.notificationId, now, outcome);
+      this.deliveries.set(request.notificationId, { requestHash, receipt });
+      return receipt;
+    }
     const failureCode = capabilityFailure(this.options.capability, now);
     if (failureCode !== 'NONE' || this.options.deliveryPort === undefined) {
       const receipt = manualReceipt(
@@ -125,6 +158,10 @@ export class TmuxAdvisorGateway implements AdvisorGateway {
     const cached = this.deliveries.get(notificationId);
     if (cached !== undefined) return cached.receipt;
     const now = this.options.now();
+    if (this.options.exactDelivery !== undefined) {
+      const outcome = await this.options.exactDelivery.lookupPointerReceipt({ notificationId });
+      return outcome === 'NOT_FOUND' ? undefined : outcomeReceipt(notificationId, now, outcome);
+    }
     const failureCode = capabilityFailure(this.options.capability, now);
     if (failureCode !== 'NONE' || this.options.deliveryPort === undefined) return undefined;
     const capability = this.options.capability;
@@ -212,17 +249,18 @@ function outcomeReceipt(
   now: string,
   outcome: PointerDeliveryOutcome,
 ): AdvisorGatewayReceipt {
-  if (outcome.status === 'AMBIGUOUS') {
+  const receiptTime = outcome.receiptTime ?? now;
+  if (outcome.status === 'AMBIGUOUS' || outcome.status === 'MANUAL_FALLBACK') {
     return buildAdvisorGatewayReceipt({
       notificationId,
       adapter: 'TMUX_ADVISOR',
       adapterVersion: 'tmux-advisor-pointer.v1',
       status: 'MANUAL_FALLBACK_REQUIRED',
       attempt: 1,
-      queuedAt: now,
-      attemptedAt: now,
+      queuedAt: receiptTime,
+      attemptedAt: receiptTime,
       transportEvidenceRefs: outcome.evidenceRefs,
-      failureCode: 'DELIVERY_RECEIPT_AMBIGUOUS',
+      failureCode: outcome.failureCode,
     });
   }
   return buildAdvisorGatewayReceipt({
@@ -231,8 +269,8 @@ function outcomeReceipt(
     adapterVersion: 'tmux-advisor-pointer.v1',
     status: outcome.status,
     attempt: 1,
-    queuedAt: now,
-    attemptedAt: now,
+    queuedAt: receiptTime,
+    attemptedAt: receiptTime,
     transportEvidenceRefs: outcome.evidenceRefs,
     failureCode: outcome.status === 'RETRYABLE_FAILURE' ? outcome.failureCode : 'NONE',
   });

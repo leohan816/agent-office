@@ -1,6 +1,6 @@
 # Agent Office Operations and Recovery Design
 
-Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_RECOVERY_DESIGN_PENDING_FABLE5`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_DELIVERY_RECOVERY_IMPLEMENTED_DISABLED__PENDING_FABLE5_SECURITY_REVIEW`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
@@ -56,11 +56,13 @@ and remains blocked on Fable5 code/security `PASS` plus Advisor authority.
 
 That private-run gate subsequently passed and was cleaned up at Agent Office base
 `9c403da`: the server is stopped and proof, listener, and writer lock are absent.
-The separately authorized exact Advisor delivery design is canonical in
+The separately authorized and Fable5-reviewed exact Advisor delivery design is canonical in
 [`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
-It adds design-only crash phases, durable receipt lookup, a latched local disable,
-and rehearsal cleanup. No production port, capability, journal instance, server,
-or tmux input exists before its serial review/implementation gates.
+AO-WU-19 implements the crash phases, durable receipt lookup, default-off and
+latched local delivery control, immutable evidence checkpoint, and rehearsal
+cleanup contract. No enabled config, readiness lease, capability instance,
+server, real journal instance, or tmux input was created; AO-WU-20 remains the
+next serial gate.
 
 ## 1. Operating Model
 
@@ -715,6 +717,6 @@ accessed.
 | AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/application/advisor-inbox/`, `src/operations/readiness/delivery-control.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/rollback-disable.test.ts` | LocalBootstrap composition forbids both gateway capability and delivery port, so every persisted message stays manual with no transport call; existing kill/ambiguous protections remain | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real transport activation remains separate and external |
 | AO-OPS-006 Redacted health/observability and recovery proof | `src/runtime/`, `src/application/audit/`, `src/server/security/audit.ts`, `src/server/application.ts`, `src/operations/evidence/` | `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/audit-log.test.ts`, `scripts/runtime-smoke.mjs` | Status exposes LocalBootstrap readiness/mutation/manual-delivery only; proof canary scans cover audit, response, URL, state/static/source/committed files and browser stores/cache without disclosure | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real-run audit/metrics/retention and Advisor review remain gated |
 | AO-OPS-007 Non-secret private-run preparation | `docs/operations/LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md`, `src/runtime/cli.ts`, `src/server/config.ts` | `tests/security/private-network-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Runbook fixes owner-only outside-Git paths, actual manifest, port 4317, startup/cleanup/stale-file/evidence rules and review gates without creating a credential or run | `DOCUMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Execute only after Fable5 PASS and explicit Advisor authority |
-| AO-OPS-008 Exact delivery journal/latch/rehearsal cleanup | planned tmux pointer journal, durable delivery control, inbox recovery, runtime shutdown, and Advisor evidence ingress | planned phase-crash/restart/duplicate/kill/re-enable-negative/cleanup suites plus actual Advisor rehearsal | Candidate fixes every crash outcome, no-blind-resend rule, local latch, and exact server/proof/buffer/listener/lock cleanup; no runtime artifact exists | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Design PASS -> implementation/security PASS -> AO-WU-21 synthetic actual rehearsal |
+| AO-OPS-008 Exact delivery journal/latch/rehearsal cleanup | tmux pointer journal, delivery-control v2, inbox recovery, runtime shutdown, Advisor evidence checkpoint | `tests/integration/exact-advisor-delivery.test.ts`, recovery/runtime/security suites | Every phase is fsynced; restart returns success or manual ambiguity without resend; authority/preflight failures latch; no re-enable route; disabled runbook preserves cleanup gate | `IMPLEMENTED_DISABLED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_REVIEW` | AO-WU-20 -> AO-WU-21 synthetic actual rehearsal |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

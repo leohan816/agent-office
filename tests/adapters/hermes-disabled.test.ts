@@ -15,6 +15,7 @@ describe('disabled Hermes Advisor gateway', () => {
       messageId: uuidV7(802),
       messageArtifactRef: `artifacts/inbox/${MISSION_ID}/${requestId}/${hash.slice(7)}.json`,
       messageArtifactHash: hash,
+      messagePayloadHash: hash,
       persistedEventId: uuidV7(803),
       persistedMissionSequence: 1,
       correlationId: uuidV7(804),

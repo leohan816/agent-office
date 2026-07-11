@@ -32,9 +32,20 @@ export interface LocalBootstrapPrivateDeploymentConfiguration
   readonly bootstrapProofFile: string;
 }
 
+export interface ExactDeliveryPrivateDeploymentConfiguration
+  extends CommonPrivateDeploymentConfiguration {
+  readonly schemaVersion: 'agent-office.loopback-deployment.v3';
+  readonly authProvider: 'LOCAL_BOOTSTRAP';
+  readonly mutationMode: 'ENABLED_LOCAL_BOOTSTRAP';
+  readonly bootstrapProofFile: string;
+  readonly deliveryMode: 'EXACT_ADVISOR_POINTER';
+  readonly deliveryActivationId: string;
+}
+
 export type PrivateDeploymentConfiguration =
   | ReadOnlyPrivateDeploymentConfiguration
-  | LocalBootstrapPrivateDeploymentConfiguration;
+  | LocalBootstrapPrivateDeploymentConfiguration
+  | ExactDeliveryPrivateDeploymentConfiguration;
 
 export const DEFAULT_LOOPBACK_CONFIGURATION: ReadOnlyPrivateDeploymentConfiguration = {
   schemaVersion: 'agent-office.loopback-deployment.v1',
@@ -93,7 +104,8 @@ export function assertPrivateDeploymentConfiguration(
   value: unknown,
 ): asserts value is PrivateDeploymentConfiguration {
   assertRecord(value, 'PrivateDeploymentConfiguration');
-  const localBootstrap = value.schemaVersion === 'agent-office.loopback-deployment.v2';
+  const exactDelivery = value.schemaVersion === 'agent-office.loopback-deployment.v3';
+  const localBootstrap = value.schemaVersion === 'agent-office.loopback-deployment.v2' || exactDelivery;
   assertExactKeys(
     value,
     [
@@ -109,6 +121,7 @@ export function assertPrivateDeploymentConfiguration(
       'tls',
       'hsts',
       ...(localBootstrap ? ['bootstrapProofFile'] : []),
+      ...(exactDelivery ? ['deliveryMode', 'deliveryActivationId'] : []),
     ],
     'PrivateDeploymentConfiguration',
   );
@@ -150,6 +163,16 @@ export function assertPrivateDeploymentConfiguration(
       value.bootstrapProofFile.includes('\0')
     ) {
       throw new DomainError('INVALID_SCHEMA', 'LocalBootstrap deployment configuration is invalid');
+    }
+    if (
+      exactDelivery &&
+      (
+        value.deliveryMode !== 'EXACT_ADVISOR_POINTER' ||
+        typeof value.deliveryActivationId !== 'string' ||
+        !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(value.deliveryActivationId)
+      )
+    ) {
+      throw new DomainError('INVALID_SCHEMA', 'exact delivery deployment selection is invalid');
     }
   } else if (
     value.authProvider !== 'NONE_READ_ONLY' ||

@@ -277,6 +277,7 @@ export class AdvisorInboxService {
     assertUuidV7(command.acknowledgementId, 'acknowledgementId');
     assertUtcTimestamp(command.acknowledgedAt, 'acknowledgedAt');
     assertEvidenceIdentifiers(command.evidenceRefs);
+    if (command.sourceArtifact !== undefined) assertSourceArtifact(command.sourceArtifact);
     const commandHash = commandHashWithActor(command, context.actor);
     const replay = this.findLifecycleReplay('AdvisorMessageAcknowledged', command.requestId, commandHash);
     if (replay) {
@@ -304,6 +305,7 @@ export class AdvisorInboxService {
         acknowledgementId: command.acknowledgementId,
         acknowledgementArtifactRef: artifact.relativePath,
         acknowledgementArtifactHash: artifact.sha256,
+        ...(command.sourceArtifact === undefined ? {} : { acknowledgementEvidenceRef: command.sourceArtifact }),
         commandHash,
         state: 'ACKNOWLEDGED',
       },
@@ -326,6 +328,7 @@ export class AdvisorInboxService {
       throw new DomainError('INVALID_SCHEMA', 'Advisor intake classification is invalid');
     }
     assertEvidenceIdentifiers(command.evidenceRefs);
+    if (command.sourceArtifact !== undefined) assertSourceArtifact(command.sourceArtifact);
     const commandHash = commandHashWithActor(command, context.actor);
     const replay = this.findLifecycleReplay('AdvisorIntakeRecorded', command.requestId, commandHash);
     if (replay) return requireMessage(this.project(), command.messageId);
@@ -350,6 +353,7 @@ export class AdvisorInboxService {
         classification: command.classification,
         intakeArtifactRef: artifact.relativePath,
         intakeArtifactHash: artifact.sha256,
+        ...(command.sourceArtifact === undefined ? {} : { intakeEvidenceRef: command.sourceArtifact }),
         commandHash,
         state: 'INTAKE_RECORDED',
       },
@@ -371,6 +375,7 @@ export class AdvisorInboxService {
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'decision authority role is invalid');
     }
     assertSourceArtifact(command.decisionArtifact);
+    if (command.sourceArtifact !== undefined) assertSourceArtifact(command.sourceArtifact);
     const commandHash = commandHashWithActor(command, context.actor);
     const replay = this.findLifecycleReplay('AdvisorMessageDecisionLinked', command.requestId, commandHash);
     if (replay) return requireMessage(this.project(), command.messageId);
@@ -385,6 +390,9 @@ export class AdvisorInboxService {
       decisionArtifact: command.decisionArtifact,
       expectedWorkUnitIds: message.referencedEntityIds,
       recordedAt: command.recordedAt,
+      ...(message.intakeClassification === undefined
+        ? {}
+        : { intakeClassification: message.intakeClassification }),
     });
     assertVerifiedAuthorityEvidence(command, authorityEvidence, message, this.policy.missionId);
     const artifact = await this.artifacts.putScopedCanonicalJson(
@@ -413,6 +421,7 @@ export class AdvisorInboxService {
         decisionArtifactRef: artifact.relativePath,
         decisionArtifactHash: artifact.sha256,
         canonicalDecisionHash: command.decisionArtifact.sha256,
+        ...(command.sourceArtifact === undefined ? {} : { decisionEvidenceRef: command.sourceArtifact }),
         commandHash,
         state: 'DECISION_LINKED',
       },
@@ -432,6 +441,7 @@ export class AdvisorInboxService {
       throw new DomainError('INVALID_SCHEMA', 'resume source state is invalid');
     }
     assertResumeProof(command.proof);
+    if (command.sourceArtifact !== undefined) assertSourceArtifact(command.sourceArtifact);
     const commandHash = commandHashWithActor(command, context.actor);
     const replay = this.findLifecycleReplay('WorkUnitStateTransitioned', command.requestId, commandHash);
     if (replay) return requireMessage(this.project(), command.messageId);
@@ -457,6 +467,7 @@ export class AdvisorInboxService {
         to: command.proof.resumeTo,
         resumeProofArtifactRef: artifact.relativePath,
         resumeProofArtifactHash: artifact.sha256,
+        ...(command.sourceArtifact === undefined ? {} : { resumeEvidenceRef: command.sourceArtifact }),
         commandHash,
       },
     );
@@ -606,6 +617,7 @@ function gatewayRequest(
     messageId: message.messageId,
     messageArtifactRef: message.messageArtifactRef,
     messageArtifactHash: message.messageArtifactHash,
+    messagePayloadHash: message.messagePayloadHash,
     persistedEventId: message.persistedEventId,
     persistedMissionSequence: message.persistedMissionSequence,
     correlationId: message.correlationId,

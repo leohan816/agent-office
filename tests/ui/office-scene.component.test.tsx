@@ -34,7 +34,7 @@ describe('accessible structured-event office scene', () => {
       'Advisor',
       'Control',
       'Foundation Worker',
-      'Shashu Worker',
+      'SIASIU Worker',
       'Cosmile Worker',
       'Agent Office Worker',
       'Fable5 Reviewer',

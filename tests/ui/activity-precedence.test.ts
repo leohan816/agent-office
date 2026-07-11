@@ -46,7 +46,7 @@ describe('Batch C activity precedence, sequencing, and deduplication', () => {
       projection('advisor', 31, 'RUNNING', 'READING'),
       projection('control', 32, 'RUNNING', 'WORKING'),
       projection('foundation', 33, 'TESTING', 'TESTING'),
-      projection('shashu', 34, 'RUNNING', 'WRITING_RESULT', 'RESULT_DRAFT_STARTED'),
+      projection('siasiu', 34, 'RUNNING', 'WRITING_RESULT', 'RESULT_DRAFT_STARTED'),
       projection('fable5', 35, 'REVIEW_PENDING', 'REVIEW'),
     ];
     const next = applySceneBurst(initial, updates, 'LIVE');

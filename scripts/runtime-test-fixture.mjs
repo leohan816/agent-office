@@ -8,7 +8,7 @@ const ACTOR_STATIONS = [
   ['control', 'Control', []],
   ['fable5', 'Fable5 Reviewer', ['AO-WU-05', 'AO-WU-13']],
   ['foundation', 'Foundation Worker', []],
-  ['shashu', 'Shashu Worker', []],
+  ['siasiu', 'SIASIU Worker', []],
   ['cosmile', 'Cosmile Worker', []],
   [
     'agent-office',

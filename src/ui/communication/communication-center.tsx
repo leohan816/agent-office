@@ -122,6 +122,9 @@ export function CommunicationCenter({ model, actionPort }: CommunicationCenterPr
         <span className="fixture-badge">
           {model.fixtureKind === 'SYNTHETIC_READ_ONLY' ? '읽기 전용 합성 fixture' : '애플리케이션 투영'}
         </span>
+        <span className={`fixture-badge activation-${model.deliveryActivation.toLowerCase()}`}>
+          DELIVERY {model.deliveryActivation}
+        </span>
       </div>
 
       {criticalAlerts.length > 0 ? (
@@ -310,7 +313,17 @@ function MessageRecord({ message }: { readonly message: CommunicationMessageView
         <Metadata label="REQUEST_ID" value={message.requestId} />
         <Metadata label="PAYLOAD_HASH" value={message.payloadHash} />
         <Metadata label="MESSAGE_ID" value={message.messageId} />
+        <Metadata label="TRANSPORT" value={message.transportState} />
+        <Metadata label="ADVISOR_EVIDENCE" value={message.advisorEvidenceState} />
+        {message.authorityRole === undefined ? null : (
+          <Metadata label="AUTHORITY_ROLE" value={message.authorityRole} />
+        )}
       </dl>
+      {message.evidenceHashes.length === 0 ? null : (
+        <ul className="evidence-hash-list" aria-label="Advisor evidence hashes">
+          {message.evidenceHashes.map((hash) => <li key={hash}><code className="mono">{hash}</code></li>)}
+        </ul>
+      )}
       <ol className="message-timeline" aria-label={`${message.subject} 증거 타임라인`}>
         {message.timeline.map((item) => (
           <li key={`${item.state}-${item.occurredAt}`}>
