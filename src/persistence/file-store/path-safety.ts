@@ -17,6 +17,8 @@ const REQUIRED_DIRECTORIES = [
   'indexes',
   'checkpoints',
   'quarantine',
+  'audit',
+  'backups',
 ] as const;
 
 export interface StateRootFormat {

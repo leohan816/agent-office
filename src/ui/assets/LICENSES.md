@@ -14,3 +14,12 @@ origin. The Vite production build bundles the imported icon code locally.
 
 Project-authored scene SVG source, ownership, license classification, dimensions,
 and SHA-256 are recorded in `src/ui/scene/assets/ASSET_INVENTORY.md`.
+
+## Batch E PWA icons
+
+- Files: `public/icons/agent-office.svg` and
+  `public/icons/agent-office-maskable.svg`.
+- Source and ownership: project-authored code-native SVG in this repository.
+- License: same license as the Agent Office repository.
+- Remote content, tracking, executable script, user-supplied SVG, provider logo,
+  model identity, and real-person representation: none.

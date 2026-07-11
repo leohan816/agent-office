@@ -26,6 +26,20 @@ export default tseslint.config(
     },
   },
   {
+    ...tseslint.configs.disableTypeChecked,
+    files: ['public/**/*.js'],
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: {
+        URL: 'readonly',
+        Response: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        self: 'readonly',
+      },
+    },
+  },
+  {
     // These guards validate untyped bytes at runtime even though their public
     // TypeScript contracts carry the narrowed literal types.
     files: [

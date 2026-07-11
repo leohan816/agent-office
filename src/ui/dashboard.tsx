@@ -18,6 +18,7 @@ import type {
 import { OfficeScene } from './scene/office-scene.js';
 import { CommunicationCenter } from './communication/communication-center.js';
 import type { CommunicationCenterActionPort, CommunicationCenterModel } from './communication/types.js';
+import { RuntimeBoundary } from './pwa/runtime-boundary.js';
 
 type FilterValue = 'ALL' | 'ATTENTION' | 'WAITING' | 'COMPLETED';
 
@@ -61,6 +62,8 @@ export function Dashboard({ model, communicationModel, communicationActionPort }
           <span className="status-token">projection #{model.projectionSequence}</span>
         </div>
       </header>
+
+      <RuntimeBoundary />
 
       {model.banners.length > 0 ? (
         <section className="banner-stack" aria-label="관측 상태 경고">

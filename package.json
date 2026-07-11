@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Agent Office M01 durable Advisor communication center and structured-event operations dashboard",
+  "description": "Agent Office M01 loopback-private PWA control plane and durable Advisor communication center",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -14,6 +14,9 @@
     "test:unit": "vitest run --maxWorkers=1 tests/domain tests/contract tests/snapshot",
     "test:property": "vitest run --maxWorkers=1 tests/property",
     "test:integration": "vitest run --maxWorkers=1 tests/persistence tests/recovery tests/adapters tests/integration tests/acceptance",
+    "test:security": "vitest run --maxWorkers=1 tests/security",
+    "test:recovery": "vitest run --maxWorkers=1 tests/recovery tests/operations",
+    "test:pwa": "vitest run --maxWorkers=1 tests/pwa tests/ui/runtime-boundary.component.test.tsx",
     "test:ui": "vitest run --maxWorkers=1 tests/ui",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",

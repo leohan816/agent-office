@@ -179,6 +179,127 @@ a:focus-visible {
   color: var(--current);
 }
 
+.runtime-boundary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 18px;
+  align-items: center;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+  background: #0b1118;
+}
+
+.runtime-boundary-states,
+.runtime-boundary-actions,
+.runtime-state,
+.runtime-boundary-actions button,
+.service-worker-recovery summary {
+  display: flex;
+  align-items: center;
+}
+
+.runtime-boundary-states,
+.runtime-boundary-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.runtime-state {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 30px;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 740;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.runtime-state-private,
+.runtime-state-online {
+  border-color: #2e7259;
+  background: var(--current-bg);
+  color: var(--current);
+}
+
+.runtime-state-warning {
+  border-color: #685830;
+  background: var(--warning-bg);
+  color: #ffe3a4;
+}
+
+.runtime-state-offline {
+  border-color: #724047;
+  background: var(--critical-bg);
+  color: #ffd2d4;
+}
+
+.runtime-boundary-actions {
+  justify-content: flex-end;
+}
+
+.runtime-boundary-actions button,
+.service-worker-recovery summary {
+  min-height: 44px;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.service-worker-recovery {
+  position: relative;
+}
+
+.service-worker-recovery summary {
+  list-style: none;
+}
+
+.service-worker-recovery[open] {
+  min-width: min(100%, 300px);
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.service-worker-recovery p {
+  max-width: 36ch;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.runtime-offline-warning {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #724047;
+  border-radius: 6px;
+  background: var(--critical-bg);
+  color: #ffd2d4;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 767px) {
+  .runtime-boundary {
+    grid-template-columns: 1fr;
+    padding-inline: 14px;
+  }
+
+  .runtime-boundary-actions {
+    justify-content: flex-start;
+  }
+}
+
 .banner-stack {
   display: grid;
   gap: 8px;

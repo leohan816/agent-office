@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "agent-office.loopback-deployment.v1",
+  "networkMode": "LOOPBACK_PRIVATE",
+  "bindAddresses": ["127.0.0.1", "::1"],
+  "port": 4317,
+  "allowedHosts": ["127.0.0.1:4317", "[::1]:4317"],
+  "authProvider": "NONE_READ_ONLY",
+  "mutationMode": "DISABLED",
+  "cors": false,
+  "trustProxy": false,
+  "tls": false,
+  "hsts": false
+}

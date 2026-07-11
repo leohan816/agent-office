@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Agent Office maskable icon</title>
+  <rect width="512" height="512" fill="#0b0f14"/>
+  <circle cx="256" cy="256" r="176" fill="#151e29" stroke="#75baff" stroke-width="24"/>
+  <path d="M168 224h176v136H168z" fill="#123328" stroke="#63d8a2" stroke-width="20"/>
+  <path d="M216 268h80M216 312h80" stroke="#e8edf3" stroke-width="18" stroke-linecap="round"/>
+</svg>
