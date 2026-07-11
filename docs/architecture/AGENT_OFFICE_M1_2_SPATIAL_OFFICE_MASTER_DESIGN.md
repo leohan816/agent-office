@@ -1,16 +1,16 @@
 # Agent Office M1.2 Spatial Advisor-Team Office Master Design
 
-Status: `DESIGN_CANDIDATE__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED__PENDING_FABLE5_REVIEW`
+Status: `NARROW_PRODUCT_INTENT_PATCH_APPLIED__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Canonical owner: Agent Office repository
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-Target implementation status: `NOT_STARTED_NOT_AUTHORIZED`
+Target implementation status: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 This document is an additive design candidate over the closed M1 base
 `2f663304a88c432f19fe56055641b66e57f18ef2`. It defines a spatial,
-evidence-backed office projection for one Advisor-led team across registered
+evidence-backed office projection for Advisor-led teams across registered
 projects. It does not authorize source, configuration, test, asset, authority,
 transport, authentication, network, database, deployment, or runtime changes.
 
@@ -95,24 +95,28 @@ this design mission.
 
 ## 4. Resolution of the frozen unknowns
 
-The frozen IDs remain stable. Technical resolutions below are candidates for
-independent review; Leo/GPT-owned decisions remain unresolved.
+The frozen IDs remain stable. The technical resolutions passed the original
+Fable5 Level-3 design review. Leo/GPT then authorized the narrow product-intent
+patch recorded by the exact status
+`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
+Implementation is not authorized until the same existing Fable5 context returns
+a clean Level-3 delta `PASS` and Advisor freezes and routes the patched package.
 
 | Unknown | Candidate resolution | Status/gate |
 |---|---|---|
-| `AO12-U01` Dynamic Team Pod Model | One selected pod is expanded; other registered pods are compact verified summaries. Pod identity is stable and derived from trusted project/mission references. | `TECHNICALLY_RESOLVED__PENDING_REVIEW` |
-| `AO12-U02` Single Advisor Team Principle | One canonical Advisor character remains in a global Advisor Hub. Every pod has exactly one responsibility reference to an Advisor role instance; missing or multiple references fail closed. | `TECHNICALLY_RESOLVED__NO_AUTHORITY_CHANGE` |
-| `AO12-U03` Project Color System | A versioned deterministic project identity tuple combines color, pattern, glyph, and text. Severity always overrides project color. | `TECHNICALLY_RESOLVED__PENDING_CONTRAST_TESTS` |
+| `AO12-U01` Dynamic Team Pod Model | One shared American-style open-office floor keeps every registered Advisor Team Pod spatially visible on wide desktop. Selection expands detail and choreography without turning other Team areas into cards or hiding them. | `PRODUCT_INTENT_RESOLVED__PENDING_DELTA_REVIEW` |
+| `AO12-U02` Single Advisor Team Principle | Every active actor belongs to exactly one responsible Advisor Team. Current and future Advisor-character rules are explicit below; missing or multiple assignments fail closed. | `PRODUCT_INTENT_RESOLVED__NO_AUTHORITY_CHANGE` |
+| `AO12-U03` Project Color System | Team-first grouping and a fixed approved project palette combine clothing, desk accents, signs, text, glyphs, and patterns. Severity, focus, accessibility, and alerts override project color. | `PRODUCT_INTENT_RESOLVED__PENDING_CONTRAST_TESTS` |
 | `AO12-U04` Actor Character Identity | Code-native role silhouettes plus visible role/project labels and existing state overlays; project-authored placeholders only until the asset gate. | `TECHNICALLY_RESOLVED__PRODUCTION_ASSET_DEFERRED` |
-| `AO12-U05` Channy Definition | Reserved disabled slot with no rendered actor, state, authority, route, notification, or behavior. | `LEO_GPT_DECISION_REQUIRED` |
-| `AO12-U06` Lounge Semantics | Selected-pod ambient zone for verified `IDLE` actors only; it never implies collaboration, availability, or assignment. | `TECHNICALLY_RESOLVED__PENDING_REVIEW` |
-| `AO12-U07` Truthful Animation | Only new accepted structured source IDs create bounded cues; compact pods do not show task-signifying motion. | `TECHNICALLY_RESOLVED__CONTRACT_REQUIRED` |
-| `AO12-U08` Mission Board | One selected mission board shows exact hierarchy, manifest version, counts, phase, WorkUnit, actor, evidence, gates, alerts, and Leo decision path. | `TECHNICALLY_RESOLVED__PENDING_COMPONENT_TESTS` |
+| `AO12-U05` Channy Definition | Channy is enabled only as a non-operational ambient companion and structured-status reflector under the exact boundary in Section 9.3. | `PRODUCT_INTENT_RESOLVED__NO_AUTHORITY` |
+| `AO12-U06` Lounge Semantics | Verified-idle actors may use bounded office/lounging presentations that never imply availability, assignment, shared context, collaboration, communication, or approval. | `PRODUCT_INTENT_RESOLVED__PENDING_DELTA_REVIEW` |
+| `AO12-U07` Truthful Animation | Only new accepted structured source IDs create bounded operational cues. Selection controls detail, not truth; non-selected Team areas retain exact visible state without full choreography. | `PRODUCT_INTENT_RESOLVED__CONTRACT_REQUIRED` |
+| `AO12-U08` Mission Board | Every Team area exposes the required summary fields; the selected board exposes the complete exact field set in Section 9.1. | `PRODUCT_INTENT_RESOLVED__PENDING_COMPONENT_TESTS` |
 | `AO12-U09` Rendering Architecture | Accessible DOM for semantics and layout, local SVG for characters/routes, CSS transform/opacity for motion. No Canvas/WebGL/3D engine. | `TECHNICALLY_RESOLVED` |
 | `AO12-U10` Responsive Navigation | Desktop spatial floor; tablet simplified floor; mobile semantic pod/list/detail. No miniature unreadable floor. | `TECHNICALLY_RESOLVED__PENDING_BROWSER_TESTS` |
 | `AO12-U11` Reduced Motion/Performance | Static semantic equivalence, fixed cue/visible-actor caps, and separately measured benchmark targets with fallbacks. | `TECHNICALLY_RESOLVED__BENCHMARK_REQUIRED` |
 | `AO12-U12` Multi-Project Identity/Host Boundaries | One canonical actor identity may have assignment views, never duplicated live actors. Conflicting active assignments or sources render `CONFLICT`. | `TECHNICALLY_RESOLVED__NO_TRUST_EXPANSION` |
-| `AO12-U13` Asset Source/Style | Define a versioned inventory/license/hash/replacement contract now; production art style/source remains Leo/GPT-gated. | `LEO_GPT_DECISION_REQUIRED__ASSET_GATE` |
+| `AO12-U13` Asset Source/Style | M1.2 uses project-authored code-native placeholders in the approved warm retro pixel/pixel-inspired 2D/2.5D direction; external acquisition remains prohibited. | `PRODUCT_INTENT_RESOLVED__PLACEHOLDER_ONLY` |
 | `AO12-U14` Compatibility/Migration | Add a versioned spatial projection and an M1 fixed-station adapter. Existing M1 events, station IDs, mapping, tests, and baselines remain unchanged. | `TECHNICALLY_RESOLVED__ADDITIVE_ONLY` |
 
 Detailed traceability appears in
@@ -126,12 +130,13 @@ The top-level semantic order is fixed:
 
 ```text
 Global status and authority facts
-  -> Initiative and registered Team Pod selector
-  -> Selected Team Pod
-       -> Pod identity and responsible-Advisor reference
-       -> Selected mission board
-       -> Spatial team floor or static equivalent
-       -> Actor/WorkUnit detail
+  -> Shared office floor and registered Advisor Team navigation
+       -> Every registered Team area and its required visible summary
+       -> Selected Team area expanded in place
+            -> Team identity and responsible-Advisor reference
+            -> Selected mission board
+            -> Full spatial choreography or static equivalent
+            -> Actor/WorkUnit detail
   -> Evidence, Inbox, Alerts, and decision inspector
 ```
 
@@ -139,10 +144,12 @@ Global status retains network, authentication, projection revision, freshness,
 delivery/manual-fallback, offline, and recovery facts from M1. The M1.2 surface
 does not add a global command box, destination selector, or role dispatcher.
 
-The Initiative selector groups trusted registered projects. A project may have
-zero or more visible mission summaries, but only a canonical, Git-verified
-manifest may create a mission board. A registered project without mission
-authority renders `NO_VERIFIED_MISSION`, not an empty active office.
+The Initiative navigation groups trusted registered projects without replacing
+the floor. On wide desktop, every registered Advisor Team remains a
+recognizable office area on one shared American-style open-office floor. A
+project may have zero or more visible mission summaries, but only a canonical,
+Git-verified manifest may create a mission board. A registered project without
+mission authority renders `NO_VERIFIED_MISSION`, not an empty active office.
 
 ### 5.2 Hierarchy mapping
 
@@ -152,7 +159,7 @@ identity or count semantics:
 | Canonical entity | Spatial projection |
 |---|---|
 | Initiative | Global office campus/header and pod collection |
-| Project registration | Team Pod identity and source boundary |
+| Advisor Team plus project registration | Team area/Pod identity and source boundary |
 | Package | Mission-board grouping label |
 | Mission | One selectable versioned mission board inside its project pod |
 | Phase | Ordered board lane; never inferred from floor location |
@@ -160,7 +167,7 @@ identity or count semantics:
 | Actor role instance | One canonical character identity plus zero or more non-authoritative assignment references |
 | Evidence | Evidence cabinet/inspector with verification/freshness text |
 | Alert/blocker | Persistent severity overlay and accessible alert item |
-| Leo/GPT decision | Explicit decision path from Advisor Hub to the Leo decision destination |
+| Leo/GPT decision | Explicit decision path from Advisor Hub to the Leo/GPT decision destination |
 
 Progress always remains `completed / manifest denominator` plus manifest
 version, with required-gate progress separate. Pod size, character count, board
@@ -180,13 +187,15 @@ initiativeRef
 selectedPodId
 identityCatalogVersion
 pods[]
-  podId, projectId, displayName, projectIdentity
+  podId, advisorTeamId, projectId, displayName, projectIdentity
   authorityStatus, evidenceFreshness, connectionState
   responsibleAdvisorRoleInstanceId
-  selectedMissionRef, missionSummaries[]
+  responsibleAdvisorDisplayIdentity
+  selectedMissionRef, missionSummaries[], missionBoardSummary
   actorAssignments[], alertSummary, evidenceSummary
 actorsByRoleInstanceId{}
 selectedMissionBoard
+channyPresentation
 sourceManifestRefs[]
 sourceEventIds[]
 compatibilityMode: M1_FIXED_STATIONS | M1_2_TEAM_PODS
@@ -205,7 +214,7 @@ It must not read terminal text, execute adapters, assign authority by proximity,
 or generate domain events. `evaluatedAt` affects only a freshness overlay. A
 change of selection does not alter the projection revision or source truth.
 
-## 7. Dynamic Team Pod model
+## 7. Dynamic Advisor Team Pod model
 
 ### 7.1 Stable pod identity
 
@@ -220,7 +229,7 @@ Path/root details remain absent from browser summaries. An unknown, stale,
 unverified, dirty, or conflicting source produces a static pod shell with exact
 reason text and no task-signifying motion.
 
-### 7.2 One selected pod versus compact summaries
+### 7.2 One shared floor and one detailed Team area
 
 Exactly one pod may be expanded in a browser view. Selection precedence is:
 
@@ -229,19 +238,30 @@ Exactly one pod may be expanded in a browser view. Selection precedence is:
 3. the first pod by stable `projectId` lexical order.
 
 A missing selection never guesses from activity, alert severity, model output,
-or most-recent terminal use. Compact non-selected pods show only:
+or most-recent terminal use. On wide desktop, selection changes emphasis and
+detail within the same floor; it does not remove, collapse into ordinary cards,
+or relocate the other registered Team areas. Every non-selected Team area
+remains spatially recognizable through its desks, project sign, mission board,
+actor positions, and shared paths, and shows at least:
 
-- project text ID/name plus color/pattern/glyph identity;
-- responsible Advisor reference or `AUTHORITY_UNKNOWN/CONFLICT`;
-- selected/most recently explicitly viewed mission label, if any;
-- manifest version and exact completed/denominator count;
-- freshness/connection text and icon;
-- open alert count and highest severity; and
-- actor counts by verified static state category.
+- Team name;
+- responsible Advisor;
+- current main mission;
+- current actor;
+- current operational state; and
+- gate/blocker summary.
 
-Compact summaries never show walking, typing, handoff, review, testing, result,
-or decision motion. They may update text/icon/shape immediately from a new
-projection. This both preserves truth and bounds rendering work.
+Those minimum fields are supplemented by project text ID/name and
+color/pattern/glyph identity, manifest progress, freshness/connection, and alert
+severity when canonical evidence exists. Non-selected Team areas update
+text/icon/shape from projection truth but do not run the selected area's full
+walking, typing, handoff, review, testing, result, or decision choreography.
+They are office areas, not summary cards. Tablet and mobile may use focused
+paging plus a minimap or explicit Team navigation, but must preserve the same
+facts, relationships, and access to every Team.
+
+A future reviewed multi-floor model may be additive to this one-floor baseline;
+it cannot silently replace, partition, or reinterpret the M1.2 shared floor.
 
 ### 7.3 Actor assignment and conflict rules
 
@@ -264,36 +284,82 @@ Rules are fail closed:
   mark it stale, and suppress movement.
 
 An actor may be referenced in several pods for historical or pending work. Those
-are assignment views, not multiple live identities. Only the selected pod may
-render the full character, and only when the exact assignment and sources are
-non-conflicting.
+are assignment views, not multiple live identities. One `roleInstanceId` may
+have a character presentation in at most one Team area across the floor. The
+selected Team area may render full operational choreography for actors whose
+exact current assignment resolves there. A current actor in a non-selected Team
+area may remain static or ambient there; every other reference is text/glyph
+only. Exact assignment and sources must be current and non-conflicting, and a
+live actor is never cloned.
+
+### 7.4 Exact initial Team and project identity
+
+The initial product-intent assignment is exact, but runtime presentation still
+requires matching canonical authority evidence:
+
+- `FOUNDATION_ADVISOR_TEAM`: Foundation Advisor, Control, Foundation Worker,
+  Cosmile Worker, SIASIU Worker, Agent Office Worker, and the assigned
+  independent Reviewer when review is required.
+- `VIBENEWS_ADVISOR_TEAM`: a separate Team area only when a valid responsible
+  Advisor exists, with its assigned Worker, Designer, and Reviewer members.
+
+Agent Office belongs to `FOUNDATION_ADVISOR_TEAM`; it is not privileged or an
+independent authority. Reviewer Team membership is a responsibility grouping
+and does not weaken reviewer independence, verdict authority, or separation
+from the Worker execution chain. A future Agent Office Team requires a newly
+appointed Advisor, recorded Team-assignment authority, formal member
+reassignment, and an effective command hierarchy before it may appear active.
+
+Spatial grouping is Advisor Team first. Project identity is then repeated in
+clothing, desk accents, project signs, text, glyphs, and patterns with this
+approved palette: Cosmile coral/pink; SIASIU mint/emerald; Foundation
+navy/blue; VibeNews purple; Agent Office orange/amber; Control slate/charcoal
+with a blue accent. Color is never the sole identifier. Severity, focus,
+accessibility, and alert semantics override project color.
+
+The official current project name is `SIASIU`. Historical/forbidden-name note
+(not current product naming): the legacy tokens `Shashu`, `샤슈`, `SHASHU`, and
+`shashu` are forbidden in current UI, fixtures, actor labels, locale resources,
+tests, and baselines. A naming test must fail on any such current-product use;
+an explicitly labelled historical citation is the only documentation exception.
 
 ## 8. Single Advisor Team Principle
 
 The visual invariant is:
 
 ```text
-For every visible Team Pod:
-  exactly one responsibleAdvisorRoleInstanceId
-  exactly one responsibility marker
-  zero duplicated Advisor authority characters
+For every active actor:
+  exactly one responsible Advisor Team
+  exactly one canonical responsibleAdvisorRoleInstanceId
+  zero authority inferred from spatial proximity
 ```
 
-One canonical Advisor character is rendered at the global Advisor Hub. A single
-Advisor may responsibly reference multiple pods; each pod header names the same
-role instance without cloning the character. If a future configuration contains
-multiple Advisor role instances, every pod still requires one explicit
-responsible assignment from reviewed trusted configuration.
+An Advisor creates and leads an Advisor Team. Every actor obeying that Advisor
+is a member of that Team. An actor without one valid canonical Advisor
+assignment is `UNASSIGNED` and cannot receive work. Missing or multiple Team or
+Advisor assignments fail closed and suppress task-signifying motion. A
+reassignment requires canonical authority evidence; project color, office
+location, adjacency, route lines, selection, or visual proximity never creates
+or transfers authority. There is no exception to this invariant.
 
-Missing assignment renders `ADVISOR_RESPONSIBILITY_UNKNOWN`. Multiple assignments
-render `ADVISOR_RESPONSIBILITY_CONFLICT`. Both suppress dispatch/result/decision
-route motion. Spatial proximity, route lines, pod selection, project ownership,
-or an inbox receipt never creates Advisor authority. Fable5 remains a separate
+In the current single-Advisor-instance configuration, exactly one global
+Advisor Hub character represents that one `Advisor roleInstanceId`; Team areas
+reference it without cloning it. In a future reviewed multi-Advisor
+configuration, the office renders one distinct Advisor Hub character for each
+exact `Advisor roleInstanceId`, and every Team area references exactly one
+responsible instance. One active Advisor instance is never cloned across Team
+areas.
+
+Missing assignment renders `ADVISOR_RESPONSIBILITY_UNKNOWN` plus `UNASSIGNED`.
+Multiple assignments render `ADVISOR_RESPONSIBILITY_CONFLICT`. Both suppress
+dispatch/result/decision route motion and work receipt. Project ownership or an
+Inbox receipt never creates Advisor authority. Fable5 remains a separate
 independent review identity and desk, never inside the Worker execution chain.
 
-## 9. Selected Team Pod zones
+## 9. Shared floor and selected Team-area zones
 
-The expanded pod uses stable semantic zones rather than free-form coordinates:
+Every Team area uses stable semantic zones rather than free-form coordinates.
+The selected Team area expands its detail and enables full choreography:
 
 1. **Pod header** - project identity, source/freshness, responsible Advisor,
    selected mission, manifest version, and exact progress.
@@ -312,56 +378,105 @@ The expanded pod uses stable semantic zones rather than free-form coordinates:
    never a general message or dispatch route.
 9. **Evidence cabinet** - exact verification state, hashes/commits through the
    existing redacted evidence surface, and freshness.
-10. **Lounge** - ambient presentation for verified `IDLE` actors only.
+10. **Lounge and shared office paths** - bounded ambient presentation for
+    verified `IDLE` actors and Channy only under Sections 9.2-9.3.
 
 ### 9.1 Mission board behavior
 
-The board shows one explicitly selected mission and must always display:
+Every Advisor Team area contains a visible mission/electronic board. The
+selected board shows one explicitly selected mission. When canonical evidence
+exists, it must display this exact product field set:
 
-- mission ID, package, manifest version, projection sequence, and source status;
-- exact phase order and the selected WorkUnit's dependencies;
-- WorkUnit state separately from required observable/activity;
-- assigned actor role instance and assignment confidence;
-- completion/evidence checklist and required review/decision gates;
-- open blocker/alert severity, owner, next action, and freshness; and
-- links into existing Inbox, Alerts, Evidence, and decision detail surfaces.
+- Team and project names;
+- responsible Advisor;
+- redacted registered Advisor model/session display identity;
+- current mission;
+- current Phase or WorkUnit;
+- redacted registered current-actor model/session display identity;
+- assigned Reviewer;
+- next actor/handoff;
+- WorkUnit progress and required-gate progress as separate facts;
+- exact blocker;
+- Leo/GPT decision state;
+- latest verified evidence time and pointer; and
+- explicit stale, unknown, or conflict state.
+
+The detailed board may also show mission ID, package, manifest version,
+projection sequence, source status, exact phase order, dependencies, observable,
+evidence checklist, alert owner/next action, and links into existing Inbox,
+Alerts, Evidence, and decision detail surfaces. Model/session identity is only a
+registered, redacted display value. It never exposes raw pane/session locators,
+filesystem paths, credentials, private transport details, or terminal content.
+If a required display value lacks canonical evidence, the board shows
+`UNKNOWN`; it does not infer from terminal prose, timestamps, nearest pod,
+character proximity, model output, or stale/unverified fixtures.
 
 Changing board selection moves no character and emits no cue. A route cue needs
 the structured event contract in the companion document.
 
 ### 9.2 Lounge semantics
 
-The lounge is not a collaboration or presence system. A character may appear
-there only when the actor registration is verified/current and either:
+The lounge and other ambient office zones are not a collaboration,
+communication, or presence system. A character may appear there only when the
+actor registration is verified/current and either:
 
 - an accepted `RoleActivityChanged(IDLE)` is current; or
-- the actor has no assigned active WorkUnit and the projection explicitly marks
-  it unassigned/idle.
+- the actor has no active WorkUnit, retains one current canonical Advisor Team
+  assignment, and the projection explicitly marks it verified idle.
 
-Lounge appearance means only `verified IDLE at evaluatedAt`. It does not mean
-available, online for new work, communicating, waiting for assignment, or sharing
-context with another actor. No speech bubble, conversation, group huddle,
-autonomous roaming, or cross-actor interaction is defined. Entry/exit motion
-requires a new accepted structured source ID; initial load and reload are static.
+Verified-idle presentation may include coffee, reading, resting, a small game,
+looking through a window, using a whiteboard, visually interacting with Channy,
+or a bounded visual talk pose. It means only `verified IDLE at evaluatedAt` and
+never availability, assignment, shared context, collaboration, communication,
+approval, or evidence. No dialogue content is generated. A new accepted
+operational event immediately overrides ambient presentation. Entry/exit motion
+requires a new accepted structured source ID; initial load and reload are
+static.
 
-### 9.3 Channy reserved slot
+### 9.3 Channy ambient companion boundary
 
-`Channy` has no definition in current source or canonical documents. M1.2
-therefore defines only `CHANNY_DISABLED`, which renders no character, control,
-state, route, notification, authority marker, autonomous behavior, or analytics.
-The slot cannot consume mission events. Any enabled Channy design requires a
-Leo/GPT product decision, an updated frozen register, a new reviewed contract
-version, and separate implementation authorization.
+The exact decision is
+`CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`.
+Channy is a cute Bedlington Terrier presentation character, not an actor,
+authority, evidence source, adapter, notification channel, or workflow state.
+
+Allowed behavior is bounded to verified shared-office paths and presentation:
+roaming, visiting Team areas/shared spaces, sitting near a verified-idle actor,
+eating, drinking, sleeping, resting, playing, observing, briefly following an
+accepted routing cue, and reacting to structured `WAITING_LEO`, `BLOCKED`,
+stale/offline, mission-complete, or valid dispatch/routing facts. A stale/offline
+reaction is static and cannot bypass stale-motion suppression. When no accepted
+source supports a reaction, Channy remains neutral ambient presentation.
+
+Channy never inspects terminal/session content, infers unstructured state,
+creates evidence, dispatches work, carries commands, approves a decision,
+changes sessions, repairs a system, replaces an alert/mission board, or implies
+communication or collaboration. Session/system checks remain structured-adapter
+responsibility.
+Reduced-motion/static mode exposes an equivalent neutral or status-reflector
+pose and text without movement. The primary status, alert, mission board, and
+accessible log always carry the meaning independently of Channy.
+
+### 9.4 Operational presentation vocabulary
+
+The exact M1.2 high-level operational presentation states are `IDLE`,
+`WORKING`, `TESTING`, `ROUTING / DISPATCH`, `REVIEWING`, `RETURNING_RESULT`,
+`NEEDS_PATCH`, `WAITING_DEPENDENCY`, `WAITING_LEO`, `BLOCKED`, `COMPLETED`,
+`FAILED`, and `CANCELLED`. Existing M1 activity labels remain compatible detail
+facts; they do not create additional high-level state truth. Operational state
+always overrides ambient behavior.
 
 ## 10. Responsive and accessible architecture
 
 ### 10.1 Wide desktop (`>= 1200px`)
 
 - global status bar across the top;
-- 240-280px Team Pod selector with compact summaries;
-- flexible selected-pod stage with mission board and spatial zones;
+- one shared wide open-office floor with every registered Advisor Team area
+  spatially visible;
+- explicit Team navigation/minimap plus an in-place expanded selected Team area;
 - 340-380px evidence/inbox/alerts inspector; and
-- only the selected pod mounts full character SVGs or cue layers.
+- only the selected Team area mounts full operational choreography; other Team
+  areas retain recognizable static or bounded ambient office presentation.
 
 The floor uses CSS grid semantic zones. Local SVG route overlays use named zone
 anchors, never hardcoded station-array coordinates. The DOM reading order
@@ -369,8 +484,9 @@ follows the information order in Section 5.1, not visual x/y position.
 
 ### 10.2 Tablet (`768px-1199px`)
 
-- pod summaries become a horizontal or collapsible selector;
-- the selected pod remains the only detailed floor;
+- Team navigation/minimap becomes horizontal or collapsible focused paging;
+- the selected Team remains detailed while every other Team remains reachable
+  with the same summary meaning;
 - mission board and floor stack when required by content;
 - inspector becomes a labelled modal or non-modal drawer with explicit open
   state, focus containment when modal, and focus restoration; and
@@ -378,7 +494,8 @@ follows the information order in Section 5.1, not visual x/y position.
 
 ### 10.3 Mobile (`< 768px`)
 
-- one selected pod, one mission board, and one semantic actor/zone list;
+- one focused Team area, one mission board, and one semantic actor/zone list at
+  a time, with explicit navigation to every other Team;
 - no miniature floor plan and no hover dependency;
 - pod selector, Overview, Team, Mission, Evidence, Inbox, and Alerts are explicit
   destinations;
@@ -417,7 +534,7 @@ follows the information order in Section 5.1, not visual x/y position.
   activity log expose actor, WorkUnit, source status, cue origin/destination, and
   result in text.
 - Ordinary changes announce once politely. A new critical blocker/alert announces
-  once assertively; rerender, tab resume, pod selection, or compact-summary
+  once assertively; rerender, tab resume, Team selection, or non-selected-area
   updates do not repeat it.
 - Reduced motion and static fallback expose the same state change immediately in
   text, icon, shape, focus order, and the activity log.
@@ -434,12 +551,12 @@ asset/rendering complexity without an evidenced requirement.
 
 Hard design limits:
 
-- one expanded pod;
+- one shared wide floor and one expanded Team area;
 - at most eight full actor tiles on desktop/tablet and two on mobile;
 - additional actors use a semantic paged/virtualized list, never tiny avatars;
-- at most three pending transient cues across the selected pod;
+- at most three pending transient cues across the selected Team area;
 - at most one route actor/document cue at a time;
-- compact pods have no task-signifying motion;
+- non-selected Team areas have no full task-signifying choreography;
 - every cue is 150-1200ms and transform/opacity only;
 - no layout, width, height, top, left, scroll, camera, or focus animation; and
 - reduced-motion/static mode mounts no route animation layer.
@@ -463,11 +580,15 @@ existing RoleSceneProjection[8]
 
 Compatibility requirements:
 
-- keep all eight `OfficeStationId` values, station labels, role normalization,
-  state/activity mapping, precedence, cue phase order, accepted-event-ID rules,
-  and mobile two-station pagination;
-- keep existing M1 component, contract, accessibility, source-boundary, E2E, and
-  six visual baseline tests unchanged and passing;
+- keep all eight `OfficeStationId` values, station semantics, state/activity
+  mapping, precedence, cue phase order, accepted-event-ID rules, and mobile
+  two-station pagination; the only naming exception is the P-03 SIASIU
+  correction, which removes forbidden current aliases/labels without changing
+  actor authority or assignment meaning;
+- keep existing M1 component behavior, contract, accessibility,
+  source-boundary, E2E behavior, and six visual baseline bytes passing and
+  unchanged; source fixtures/tests containing a forbidden current-name token
+  must instead be corrected under the exact AO12-A naming scope;
 - do not synthesize project/pod history for old events; the adapter presents a
   clearly labelled legacy fixed-station pod/view;
 - add new M1.2 projection fields rather than replacing existing `sceneRoles`
@@ -480,10 +601,22 @@ Compatibility requirements:
 Rollback is presentation-only. It must not invoke Git rollback, rewrite data,
 change runtime authority, or restart another mission automatically.
 
-## 13. Deferred asset-production gate
+## 13. Approved placeholder art direction and deferred production gate
 
-This design creates no asset. A future asset proposal must provide, before any
-asset enters source:
+The exact product decision is
+`APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
+Implementation may create project-authored CSS/DOM/SVG/simple local sprite-like
+placeholders in an original cute 2D/2.5D pixel or pixel-inspired, warm retro
+16/32-bit-console direction. The office should feel like a friendly, blocky
+American startup/open office, with wood desks, glass meeting room, coffee
+lounge, shared paths, project signs, mission boards, Reviewer booth, Advisor
+desk/Hub, and Channy bed/food/water areas. It must not copy a protected artist,
+franchise, game, or distinctive protected style.
+
+This documentation patch creates no asset. Purchase, import, download,
+commission, external generation, vendor selection, paid licensing, and external
+asset acquisition remain prohibited. Any later production asset proposal must
+provide, before an asset enters source:
 
 - asset ID, semantic role, variant/state matrix, stable viewBox/dimensions, and
   1x/2x policy when raster;
@@ -498,37 +631,32 @@ asset enters source:
 - replacement compatibility: same semantic asset ID, stable dimensions,
   reviewed visual delta, updated license/hash inventory, and reversible commit.
 
-Until Leo/GPT chooses an art direction and source, implementation may use only
-newly reviewed Agent Office project-authored code-native placeholder geometry.
-Placeholder art cannot be relabelled as approved production art.
+Project-authored placeholder art cannot be relabelled as approved production
+art. Replacing it later is additive, separately reviewed, inventory/hash/license
+controlled, and must preserve semantic asset IDs and stable geometry.
 
-## 14. Founder decisions returned to Leo/GPT
+## 14. Resolved Leo/GPT product decisions
 
-Only genuine product choices are returned here. Technical defaults above do not
-resolve them.
+Both formerly gated product choices are resolved by the chained Leo/GPT decision
+record. They do not grant runtime, asset-acquisition, authority, transport, or
+implementation permission.
 
 ### `AO12-FD-01`: Channy product role
 
-Leo/GPT must choose whether Channy is absent, a non-operational companion, a
-guide, or another explicitly defined product concept. If present, Leo/GPT must
-define purpose, allowed information, location, interaction, and whether any
-notification is permitted. No option may silently grant authority or role
-dispatch. Safe state until decision: `CHANNY_DISABLED`.
+Resolved as
+`CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`
+with the exhaustive allowed/prohibited boundary in Section 9.3.
 
-### `AO12-FD-02`: Production character/art direction and asset source
+### `AO12-FD-02`: Character/art direction and asset source
 
-Leo/GPT must choose the production visual style and whether assets remain
-project-authored or use a separately approved licensed/commissioned source.
-Purchase, import, generation, and vendor selection are not authorized by this
-design. Safe state until decision: code-native placeholders only, with the asset
-gate in Section 13.
+Resolved as
+`APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION` with
+the original direction and external-acquisition prohibition in Section 13.
 
-No other Leo/GPT decision is required to review the technical design candidate.
+## 15. Acceptance boundary for this patched design candidate
 
-## 15. Acceptance boundary for this design candidate
-
-The design candidate is ready for independent review only when the four new
-canonical documents and the Feature Index pointer/status addition:
+The narrow patch is ready for the same-existing-Fable5 Level-3 delta review only
+when the four canonical documents and the Feature Index status/pointer:
 
 - resolve or gate all `AO12-U01` through `AO12-U14` without renaming them;
 - define exact source, precedence, deduplication, reload, stale/offline,
@@ -541,8 +669,13 @@ canonical documents and the Feature Index pointer/status addition:
 - contain no implementation, asset, credential, external fetch, or runtime
   activation claim.
 
-Fable5 independent design review and Advisor/Leo routing remain mandatory. A
-design `PASS` would still not authorize implementation.
+The original Fable5 design review passed. A clean delta `PASS` with no risk,
+unresolved defect, new decision, or scope expansion permits Advisor to freeze
+the patched design and convert `IWU-01` through `IWU-14` into an exact serial,
+reversible implementation manifest. It does not itself start implementation.
+Until Advisor performs that freeze and issues a separate exact implementation
+handoff, status remains
+`NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`.
 
 ## 16. Canonical M1.2 design map
 

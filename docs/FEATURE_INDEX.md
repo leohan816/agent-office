@@ -11,12 +11,16 @@ disabled implementation. It does not claim an enabled descriptor, live
 capability/port instance, actual tmux input from Agent Office, implementation
 review `PASS`, rehearsal, Leo/GPT final approval, or mission closure.
 
-The additive M1.2 spatial Advisor-team office package is a design-only candidate
-at status
-`DESIGNED_M1_2_SPATIAL_OFFICE_CANDIDATE__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED__PENDING_FABLE5_REVIEW`.
-Its four canonical documents are indexed in Section 2. This pointer does not
-change M01 runtime behavior, authority, transport, security, assets, mission
-scope, or implementation status.
+The additive M1.2 spatial Advisor-team office package has the narrow chained
+product-intent patch applied at status
+`DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`.
+The exact decision state is
+`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
+Its four canonical documents are indexed in Section 2. The original design
+review passed; the same-existing-Fable5 Level-3 delta review, Advisor freeze,
+exact implementation manifest, and separate handoff remain mandatory. This
+pointer does not change M01 runtime behavior, authority, transport, security,
+assets, mission scope, or implementation status.
 
 ## 1. Current Implemented Scope
 
@@ -177,10 +181,10 @@ baselines. No real credential or private run was created.
 
 | Document | Canonical subject |
 |---|---|
-| [`architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md) | M1.2 as-is evidence, Team Pods, Single Advisor Team Principle, spatial IA, responsive/accessibility architecture, M1 adapter, founder and asset gates |
-| [`contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md`](contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md) | Versioned structured spatial cues, provenance, precedence, deduplication, reload/stale suppression, cue/performance budgets, and static equivalence |
-| [`ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md`](ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md) | Deterministic non-color-only project identity, canonical actor/role presentation, Channy decision gate, and deferred asset inventory/license/hash contract |
-| [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Five-unit design mission separation, unauthorized reversible implementation batches, dependencies, tests, rollback, acceptance, and AO12-U01-U14 traceability |
+| [`architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md) | Shared wide open-office floor, exact Advisor Team ownership/assignments, selected-detail/non-selected spatial visibility, complete mission boards, resolved Channy and placeholder direction, responsive/accessibility architecture, and M1 adapter |
+| [`contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md`](contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md) | Accepted structured handoff/dispatch/work/test/review/result/patch/decision/completion cues, Channy status reflection, provenance, precedence, deduplication, stale/reload suppression, budgets, and static equivalence |
+| [`ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md`](ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md) | Advisor Team-first identity, fixed approved project palette, SIASIU naming rule, current/future Advisor-character uniqueness, Channy Bedlington Terrier boundary, and project-authored placeholder inventory/hash contract |
+| [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Reviewed design versus conditional freeze-ready `IWU-01` through `IWU-14`, serial reversible batches, exact tests/rollback/acceptance, and AO12-U01-U14 traceability; implementation remains blocked pending clean delta PASS and Advisor handoff |
 | [`architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md) | DQ-01 through DQ-08, exact fixed-pane pointer bridge, durable no-resend transport, Git-verified Advisor evidence ingress, rehearsal, and nine-criterion traceability |
 | [`architecture/AGENT_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_MASTER_DESIGN.md) | Purpose, authority/source precedence, topology, stack boundary, SSE/PWA decision, batches/gates, unknowns |
 | [`contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md) | Manifest, event envelope, entity states, transitions, idempotency, ordering, decisions, projections, evidence completion |
@@ -193,11 +197,42 @@ baselines. No real credential or private run was created.
 Agent Office is the sole canonical design owner. Foundation-docs may hold mission
 governance, review evidence, results, and pointers but no competing canonical copy.
 
+### 2.1 M1.2 patched product-intent pointer
+
+- One shared American-style open-office floor keeps every registered Advisor
+  Team spatially visible on wide desktop. Selection expands detail and full
+  choreography; other Teams remain recognizable office areas with Team,
+  responsible Advisor, mission, actor/state, and gate/blocker facts.
+- Every active actor belongs to exactly one responsible Advisor Team or is
+  `UNASSIGNED` and cannot receive work. `FOUNDATION_ADVISOR_TEAM` carries the
+  Foundation Advisor, Control, Foundation Worker, Cosmile Worker, SIASIU Worker,
+  Agent Office Worker, and assigned independent Reviewer;
+  `VIBENEWS_ADVISOR_TEAM` exists only with a valid responsible Advisor and its
+  assigned Worker, Designer, and Reviewer. Proximity never creates authority.
+- Current configuration renders one character for the single active
+  `Advisor roleInstanceId`; future reviewed multi-Advisor configuration renders
+  one distinct character per exact instance and never clones an active instance.
+- Project identity uses the approved Cosmile, SIASIU, Foundation, VibeNews,
+  Agent Office, and Control palette families plus text/glyph/pattern cues. The
+  official current project name is `SIASIU`; the identity document holds the
+  explicit historical/forbidden-name test registry.
+- Mission boards use only canonical, redacted registered display evidence for
+  every required Team/Advisor/session/mission/Phase/WorkUnit/actor/Reviewer/
+  handoff/progress/blocker/decision/evidence/freshness field. No terminal prose,
+  timestamp, proximity, raw locator/path/credential, or stale fixture fills a
+  missing value.
+- Channy is resolved as
+  `CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`;
+  art direction is resolved as
+  `APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
+  Neither decision authorizes implementation, external assets, operational
+  behavior, authority, transport, or state inference.
+
 ## 3. Status and Gate Vocabulary
 
 | Status | Meaning |
 |---|---|
-| `DESIGNED_M1_2_SPATIAL_OFFICE_CANDIDATE__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED__PENDING_FABLE5_REVIEW` | The four M1.2 canonical design documents and this discoverability pointer exist on the dedicated design branch; no source/config/test/dependency/asset/runtime implementation or implementation permission is claimed |
+| `DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS` | The four M1.2 canonical design documents and this discoverability pointer contain the authorized narrow product-intent patch; no source/config/test/dependency/asset/runtime implementation is started or authorized until clean same-context Fable5 delta PASS, Advisor freeze, exact manifest, and separate handoff |
 | `IMPLEMENTED_BOOTSTRAP_ONLY` | Present in bootstrap commit; documentation/configuration only |
 | `DESIGNED_CANDIDATE` | Reviewed design target that is not yet implemented; its named implementation gate still applies |
 | `DESIGNED_FOR_EXTENSION` | Interface/invariant reserved; only local subset may be in M01 |

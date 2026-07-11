@@ -1,69 +1,81 @@
 # Agent Office M1.2 Future Implementation WorkUnit Plan
 
-Status: `DESIGN_ONLY__ALL_IMPLEMENTATION_WORKUNITS_NOT_STARTED_NOT_AUTHORIZED__PENDING_FABLE5_DESIGN_REVIEW_AND_LEO_GPT_DECISION`
+Status: `DESIGN_PATCH_ONLY__IWU_01_THROUGH_IWU_14_FREEZE_READY_AFTER_CLEAN_DELTA_PASS__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-This plan describes a reversible future implementation train. It is not an
-implementation launcher, handoff, permission, review verdict, branch decision,
-asset approval, or authority change. Every future batch requires a new exact
-Advisor handoff after the preceding dependency and review gate are accepted.
+This plan describes a reversible future implementation train patched under
+`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
+It is not an implementation launcher, handoff, permission, review verdict,
+branch decision, asset approval, or authority change. Every future batch
+requires a new exact Advisor handoff after the preceding dependency and review
+gate are accepted.
 
 ## 1. Two distinct WorkUnit namespaces
 
-### 1.1 Current five-unit design mission
+### 1.1 Reviewed five-unit design mission and current narrow patch
 
 The current governance manifest is
 `advisor.design-mission-manifest.v1`, denominator 5:
 
-| Design WorkUnit | Actor | Purpose | State at design handoff |
+| Design WorkUnit | Actor | Purpose | State after original reviewed package |
 |---|---|---|---|
 | `AO12-DWU-01` | Advisor | Repository inventory, entry gate, frozen unknown register | `COMPLETED` |
-| `AO12-DWU-02` | Agent Office Worker | Canonical spatial-office design package | `WORKING` |
-| `AO12-DWU-03` | Advisor | Design result/evidence validation | `WAITING_DEPENDENCY` |
-| `AO12-DWU-04` | Fable5 Reviewer | Independent Level-3 design review | `WAITING_DEPENDENCY` |
-| `AO12-DWU-05` | Advisor | Final design audit and Leo/GPT decision package | `WAITING_DEPENDENCY` |
+| `AO12-DWU-02` | Agent Office Worker | Canonical spatial-office design package | `COMPLETED` |
+| `AO12-DWU-03` | Advisor | Design result/evidence validation | `COMPLETED` |
+| `AO12-DWU-04` | Fable5 Reviewer | Independent Level-3 design review | `COMPLETED__PASS` |
+| `AO12-DWU-05` | Advisor | Final design audit and Leo/GPT decision package | `COMPLETED` |
 
-Publishing this design candidate can provide evidence for `AO12-DWU-02`. It
-does not complete the design mission and cannot start an implementation WorkUnit.
+Those rows are prior reviewed evidence, not current execution state. The current
+narrow patch applies chained product decisions P-01 through P-08 to the same
+five canonical design documents. It cannot start an implementation WorkUnit.
 
 ### 1.2 Proposed future implementation namespace
 
-`AO12-IWU-*` below is a proposal only. Every row has the immutable state:
+`AO12-IWU-*` below is the freeze-ready candidate plan. Every row currently has
+the immutable state:
 
 ```text
-NOT_STARTED_NOT_AUTHORIZED
+NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS
 ```
 
 These IDs are not part of a current canonical implementation manifest. They do
-not change the design-mission denominator and must not be projected as approved
-scope until Leo/GPT approves an implementation mission and exact versioned
-manifest.
+not change the design-mission denominator and must not be projected as active
+scope. Only after the same existing Fable5 context returns a clean Level-3 delta
+`PASS` with no risk, unresolved defect, new decision, or scope expansion may
+Advisor freeze `AO12-IWU-01` through `AO12-IWU-14`, convert them into an exact
+versioned implementation manifest, and route the serial reversible batches.
+That freeze still does not itself start implementation.
+
+No Designer session is assumed or created. The existing Agent Office Worker is
+the candidate implementation owner unless a later exact manifest identifies an
+already existing, authorized Designer role.
 
 ## 2. Serial gate before implementation
 
 No `AO12-IWU-*` may start unless all are true:
 
-1. `AO12-DWU-02` result and exact five-file diff are published;
+1. the narrow patch result and exact five-file diff are published;
 2. Advisor validates the result/branch/upstream evidence;
-3. Fable5 performs independent Level-3 review of the exact design commit;
-4. review routing is `PASS`, or `PASS_WITH_RISK` plus an explicit Leo/GPT risk
-   acceptance artifact;
-5. Leo/GPT decides whether to authorize an implementation mission and its exact
-   scope/denominator;
+3. the same existing Fable5 context performs Level-3 delta review of the exact
+   patched design commit;
+4. the delta result is clean `PASS` with no risk, unresolved defect, new
+   decision, or scope expansion;
+5. Advisor freezes `AO12-IWU-01` through `AO12-IWU-14` into an exact versioned
+   implementation manifest and explicitly authorizes the first serial batch;
 6. Advisor publishes an exact batch handoff with branch, base, allowlist, tests,
    exclusions, result, and pointer paths; and
-7. any product/asset decision needed by that batch is explicitly resolved.
+7. every dependency and preceding-batch review gate is accepted.
 
-`NEEDS_PATCH` returns to this design Worker/reviewer loop. `FAIL` stops.
+`NEEDS_PATCH`, any risk, or any new decision returns to Advisor. `FAIL` stops.
 Silence, a design commit, or a passing local check is not authorization.
 
 ## 3. Reversible batch overview
 
 | Batch | Future WorkUnits | Reversible boundary | Required gate after batch |
 |---|---|---|---|
-| `AO12-A` Contract and M1 compatibility | `AO12-IWU-01` through `AO12-IWU-04` | No production UI selection; existing `sceneRoles` and M1 component remain authoritative presentation | Focused contract/compatibility review plus Advisor acceptance |
-| `AO12-B` Static pods and identity | `AO12-IWU-05` through `AO12-IWU-08` | New static component remains fixture/test-only; no task motion or production projection wiring | Fable5 UI/accessibility/asset-boundary review plus Advisor acceptance |
+| `AO12-A` Contracts, compatibility, Team/Advisor invariants, and SIASIU correction | `AO12-IWU-01` through `AO12-IWU-04` | No production spatial-UI selection; existing `sceneRoles` and M1 component remain authoritative presentation, apart from the exact naming-only correction | Focused contract/compatibility/authority/naming review plus Advisor acceptance |
+| `AO12-B` Shared static floor and identity | `AO12-IWU-05` through `AO12-IWU-08` | New shared-floor component remains fixture/test-only; no task motion or production projection wiring | Fable5 UI/accessibility/asset-boundary review plus Advisor acceptance |
 | `AO12-C` Evidence-backed spatial motion | `AO12-IWU-09` through `AO12-IWU-11` | Cue runtime remains isolated behind typed spatial projection; static tier and M1 adapter remain immediate fallback | Fable5 event-truth/accessibility/performance review plus Advisor acceptance |
 | `AO12-D` Composed integration and as-built closure | `AO12-IWU-12` through `AO12-IWU-14` | Additive projection field and version selector can fall back to unchanged M1 without ledger/schema rewrite | Full implementation/security review, Advisor private verification, then Leo/GPT decision |
 
@@ -71,11 +83,11 @@ No batch may be combined to bypass its dependency or review. No batch may add
 an auth, network, Advisor delivery, role dispatch, DB, secret, or asset-purchase
 change.
 
-## 4. Batch AO12-A - contract and M1 compatibility
+## 4. Batch AO12-A - contracts, compatibility, Team/Advisor invariants, and SIASIU correction
 
 ### `AO12-IWU-01` Spatial projection types and validators
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -86,7 +98,11 @@ Candidate scope:
 Acceptance criteria:
 
 - exact `agent-office.spatial-office-projection.v1` validation;
-- stable project/pod/mission/actor/assignment references and catalog version;
+- stable Advisor Team/project/pod/mission/actor/assignment/responsible-Advisor
+  references and catalog version;
+- exact mission-board facts with redacted registered model/session display
+  identities, explicit unknown/stale/conflict values, and no raw pane/session,
+  path, credential, private transport, terminal, proximity, or prose inference;
 - unknown fields/versions, duplicate IDs, inconsistent project/mission refs, and
   unsafe path/target-shaped data reject;
 - no event, command, adapter, authority, transport, credential, or persistence
@@ -95,7 +111,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-02` M1 fixed-station compatibility adapter
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -105,16 +121,19 @@ Candidate scope:
 
 Acceptance criteria:
 
-- exact eight station IDs/order/coordinates and role normalization preserved;
+- exact eight station IDs/order/coordinates and canonical SIASIU role
+  normalization preserved;
 - exact M1 state/activity mapping, precedence, route phases, duration caps,
   accepted IDs, deduplication, and two-station mobile pagination preserved;
+- existing role/assignment meaning remains exact while the separately specified
+  current-name alias/fixture correction removes forbidden naming tokens;
 - legacy view labelled `M1_FIXED_STATIONS` without invented project history;
 - unknown spatial versions fall back static/M1; and
 - existing M1 test results and baseline bytes remain unchanged.
 
 ### `AO12-IWU-03` Dynamic Team Pod projector
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -124,24 +143,37 @@ Candidate scope:
 
 Acceptance criteria:
 
-- one stable pod per trusted project registration;
-- one explicitly selected expanded pod and compact truthful summaries for all
-  others;
+- one shared American-style open-office floor with one stable Team area/Pod per
+  trusted registration and every registered Advisor Team spatially visible on
+  wide desktop;
+- one explicitly selected Team area expands detail and full choreography while
+  every non-selected Team remains a recognizable office area, never an ordinary
+  card;
 - verified manifest required for active mission board;
 - deterministic selection fallback by stable `projectId`, never activity;
-- compact summaries contain exact progress/freshness/alert facts and no task
-  cue; and
+- every non-selected Team shows Team name, responsible Advisor, current main
+  mission, current actor/state, and gate/blocker summary without full task
+  choreography;
+- tablet/mobile focused paging, minimap, or Team navigation preserves the same
+  facts and relationships; and
 - replay from equal inputs is byte-equivalent excluding explicit evaluation
   metadata.
 
-### `AO12-IWU-04` Assignment and Single Advisor invariant resolver
+### `AO12-IWU-04` Assignment, Single Advisor, and SIASIU current-name invariants
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
 - `src/application/spatial-office/assignment-resolver.ts`
 - `tests/ui/spatial-assignment.test.ts`
+- exact naming-only correction in `src/runtime/operational-config.ts` and
+  `src/ui/scene/types.ts`
+- exact negative-fixture correction in
+  `tests/integration/exact-advisor-delivery.test.ts`
+- a repository-boundary current-name regression path named by the exact batch
+  handoff, covering current UI, fixtures, actor labels, locale strings, tests,
+  and baselines without retaining forbidden fixture tokens
 
 Acceptance criteria:
 
@@ -151,9 +183,21 @@ Acceptance criteria:
   full character;
 - missing, duplicate, cross-project/host/source, or simultaneous active
   conflicts fail closed and suppress motion;
-- exactly one responsible Advisor reference per pod with one global Advisor
-  identity and no pod-local clone; and
-- Reviewer remains independent from Worker execution assignments.
+- every active actor belongs to exactly one responsible Advisor Team; missing or
+  multiple assignments render `UNASSIGNED`, block work receipt, and suppress
+  task motion;
+- current single-Advisor mode renders one global character for the exact active
+  `Advisor roleInstanceId`; future multi-Advisor mode renders one distinct Hub
+  character per exact instance, with no active instance cloned;
+- initial `FOUNDATION_ADVISOR_TEAM` and conditional `VIBENEWS_ADVISOR_TEAM`
+  assignments match canonical authority evidence, and reassignment requires
+  canonical authority evidence rather than proximity;
+- Reviewer remains independent from Worker execution assignments;
+- official current naming is only `SIASIU`; the exact forbidden-token scan is
+  zero across current product surfaces while explicitly marked historical
+  documentation citations remain outside that product scan; and
+- the naming-only correction changes no actor ID, authority, assignment,
+  transport, event, state, or baseline pixels.
 
 ### AO12-A verification and rollback
 
@@ -163,21 +207,25 @@ Required checks:
 - all existing domain, activity, scene, project-freshness, runtime projection,
   UI, and visual tests;
 - lint, strict typecheck, both builds, dependency audit, and `git diff --check`;
-- source-boundary scan for process/network/write/dispatch imports; and
+- source-boundary scan for process/network/write/dispatch imports;
+- current-product forbidden-name scan with zero hits across source, UI,
+  fixtures, actor labels, locale strings, tests, and baselines; and
 - exact changed-path/staged-path audit.
 
-Rollback: delete the additive `src/application/spatial-office/` consumer and
-tests; no production surface, ledger, manifest, projection store, config,
-baseline, or authority state has changed.
+Rollback: revert the additive `src/application/spatial-office/` consumer/tests
+and the exact naming-only source/test correction as one reviewed AO12-A unit.
+The prior M1 surface remains operable but is ineligible for M1.2 until the
+SIASIU correction is reapplied. No ledger, manifest, projection store,
+authority, transport, or baseline bytes change.
 
 Gate: independent focused design/contract implementation review and Advisor
 acceptance before AO12-B.
 
-## 5. Batch AO12-B - static pods and identity
+## 5. Batch AO12-B - shared static floor and identity
 
 ### `AO12-IWU-05` Deterministic project identity catalog
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -187,8 +235,15 @@ Candidate scope:
 
 Acceptance criteria:
 
-- exact SHA-256 catalog-v1 derivation, independent of registry order;
+- exact fixed palette: Cosmile coral/pink, SIASIU mint/emerald, Foundation
+  navy/blue, VibeNews purple, Agent Office orange/amber, and Control
+  slate/charcoal with blue accent;
+- Advisor Team-first grouping plus clothing, desk accent, sign, text, glyph, and
+  pattern identity; deterministic SHA-256 catalog-v1 fallback only for unmapped
+  future projects, independent of registry order;
 - visible text/pattern/glyph/edge identity and collision marker;
+- canonical current `SIASIU` naming in every M1.2 identity output, with the
+  AO12-A repository-wide forbidden-name gate retained as regression evidence;
 - no local mutable assignment store;
 - severity/freshness/focus tokens override project hue;
 - light/dark/monochrome/forced-color and exact collision fixtures pass; and
@@ -196,7 +251,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-06` Project-authored character placeholders and inventory
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -208,20 +263,30 @@ Candidate scope:
 
 Acceptance criteria:
 
-- only Agent Office project-authored code-native placeholders;
+- only original Agent Office project-authored CSS/DOM/SVG/simple local
+  sprite-like placeholders in the approved cute 2D/2.5D pixel/pixel-inspired,
+  warm retro 16/32-bit-console, friendly blocky American open-office direction;
+- wood desks, glass meeting room, coffee lounge, shared paths, project signs,
+  mission boards, Reviewer booth, Advisor desk/Hub, and Channy bed/food/water slots
+  remain code-native placeholders and copy no protected style;
 - stable slot geometry, ownership, internal license, and source SHA-256;
 - role category plus text/icon/shape, project assignment separately layered;
 - no real person/model/provider claim, script, remote ref, runtime fetch,
   executable SVG, sound, or new rendering dependency;
 - missing/invalid asset falls back without layout shift; and
-- `CHANNY_DISABLED` is the only Channy state and renders no actor/control.
+- one cute Bedlington Terrier Channy placeholder carries no actor role,
+  authority, assignment, notification, terminal/session inspection, command,
+  approval, repair, or inferred state.
 
-This WorkUnit does not authorize production art, purchase, import, generation,
-vendor selection, or Channy behavior. `AO12-FD-01` and `AO12-FD-02` remain open.
+This WorkUnit does not authorize production art, purchase, import, external
+generation, commission, vendor selection, paid license, or behavior outside
+`CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`.
+The placeholder decision is
+`APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
 
 ### `AO12-IWU-07` Static Team Pod, mission board, and semantic zones
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -233,19 +298,30 @@ Candidate scope:
 
 Acceptance criteria:
 
-- global status, pod selector, one expanded pod, compact summaries, mission
-  board, zones, actor detail, evidence/alert links in canonical DOM order;
-- exact manifest version, counts, phase, WorkUnit, dependencies, assignment,
-  evidence, gates, freshness, and alert facts;
-- work/testing/result/review/Advisor/Leo/evidence/lounge zones are labelled but
-  static;
+- global status, one shared floor, every registered Team area, one selected area
+  expanded in place, Team navigation/minimap, mission board, zones, actor
+  detail, and evidence/alert links in canonical DOM order;
+- non-selected areas remain recognizable office spaces and expose Team name,
+  responsible Advisor, current main mission, current actor/state, and
+  gate/blocker summary;
+- selected board exposes Team/project names, responsible Advisor, redacted
+  registered Advisor model/session identity, mission, Phase/WorkUnit, redacted
+  current-actor model/session identity, Reviewer, next actor/handoff, WorkUnit
+  and gate progress, exact blocker, Leo/GPT decision state, latest verified
+  evidence time/pointer, and stale/unknown/conflict;
+- exact manifest version, dependencies, assignment, evidence, freshness, and
+  alert facts remain additive and contain no raw pane/session locator, path,
+  credential, private transport, terminal prose, or inferred value;
+- work/testing/result/review/Advisor/Leo-GPT/evidence/lounge zones are labelled
+  but static;
 - no movement, dispatch control, role target, fake live state, or direct adapter
   import; and
-- one global Advisor and spatially separate independent review desk.
+- current/future Advisor-instance uniqueness and a spatially separate
+  independent review desk.
 
 ### `AO12-IWU-08` Responsive and accessible static architecture
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -259,8 +335,9 @@ Acceptance criteria:
 
 - desktop/tablet/mobile/320px/200% text/short-landscape no-overlap and no page
   overflow;
-- mobile semantic list/detail and maximum two full actor tiles, no miniature
-  floor;
+- mobile focused Team list/detail and maximum two full actor tiles, with
+  explicit navigation preserving every Team's meaning and no unreadable
+  miniature floor;
 - pod and actor roving focus, skip links, modal inspector focus/restore, 44px
   controls, visible focus, semantic state list, and live regions;
 - WCAG 2.2 A/AA automated audit plus keyboard/screen-reader-oriented assertions;
@@ -290,7 +367,7 @@ AO12-C.
 
 ### `AO12-IWU-09` Spatial cue projector and reducer
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -305,14 +382,17 @@ Acceptance criteria:
 - only `LIVE_DELTA` plus new accepted source IDs can enqueue;
 - exact source/evidence/assignment/Advisor gate, suppression, precedence, tie
   break, three-cue/one-route/one-actor caps, and overflow-to-log behavior;
-- initial/reload/reset/tab resume/pod selection/orientation never replay;
+- exact accepted structured Leo/GPT-to-Advisor handoff, Advisor dispatch,
+  Worker/test, review handoff/verdict return, patch/result, `WAITING_LEO`, and
+  completion-acknowledgement presentation mappings;
+- initial/reload/reset/tab resume/Team selection/orientation never replay;
 - stale/offline/unknown/conflict/error/critical cues are discarded, not delayed;
 - terminal/model/process-shaped properties cannot affect output; and
 - reducer completion/cancellation appends no event and calls no adapter.
 
 ### `AO12-IWU-10` Spatial routes, poses, and lounge
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -324,18 +404,26 @@ Candidate scope:
 
 Acceptance criteria:
 
-- exact delivery, reading, working, testing, writing, review, blocker, decision,
-  result, patch, recovery, and idle-relocation mappings;
+- exact delivery, reading, working, testing, writing, review handoff/verdict,
+  blocker, decision, result, patch, completion acknowledgement, recovery, and
+  verified-idle mappings;
 - semantic zone endpoints; unresolved/hidden endpoints use static timeline only;
 - one actor/document route, <=1200ms, transform/opacity only, no auto-scroll or
   focus movement;
-- lounge only for verified IDLE, no conversation/availability/collaboration
-  semantics, maximum one bounded ambient actor; and
+- verified-idle actors may use bounded coffee/read/rest/game/window/whiteboard/
+  Channy/visual-talk presentations, but never imply availability, assignment,
+  shared context, collaboration, communication, or approval; operational events
+  interrupt immediately;
+- one global Channy may roam verified paths, visit/sit/eat/drink/sleep/rest/play/
+  observe, briefly follow an accepted route, and reflect structured
+  `WAITING_LEO`, `BLOCKED`, stale/offline, mission-complete, and valid routing;
+  it remains neutral without evidence and never performs operational behavior;
+  and
 - reduced-motion/motion-off/static tier has immediate exact equivalent.
 
 ### `AO12-IWU-11` Motion, visual, accessibility, and performance proof
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -350,6 +438,10 @@ Acceptance criteria:
 - no overlap/layout shift, flash, shake, parallax, sound, perpetual task loop, or
   hidden critical content;
 - same facts/focus/log in reduced/static mode;
+- wide shared-floor visibility, non-selected Team recognizability, and
+  tablet/mobile focused-navigation equivalence;
+- exact Team ownership, current/future Advisor character uniqueness, mission
+  board redaction/no-inference, SIASIU naming, and Channy boundary cases;
 - configured-runtime deterministic baselines and exact locale prerequisites;
 - benchmark fixture/hash/method/results for every target in the cue contract;
 - honest `FULL`, `RESTRAINED`, or `STATIC` classification; and
@@ -372,7 +464,7 @@ Advisor acceptance before AO12-D.
 
 ### `AO12-IWU-12` Additive authenticated application projection wiring
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope, subject to a future exact allowlist:
 
@@ -398,7 +490,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-13` Compatibility selection, degradation, and rollback proof
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -420,7 +512,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-14` As-built evidence and implementation result
 
-State: `NOT_STARTED_NOT_AUTHORIZED`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Candidate scope:
 
@@ -434,7 +526,8 @@ Acceptance criteria:
 - exact commit, paths, tests, baseline hashes, benchmark results, limitations,
   divergences, rollback, and forbidden-boundary evidence;
 - every `CURRENT_EVIDENCE` statement tied to actual artifacts;
-- unresolved Channy/production-art choices remain gated unless Leo/GPT decided;
+- resolved Channy and project-authored-placeholder boundaries are recorded
+  exactly, with production/external asset acquisition still prohibited;
 - target and result commits pushed non-force with upstream equality; and
 - factual result only, no self-review or final approval claim.
 
@@ -458,15 +551,26 @@ Every future batch must prove:
 - Advisor-only communication, exact delivery, authentication, transport,
   network, DB, secret, and role-routing surfaces unchanged unless a separate
   mission explicitly authorizes them;
-- one canonical Advisor character and exactly one responsibility reference per
-  visible pod;
+- every active actor belongs to exactly one responsible Advisor Team;
+  missing/multiple assignments are `UNASSIGNED`, cannot receive work, and
+  suppress task motion;
+- current single-Advisor presentation uses one character for the exact active
+  instance; future multi-Advisor presentation uses one distinct character per
+  exact `Advisor roleInstanceId`, never cloning an active instance;
+- exact Foundation and conditional VibeNews Team assignment, Agent Office's
+  non-privileged Foundation membership, and authority-evidenced reassignment;
 - independent Reviewer identity and review route separation;
 - one canonical actor identity, exact assignment, and conflict fail-closed;
-- project color never carries status or identity alone and severity wins;
+- Team-first spatial grouping, exact approved project palette, SIASIU current
+  naming, and project color never carrying status/identity alone; severity wins;
+- exact mission-board fields use redacted registered display identity and never
+  raw session/pane/path/credential/private transport or inference;
 - current/stale/offline/conflict/critical semantics are textual and motion-safe;
 - reduced-motion/static equivalence and keyboard/screen-reader support;
-- no purchased/imported/generated asset without the separate asset gate;
-- no Channy behavior without `AO12-FD-01`; and
+- no purchased/imported/externally generated/commissioned/licensed asset;
+- Channy remains a non-operational ambient companion and structured-status
+  reflector, never authority, evidence, dispatch, command, approval, repair,
+  terminal/session inspection, or substitute alert/board; and
 - no historical M1 event reinterpretation or existing baseline update to hide a
   regression.
 
@@ -476,19 +580,19 @@ Future paths below are proposals, not current files or authorization.
 
 | Unknown | Canonical design resolution | Proposed WorkUnit/files | Proposed proof | Blocking gate |
 |---|---|---|---|---|
-| `AO12-U01` Dynamic Team Pod Model | Master Sections 5-7 | `AO12-IWU-01/03`; `types.ts`, `projector.ts` | `spatial-office-projection.test.ts`, `spatial-office-projector.test.ts` | AO12-A handoff and review |
-| `AO12-U02` Single Advisor Team Principle | Master Section 8; Identity Section 5.4 | `AO12-IWU-04`; `assignment-resolver.ts` | missing/multiple/shared Advisor and no-clone cases | No authority change; AO12-A review |
-| `AO12-U03` Project Color System | Identity Sections 2-4 | `AO12-IWU-05`; `project-identity.ts/css` | deterministic order, collisions, contrast, severity precedence | AO12-B handoff; contrast PASS |
+| `AO12-U01` Dynamic Team Pod Model | Master Sections 5-7 | `AO12-IWU-01/03`; `types.ts`, `projector.ts` | shared-floor visibility, non-card Team areas, selected-detail and responsive equivalence | AO12-A handoff and review |
+| `AO12-U02` Single Advisor Team Principle | Master Section 8; Identity Sections 5.3-5.5 | `AO12-IWU-04`; `assignment-resolver.ts` | exact Team membership, `UNASSIGNED`, current/future Advisor uniqueness, no-proximity authority | No authority change; AO12-A review |
+| `AO12-U03` Project Color System | Identity Sections 2-4 | `AO12-IWU-04/05`; current-name correction plus `project-identity.ts/css` | zero current forbidden tokens, approved palette, fallback collisions, contrast, severity precedence | AO12-A naming PASS, then AO12-B contrast PASS |
 | `AO12-U04` Actor Character Identity | Identity Sections 5-6 and 8 | `AO12-IWU-06`; placeholder character/registry/inventory | role/project/state separation, hash/license/dimension/fallback | Placeholder-only AO12-B; production gate remains closed |
-| `AO12-U05` Channy Definition | Master Section 9.3; Identity Section 7 | No enabled implementation; `CHANNY_DISABLED` validation only in `AO12-IWU-06` | absence of actor/control/event/route/notification | `AO12-FD-01` plus new reviewed version |
-| `AO12-U06` Lounge Semantics | Master Section 9.2; Cue Sections 4 and 9; Identity 6.3 | `AO12-IWU-10`; `lounge.tsx` | verified IDLE, stale/conflict suppression, no collaboration semantics | AO12-C handoff/review |
+| `AO12-U05` Channy Definition | Master Section 9.3; Identity Section 7; Cue Section 4.1 | `AO12-IWU-06/09/10`; Channy placeholder/facilities and presentation layer | exact allowed ambient/reflection cases and exhaustive operational prohibitions | Clean delta PASS, AO12-B/C handoffs and reviews |
+| `AO12-U06` Lounge Semantics | Master Section 9.2; Cue Sections 4 and 9; Identity 6.3 | `AO12-IWU-10`; `lounge.tsx` | verified IDLE ambient menu, operational interruption, no implied communication/collaboration | AO12-C handoff/review |
 | `AO12-U07` Truthful Animation/Ambient | Entire cue contract | `AO12-IWU-09/10/11`; cue reducer/routes/tests | exact source matrix, dedup, suppression, budgets, benchmarks | AO12-C event-truth review |
-| `AO12-U08` Mission Board/Actor Visibility | Master Sections 5 and 9.1 | `AO12-IWU-07`; `mission-board.tsx`, `team-pod.tsx` | hierarchy/version/count/assignment/evidence/alert component cases | AO12-B handoff/review |
+| `AO12-U08` Mission Board/Actor Visibility | Master Sections 5 and 9.1 | `AO12-IWU-01/07`; projection validator, `mission-board.tsx`, `team-pod.tsx` | complete field set, redaction, unknown/stale/conflict, and non-inference cases | AO12-A/B handoff/review |
 | `AO12-U09` Rendering Architecture | Master Section 11 | `AO12-IWU-07/10`; DOM/SVG/CSS only | dependency/lockfile boundary, semantics, visual/layout tests | No engine selected; new dependency needs new decision |
 | `AO12-U10` Responsive Navigation | Master Section 10; Cue Section 11 | `AO12-IWU-08/11`; static and E2E accessibility suites | desktop/tablet/mobile/320/200%/orientation/focus/axe | AO12-B/C browser reviews |
 | `AO12-U11` Reduced Motion/Performance | Master Section 11; Cue Sections 9-12 | `AO12-IWU-11`; performance and motion E2E | static equivalence and every measured budget | Benchmark PASS or lower tier/design return |
-| `AO12-U12` Multi-Project/Host Conflicts | Master Sections 7.3 and 8; Identity 5.3 | `AO12-IWU-03/04/12`; projector/resolver/runtime integration | cross-project/host/source and simultaneous assignment fail-closed | No trust expansion; AO12-A/D review |
-| `AO12-U13` Asset Source/License/Style | Master Section 13; Identity Sections 8-9 | `AO12-IWU-06` placeholders only | inventory/license/hash/safety/replacement tests | `AO12-FD-02` before production asset action |
+| `AO12-U12` Multi-Project/Host Conflicts | Master Sections 7.3 and 8; Identity Sections 5.3-5.5 | `AO12-IWU-03/04/12`; projector/resolver/runtime integration | cross-project/host/source and simultaneous assignment fail-closed | No trust expansion; AO12-A/D review |
+| `AO12-U13` Asset Source/License/Style | Master Section 13; Identity Sections 8-9 | `AO12-IWU-06` project-authored placeholders only | approved direction, inventory/hash/safety, protected-style and external-acquisition negatives | Clean delta PASS and AO12-B review; production replacement needs a new decision |
 | `AO12-U14` Compatibility/Migration | Master Section 12; Cue Section 13 | `AO12-IWU-02/13`; M1 adapter/compatibility | existing suites and six baseline bytes unchanged; rollback proof | AO12-A then AO12-D review |
 
 ## 10. Requirement-to-future-file/test matrix
@@ -496,35 +600,41 @@ Future paths below are proposals, not current files or authorization.
 | Design requirement | Proposed implementation paths | Proposed test paths | Acceptance gate |
 |---|---|---|---|
 | `AO12-REQ-001` Versioned spatial projection | `src/application/spatial-office/types.ts`, `validation.ts` | `tests/contract/spatial-office-projection.test.ts` | AO12-A review |
-| `AO12-REQ-002` Dynamic selected/compact pods | `projector.ts`, `team-pod.tsx` | `spatial-office-projector.test.ts`, static E2E | AO12-A/B reviews |
-| `AO12-REQ-003` Single Advisor invariant | `assignment-resolver.ts` | `spatial-assignment.test.ts` | No authority conflict; AO12-A review |
-| `AO12-REQ-004` Project identity and collision | `project-identity.ts/css` | `project-identity.test.ts` | Contrast/collision PASS |
-| `AO12-REQ-005` Character/asset boundary | character/placeholder registry/inventory | `spatial-asset-contract.test.ts` | Placeholder review; production gate closed |
-| `AO12-REQ-006` Mission board/zones | `mission-board.tsx`, `spatial-office.tsx` | component/static E2E | AO12-B review |
+| `AO12-REQ-002` Shared floor and selected Team detail | `projector.ts`, `team-pod.tsx` | `spatial-office-projector.test.ts`, static E2E | AO12-A/B reviews |
+| `AO12-REQ-003` Single Advisor Team invariant | `assignment-resolver.ts` | `spatial-assignment.test.ts` | Exact Team/current-future Advisor cases; AO12-A review |
+| `AO12-REQ-004` Approved project identity and naming | AO12-A current-name correction plus `project-identity.ts/css` | repository current-name gate plus `project-identity.test.ts` | Zero forbidden current tokens and palette/contrast/collision PASS |
+| `AO12-REQ-005` Character/Channy/asset boundary | character/Channy placeholder registry/inventory | `spatial-asset-contract.test.ts` | Approved placeholder direction; external/production gate closed |
+| `AO12-REQ-006` Exact mission board/zones | projection validator, `mission-board.tsx`, `spatial-office.tsx` | contract/component/static E2E | Field/redaction/non-inference PASS; AO12-A/B review |
 | `AO12-REQ-007` Exact assignment/conflict | `assignment-resolver.ts`, `projector.ts` | assignment/projector tests | AO12-A review |
 | `AO12-REQ-008` Evidence-backed cue contract | `cue-projector.ts`, `cue-reducer.ts` | cue mapping/precedence tests | AO12-C review |
-| `AO12-REQ-009` Routes/review/decision/lounge | `spatial-routes.tsx`, `actor-zone.tsx`, `lounge.tsx` | route component and motion E2E | AO12-C review |
+| `AO12-REQ-009` Structured routes/review/decision/ambient/Channy | `spatial-routes.tsx`, `actor-zone.tsx`, `lounge.tsx`, Channy presentation | route component and motion E2E | AO12-C review |
 | `AO12-REQ-010` Responsive/a11y/reduced equivalence | spatial components/styles | accessibility/static/motion E2E | WCAG/layout/reduced PASS |
 | `AO12-REQ-011` Performance tiers | cue runtime/components | performance budget suite | Measured classification |
 | `AO12-REQ-012` M1 adapter/additive rollback | `m1-fixed-station-adapter.ts`, `compatibility.ts` | adapter/rollback plus all M1 suites | Existing baseline hashes equal |
 | `AO12-REQ-013` Composed authenticated read model | runtime/server/UI integration paths | runtime composition/composed E2E | AO12-D security review |
 | `AO12-REQ-014` No authority/transport expansion | module/route/config boundary | acceptance/security/source scans | Zero forbidden surface change |
 
-## 11. Asset and founder-decision routing
+## 11. Resolved product decisions and conditional routing
 
-`AO12-FD-01` and `AO12-FD-02` are not silently converted into implementation
-defaults:
+`AO12-FD-01` is resolved exactly as
+`CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`.
+`AO12-FD-02` is resolved exactly as
+`APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
+Those decisions define product intent but do not start implementation:
 
-- batches may validate `CHANNY_DISABLED`, but cannot render/subscribe/route an
-  enabled Channy;
-- batches may create project-authored placeholders only under an exact handoff;
-- no purchase/import/generation/commission/vendor action occurs without a new
-  exact asset mission after `AO12-FD-02`; and
-- a production-asset mission must use the inventory/license/hash/replacement
-  contract and independent security/visual/license review.
+- only after clean Fable5 delta `PASS`, Advisor freeze, and an exact batch
+  handoff may a batch implement its scoped Channy/placeholder work;
+- Channy may consume only the accepted structured presentation projection and
+  may perform only the allowed ambient/status-reflector behavior;
+- project-authored code-native placeholders must follow the approved original
+  direction and inventory/hash/safety contract; and
+- purchase, import, external generation, commission, vendor/paid-license action,
+  and production replacement remain prohibited without a new exact decision and
+  mission.
 
-The rest of the technical implementation can be reviewed using placeholders and
-Channy disabled; founder decisions do not justify inventing product behavior.
+Neither decision permits invented authority, transport, state inference,
+terminal/session inspection, operational Channy behavior, protected-style
+copying, or an unreviewed asset source.
 
 ## 12. Evidence required from every future Worker result
 
@@ -549,7 +659,8 @@ Stop the active future batch and return to Advisor if:
 - a source would require terminal prose/process inference;
 - a project identity obscures status/severity/focus or fails contrast;
 - an asset lacks provenance/license/hash/safe format;
-- Channy or production art would require an unresolved founder decision;
+- Channy would exceed its exact ambient/status-reflector boundary, or any asset
+  would exceed the project-authored placeholder decision;
 - M1 behavior/test/baseline bytes change outside an explicitly reviewed
   compatibility correction;
 - reduced/static mode loses information or focus behavior;

@@ -1,6 +1,6 @@
 # Agent Office M1.2 Character and Project Identity System
 
-Status: `DESIGN_CANDIDATE__NO_ASSET_CREATED_OR_SELECTED__IMPLEMENTATION_NOT_AUTHORIZED__PENDING_FABLE5_REVIEW`
+Status: `NARROW_PRODUCT_INTENT_PATCH_APPLIED__NO_ASSET_CREATED_OR_SELECTED__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Identity catalog candidate: `agent-office.project-identity.v1`
 
@@ -25,22 +25,24 @@ The current M1 scene uses:
   `src/ui/styles.css`; and
 - exact ownership/licensing records in `src/ui/assets/LICENSES.md`.
 
-There is no current project identity palette, character customization,
-role-specific silhouette, Channy definition, production art style, asset vendor,
-or asset-generation pipeline. Model/provider names and tmux identities are not
-character identities. The six current visual baselines prove the generic M1
-assets only.
+This paragraph is historical M1 evidence: at exact base M1 there is no project
+identity palette, character customization, role-specific silhouette, Channy
+definition, production art style, asset vendor, or asset-generation pipeline.
+The M1.2 design decisions below do not claim any asset now exists. Model/provider
+names and tmux identities are not character identities. The six current visual
+baselines prove the generic M1 assets only.
 
 ## 2. Identity-layer precedence
 
-Every rendered actor/pod separates five layers:
+Every rendered actor/Team area separates six layers:
 
 ```text
 1. Safety/operational severity and freshness
 2. Canonical role and authority text/icon/shape
 3. Exact actor role-instance identity
-4. Project assignment identity
-5. Decorative character style
+4. Responsible Advisor Team identity
+5. Project assignment identity
+6. Decorative character style
 ```
 
 Higher layers win. Project hue or character decoration can never replace or
@@ -62,9 +64,40 @@ Project identity is primarily visible text:
 Color, pattern, and glyph are supplemental navigation aids. A browser cannot
 rename a project, assign a palette slot, or persist a competing identity.
 
-### 3.2 Versioned derivation
+### 3.2 Approved current palette and versioned fallback derivation
 
-For catalog `agent-office.project-identity.v1`:
+Spatial grouping is Advisor Team first. The current project palette is fixed:
+
+| Current project/role | Approved supplemental palette |
+|---|---|
+| Cosmile | coral/pink |
+| SIASIU | mint/emerald |
+| Foundation | navy/blue |
+| VibeNews | purple |
+| Agent Office | orange/amber |
+| Control | slate/charcoal with blue accent |
+
+The palette is repeated through clothing, desk accents, project signs, visible
+text, glyphs, and patterns. Color is never the sole identifier. Operational
+severity, focus, accessibility, and alerts override every project color.
+
+The official current project name is `SIASIU`. Historical/forbidden-name note
+(not current product naming): the legacy tokens `Shashu`, `샤슈`, `SHASHU`, and
+`shashu` are forbidden in current UI, fixtures, actor labels, locale resources,
+tests, and baselines. A canonical naming test must reject every current-product
+use; an explicitly labelled historical citation is the only documentation
+exception.
+
+Historical M1 compatibility evidence at design base `3ba65e0` still contains a
+legacy alias normalizer and negative fixture in `src/runtime/operational-config.ts`,
+`src/ui/scene/types.ts`, and `tests/integration/exact-advisor-delivery.test.ts`.
+Those citations are explicitly historical, not accepted current naming. The
+conditional AO12-A SIASIU correction must remove the forbidden current tokens
+while preserving actor authority/assignment meaning; this design patch changes
+none of those source or test files.
+
+For an otherwise unmapped future registered project under catalog
+`agent-office.project-identity.v1`, use this deterministic fallback:
 
 ```text
 normalizedId = Unicode NFC(projectId)
@@ -90,9 +123,10 @@ Candidate catalogs contain at least:
 - 8 simple geometric project glyphs; and
 - 4 edge styles: solid, double, dashed, and dot-dash.
 
-Exact light/dark/high-contrast color values are an implementation deliverable
-and must pass the contrast gate before use. A hue whose tested values are too
-close to any operational semantic token must be replaced in the catalog, not
+Exact light/dark/high-contrast values for both fixed and fallback palettes are
+an implementation deliverable and must pass the contrast gate before use. A hue
+whose tested values are too close to an operational semantic token must be
+adjusted within its approved family or replaced in the fallback catalog, not
 accepted by relying on pattern alone.
 
 ### 3.3 Collision behavior and persistence
@@ -102,7 +136,7 @@ authority and full project text remains primary. Collision handling is stable:
 
 1. do not reorder or reassign either project's tuple;
 2. show full `displayName` and `projectId` in selector/detail;
-3. add the deterministic eight-hex `collisionMarker` to compact labels;
+3. add the deterministic eight-hex `collisionMarker` to condensed labels;
 4. expose an accessible `PROJECT_IDENTITY_COLLISION` note; and
 5. retain separate source/freshness and alert facts.
 
@@ -129,10 +163,10 @@ reference.
 
 Project identity may appear only in bounded supplemental regions:
 
-- pod header ribbon and project glyph;
+- Team-area/Pod header ribbon and project glyph;
 - floor/zone hatch at low contrast;
 - actor assignment badge/scarf/lanyard marker;
-- compact pod selector marker; and
+- Team navigation/minimap marker; and
 - mission-board project chip.
 
 It must not color:
@@ -161,6 +195,8 @@ roleInstanceId
 actorRole
 roleCategory
 displayLabel
+responsibleAdvisorTeamId
+responsibleAdvisorRoleInstanceId
 projectAssignmentRefs[]
 currentAssignmentRef (optional)
 assignmentStatus
@@ -171,10 +207,12 @@ characterAssetId
 characterAssetStatus: PLACEHOLDER | PRODUCTION_APPROVED | MISSING | INVALID
 ```
 
-`roleInstanceId` is the identity key. `actorRole` and role category must agree
-with trusted configuration/canonical actor vocabulary. Display label, station,
-project badge, asset, model name, session, pane, process, or location cannot
-create a new actor identity.
+`roleInstanceId` is the identity key. `actorRole`, role category, responsible
+Advisor Team, and responsible Advisor must agree with canonical authority
+evidence. Display label, station, project badge, asset, model name, session,
+pane, process, or location cannot create a new actor identity, Team assignment,
+or authority relationship. Missing or multiple responsible assignments produce
+`UNASSIGNED`, suppress task motion, and make the actor unable to receive work.
 
 ### 5.2 Role categories and silhouettes
 
@@ -183,7 +221,7 @@ M1.2 defines semantic categories, not personalized likenesses:
 | Role category | Candidate silhouette cue | Required visible semantics |
 |---|---|---|
 | `LEO_DECISION` | Decision document/door or seated neutral figure | `Leo/GPT`, final-decision destination; never an execution target |
-| `ADVISOR_ROUTING` | Route tray, inbox, or directional sash | `Advisor`, one global canonical identity, responsibility refs |
+| `ADVISOR_ROUTING` | Route tray, inbox, or directional sash | `Advisor`, exact role-instance identity and responsibility refs |
 | `CONTROL_RECOVERY` | Tool/console silhouette | Exact Control role, recovery/operations state |
 | `INDEPENDENT_REVIEW` | Lens/checklist silhouette spatially separated | `Fable5 Reviewer`, independent review label |
 | `WORKER_BUILD` | Desk/tool silhouette | Exact Worker role and project assignment label |
@@ -193,12 +231,33 @@ Silhouette is supplemental. Role text plus a locally bundled semantic icon and
 distinct shape remain visible. Leo/GPT, Advisor, Reviewer, and Worker cannot be
 distinguished by project hue alone.
 
-### 5.3 One actor, multiple assignment views
+### 5.3 Initial Advisor Team assignment and one actor identity
 
-A role instance is rendered as at most one full character in the selected pod.
-Other projects/pods may show labelled assignment references, counts, or a small
-static identity chip. They do not clone the character or show simultaneous live
-motion.
+An Advisor creates and leads an Advisor Team, and every actor obeying that
+Advisor is a member of exactly that Team. The exact initial product-intent
+assignment, subject to matching canonical authority evidence, is:
+
+- `FOUNDATION_ADVISOR_TEAM`: Foundation Advisor, Control, Foundation Worker,
+  Cosmile Worker, SIASIU Worker, Agent Office Worker, and the assigned
+  independent Reviewer when required.
+- `VIBENEWS_ADVISOR_TEAM`: a distinct Team area only with a valid responsible
+  Advisor, containing its assigned Worker, Designer, and Reviewer members.
+
+Agent Office belongs to `FOUNDATION_ADVISOR_TEAM`; it is neither privileged nor
+independent. Reviewer membership preserves independent-review separation and
+verdict authority. A future Agent Office Team requires a newly appointed
+Advisor, recorded Team-assignment authority, formal member reassignment, and an
+effective command hierarchy. Reassignment cannot be inferred from project
+identity or spatial proximity.
+
+### 5.4 One actor, multiple assignment views
+
+A role instance is rendered as at most one character across the entire floor.
+If its exact current assignment is in the selected Team area, that one character
+may use full operational choreography. If its exact current assignment is in a
+non-selected Team area, it may remain static/ambient there while every other
+Team uses only labelled text/glyph assignment references. The actor is never
+cloned and never shows simultaneous operational motion.
 
 If accepted evidence says one role instance has incompatible simultaneous active
 assignments, render one character with `ASSIGNMENT_CONFLICT`, list every exact
@@ -206,21 +265,43 @@ assignment reference, use the operational conflict overlay, and suppress all
 task/lounging motion. Do not choose the visually nearest pod or the greatest
 timestamp.
 
-### 5.4 Advisor and Reviewer distinction
+### 5.5 Advisor and Reviewer distinction
 
-- Advisor has one global character at the Advisor Hub. Pod headers reference
-  that exact `roleInstanceId`; no pod-local Advisor clone is drawn.
+- In the current single-Advisor-instance configuration, one global Advisor Hub
+  character represents that exact `Advisor roleInstanceId`; Team areas reference
+  it without cloning it.
+- In a future reviewed multi-Advisor configuration, render one distinct Advisor
+  Hub character for each exact `Advisor roleInstanceId`. Every Team references
+  exactly one responsible instance, and one active instance is never cloned.
 - A responsibility line/badge is a relationship projection, not authority.
-- Fable5 is rendered only at the independent review desk or as a compact static
+- Fable5 is rendered only at the independent review desk or as a condensed static
   review assignment. It does not sit at a Worker desk or share a work animation.
 - A patch-return cue may travel from Fable5 to the exact assigned Worker, but it
   is not a new dispatch and does not imply approval.
 
 ## 6. Character pose and state overlays
 
-### 6.1 Base pose vocabulary
+### 6.1 Operational and detail pose vocabulary
 
-Candidate poses are presentation-only:
+The exact M1.2 high-level operational presentation states are:
+
+```text
+IDLE
+WORKING
+TESTING
+ROUTING / DISPATCH
+REVIEWING
+RETURNING_RESULT
+NEEDS_PATCH
+WAITING_DEPENDENCY
+WAITING_LEO
+BLOCKED
+COMPLETED
+FAILED
+CANCELLED
+```
+
+Existing M1 detail poses remain additive presentation-only compatibility facts:
 
 ```text
 NEUTRAL
@@ -265,53 +346,70 @@ Existing M1 state shapes remain compatible:
 Every overlay includes exact text and a semantic icon. Pattern/color never
 replaces the shape.
 
-### 6.3 Lounge character rules
+### 6.3 Verified-idle character rules
 
 `IDLE_LOUNGE` requires current verified actor identity and the lounge eligibility
-rules in the master design. A lounge character:
+rules in the master design. A verified-idle character:
 
 - has no work document, keyboard typing, review lens, test checklist, message
   bubble, availability badge, or collaboration cue;
-- may show one bounded neutral ambient shift under the cue contract;
+- may show bounded coffee, reading, resting, small-game, window, whiteboard,
+  Channy-interaction, or visual-talk presentation under the cue contract;
 - remains a single actor identity even if several pod assignments exist;
 - leaves only on a new accepted structured source; and
 - becomes static/unknown immediately on stale, offline, conflict, critical,
   hidden, or reduced-motion state.
 
-Two characters in the lounge do not imply conversation or shared context.
+Operational state always interrupts and overrides ambient behavior. Two
+characters in an ambient zone or a visual-talk pose do not imply availability,
+assignment, shared context, collaboration, communication, approval, or evidence.
 
-## 7. Channy decision gate
+## 7. Channy ambient companion identity
 
-No current Agent Office source or canonical document defines Channy. The only
-valid version-1 state is:
+The exact product decision is
+`CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`.
+Channy is presented as a cute Bedlington Terrier with one global, non-actor
+identity:
 
 ```text
-channyMode: DISABLED
-characterAssetId: none
+channyMode: NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR
+characterAssetId: project-authored placeholder slot
 authorityRole: none
 assignmentRefs: []
-eventSubscriptions: []
-routes: []
+directDomainEventSubscriptions: []
+presentationInputs: accepted structured projections only
+routes: verified shared-office paths only
 notifications: []
-interactions: []
 ```
 
-No visible placeholder labelled Channy should be rendered in production merely
-because a design slot exists; that could imply a product role. Design diagrams
-may show a dashed `CHANNY_DISABLED / LEO_GPT_DECISION_REQUIRED` annotation only.
+Channy may roam verified paths; visit Team areas/shared spaces; sit near a
+verified-idle actor; eat, drink, sleep, rest, play, or observe; briefly follow an
+accepted routing cue; and reflect structured `WAITING_LEO`, `BLOCKED`,
+stale/offline, mission-complete, or valid dispatch/routing facts. A
+stale/offline reflector pose is static. Without accepted evidence, Channy stays
+neutral. Reduced-motion/static mode provides equivalent text and pose without
+movement.
 
-Enabling any Channy variant requires all of:
+Channy never inspects terminal/session content, infers unstructured state,
+creates evidence, dispatches work, carries commands, approves, changes sessions,
+repairs systems, replaces an alert/mission board, or implies communication or
+collaboration. Session/system checks remain structured-adapter responsibility.
+Channy is not an Advisor, Worker, Reviewer, router, notification authority,
+terminal actor, or inferred presence.
 
-1. Leo/GPT decision `AO12-FD-01` defining purpose and non-authority boundary;
-2. updated canonical design and unknown register;
-3. a new character/spatial contract version;
-4. Fable5 design review; and
-5. separate implementation authorization and tests.
+## 8. Approved placeholder asset contract
 
-Channy cannot be introduced as an Advisor, Worker, Reviewer, autonomous router,
-approval agent, notification authority, terminal actor, or inferred presence.
-
-## 8. Placeholder asset contract
+The exact product decision is
+`APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
+Future authorized implementation may create only original project-authored
+CSS/DOM/SVG/simple local sprite-like placeholders. The direction is cute
+2D/2.5D pixel or pixel-inspired, warm retro 16/32-bit console, friendly and
+blocky, in an American startup/open-office setting. Environmental placeholders
+may include wood desks, glass meeting room, coffee lounge, shared paths, project
+signs, mission boards, Reviewer booth, Advisor desk/Hub, and Channy
+bed/food/water.
+They must not copy a protected artist, franchise, game, or distinctive protected
+style.
 
 ### 8.1 Slot geometry
 
@@ -319,11 +417,13 @@ Future project-authored placeholders use deterministic slots:
 
 | Slot | Candidate intrinsic size/viewBox | Use |
 |---|---|---|
-| `character-full` | 96 x 96 / `0 0 96 96` | Selected-pod full character |
+| `character-full` | 96 x 96 / `0 0 96 96` | Selected-Team full character |
 | `character-route` | 48 x 48 / `0 0 48 48` | One bounded route cue |
-| `role-glyph` | 24 x 24 / `0 0 24 24` | Compact identity and static fallback |
+| `role-glyph` | 24 x 24 / `0 0 24 24` | Condensed identity and static fallback |
 | `project-glyph` | 24 x 24 / `0 0 24 24` | Supplemental project marker |
 | `assignment-badge` | 48 x 20 / `0 0 48 20` | Pattern/project short label backing |
+| `channy-full` | 72 x 72 / `0 0 72 72` | One global Channy placeholder |
+| `channy-facility` | stable slot-specific viewBox | Bed/food/water presentation objects |
 
 The existing M1 `actor` 96 x 72 asset remains unchanged inside the M1 adapter.
 M1.2 slot selection does not resize or replace the historical asset.
@@ -371,13 +471,14 @@ asset `INVALID`; the UI uses the local neutral placeholder/static role glyph.
   animation format; and
 - user-supplied SVG execution.
 
-## 9. Production asset and replacement gate
+## 9. External acquisition prohibition and replacement gate
 
-No production asset source or style is selected. Before purchase/import/
-generation/commissioning or replacement, a separately authorized proposal must
-provide:
+This M1.2 decision does not authorize purchase, import, download, generation,
+commissioning, vendor selection, paid licensing, or any external asset source.
+Project-authored placeholders are not approved production art. A future
+separately authorized replacement proposal must provide:
 
-- Leo/GPT decision `AO12-FD-02` for art direction and source class;
+- a new explicit Leo/GPT decision for the proposed replacement/source class;
 - exact inventory and license/redistribution terms;
 - source provenance, receipt/contract when relevant, and byte hashes;
 - security inspection and format allowlist;
@@ -432,22 +533,26 @@ Future implementation must prove:
 Candidate future tests are named in
 [`../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md).
 
-## 12. Founder decisions
+## 12. Resolved Leo/GPT decisions and implementation gate
 
-This system does not decide:
+`AO12-FD-01` is resolved as
+`CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`.
+`AO12-FD-02` is resolved as
+`APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
+The chained decision status is
+`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
 
-- `AO12-FD-01`: whether Channy exists and, if so, the exact product role; or
-- `AO12-FD-02`: production art direction and project-authored versus separately
-  approved licensed/commissioned source.
-
-Safe defaults remain `CHANNY_DISABLED` and local code-native placeholders. No
-other customization, likeness, purchase, import, or generation is implied.
+No asset has been created or selected. Implementation remains
+`NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`; the clean delta review,
+Advisor freeze, exact manifest, and separate handoff are still required. No
+customization, likeness, purchase, import, external generation, or runtime
+activation is implied.
 
 ## 13. Authority, security, and privacy non-change
 
 Character identity is not authentication. Project identity is not trust.
 Advisor styling is not Advisor authority. A Reviewer silhouette is not a review
-verdict. A Leo decision destination is not approval. A connected/animated actor
+verdict. A Leo/GPT decision destination is not approval. A connected/animated actor
 is not completion. No asset or identity field may contain or reveal a credential,
 session/pane target, raw path, terminal content, message body, capability, or
 private host detail. All M1 browser, security, Advisor-only, and redaction

@@ -1,6 +1,6 @@
 # Agent Office M1.2 Spatial Event and Animation Contract
 
-Status: `DESIGN_CANDIDATE__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED__PENDING_FABLE5_REVIEW`
+Status: `NARROW_PRODUCT_INTENT_PATCH_APPLIED__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
 
 Contract candidate: `agent-office.spatial-cue.v1`
 
@@ -11,6 +11,10 @@ bounded M1.2 presentation cue. It does not add a domain event, state, command,
 authority, transport route, timer-based mission transition, or persistence
 requirement. The canonical M1 event and activity contract remains
 [`AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md).
+The narrow patch authority is
+`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`;
+this contract remains design-only until the clean delta review, Advisor freeze,
+exact implementation manifest, and separate handoff.
 
 ## 1. Contract principles
 
@@ -19,8 +23,8 @@ requirement. The canonical M1 event and activity contract remains
 2. Only a new accepted structured source ID may create task-signifying motion.
 3. Current, connected, non-conflicting source evidence is required in addition
    to a compatible domain state/activity pair.
-4. Initial snapshots, reload, cursor reset, tab resume, pod selection, compact
-   summaries, and wall-clock passage never replay task motion.
+4. Initial snapshots, reload, cursor reset, tab resume, Team selection,
+   non-selected Team areas, and wall-clock passage never replay task motion.
 5. Safety and authority ambiguity render immediately as static text/icon/shape
    and suppress movement.
 6. One canonical actor identity is never cloned to satisfy multiple assignment
@@ -45,9 +49,10 @@ The spatial cue projector receives a validated slice of the future
 projectionRevision
 evaluatedAt
 selectedPodId
-podId, projectId
+podId, advisorTeamId, projectId
 missionId, manifestVersion, missionSequence
 roleInstanceId
+responsibleAdvisorTeamId
 assignmentRef: projectId + missionId + workUnitId
 workUnitState
 requiredObservableName
@@ -60,6 +65,9 @@ assignmentStatus
 responsibleAdvisorStatus
 openAlertSeverity
 blocker/decision/result/recovery evidence
+accepted handoff/review-verdict/completion-acknowledgement evidence
+redacted mission-board display facts
+channyPresentationEligibility
 zone anchors
 updateOrigin
 ```
@@ -67,6 +75,16 @@ updateOrigin
 The projector cannot query Git, tmux, a filesystem, process state, network
 state, terminal output, or wall-clock time. Freshness has already been evaluated
 from an explicit `evaluatedAt`. Components receive only the typed result.
+
+Mission-board inputs are canonical projection facts only: Team/project names,
+responsible Advisor, redacted registered Advisor model/session display identity,
+mission, Phase/WorkUnit, redacted registered current-actor model/session display
+identity, Reviewer, next actor/handoff, WorkUnit and gate progress, exact
+blocker, Leo/GPT decision state, latest verified evidence time/pointer, and explicit
+stale/unknown/conflict state. Raw pane/session locators, filesystem paths,
+credentials, private transport, and terminal content are prohibited. A missing
+fact remains `UNKNOWN`; timestamps, prose, proximity, selection, and stale or
+unverified fixtures cannot fill it.
 
 ### 2.2 Eligible update origins
 
@@ -81,14 +99,15 @@ POD_SELECTION
 
 Only `LIVE_DELTA` may enqueue a transient task cue. Every other origin folds the
 latest verified state, marks all current accepted source IDs seen, renders a
-static pose, and queues nothing. A pod that was compact when an event arrived
-does not replay that event when later selected.
+static pose, and queues nothing. A Team area that was not selected when an event
+arrived does not replay that event when later selected.
 
 ### 2.3 Source eligibility gate
 
 A candidate cue is eligible only when every applicable condition is true:
 
-- `podId` is the currently selected trusted pod;
+- `podId` is the currently selected trusted Team area for a full operational
+  cue; a non-selected Team area receives static state only;
 - manifest and projection versions are supported and source authority is
   verified;
 - every source ID is a syntactically valid accepted event ID and occurs in the
@@ -96,6 +115,9 @@ A candidate cue is eligible only when every applicable condition is true:
 - state/activity/evidence correspondence satisfies the M1 domain contract;
 - the assignment resolves to exactly one compatible role instance and project/
   host/source boundary;
+- the actor resolves to exactly one responsible Advisor Team and one canonical
+  responsible Advisor; missing or multiple assignments are `UNASSIGNED` and
+  ineligible for work/task motion;
 - evidence freshness is `CURRENT` and connection is `CONNECTED`;
 - responsible Advisor status is exact when the cue uses an Advisor route;
 - result, decision, blocker, review, or recovery evidence required by the cue is
@@ -152,44 +174,83 @@ timestamps and has no domain effect.
 
 ## 4. Cue vocabulary and spatial mapping
 
-The M1.2 vocabulary is additive at the presentation layer:
+The exact high-level operational presentation states are `IDLE`, `WORKING`,
+`TESTING`, `ROUTING / DISPATCH`, `REVIEWING`, `RETURNING_RESULT`, `NEEDS_PATCH`,
+`WAITING_DEPENDENCY`, `WAITING_LEO`, `BLOCKED`, `COMPLETED`, `FAILED`, and
+`CANCELLED`. Existing M1 state/activity labels remain compatible source detail;
+they do not create another high-level truth vocabulary. Operational state
+always overrides ambient behavior.
+
+The M1.2 cue vocabulary is additive at the presentation layer:
 
 ```text
+LEO_GPT_TO_ADVISOR_HANDOFF
 DELIVERY
 READING
 WORKING
 TESTING
 WRITING_RESULT
+REVIEW_HANDOFF
 REVIEW
+REVIEW_VERDICT_RETURN
 BLOCKED
 WAITING_LEO
 RESULT_RETURN
 PATCH_RETURN
+COMPLETION_ACKNOWLEDGEMENT
 RECOVERY
 IDLE_RELOCATE
 ```
 
-The first eleven preserve the M1 `SceneMotionCueKind` meaning. `IDLE_RELOCATE`
-is M1.2-only presentation of a verified transition to the lounge and is not a
-new activity or mission state.
+Existing M1 `SceneMotionCueKind` values preserve their exact meaning. New names
+are M1.2 presentation projections only and do not add domain events, authority,
+transport, or completion state. `IDLE_RELOCATE` presents a verified transition
+to an ambient office zone and is not a new activity or mission state.
 
 | Projected fact | Required accepted source | Source -> target zones | Full-motion cue | Static equivalent/end condition |
 |---|---|---|---|---|
+| Leo/GPT handoff to Advisor | Accepted durable structured Leo/GPT-to-Advisor handoff fact with exact Advisor target | Leo/GPT decision destination -> responsible Advisor Hub | One handoff document, maximum 900ms | Handoff/receipt text and evidence pointer; never inferred acknowledgement or approval |
 | WorkUnit dispatch | `READY -> DISPATCHED` plus correlated `DELIVERY / WORKUNIT_DISPATCH` and exact Advisor route evidence | Global Advisor Hub -> assigned work desk | One Advisor courier plus one work document, maximum 1100ms | Route text and `DISPATCHING`; ends on start/failure/block/hold/expiry |
 | Reading | Compatible `READING` activity with immutable input/ack source | Assigned desk -> reading pose at same desk | One document highlight, 900ms | Open-document icon/text; ends on higher sequence/expiry |
 | Working | `RUNNING + WORKING` with accepted activity source | Assigned desk | Bounded character/keyboard pose, maximum 900ms | Tool icon, `WORKING`, WorkUnit ID |
 | Testing | `TESTING + TESTING` with command/evidence refs | Assigned desk -> testing bench | Checklist/tool sequence, maximum 1200ms | Testing icon/text; never a pass claim |
 | Writing result | `RUNNING|TESTING + WRITING_RESULT` and `RESULT_DRAFT_STARTED` | Work/testing zone -> result desk | Bounded document-line cue, 900ms | Result-edit icon/text; ends before `RESULT_REPORTED` |
+| Review handoff | `REVIEW_PENDING` plus accepted structured handoff and exact independent Reviewer assignment | Result desk/Advisor Hub -> independent review desk | One review document, maximum 900ms | Review handoff text, Reviewer identity, evidence pointer |
 | Independent review | `REVIEW_PENDING + REVIEW` with exact reviewer assignment | Independent review desk only | Lens/checklist sweep, 1000ms | Reviewer label, review state, evidence link |
+| Review verdict return | Accepted structured Reviewer verdict/result evidence with exact mission/WorkUnit correlation | Independent review desk -> responsible Advisor Hub | One verdict document, maximum 800ms | Exact verdict/evidence text; receipt is not approval, dispatch, or completion |
 | Blocked | Accepted blocker evidence plus compatible blocked projection | Actor's current verified zone | No route; barrier fade, maximum 150ms | Persistent barrier/reason/owner/route until structured resolution/resume |
-| Waiting for Leo/GPT | `WAITING_LEO + WAITING_LEO` plus verified decision request | Advisor Hub -> Leo decision destination | One decision document, 900ms | Persistent decision path/text until decision/resume |
+| Waiting for Leo/GPT | `WAITING_LEO + WAITING_LEO` plus verified decision request | Advisor Hub -> Leo/GPT decision destination | One decision document, 900ms | Persistent decision path/text until decision/resume |
 | Result return | `RESULT_REPORTED + RESULT_RETURN` plus verified result and pointer refs | Result desk/actor -> Advisor Hub | One actor plus one result document, 800ms | `RETURNING_RESULT`; receipt is not review/completion |
 | Patch return | Accepted `NEEDS_PATCH` review/audit source and exact assigned Worker | Independent review desk -> assigned Worker desk | One patch document, 800ms | Patch route text; does not dispatch implementation |
+| Completion acknowledgement | Canonical completion evidence plus an accepted structured acknowledgement correlated to the exact mission | Responsible Advisor Hub -> Team mission board | One bounded board acknowledgement, maximum 700ms | `COMPLETED` plus acknowledgement evidence; never selects or starts another mission |
 | Recovery | Accepted recovery event and exact structured step | Control/recovery zone | Step-based tool cue, maximum 1000ms | Step/total/read-only/quarantine text |
-| Lounge relocation | New accepted `IDLE` activity or accepted end of an active assignment, current verified actor | Prior actor zone -> lounge | One bounded relocation, maximum 700ms | `VERIFIED_IDLE`; implies no availability/collaboration |
+| Ambient relocation | New accepted `IDLE` activity or accepted end of an active assignment, current verified actor | Prior actor zone -> verified office/lounging zone | One bounded relocation, maximum 700ms | `VERIFIED_IDLE`; implies no availability, assignment, communication, collaboration, or approval |
 
 No cue is triggered by string matching such as "working", "done", "review",
 "blocked", or "idle" in user/model/terminal text.
+
+### 4.1 Channy presentation layer
+
+The exact product decision is
+`CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`.
+Channy has no `roleInstanceId`, Team assignment, authority, direct domain-event
+subscription, or command target. One global Channy presentation may:
+
+- use browser-local neutral roaming, visiting, sitting, eating, drinking,
+  sleeping, resting, playing, or observing motion with no operational meaning;
+- briefly follow an already eligible accepted routing cue using the same source
+  IDs, duration, deduplication, reload, suppression, and route cap; or
+- reflect accepted structured `WAITING_LEO`, `BLOCKED`, mission-complete, valid
+  dispatch/routing, or explicit stale/offline presentation facts.
+
+Stale/offline reflection is static and never bypasses stale-motion suppression.
+Absent accepted evidence, Channy is neutral. Channy never inspects terminal or
+session content, infers state, creates evidence, dispatches, carries a command,
+approves, changes sessions, repairs, replaces alerts/boards, or implies
+communication/collaboration. Session/system checks remain structured-adapter
+responsibility.
+Reduced-motion/static mode shows an equivalent labelled pose. Status, alerts,
+the mission board, and the accessible activity log remain independently complete.
 
 ## 5. Zone and route resolution
 
@@ -206,17 +267,22 @@ lounge
 evidence-cabinet
 advisor-anchor
 leo-decision-destination
+shared-path:<pathId>
+channy-bed
+channy-food-water
 ```
 
 Coordinates are a responsive rendering detail and never enter `cueId`. A route
 must resolve both semantic endpoints in the current layout before motion. If an
-endpoint is hidden, paged out, unresolved, compact, or ambiguous, the projector
+endpoint is hidden, paged out, unresolved, non-selected, or ambiguous, the projector
 emits the static equivalent and activity-log entry only.
 
 Advisor route resolution additionally requires exactly one responsible Advisor
-reference for the pod. The visual route anchor does not create that authority.
+Team and one responsible Advisor reference for the actor and Team area. Missing
+or multiple values render `UNASSIGNED`/conflict and suppress work receipt and
+task motion. The visual route anchor does not create that authority.
 Review routes require an independent Reviewer assignment and can never target a
-Worker as the reviewer. Leo decision routes can carry only a decision-document
+Worker as the reviewer. Leo/GPT decision routes can carry only a decision-document
 cue, not a generic message, command, or WorkUnit dispatch.
 
 ## 6. Suppression and fail-closed diagnostics
@@ -229,14 +295,14 @@ Suppression runs before precedence or queue selection.
 | Freshness `STALE`, `OFFLINE`, `UNKNOWN`, `CONFLICT`, or `ERROR` | Last verified state, evaluated/observed time, reason code | Suppress all affected cues |
 | Connection not `CONNECTED` | Exact connection state and last verified assignment | Suppress all affected cues |
 | Source event absent/unaccepted/incompatible | `STRUCTURED_SOURCE_UNAVAILABLE` | Suppress candidate |
-| Assignment missing | `ASSIGNMENT_UNKNOWN` | Suppress actor and routes |
+| Assignment or responsible Team missing | `ASSIGNMENT_UNKNOWN` plus `UNASSIGNED` | Suppress actor work receipt and routes |
 | Assignment duplicated/incompatible | `ASSIGNMENT_CONFLICT` | Suppress actor and routes; never clone |
 | Responsible Advisor missing/multiple | `ADVISOR_RESPONSIBILITY_UNKNOWN/CONFLICT` | Suppress Advisor routes |
 | Result/decision/blocker/recovery evidence missing | Evidence-specific missing diagnostic | Suppress affected cue |
 | Critical alert on actor/WorkUnit/pod source | Persistent critical border/banner/text | Suppress task and ambient motion for affected scope |
 | Store quarantine or recovery read-only | Recovery/quarantine facts first | Only verified recovery step cue may render; otherwise static |
 | Reduced motion or motion off | Same text/icon/shape/activity-log update | No translation/sweep/pulse/interpolation |
-| Non-selected compact pod | Compact verified summary | No task-signifying cue |
+| Non-selected Team area | Recognizable spatial Team area with verified static summary/state | No full task-signifying choreography |
 | Hidden document/tab | Latest static projection on resume | Pause, then clear without replay |
 
 A suppressed cue is not retained for later playback. Fresh evidence may render
@@ -275,9 +341,10 @@ then lexical source event ID only for deterministic presentation.
 
 Queue rules:
 
-- maximum three transient cues across the selected pod;
-- maximum one route cue (`DELIVERY`, `RESULT_RETURN`, `PATCH_RETURN`, or
-  `WAITING_LEO`) at once;
+- maximum three transient cues across the selected Team area;
+- maximum one route cue (`LEO_GPT_TO_ADVISOR_HANDOFF`, `DELIVERY`, `REVIEW_HANDOFF`,
+  `REVIEW_VERDICT_RETURN`, `RESULT_RETURN`, `PATCH_RETURN`, `WAITING_LEO`, or
+  `COMPLETION_ACKNOWLEDGEMENT`) at once;
 - maximum one cue per canonical actor identity;
 - same-entity bursts coalesce to the precedence winner;
 - safety facts display immediately even when the queue is full;
@@ -313,9 +380,10 @@ queue, and requires a full verified snapshot.
 - Reload repeats the full-snapshot behavior and never replays history.
 - Hidden tabs pause animation. Resume cancels incomplete visuals, folds the
   newest verified projection, marks sources seen, and queues nothing.
-- Selecting another pod renders its current static state and marks its current
-  sources seen. Events that occurred while compact are not delayed entertainment.
-- Returning to a previously selected pod does not replay cues.
+- Selecting another Team area renders its current static state and marks its
+  current sources seen. Events that occurred while non-selected are not delayed
+  entertainment.
+- Returning to a previously selected Team area does not replay cues.
 
 ### 8.4 Bounded seen-set behavior
 
@@ -330,24 +398,28 @@ These are hard presentation limits:
 
 | Budget | Limit |
 |---|---:|
-| Expanded pods | 1 |
+| Shared wide floors | 1 |
+| Expanded Team areas | 1 |
 | Visible full actor tiles | 8 desktop/tablet; 2 mobile page |
 | Pending transient cues | 3 |
 | Concurrent route cues | 1 |
 | Concurrent cue per actor | 1 |
 | Cue duration | 150-1200ms |
 | Route actor/document pairs | 1 pair |
-| Task motion in compact pods | 0 |
-| Ambient actors | 1 in the selected pod |
+| Full task choreography in non-selected Team areas | 0 |
+| Ambient actors | 1 across the floor, plus one global Channy presentation |
 | Ambient movement burst | maximum 600ms followed by at least 8s static |
 | Infinite task loop, flash, shake, parallax, sound | 0 |
 
-Ambient motion is allowed only for current, connected, verified `IDLE` and is
-visually distinct from task cues. It may be a single low-amplitude opacity or
-transform change, never typing, reading, conversation, document transfer,
-review, testing, delivery, or progress. It stops immediately on stale/offline/
-conflict/critical/reduced-motion/hidden state. Ambient timing is browser-local
-and has no event, evidence, availability, or ordering meaning.
+Actor ambient motion is allowed only for current, connected, verified `IDLE`
+and is visually distinct from task cues. It may present coffee, reading for
+leisure, resting, a small game, a window/whiteboard pose, visual interaction
+with Channy, or visual talk without content. It never implies availability,
+assignment, shared context, collaboration, communication, approval, evidence,
+document transfer, review, testing, delivery, or progress. A new operational
+event interrupts it immediately. It stops on stale/offline/conflict/critical/
+reduced-motion/hidden state. Neutral Channy ambient timing is likewise
+browser-local and has no event, evidence, availability, or ordering meaning.
 
 ## 10. Reduced-motion and static equivalence
 
@@ -362,6 +434,7 @@ its outcome.
 | Blocked | Persistent barrier shape, reason, owner, route, alert announcement |
 | Recovery | Exact step/total/status/read-only text and tool icon |
 | Lounge relocation/ambient | Static actor in lounge with `VERIFIED_IDLE` and evaluated time |
+| Channy route/status/ambient | Static neutral or structured-reflector pose plus the independent primary status text |
 
 Static equivalence preserves semantic ordering, focus, live-region policy, and
 activity-log content. An opacity change up to 100ms is permitted only if the
@@ -370,6 +443,11 @@ frame. No essential information is located only on a path or in a pose.
 
 ## 11. Responsive behavior
 
+- Wide desktop keeps every registered Advisor Team spatially visible on one
+  shared floor; only the selected Team area runs full operational choreography.
+- Tablet/mobile may focus one Team through paging, minimap, or explicit
+  navigation, but preserves the same summary facts and route timeline meaning
+  for every Team.
 - Wide/tablet spatial routes use named zone anchors and local SVG overlays.
 - If route endpoints are not simultaneously visible, use the static timeline
   equivalent; never auto-scroll or move focus to complete a cue.
@@ -387,7 +465,7 @@ Hard truth/source rules never vary by tier.
 | Tier | Presentation | Selection rule |
 |---|---|---|
 | `FULL` | Up to three bounded cues, one route, one bounded idle ambient actor | Only after the implementation benchmark gate passes on the configured reference runtime |
-| `RESTRAINED` | One cue at a time, no ambient motion, compact pods static | Explicit reviewed presentation setting or benchmark fallback |
+| `RESTRAINED` | One cue at a time, no ambient motion, non-selected Team areas static | Explicit reviewed presentation setting or benchmark fallback |
 | `STATIC` | No motion layer; semantic text/icon/shape/log equivalence | Reduced motion, motion off, unsupported layout, or fail-closed performance fallback |
 
 Tier selection is browser-local presentation state. It cannot alter a projection,
@@ -402,7 +480,7 @@ not claims about current supported production scale.
 Candidate measurable targets:
 
 - pure projection plus cue reduction: p95 <= 8ms after warm-up;
-- selected-pod switch to committed DOM: p95 <= 100ms on the configured reference
+- selected-Team switch to committed DOM: p95 <= 100ms on the configured reference
   desktop and <= 200ms under the reviewed constrained-browser profile;
 - spatial animation main-thread work: p95 <= 8ms per active frame;
 - no spatial-surface long task greater than 50ms during the scripted 10-second
@@ -445,6 +523,19 @@ implementation must add tests that prove at least:
 - terminal/model/process-shaped prose cannot change a cue;
 - assignment and Advisor-responsibility missing/duplicate/cross-project cases
   fail closed;
+- every active actor has exactly one responsible Advisor Team, and `UNASSIGNED`
+  actors cannot receive work or task motion;
+- current single-Advisor and future per-`Advisor roleInstanceId` character
+  uniqueness, with no clone or proximity-derived authority;
+- exact Foundation and conditional VibeNews Team assignments, approved project
+  palette, and the SIASIU current-name forbidden-token gate;
+- the complete mission-board field set, redaction, and prose/timestamp/proximity/
+  stale-fixture non-inference boundary;
+- Channy allowed ambient/status-reflector behavior, prohibited operational
+  behavior, static stale/offline response, and reduced-motion equivalence;
+- accepted structured Leo/GPT handoff, Advisor dispatch, Worker/test, review
+  handoff/verdict, patch/result, `WAITING_LEO`, and completion-acknowledgement
+  cases, with unaccepted/prose-shaped negatives;
 - exact precedence, one-actor rule, three-cue cap, one-route cap, overflow-to-log,
   and deterministic tie-breaking;
 - initial/reload/reset/resume/selection/orientation never replay;
