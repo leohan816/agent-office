@@ -9,7 +9,7 @@ dashboard subset at code commit
 credential, token, key, cookie, auth action, HTTP server, or network authority.
 Advisor accepted that subset as the Batch C dependency. Batch C adds only the
 structured-event scene and deterministic browser tests at
-`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413`; it adds no server, gateway,
+`e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; it adds no server, gateway,
 credential, adapter call, role target, process execution, or durable mutation.
 
 ## 1. Security Objectives
@@ -406,7 +406,7 @@ Tailscale action, or production identity is permitted by this design.
 | AO-SEC-001 Loopback private fail-closed bind | `src/server/network/` | `tests/security/bind-policy.test.ts` | `NOT_IMPLEMENTED`; Section 5 | `DESIGNED_CANDIDATE` | Batch E; private network separately gated |
 | AO-SEC-002 Auth/session/capability model without embedded secrets | `src/server/auth/` | `tests/security/auth-session.test.ts` | `NOT_IMPLEMENTED`; Sections 3 and 6 | `DESIGNED_CANDIDATE` | Batch E and real-secret authority if activated |
 | AO-SEC-003 CSRF/origin/rate/input/output controls | `src/server/security/` | `tests/security/http-boundary.test.ts` | `NOT_IMPLEMENTED`; Sections 7-10 | `DESIGNED_CANDIDATE` | Batch E |
-| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/ui/dashboard.tsx`, `src/ui/scene/`; future `src/server/routes/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/tmux-readonly.test.ts`, `tests/acceptance/batch-gates.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch B read-only boundary is accepted; Batch C adds only typed presentation and proves no adapter/process/network/write/dispatch import at code commit `22baff7cf0d1cb6ccd41d1c9f810af37a53e1413`; server routes do not exist | `IMPLEMENTED_BATCH_C_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Re-prove for Batch D gateway and Batch E HTTP boundary |
+| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/ui/dashboard.tsx`, `src/ui/scene/`; future `src/server/routes/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/tmux-readonly.test.ts`, `tests/acceptance/batch-gates.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch B read-only boundary is accepted; Batch C adds only typed presentation and proves no adapter/process/network/write/dispatch import at code commit `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; server routes do not exist | `IMPLEMENTED_BATCH_C_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Re-prove for Batch D gateway and Batch E HTTP boundary |
 | AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/` | `tests/security/audit-redaction.test.ts`, `tests/integration/kill-switch.test.ts` | `NOT_IMPLEMENTED`; Sections 12-14 | `DESIGNED_CANDIDATE` | Batch D/E; canonical transport remains external |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/` | `tests/e2e/pwa-cache-security.spec.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |
 

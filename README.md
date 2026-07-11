@@ -7,7 +7,7 @@ Leo-to-Advisor communication while preserving strict actor boundaries.
 This repository now contains the reviewed M01 design, Advisor-accepted Batch A/B,
 and the implemented Batch C structured-event office scene. Batch C
 code/config/tests/assets are at commit
-`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413` and remain pending Advisor
+`e30a6cda52e14a4bf30b2d1b7445fa26645496e5` and remain pending Advisor
 acceptance as the dependency for Batch D.
 
 Implemented through Batch C:
@@ -30,7 +30,7 @@ Implemented through Batch C:
 - explicit mobile pagination, reduced motion and visibility pause, keyboard/focus,
   text/icon/shape semantics, semantic status list, and polite/assertive live
   regions; and
-- exact-pinned dependencies, license inventory, 27 Vitest files/122 passing
+- exact-pinned dependencies, license inventory, 27 Vitest files/123 passing
   tests, 10 passing Playwright Chromium tests, axe audits, and deterministic
   desktop/mobile/reduced-motion visual baselines.
 

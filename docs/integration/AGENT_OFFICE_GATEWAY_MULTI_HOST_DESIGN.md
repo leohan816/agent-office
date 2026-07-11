@@ -11,7 +11,7 @@ a network connection, tmux input, Advisor/Hermes gateway, Tailscale action, key
 provisioning, remote collector, or external exposure.
 Advisor accepted the Batch B local observation boundary as the Batch C
 dependency. Batch C code commit
-`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413` adds a pure scene consumer over
+`e30a6cda52e14a4bf30b2d1b7445fa26645496e5` adds a pure scene consumer over
 typed projection fixtures only; it does not call these ports, observe a process,
 connect to a host, or add any gateway/mutation method.
 

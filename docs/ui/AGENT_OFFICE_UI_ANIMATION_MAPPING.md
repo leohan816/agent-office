@@ -9,7 +9,7 @@ layout at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d`.
 Advisor accepted that base as the Batch C dependency. The structured-event office
 scene, bounded presentation cues, responsive mapping, local assets, reduced
 motion, and Batch C accessibility/visual tests are implemented at code commit
-`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413`. Advisor Inbox, HTTP/live data,
+`e30a6cda52e14a4bf30b2d1b7445fa26645496e5`. Advisor Inbox, HTTP/live data,
 auth, SSE, PWA, and service worker remain unimplemented.
 
 ## 1. Experience Principles
@@ -81,6 +81,10 @@ indicator. It never shows a generic command box.
 - Initial load, reload, and tab resume are static. New accepted live IDs can
   produce one bounded cue; event IDs deduplicate, same-entity bursts honor safety
   precedence, and at most three transient cues remain.
+- Dispatch/result/decision paths carry exactly one local courier actor and one
+  typed document. Working animates the local keyboard/actor, while testing,
+  result writing, review, and recovery animate distinct checklist/document/tool
+  assets. WAITING_LEO leaves a persistent red decision document at Leo.
 - Motion preference, visibility pause, cue completion, selection, pagination,
   and deterministic fixture selection are browser-local presentation state only.
   They do not append events, change a WorkUnit, call an adapter, or claim live
@@ -439,7 +443,7 @@ pixel, user-supplied SVG execution, or image-generated claim is allowed.
 Batch C assets live under `src/ui/scene/assets/`; semantic dimensions/source are
 in `src/ui/scene/asset-registry.ts`; ownership, license classification, stable
 view boxes, and source SHA-256
-`4033619cf7d0dfd7d20555fa0a424df299e2445ec0149d95594a2830b974a854` are
+`abdeeae29cb351a7739684f7e059130e3e1c11cf02f42dd8f8caccb63db5de72` are
 recorded in `ASSET_INVENTORY.md`. They are local project-authored code-native SVG
 components with no script, remote fetch, user SVG execution, model logo, or real
 person claim.
@@ -551,7 +555,7 @@ Batch B component/view-model tests cover the base hierarchy, all reviewed
 Korean labels including the three R-1 entries, separate progress denominators,
 typed freshness banners, blocker detail, evidence copy, terminal-prose exclusion,
 long IDs/hashes/Korean expansion, table scrolling, 320px rules, and absence of
-PWA/server surfaces. Batch C adds 27 Vitest files/122 total regression tests and
+PWA/server surfaces. Batch C adds 27 Vitest files/123 total regression tests and
 10 Playwright Chromium tests, including three committed deterministic visual
 baselines; the remaining Batch D/E scope stays gated.
 
@@ -586,7 +590,7 @@ Remaining Batch D/E test paths must cover:
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/application/queries/dashboard-view-model.ts`, `src/ui/i18n/ko.ts` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/dashboard-view-model.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/layout-contract.test.ts` | Responsive Batch B operations base was Advisor-accepted; Batch C preserves it and inserts the scene before the grid | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Live/server/PWA behavior remains Batch E |
-| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Exact mapping, accepted-ID provenance, evidence fail-closed, precedence, bounded order, dedup/burst/reload/resume, and prose exclusion pass at `22baff7cf0d1cb6ccd41d1c9f810af37a53e1413` | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
+| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Exact mapping, accepted-ID provenance, evidence fail-closed, precedence, bounded order, dedup/burst/reload/resume, and prose exclusion pass at `e30a6cda52e14a4bf30b2d1b7445fa26645496e5` | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/office-scene.spec.ts` | Semantic list/live regions/roving focus/44px controls, motion toggle, visibility pause, reduced-motion suppression, axe A/AA, and responsive browser gates pass | `IMPLEMENTED_BATCH_C_SCENE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Later dialog/drawer/PWA accessibility remains Batch D/E |
 | AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts` | Exact-pinned Lucide plus project-authored local actor/desk/document/barrier/tool/warning SVG source with pinned SHA-256, ownership/license inventory, explicit dimensions, and stable screenshots | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/inbox/` | `tests/e2e/advisor-inbox.spec.ts` | `NOT_IMPLEMENTED`; Section 12 | `DESIGNED_CANDIDATE` | Batch D/E |
