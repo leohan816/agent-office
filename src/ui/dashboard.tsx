@@ -15,6 +15,7 @@ import type {
   DashboardViewModel,
   DashboardWorkUnitViewModel,
 } from '../application/queries/dashboard-view-model.js';
+import { OfficeScene } from './scene/office-scene.js';
 
 type FilterValue = 'ALL' | 'ATTENTION' | 'WAITING' | 'COMPLETED';
 
@@ -34,7 +35,10 @@ export function Dashboard({ model }: DashboardProps) {
 
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#operations-table">
+      <a className="skip-link" href="#office-scene">
+        오피스로 건너뛰기
+      </a>
+      <a className="skip-link skip-link-operations" href="#operations-table">
         운영 목록으로 건너뛰기
       </a>
       <header className="topbar">
@@ -65,6 +69,8 @@ export function Dashboard({ model }: DashboardProps) {
           ))}
         </section>
       ) : null}
+
+      <OfficeScene />
 
       <div className="dashboard-grid">
         <aside className="hierarchy-panel" aria-labelledby="hierarchy-heading">

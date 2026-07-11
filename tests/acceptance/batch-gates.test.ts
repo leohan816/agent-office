@@ -31,13 +31,20 @@ const requiredTests = [
   'tests/ui/korean-vocabulary.test.ts',
   'tests/ui/dashboard.component.test.tsx',
   'tests/ui/layout-contract.test.ts',
+  'tests/ui/activity-mapping.test.ts',
+  'tests/ui/activity-precedence.test.ts',
+  'tests/ui/scene-boundary.test.ts',
+  'tests/ui/office-scene.component.test.tsx',
+  'tests/e2e/office-scene.spec.ts',
+  'tests/e2e/accessibility.spec.ts',
 ] as const;
 
-describe('Batch A regression and Batch B scope gates', () => {
-  it('contains every required Batch A/B test and deterministic verification command', async () => {
+describe('Batch A/B regression and Batch C scope gates', () => {
+  it('contains every required Batch A-C test and deterministic verification command', async () => {
     await Promise.all(requiredTests.map((file) => access(path.join(root, file))));
     const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as {
       dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
       scripts: Record<string, string>;
     };
     expect(packageJson.dependencies).toEqual({
@@ -45,6 +52,8 @@ describe('Batch A regression and Batch B scope gates', () => {
       react: '19.2.7',
       'react-dom': '19.2.7',
     });
+    expect(packageJson.devDependencies['@playwright/test']).toBe('1.61.1');
+    expect(packageJson.devDependencies['@axe-core/playwright']).toBe('4.12.1');
     for (const script of [
       'lint',
       'typecheck',
@@ -52,6 +61,7 @@ describe('Batch A regression and Batch B scope gates', () => {
       'test:property',
       'test:integration',
       'test:ui',
+      'test:e2e',
       'build',
       'audit:dependencies',
     ]) {
@@ -59,7 +69,7 @@ describe('Batch A regression and Batch B scope gates', () => {
     }
   });
 
-  it('preserves the approved Batch A denominator while exposing only Batch B top-level surfaces', async () => {
+  it('preserves the approved denominator while exposing only the approved Batch C top-level surfaces', async () => {
     const manifest = await loadApprovedManifest();
     expect(manifest.workUnits).toHaveLength(15);
     expect(manifest.counting.denominator).toBe(15);
@@ -70,14 +80,14 @@ describe('Batch A regression and Batch B scope gates', () => {
     }
   });
 
-  it('keeps Batch C/E and forbidden mutation/network/database surfaces absent', async () => {
+  it('keeps Batch D/E and forbidden mutation/network/database surfaces absent', async () => {
     const source = await readSourceTree(path.join(root, 'src'));
     expect(source).not.toMatch(/node:(?:http|https|net|tls)/u);
     expect(source).not.toMatch(/(?:express|sqlite|postgres|mysql|prisma|typeorm)/iu);
     expect(source).not.toMatch(/TmuxAdvisorGateway|HermesAdvisorGateway/u);
     expect(source).not.toMatch(/AdvisorInbox|serviceWorker|EventSource|WebSocket/u);
     expect(source).not.toMatch(/send-keys|capture-pane|run-shell|paste-buffer|load-buffer/u);
-    await expect(access(path.join(root, 'src/ui/scene'))).rejects.toBeDefined();
+    await expect(access(path.join(root, 'src/ui/scene'))).resolves.toBeUndefined();
     await expect(access(path.join(root, 'src/server'))).rejects.toBeDefined();
     await expect(access(path.join(root, 'src/pwa'))).rejects.toBeDefined();
   });
