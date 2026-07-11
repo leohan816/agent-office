@@ -1,6 +1,6 @@
 # Agent Office Gateway and Multi-Host Design
 
-Status: `FINAL_REWORK_ROUND2_OPERATIONAL_INTEGRATION_IMPLEMENTED__REMOTE_REAL_AUTH_AND_TRANSPORT_GATED__PENDING_DELTA_REVIEW`
+Status: `LOCAL_BOOTSTRAP_LOOPBACK_INTEGRATION_IMPLEMENTED__REMOTE_AND_REAL_TRANSPORT_GATED__PENDING_FABLE5_AND_ADVISOR`
 
 This reviewed design defines typed integration ports, the M01 Advisor gateway,
 read-only observations, multi-project topology, and designed-but-gated remote host
@@ -44,6 +44,16 @@ keeps project/host/mission/WorkUnit/evidence identities isolated. Production
 injects `TmuxAdvisorGateway`, not Hermes; a delivery port remains a trusted
 server-side injection. Real tmux input and real auth remain inactive.
 
+LocalBootstrap private-run gate commit
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228` activates only the local production
+authentication port, not an external gateway. Trusted v2 configuration binds
+exact `127.0.0.1:4317`, creates one verifier-backed owner-only proof, and exposes
+a bounded same-origin exchange/logout session lifecycle. Production accepts only
+the actual canonical sibling foundation-docs mission source. In this mode the
+composition rejects both Advisor transport capability and delivery-port
+injection before proof creation/bind; therefore every durable message remains
+manual fallback and no tmux input, remote host, key, or network is activated.
+
 ## 1. Integration Principles
 
 1. Browser input terminates at Agent Office command schemas; it is never process
@@ -60,6 +70,8 @@ server-side injection. Real tmux input and real auth remain inactive.
 7. Remote hosts emit signed structured observations only; they cannot dispatch
    roles or mutate the controller's canonical ledger directly.
 8. Stale, gapped, untrusted, or offline observations cannot satisfy completion.
+9. LocalBootstrap authenticates one local browser only; it cannot create or
+   activate an Advisor gateway capability, host trust, or remote route.
 
 ## 2. Port Catalog
 
@@ -75,6 +87,8 @@ server-side injection. Real tmux input and real auth remain inactive.
 | `ClockSource` | platform -> application | System UTC/monotonic pair | No domain ordering authority |
 | `HermesAdvisorGateway` | Agent Office -> Hermes | Stub only | Always disabled/not implemented in M01 |
 | `DecisionAuthorityEvidenceVerifier` | immutable authority source -> application | Exact registered `ArtifactSource` reference verifier | Read/verify only; no link artifact/event until authority correspondence succeeds |
+| `AuthenticationProvider` / `AuthenticationExchange` | owner-only local proof -> Agent Office session | Production `LocalBootstrapAuthenticationProvider` | Exact loopback one-time exchange only; no external identity/network authority |
+| `BrowserSessionRegistry` | server auth session -> protected HTTP/SSE | In-memory opaque session registry | Host-only cookie handle, CSRF and fixed capabilities; no browser token storage |
 
 ### 2.1 Batch B as-built port boundary
 
@@ -114,6 +128,29 @@ server-side injection. Real tmux input and real auth remain inactive.
   resent.
 - `src/adapters/gateways/hermes/` has health/queue/lookup interface parity only;
   it returns disabled/not implemented and stores no endpoint or receipt cache.
+
+### 2.3 LocalBootstrap as-built integration boundary
+
+- Deployment config is a separate owner-controlled no-follow JSON document from
+  the operational source registry. Group/other-writable modes reject; `0400` and
+  `0600` are accepted.
+- The proof delivery path is absolute and separate from both config files. Its
+  canonical parent must be an isolated owner-only directory outside application,
+  state, static and every observed project root.
+- `POST /api/v1/auth/local-bootstrap/exchange` accepts exactly one 43-character
+  base64url proof in a bounded JSON body. Exact loopback peer, Host, Origin,
+  Fetch Metadata and content type are required before the rate-limited exchange.
+- `POST /api/v1/auth/logout` is session/CSRF/rate protected. It revokes provider
+  and browser sessions, closes session SSE, and clears the cookie.
+- The session has only `viewer` and `leo_input`; it cannot call Advisor
+  acknowledgement, intake, decision, alert-operator, delivery-disable, Worker,
+  Reviewer, or command routes.
+- Production source authority is fixed to the current canonical M01 path under
+  the actual sibling foundation-docs root with matching Git source, commit and
+  bytes. Fixture fallback and an alternate root fail before a proof exists.
+- Fixed port `4317` is compatible with a later separately approved SSH local
+  forward using the same local/remote port, but no remote-host or SSH operation
+  is authorized by this implementation gate.
 
 ## 3. AdvisorGateway Contract
 
@@ -586,6 +623,24 @@ At `10fdee75dca73c4fb5cde09019c403d4dc1682bb`, composition passes
   without duplicate execution; and
 - no real tmux input, provider, credential, remote host, or network is used.
 
+### LocalBootstrap gate
+
+At `2623922877bd52dc7f5b6c6cd45fae755e5ff228`, focused provider/HTTP/config/
+composition coverage and the complete 55-file/255-test regression prove:
+
+- high-entropy verifier-only proof delivery, exact owner/mode/no-follow/bounded
+  file rules, single use, replay/expiry/restart rejection, and cleanup;
+- exact loopback Host/Origin/Fetch Metadata/content-type/body/rate controls with
+  response/URL/audit/state/static/committed-file non-disclosure;
+- cookie/session rotation, CSRF, logout, expiry/revocation and SSE close;
+- actual current canonical manifest projection with fixture/alternate-root
+  rejection before proof/bind;
+- durable `leo_input` message persistence with manual gateway fallback and
+  rejection of capability or delivery-port injection; and
+- 18 demo/PWA plus 3 composed browser tests with no proof in browser storage,
+  cache, URL or request URL. No real credential, tmux input, or remote network is
+  used.
+
 ### Deferred multi-host tests
 
 Use synthetic keys and loopback fixtures only: enrollment, revoked/quarantined
@@ -597,13 +652,14 @@ gated.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/runtime/composition.ts`, `src/runtime/composition-core.ts`, `src/adapters/gateways/tmux-advisor/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts` | Executable selects the injected typed gateway; only valid capability plus delivery port is READY; one fixed pointer/lifecycle and absent/kill/ambiguous manual cases pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Real approved capability and delivery port remain external and unused |
+| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/runtime/composition.ts`, `src/runtime/composition-core.ts`, `src/adapters/gateways/tmux-advisor/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts` | Existing synthetic gateway lifecycle remains; production LocalBootstrap explicitly rejects a capability or delivery port and always reports manual fallback, so local login cannot activate tmux | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Any real capability/delivery requires separate authority and is unused |
 | AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/`, `src/runtime/composition.ts` | `tests/adapters/hermes-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Disabled stub remains contract-compatible but is not imported or instantiated by either production or synthetic M01 composition | `IMPLEMENTED_DISABLED_STUB_NOT_COMPOSED__PENDING_DELTA_REVIEW` | Separate Leo/GPT Hermes mission |
 | AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/adapters/observations/` | `tests/integration/observation-coordinator.test.ts`, `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Existing bounded ports are operationally composed from exact config; external manifest, refresh, stale/offline/error/conflict, restart, partial failure, and no-mutation cases pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Remote adapters remain gated |
 | AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts`, `src/runtime/observation-coordinator.ts` | `tests/integration/project-freshness.test.ts`, `tests/integration/observation-coordinator.test.ts` | Cross-project roots remain disjoint and runtime additionally validates project/host/source/station/WorkUnit/artifact correspondence with exact complete assignments | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Browser registry mutation and remote enrollment remain absent |
 | AO-INT-005 Linux/Mac multi-host trust and observation envelope | `src/adapters/hosts/` | `tests/contract/host-observation.test.ts` | `NOT_IMPLEMENTED`; Sections 7-9 | `DEFERRED_WITH_GATE` | Private-network, key, remote-host mission |
 | AO-INT-006 Offline/reconnect/gap/stale evidence | `src/runtime/observation-coordinator.ts`, `src/application/hosts/freshness.ts`, `src/runtime/composition-core.ts`, `src/ui/scene/state-machine.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/project-freshness.test.ts` | Bounded periodic local refresh uses existing policies; semantic changes publish SSE and active activity requires accepted events plus CURRENT sources; stale/offline/restart/partial failure pass | `IMPLEMENTED_FINAL_REWORK_ROUND2_LOCAL_SUBSET__PENDING_DELTA_REVIEW` | Remote envelope/gap/reconnect remains gated |
 | AO-INT-007 Canonical AlertKind notification, deterministic deduplication, manual fallback, and decision authority port | `src/application/alerts/`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/application.ts`, `src/ui/communication/` | `tests/integration/alert-application.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/security/http-boundary.test.ts` | Accepted alert/manual behavior remains; decision linkage now requires exact immutable registered authority correspondence and preserves the named role separately from the Advisor link actor; the unapproved Advisor routine variant fails closed | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real gateway delivery/re-enable and bounded Advisor routine authority remain externally gated |
-| AO-INT-008 Executable closed HTTP persistence, projection, and read-only SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/application.ts`, `src/server/http/`, `src/server/sse/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `scripts/runtime-smoke.mjs` | Shell -> status -> protected operational projection -> observation/event SSE -> application is composed; no-provider stays fail-closed, synthetic path proves full Advisor lifecycle and scene, and explicit smoke proves no fixture fallback/cleanup. Gate passes 53/228 and 21/21 | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth/AO-WU-14 and remote fanout remain gated |
+| AO-INT-008 Executable closed HTTP persistence, projection, and SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/application.ts`, `src/server/http/`, `src/server/sse/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `scripts/runtime-smoke.mjs` | Default no-provider remains fail-closed; trusted LocalBootstrap composes production login/projection/message/logout/SSE over actual canonical manifest while delivery stays manual. Gate passes 55/255 and 21/21 | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run and remote fanout remain gated |
+| AO-INT-009 LocalBootstrap proof/session integration | `src/server/auth/local-bootstrap.ts`, `src/server/http/server.ts`, `src/server/config.ts`, `src/runtime/composition.ts`, `src/ui/runtime/` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/private-network-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Exact port 4317, verifier-only owner-file proof, bounded exchange, host-only session, logout/revocation and actual-manifest/no-delivery composition pass with no secret disclosure | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real proof and private-run evidence require Fable5 PASS plus Advisor authority |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

@@ -1,6 +1,6 @@
 # Agent Office Operations and Recovery Design
 
-Status: `OPERATIONAL_CONFIG_MODE_PATCH_IMPLEMENTED__FINAL_REWORK_ROUND2_RUNTIME_PRESERVED__PENDING_FABLE5_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `LOCAL_BOOTSTRAP_PRIVATE_RUN_GATE_IMPLEMENTED__REAL_RUN_PENDING_FABLE5_AND_ADVISOR`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
@@ -43,6 +43,17 @@ startup claim executable by rejecting group- or other-writable operational
 configuration. It changes no runtime composition, recovery state, gateway,
 provider, delivery, or network behavior.
 
+LocalBootstrap private-run gate commit
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228` makes the previously gated local
+provider executable without performing the real run. It adds exact
+`127.0.0.1:4317` trusted config, owner-only verifier-backed proof delivery,
+actual-canonical-manifest enforcement, login/logout/session lifecycle, and
+ordered proof cleanup. No real credential/state root/private server was created;
+all operational evidence uses disposable roots and synthetic proofs. Future
+preparation is documented in
+[`LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md`](LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md)
+and remains blocked on Fable5 code/security `PASS` plus Advisor authority.
+
 ## 1. Operating Model
 
 M01 is a single-instance private service on one local Linux host:
@@ -54,6 +65,8 @@ M01 is a single-instance private service on one local Linux host:
 - read-only observation of allowlisted repositories/tmux/host metadata;
 - typed immutable inbox and event writes under the Agent Office state root; and
 - fixed Advisor delivery with explicit kill-switch/manual fallback.
+- default no-provider read-only startup, with an explicit narrower
+  LocalBootstrap loopback mode only under trusted configuration.
 
 Future private-network/remote-host/Mac capabilities do not change the controller's
 single-writer authority and remain separately gated.
@@ -192,6 +205,33 @@ Git rollback, process termination, or real transport state is touched.
   denial, closes the composition, then requires same-port rebind and absent writer
   lock.
 
+### 1.7 LocalBootstrap private-run gate as-built boundary
+
+- Deployment v2 is selected only from an absolute owner-controlled no-follow
+  file. Its exact mode is `LOCAL_BOOTSTRAP` / `ENABLED_LOCAL_BOOTSTRAP`, one bind
+  and Host `127.0.0.1:4317`, with CORS/proxy/TLS/HSTS false. The committed v1
+  descriptor remains no-provider/read-only.
+- Before store/listener startup, production requires the current canonical
+  foundation-docs M01 source/root/Git correspondence and rejects fixture or
+  alternate authority. It also rejects gateway capability/delivery-port
+  injection and overlapping proof/application/state/static/observed roots.
+- Authentication startup exclusively creates a bounded `0600` regular proof
+  file in a canonical owner/UID directory with group/other bits clear and owner
+  write/execute (the runbook uses `0700`), then fsyncs file and parent. A
+  pre-existing regular/symlink/special file, insecure directory, owner/mode
+  mismatch, or stale crash output fails startup without overwrite.
+- Provider state retains only salted verifier bytes. Success consumes/removes
+  the exact inode; expiry and orderly shutdown remove it; replay rejects. A crash
+  may leave an ambiguous file, and restart intentionally fails until an
+  authorized local operator removes it without displaying/reusing the value.
+- The process does not mint another proof after consumption/expiry. A fresh proof
+  requires a clean restart, preventing recovery from resurrecting authority.
+- Shutdown closes listeners/SSE first, closes provider sessions and pending proof,
+  then releases the writer. Partial startup performs the same cleanup.
+- `LOCAL_BOOTSTRAP_READY` plus configured sessions reports
+  `MUTATION_READY`/`ENABLED_LOCAL_BOOTSTRAP`; delivery independently stays
+  `MANUAL_FALLBACK_REQUIRED`.
+
 ## 2. Durability Objectives
 
 - An acknowledged accepted command has zero designed data loss on a correctly
@@ -319,12 +359,14 @@ Failure enters one of:
 - `AUTH_BLOCKED`
 - `READ_ONLY_DEGRADED`
 
-The executable final-rework composition realizes the safe subset of this state
-machine. It validates config/root/manifest, acquires and verifies the store writer,
-constructs the replay-backed application projection, and starts loopback static/
-status service. Because no approved provider exists, it intentionally stops at
-`AUTH_BLOCKED` with mutation disabled; it does not reinterpret this as
-`MUTATION_READY`. The guarded synthetic composition is test evidence only.
+The executable composition realizes both explicit safe branches. Committed v1
+no-provider config validates roots/manifest/store and stops at `AUTH_BLOCKED`
+with mutation disabled. Trusted v2 LocalBootstrap additionally validates the
+isolated owner-only proof path, actual canonical authority, and absent delivery
+capability/port, creates the proof before binding, and reaches `MUTATION_READY`
+only with `LOCAL_BOOTSTRAP_READY` sessions. Any LocalBootstrap validation/startup
+failure aborts before listener binding and cleans any exact file it safely owns.
+The guarded synthetic composition remains test evidence only.
 
 Restart verification:
 
@@ -528,6 +570,11 @@ Metrics/logs use IDs, counts, durations, states, and stable codes. They exclude
 message bodies, artifact contents, cookies, CSRF/auth values, environment values,
 terminal content, and key material. Correlation IDs link HTTP/audit/domain/gateway
 receipts. Raw stderr from child tools is capped, redacted, and not browser-visible.
+LocalBootstrap additionally excludes proof bytes and proof verifiers from
+stdout/stderr, startup/status, URLs/query, argv/environment, response bodies,
+cookie values, payload hashes, security audit, state artifacts, static/PWA cache,
+browser storage, source, and recovery evidence. The delivery path may be named in
+trusted local config/runbook evidence, but its contents never may.
 
 ## 16. Proof of Recovery
 
@@ -616,6 +663,18 @@ file passes 21/21, the complete Vitest gate passes 53 files/233 tests, and all
 typecheck, builds, and diff check pass. No generated result directory is tracked
 or staged.
 
+LocalBootstrap gate commit
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228` passes 55 Vitest files/255 tests and
+21/21 sequential Playwright tests. Provider coverage proves owner/mode/no-follow/
+special/pre-existing/bounded output, verifier-only state, entropy, single use,
+replay, expiry, restart and cleanup. Composition coverage proves actual manifest
+v2/no fixture fallback, fixed port 4317, root isolation, manual delivery, restart
+fresh proof, and rejection of capability/port injection. Full lint/typecheck/
+build, disposable no-provider smoke, zero-high dependency audit, diff and
+credential-pattern scans, and direct desktop/mobile/reduced-motion inspection
+pass. The smoke intentionally remains the default `AUTH_BLOCKED` branch; no real
+LocalBootstrap process is started by that gate.
+
 All tests use disposable local fixtures and synthetic canary data. No real secret,
 DB, production/live system, remote host, protected branch, or public service is
 accessed.
@@ -625,10 +684,11 @@ accessed.
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/`, `src/operations/backup/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted append protocol remains; backup refuses a live writer and captures only a complete exact checkpoint with modes/hashes/source metadata | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
-| AO-OPS-002 Restart/idempotent recovery | `src/runtime/`, `src/application/startup/recovery.ts`, `src/persistence/file-store/`, `src/operations/restore/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/recovery/restart-replay.test.ts`, `scripts/runtime-smoke.mjs` | Existing replay remains; round 2 proves fresh coordinator restart, source re-read, outbox reconciliation, duplicate message non-execution, listener/lock cleanup, and no-provider AUTH_BLOCKED/manual fallback | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real-root supervision/provider/restore selection remain gated |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/application/hosts/freshness.ts`, `src/operations/readiness/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Config/manifest failures block startup, including any operational config with group/other write bits; `0400`/`0600` accept and `0620`/`0602`/`0666` reject; later missing/timeout/identity/dirty/unverified/partial failures project UNKNOWN/ERROR/CONFLICT/STALE/OFFLINE, never cached fabricated CURRENT | `IMPLEMENTED_OPERATIONAL_CONFIG_MODE_PATCH__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote collectors/service supervision remain gated |
+| AO-OPS-002 Restart/idempotent recovery | `src/runtime/`, `src/application/startup/recovery.ts`, `src/persistence/file-store/`, `src/operations/restore/` | `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/recovery/restart-replay.test.ts`, `scripts/runtime-smoke.mjs` | Default restart stays AUTH_BLOCKED/manual; LocalBootstrap success/expiry/shutdown removes exact proof, replay rejects, and restart creates a distinct fresh proof. Ambiguous stale output fails without overwrite | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real-root/private-run supervision and restore selection remain gated |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/server/auth/local-bootstrap.ts`, `src/operations/readiness/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Config/manifest failures block startup; both trusted configs reject group/other write. Proof directory/file symlink, special, stale, owner/mode/identity or overlap failures reject; observed source failures never become CURRENT | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Remote collectors/service supervision remain gated |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | Complete marker, schema/path/mode/hash/build/tamper checks, disjoint candidate, replay/projection/idempotency equality, and explicit non-selection pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/encryption/schedule/retention/real-root operation gated |
-| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/application/advisor-inbox/`, `src/operations/readiness/delivery-control.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/rollback-disable.test.ts` | Production gateway needs capability plus port; absent authority, engaged kill, and ambiguous receipt stay manual with no delivery-port call or duplicate execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real transport re-enable/activation remains external |
-| AO-OPS-006 Redacted health/observability and recovery proof | `src/runtime/`, `src/application/audit/`, `src/server/security/audit.ts`, `src/server/application.ts`, `src/operations/evidence/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/security/audit-log.test.ts`, `scripts/runtime-smoke.mjs` | Redacted status plus path-free source IDs/presentations and semantic SSE revisions expose operational health without absolute roots, bodies, credentials, terminal data, or invented activity; explicit smoke proves cleanup | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth lifecycle audit, metrics, retention, Advisor review remain gated |
+| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/application/advisor-inbox/`, `src/operations/readiness/delivery-control.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/rollback-disable.test.ts` | LocalBootstrap composition forbids both gateway capability and delivery port, so every persisted message stays manual with no transport call; existing kill/ambiguous protections remain | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real transport activation remains separate and external |
+| AO-OPS-006 Redacted health/observability and recovery proof | `src/runtime/`, `src/application/audit/`, `src/server/security/audit.ts`, `src/server/application.ts`, `src/operations/evidence/` | `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/audit-log.test.ts`, `scripts/runtime-smoke.mjs` | Status exposes LocalBootstrap readiness/mutation/manual-delivery only; proof canary scans cover audit, response, URL, state/static/source/committed files and browser stores/cache without disclosure | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real-run audit/metrics/retention and Advisor review remain gated |
+| AO-OPS-007 Non-secret private-run preparation | `docs/operations/LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md`, `src/runtime/cli.ts`, `src/server/config.ts` | `tests/security/private-network-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Runbook fixes owner-only outside-Git paths, actual manifest, port 4317, startup/cleanup/stale-file/evidence rules and review gates without creating a credential or run | `DOCUMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Execute only after Fable5 PASS and explicit Advisor authority |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

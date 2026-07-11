@@ -1,6 +1,6 @@
 # Agent Office Domain and Event Contract
 
-Status: `FINAL_REWORK_ROUND2_OPERATIONAL_PROJECTION_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `LOCAL_BOOTSTRAP_GATE_IMPLEMENTED_WITH_NO_DOMAIN_SCHEMA_CHANGE__PENDING_FABLE5_AND_ADVISOR`
 
 Contract version: `agent-office.domain.v1`
 
@@ -37,6 +37,14 @@ Advisor message/notification/decision/resume events are exercised as one compose
 idempotent lifecycle. Alert same-request replay is checked before current stream
 version so an exact retry remains idempotent without weakening changed-input
 conflict or optimistic concurrency.
+
+LocalBootstrap gate commit `2623922877bd52dc7f5b6c6cd45fae755e5ff228`
+also adds no domain event, state, transition, entity authority, completion rule,
+or denominator change. Authentication proof/session lifecycle stays in the
+server/runtime boundary and redacted security audit; proof, cookie, CSRF and
+session handles never enter domain commands, artifacts, events or projections.
+The actual canonical manifest instance is now manifest version 2 under the same
+version-1 manifest schema and denominator 15.
 
 ## 1. Contract Principles
 
@@ -126,6 +134,22 @@ event. Advisor remains the actor recording the link; this does not grant Advisor
 the recorded canonical authority. The current approved contract defines no safe
 bounded Advisor routine decision scope, so `authorityRole=Advisor` rejects closed
 until a separate authority decision defines one.
+
+### 1.5 LocalBootstrap as-built domain boundary
+
+LocalBootstrap establishes a browser subject with only `viewer` and `leo_input`.
+Those capabilities authorize HTTP application ports; they do not create a domain
+actor role, grant `advisor_operator`, change decision authority, imply delivery,
+or satisfy completion/review. The existing message application still records the
+typed Leo/GPT message actor and durable idempotent message flow. Advisor-only
+acknowledgement, intake, decision and alert actions remain unavailable to this
+session, and the capability-less gateway projects manual fallback.
+
+Authentication exchange/logout outcomes append only the separate redacted
+security audit. The proof is never hashed into an audit payload, message command,
+event or evidence artifact. Session rotation/revocation and SSE close change
+transport access only; they do not append a mission transition. Provider restart
+cannot resurrect or replay a proof and cannot reconstruct mission truth.
 
 ## 2. Identity, Encoding, Time, and Hashing
 
@@ -845,18 +869,26 @@ or intake as a resume transition.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| Version-1 manifest remains the sole scope authority | `src/domain/manifest/index.ts`, `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/domain/manifest.test.ts` | External source must match exact hash/commit/path and be Git VERIFIED before store open; fixture fallback, mismatch, stale, unverified, missing, and path escape reject | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Operator approval of the real local source config remains external |
+| Version-1 manifest schema plus current versioned instance remains sole scope authority | `src/domain/manifest/index.ts`, `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/domain/manifest.test.ts` | Current manifest instance version 2 must match actual foundation root/hash/commit/path and be Git VERIFIED before proof/store/bind; fixture, alternate root, mismatch, stale, unverified, missing and path escape reject | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Advisor approval of real-run config remains external |
 | Structured events plus fresh verified observation, never manifest status alone, prove live activity | `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts`, `src/application/hosts/freshness.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts` | Active WorkUnits require accepted activity event IDs and CURRENT actor evidence; stale/offline/missing/identity/dirty/unverified/restart cases project fail-closed | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Remote host event envelopes remain gated |
 | Durable alerts and Advisor lifecycle preserve existing event authority | `src/application/alerts/index.ts`, `src/application/advisor-inbox/`, `src/runtime/projection.ts` | `tests/integration/alert-application.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/decision-authority-evidence.test.ts` | Open/resolved/suppressed/idempotent alert projection and persist/deliver/ack/intake/verified-decision/resume/duplicate lifecycle pass without a new event type or automatic authority | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW` | Real auth and delivery authority remain gated |
+
+### 14.2 LocalBootstrap contract evidence
+
+| DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
+|---|---|---|---|---|---|
+| Authentication remains outside mission event truth | `src/server/auth/`, `src/server/http/server.ts`, `src/runtime/composition.ts` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/integration/runtime-composition.test.ts` | Cryptographic proof exchange, session, logout and revocation are server/runtime state only; no proof/session value or new domain event/artifact exists | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run remains gated |
+| Local capability does not become Advisor or completion authority | `src/server/auth/local-bootstrap.ts`, `src/server/application.ts`, `src/application/advisor-inbox/` | `tests/integration/runtime-composition.test.ts`, `tests/security/auth-session.test.ts` | Fixed capabilities are exactly `viewer`/`leo_input`; Advisor operator paths remain denied and gateway delivery remains manual | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real delivery and final authority remain external |
+| Current canonical scope is consumed without fixture fallback | `src/runtime/composition.ts`, `src/runtime/observation-coordinator.ts`, `src/domain/manifest/index.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts` | Actual foundation-docs manifest version 2 is Git/hash/path verified before proof/bind; fixture authority rejects | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Future scope versions still require canonical authority |
 
 ## 15. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Dashboard consumption implemented in Batch B; later scope changes still require authority |
-| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts`, `src/application/audit/`, `src/server/security/audit.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/integration/lifecycle-audit.test.ts`, `tests/security/audit-log.test.ts` | Accepted ledger remains intact; Batch E adds a separate owner-only serialized/tamper-checked redacted security audit without changing domain sequence | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real-auth lifecycle audit/retention remain gated |
-| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/runtime/observation-coordinator.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/integration/observation-coordinator.test.ts` | Round 2 changes no transition table; 228-test regression preserves rejections, and active observables remain unknown unless accepted activity events and verified fresh sources agree | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | None for local domain rules; remote evidence remains gated |
-| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/runtime/composition-core.ts`, `src/server/http/` | `tests/integration/advisor-inbox.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts` | Composed approved test delivery proves one immutable message/pointer execution, receipt, acknowledgement, intake, verified named-authority decision, resume evidence, and exact duplicate replay with no second delivery | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation and transport authority remain gated; Advisor routine authority remains undefined |
+| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts`, `src/application/audit/`, `src/server/security/audit.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/integration/lifecycle-audit.test.ts`, `tests/security/audit-log.test.ts`, `tests/security/local-bootstrap-http.test.ts` | Domain ledger remains intact; LocalBootstrap exchange/logout writes only redacted security outcomes and never proof/session payload hashes or domain sequence | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real-run audit evidence and retention remain gated |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/runtime/observation-coordinator.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/integration/observation-coordinator.test.ts` | LocalBootstrap changes no transition table; 255-test regression preserves rejections, and active observables remain unknown unless accepted activity events and verified fresh sources agree | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | None for local domain rules; remote evidence remains gated |
+| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/runtime/composition-core.ts`, `src/server/http/` | `tests/integration/advisor-inbox.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts` | LocalBootstrap permits durable Leo-to-Advisor message persistence but grants no Advisor operator or transport authority; gateway remains manual. Existing deterministic full-lifecycle test coverage remains synthetic | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real private-run message evidence and transport authority remain gated; Advisor routine authority undefined |
 | AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts`, `src/operations/restore/`, `src/server/sse/` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts` | Canonical mission projection is unchanged; read-only source freshness is a separate overlay, semantic observation changes get monotonic SSE revisions, and no observation/scene/alert projection creates completion truth | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote evidence remains gated |
 | AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch C event-ID-only activity/result mapping is Advisor-accepted and remains unchanged in Batch D regression | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene activity |
 | AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts`, `src/application/alerts/`, `src/runtime/projection.ts`, `src/ui/communication/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, `tests/integration/alert-application.test.ts`, `tests/integration/runtime-composition.test.ts` | Closed vocabularies remain; hash-verified durable detail now projects type, question/options/recommendation/safe default/evidence/actions for open/resolved/suppressed alerts without raw terminal or secret data | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real Advisor/Leo decision and delivery authority remain external |

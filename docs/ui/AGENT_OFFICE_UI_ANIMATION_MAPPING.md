@@ -1,6 +1,6 @@
 # Agent Office UI and Animation Mapping
 
-Status: `FINAL_REWORK_ROUND2_APPLICATION_SCENE_IMPLEMENTED__REAL_AUTH_OPERATION_GATED__PENDING_DELTA_REVIEW`
+Status: `LOCAL_BOOTSTRAP_LOGIN_AND_APPLICATION_SCENE_IMPLEMENTED__REAL_RUN_PENDING_FABLE5_AND_ADVISOR`
 
 This reviewed design defines the responsive, private PWA surface and the only
 allowed mapping from structured events to visual activity. Batch B implements the
@@ -20,8 +20,9 @@ dependency. Batch E PWA/runtime-strip code/tests/assets are implemented at
 `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`. Final rework commit
 `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1` replaces the production fixture
 entry with the typed status/projection/SSE client and keeps synthetic fixtures
-behind explicit `test-demo` mode. Real authenticated operation remains gated
-because no real provider/credential is approved.
+behind explicit `test-demo` mode. At that historical commit, authenticated
+operation remained gated because no production provider existed; the current
+LocalBootstrap boundary is recorded below.
 
 Final rework round 2 commit `10fdee75dca73c4fb5cde09019c403d4dc1682bb`
 adds `sceneRoles` and durable alert views to the authenticated application
@@ -32,6 +33,16 @@ unknown/stale/offline/conflict suppresses cues. Three new composed application
 baselines cover desktop, mobile, and reduced motion. They were directly inspected
 under the configured local browser/font runtime. Real authenticated private-run
 visual evidence remains gated.
+
+LocalBootstrap gate commit
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228` adds the production proof-login and
+logout states without adding a role target or transport action. The default
+no-provider UI remains `AUTH_BLOCKED`. Trusted LocalBootstrap renders a restrained
+Korean password-style one-time-proof form, clears proof state before awaiting the
+request, then shows separate `LOCAL_BOOTSTRAP_AUTHENTICATED`,
+`LOCAL_BOOTSTRAP_ENABLED`, and `MANUAL_FALLBACK_REQUIRED` facts. Desktop/mobile/
+reduced-motion composed paths pass with proof absent from URLs, browser stores,
+IndexedDB and caches. No real credential/private-run visual evidence is claimed.
 
 ## 1. Experience Principles
 
@@ -148,9 +159,11 @@ indicator. It never shows a generic command box.
 - The Advisor action port exists only when a parsed protected session includes
   `leo_input` and a bounded CSRF token. Alert acknowledgement separately rechecks
   `advisor_operator`. No role/session/pane/tmux/terminal target exists.
-- With the production no-provider composition, the responsive UI renders the
-  exact `AUTH_BLOCKED / READ_ONLY`, `AUTH_PROVIDER_UNAVAILABLE`, mutation-disabled,
-  and disconnected-SSE facts. It does not display a fixture projection.
+- With committed no-provider config, the responsive UI renders exact
+  `AUTH_BLOCKED / READ_ONLY`, `AUTH_PROVIDER_UNAVAILABLE`, mutation-disabled, and
+  disconnected-SSE facts. With trusted LocalBootstrap it renders
+  `LOGIN_REQUIRED`, then the protected application only after exchange. Neither
+  branch displays a fixture projection.
 - A guarded synthetic composition test exercises this same client against the
   real HTTP/application/store/SSE path; this is test evidence only, not a claim of
   an approved real provider or private authenticated run.
@@ -175,6 +188,29 @@ indicator. It never shows a generic command box.
   production entry behind explicit synthetic test auth at 1440x900 and 390x844,
   reduced motion, containment, eight/two visible stations, no fixture selector,
   no unverified cue, and WCAG A/AA.
+
+### 2.6 LocalBootstrap login/logout boundary
+
+- The fail-closed shell shows runtime network/startup/mutation/projection/SSE
+  facts before authentication and independently shows manual delivery state.
+- The form contains one labelled `type=password` input with one-time-code hint,
+  exact 43-character base64url pattern, required semantics, pending disable, and
+  an accessible error role. It has no identity, capability, target, path, or
+  remember-me control.
+- Form proof state is copied only for the immediate request and cleared before
+  awaiting `client.login`; the client validates shape and POSTs a bounded JSON
+  body to the same-origin exchange. It never places the proof in route/query,
+  local/session storage, IndexedDB, cache, log, clipboard or projection.
+- After protected projection validates fixed session data, the runtime boundary
+  displays LocalBootstrap auth/mutation badges and a Logout button. The Advisor
+  communication action port exists only for `leo_input`; alert/operator controls
+  remain absent.
+- Logout is server revocation, not a local visual toggle. Success clears client
+  projection/session/SSE and shows `LOGGED_OUT`; a fresh proof requires a process
+  restart. Expiry/revocation similarly removes protected UI and mutation access.
+- Mobile retains 44-pixel controls, no horizontal overflow and explicit scene
+  pagination. Reduced motion still removes spatial cues. LocalBootstrap changes
+  no scene mapping, event provenance, or animation authority.
 
 ## 3. Hierarchy and Mission Views
 
@@ -589,11 +625,12 @@ alerts.
 ## 12. Advisor Inbox UI
 
 Batch D implements this local typed-port UI under `src/ui/communication/`.
-The final-rework production default is the runtime client, not a fixture. Because
-no real authentication provider is approved, it receives only redacted status and
-renders `AUTH_BLOCKED`/read-only; protected projection and the compose action port
-remain absent. The explicit guarded synthetic composition proves the client/
-application wiring without becoming a production login or provider switch.
+The production default is the runtime client, not a fixture. Committed
+no-provider config receives only redacted status and renders
+`AUTH_BLOCKED`/read-only. Trusted LocalBootstrap can expose protected projection
+and the `leo_input` compose action after one-time exchange, but delivery remains
+manual and Advisor-operator actions remain absent. Synthetic browser coverage
+proves this wiring without claiming a real credential/private run.
 
 The compose form contains mission, structured kind, subject, text, and allowlisted
 entity references. It never contains role/session/pane/command fields.
@@ -660,9 +697,11 @@ shell renders server-derived status and, only when authenticated, the applicatio
 projection and Advisor action port. It never silently imports the approved-source
 or synthetic communication fixtures.
 
-Because no approved real provider exists, the current UI truthfully renders
-`AUTH_BLOCKED`, `READ_ONLY`, and delivery-disabled/manual-safe state; it does not
-render a fake authenticated projection or queue offline submissions.
+Committed default UI truthfully renders `AUTH_BLOCKED`, `READ_ONLY`, and manual
+delivery. Explicit LocalBootstrap instead renders login/authenticated/logout
+states from the server while keeping PWA caching static-only and offline mutation
+disabled. Neither branch renders a fake authenticated projection or queues
+offline submissions.
 
 ## 15. UI Acceptance Tests
 
@@ -735,17 +774,30 @@ free of unverified activity motion. The focused composition suite is 10/10 and
 the controlled-scene component case verifies no fixture selector and stale-state
 cue suppression.
 
+LocalBootstrap gate expands the complete regression to 55 Vitest files/255 tests
+while all 21/21 Chromium tests pass. The composed path now enters three named
+synthetic one-time proofs through the production login form, asserts exact Local
+auth/mutation and manual-delivery badges, validates host-only HttpOnly/Strict
+cookie semantics, scans URL/request/storage/IndexedDB/cache for proof absence,
+and proves Logout removes the office scene. The three composed baselines were
+explicitly regenerated and directly inspected. Desktop snapshot capture uses
+`animations: allow` only after asserting zero structured motion/route cues,
+because this configured Chromium runtime renders a transient black frame when
+Playwright force-disables animations; reduced-motion remains separately enforced
+and inspected. No portable cross-runtime visual-determinism claim is added.
+
 ## 16. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/`, `src/ui/runtime/`, `src/ui/pwa/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/dashboard.component.test.tsx`, `tests/e2e/`, `tests/e2e-composed/application-office-scene.spec.ts` | Production now renders evidence-backed dashboard, alerts, and controlled office scene; no-provider remains fail-closed, while 18 demo plus 3 composed browser tests and direct inspection pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated data/provider and AO-WU-14 posture remain gated |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/`, `src/ui/runtime/`, `src/ui/pwa/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/dashboard.component.test.tsx`, `tests/e2e/`, `tests/e2e-composed/application-office-scene.spec.ts` | Production renders evidence-backed application; default auth-blocked and LocalBootstrap login/authenticated/logout states remain explicit, responsive and separate from manual delivery. All 21 browser tests/direct inspection pass | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private-run visual evidence remains gated |
 | AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts`, `src/ui/scene/` | `tests/integration/observation-coordinator.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Existing exact mapping now receives operational roles; active animation requires accepted event IDs plus CURRENT/CONNECTED evidence, while manifest-only, stale, unknown, offline, conflict, and critical states suppress cues | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote activity sources remain gated |
-| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Existing accessibility remains; authenticated composed desktop/mobile/reduced-motion scene has no WCAG A/AA violations, no overflow, and no unverified cues | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real-provider focus transitions require private-run review |
+| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/`, `src/ui/runtime/runtime-app.tsx`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Labelled proof form, keyboard controls, desktop/mobile containment and composed reduced-motion scene have no WCAG A/AA violations or unverified cues; proof/logout path is browser-tested | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real-run focus/credential handling review remains gated |
 | AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `public/icons/`, `playwright.config.ts`, `playwright.composed.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Existing assets remain; three new composed-path baselines under the same local browser/font runtime were added and directly inspected without asset changes | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Cross-host/browser/font portability remains an operations prerequisite |
-| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/`, `src/ui/runtime/client.ts`, `src/runtime/composition-core.ts`, `src/server/http/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/integration/http-advisor-message.test.ts` | Protected client still returns PERSISTED; composed approved test path separately proves one pointer delivery/receipt, acknowledgement, intake, verified decision, resume, and duplicate non-execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation and delivery require separate authority |
+| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/`, `src/ui/runtime/client.ts`, `src/runtime/composition-core.ts`, `src/server/http/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/integration/http-advisor-message.test.ts` | LocalBootstrap `leo_input` can persist a message but delivery visibly stays manual; it cannot expose ack/intake/decision/operator controls. Existing full-lifecycle test delivery remains synthetic | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real private-run message and delivery evidence require separate authority |
 | AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/alerts/`, `src/runtime/projection.ts`, `src/ui/communication/`, `src/ui/scene/` | `tests/integration/alert-application.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Hash-verified durable alert details and lifecycle now reach application Alerts; observation reason banners and scene connection/freshness remain explicit, redacted, and motion-suppressing | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real live alert/recovery authority remains gated |
-| AO-UI-007 PWA install/offline/update and runtime selection | `src/pwa/`, `src/ui/pwa/`, `src/ui/runtime/`, `src/ui/demo-entry.tsx`, `vite.config.ts`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Production build resolves runtime client and composed operational scene; explicit test-demo alone resolves fixtures; PWA/cache gates and explicit no-fallback smoke pass | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation remains gated |
+| AO-UI-007 PWA install/offline/update and runtime selection | `src/pwa/`, `src/ui/pwa/`, `src/ui/runtime/`, `src/ui/demo-entry.tsx`, `vite.config.ts`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Production resolves runtime client and trusted LocalBootstrap states; explicit test-demo alone resolves fixtures. Static-only cache excludes auth/API and proof canary scans pass | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private-run operation remains gated |
 | AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted domain labels remain exact; Batch E security/PWA state codes are deliberately visible stable operational codes with no silent authority translation | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Product localization of new security codes requires a reviewed vocabulary change |
+| AO-UI-009 LocalBootstrap proof-login/logout and delivery distinction | `src/ui/runtime/runtime-app.tsx`, `src/ui/runtime/client.ts`, `src/ui/pwa/runtime-boundary.tsx`, `src/ui/styles.css` | `tests/e2e-composed/application-office-scene.spec.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts` | Restrained Korean one-time-proof form clears value before request; fixed local badges/logout/manual fallback, no storage/URL/cache disclosure and scene removal on logout pass at desktop/mobile/reduced motion | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real proof entry/private-run review requires Fable5 PASS and Advisor authority |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

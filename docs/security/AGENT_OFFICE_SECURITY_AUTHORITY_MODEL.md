@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `OPERATIONAL_CONFIG_MODE_PATCH_IMPLEMENTED__FINAL_REWORK_ROUND2_BOUNDARIES_PRESERVED__PENDING_DELTA_REVIEW`
+Status: `LOCAL_BOOTSTRAP_SECURITY_GATE_IMPLEMENTED__REAL_CREDENTIAL_AND_RUN_PENDING_FABLE5_AND_ADVISOR`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -49,6 +49,17 @@ adds an executable no-provider composition, production runtime client, and
 immutable decision-authority verifier while preserving every closed gate. It
 contains no real secret/provider and remains subject to same-Reviewer delta
 review, Advisor verification, and the unresolved AO-WU-14 Leo/GPT decision.
+
+LocalBootstrap gate commit
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228` implements the production loopback
+provider, exact trusted config, one-time owner-file proof delivery, bounded
+exchange/logout/session lifecycle, actual-canonical-manifest enforcement and
+production login UI. The default remains `NONE_READ_ONLY`. LocalBootstrap is
+fixed to `127.0.0.1:4317`, grants only `viewer`/`leo_input`, and rejects any
+gateway capability or delivery-port injection. This Worker pass generated only
+isolated synthetic canaries; it created/accessed no real proof or host credential
+and started no real private run. Fable5 code/security `PASS` and explicit Advisor
+authority remain mandatory before that operation.
 
 ## 1. Security Objectives
 
@@ -104,13 +115,13 @@ Availability never outranks actor separation or evidence integrity.
   auth, opaque revocable sessions, capability/CSRF/Fetch Metadata, strict JSON,
   body/time/rate bounds, CSP/no-store, and owner-only hash-chained audit. Default
   config selects no provider and mutation-disabled read-only mode.
-- `src/runtime/composition.ts` is the only production executable composition:
-  it supplies no `BrowserSessionRegistry`, selects no authentication bootstrap,
-  uses a rejecting decision-authority verifier until exact trusted authority
-  registrations are approved, and injects `TmuxAdvisorGateway` without a delivery
-  port. It never instantiates Hermes. `src/runtime/test-composition.ts` alone
-  constructs the doubly guarded synthetic provider and can accept an explicit
-  deterministic test delivery port; it exposes no HTTP proof exchange.
+- `src/runtime/composition.ts` is the only production executable composition. It
+  preserves the no-provider default and, only for trusted v2 config, constructs
+  `LocalBootstrapAuthenticationProvider`, `BrowserSessionRegistry`, and the
+  bounded exchange. It uses a rejecting decision-authority verifier and a
+  capability-less/port-less `TmuxAdvisorGateway`; LocalBootstrap rejects either
+  delivery injection. It never instantiates Hermes. Synthetic providers/ports
+  remain separately guarded in `src/runtime/test-composition.ts`.
 - `src/runtime/operational-config.ts` reads only an absolute owner-owned,
   group/other-non-writable, no-follow, bounded versioned JSON regular file. It
   accepts owner-controlled `0400`/`0600` and rejects any mode for which
@@ -134,8 +145,8 @@ Availability never outranks actor separation or evidence integrity.
 - Adapter/security boundary tests are deterministic and use fake tool runners;
   traversal, symlink, special-file, hostile argv/ref/name, timeout/cap, root
   isolation, malicious inert text, capability matrix, and forbidden-scope cases
-  pass in 53 Vitest files/228 tests plus 21 Chromium tests at round-2 commit
-  `10fdee75dca73c4fb5cde09019c403d4dc1682bb`.
+  pass in the current 55 Vitest files/255 tests plus 21 Chromium tests at
+  LocalBootstrap commit `2623922877bd52dc7f5b6c6cd45fae755e5ff228`.
 
 ## 2. Threat Model
 
@@ -221,8 +232,11 @@ and allowlist validation.
 - Startup fails if configuration requests non-loopback bind.
 
 Loopback still requires authentication for mutations. A narrowly marked local
-development read-only mode may use a fake provider only in tests; it cannot expose
-message or decision mutations.
+development read-only mode may use a fake provider only in tests. Production
+LocalBootstrap is a separate exact IPv4-loopback mode: one bind/Host/origin at
+`127.0.0.1:4317`, no proxy/CORS/TLS/HSTS, and only `viewer`/`leo_input`.
+It cannot expose Advisor-operator or decision mutations and does not authorize a
+private-network identity.
 
 ### 5.2 `PRIVATE_NETWORK_GATED` (designed, disabled)
 
@@ -258,28 +272,34 @@ revokeSession(sessionHandle) -> receipt
 It never returns signing keys to application code or browser JavaScript. Provider
 implementations are selected by trusted startup configuration, not a request.
 
-### 6.2 Candidate providers
+### 6.2 Provider implementations
 
 - `TestAuthenticationProvider`: deterministic fake identities for automated tests
   only; build/runtime guard prevents non-test startup.
-- `LocalBootstrapAuthenticationProvider`: future loopback provider that generates
-  a high-entropy, single-use proof, stores only its verifier, delivers the proof
-  through an owner-only runtime channel outside Git/logs, and exchanges it for a
-  short-lived server-side session. Implementing/using the real proof is gated by
-  an explicit secret-handling implementation handoff.
+- `LocalBootstrapAuthenticationProvider`: production loopback provider implemented
+  at `2623922877bd52dc7f5b6c6cd45fae755e5ff228`. It generates 32 cryptographic
+  random bytes, base64url encodes one 43-character proof, retains only salted
+  SHA-256 verifier bytes, and limits proof/session lifetime to 15 minutes.
+  Delivery is one exclusive no-follow regular `0600` file in a canonical
+  owner/UID directory with group/other bits clear and owner write/execute outside
+  Git and every runtime/observed root (the runbook fixes mode `0700`). File
+  identity, size, owner and mode are rechecked before removal. Existing regular,
+  symlink or special files, insecure/linked directories, write races, expiry,
+  replay and stale restart fail closed without overwrite/resurrection.
 - `PrivateNetworkAuthenticationProvider`: future gated provider that maps a
   verified private-network/OIDC identity to capabilities. Interface only in M01.
 
 There is no `NoAuth` mutation provider. Missing/invalid provider configuration
 disables mutation endpoints and reports a redacted health failure.
 
-The executable M01 production composition does not instantiate any provider or
-session registry. `NONE_READ_ONLY` is an unavailable-auth declaration, not a
-localhost identity and not a `NoAuth` provider. It serves the static shell and
-redacted status while returning `AUTH_PROVIDER_UNAVAILABLE` for protected
-projection, SSE, and mutation routes. Synthetic proof exchange occurs only
-out-of-band inside the explicit test composition; no production route, flag, or
-environment variable can enable it.
+The executable production composition instantiates no provider for committed v1
+`NONE_READ_ONLY`; that remains an unavailable-auth declaration, not localhost
+identity or `NoAuth`. Explicit owner-controlled deployment v2 is the only
+LocalBootstrap selector; requests, flags and environment values cannot switch
+auth mode. Before proof creation/bind, it requires the actual current canonical
+foundation-docs source/root/Git authority and rejects fixture fallback, root
+overlap, gateway capability and delivery-port injection. A real proof/private run
+is still operationally gated even though the provider code exists.
 
 ### 6.3 Session handling
 
@@ -295,10 +315,16 @@ environment variable can enable it.
   cache, URL query, or application log.
 - Logout/revocation invalidates the server-side session and emits a redacted audit
   event.
+- LocalBootstrap success removes the proof file before issuing the server-side
+  session; any prior browser session is revoked and replaced. Invalid/expired
+  session responses clear the cookie, and revocation closes every SSE stream for
+  that cookie. Proof, provider handle, cookie handle and CSRF are distinct opaque
+  values and none is returned through projection except the CSRF synchronizer
+  needed by the in-memory client.
 
 ## 7. CSRF, Origin, and Browser Request Controls
 
-Every mutation requires:
+Every authenticated application mutation requires:
 
 - an authenticated session and required capability;
 - exact same-origin `Origin` (and `Referer` fallback where applicable);
@@ -316,12 +342,24 @@ SSE requires an authenticated cookie, same-origin request, bounded concurrent
 connections, heartbeat, and server-side revocation checks. Sensitive payloads are
 not placed in SSE event IDs or URLs.
 
+The sole unauthenticated POST is LocalBootstrap exchange. It accepts no cookie
+authority or CSRF token; instead it requires exact loopback peer/Host and an
+explicit exact `Origin` (no Referer fallback), `same-origin` Fetch Metadata with
+`cors`/`same-origin` mode, JSON content type, a strict 1024-byte body containing
+only a 43-character base64url proof, and the dedicated 5-attempt/15-minute
+rate/lockout policy. Query/fragment proof input is rejected before routing. The
+route returns only authenticated status/expiry and a new cookie; proof bytes are
+absent from response, URL and audit. Logout is authenticated, CSRF-protected and
+accepts only `{}`.
+
 ## 8. Browser API Allowlist
 
 Candidate mutation routes are closed and typed:
 
 | Route | Capability | Purpose |
 |---|---|---|
+| `POST /api/v1/auth/local-bootstrap/exchange` | one-time proof, no existing capability | Exchange exact local proof for fixed server-side session |
+| `POST /api/v1/auth/logout` | `viewer` plus CSRF | Revoke session, close SSE, clear cookie |
 | `POST /api/v1/advisor/messages` | `leo_input` | Persist immutable message to Advisor only |
 | `POST /api/v1/advisor/messages/:id/ack` | `advisor_operator` | Record Advisor acknowledgement artifact |
 | `POST /api/v1/advisor/intakes` | `advisor_operator` | Record canonical intake/routing classification |
@@ -471,9 +509,10 @@ tests prove message/note content is absent. Batch E adds serialized owner-only
 with IDs, stable codes, subject/request/correlation refs and safe payload hashes
 only. Restart hash-chain validation, concurrent append ordering, tamper rejection,
 and canary redaction pass in `tests/security/audit-log.test.ts` and
-`tests/security/http-boundary.test.ts`. A real auth provider and its lifecycle
-audit, audit rotation, and retention remain gated because no real provider or
-retention authority exists.
+`tests/security/http-boundary.test.ts`. LocalBootstrap now appends redacted
+exchange/logout outcomes without proof payload hashes; synthetic canary coverage
+passes. Real-run lifecycle evidence, audit rotation, deletion, and retention
+remain gated because no real credential/run or retention authority exists.
 
 ## 14. Kill Switch, Disable, and Manual Fallback
 
@@ -515,12 +554,14 @@ changes nor bypasses the external canonical transport kill switch.
 - A service-worker update is versioned, integrity checked, and activated through a
   visible reload flow. A broken worker has a documented unregister/recovery path.
 
-The production UI now contains the runtime client but has no live authenticated
-provider and therefore holds no server-loaded sensitive projection by default.
-It remains visibly `AUTH_BLOCKED` and `READ_ONLY`. Guarded synthetic tests prove
-that server revocation/expiry closes SSE and removes the action port; this is
-client behavior evidence, not a claim that a real provider or authenticated
-private run exists.
+The production UI preserves visibly `AUTH_BLOCKED`/`READ_ONLY` for the committed
+no-provider default. Trusted LocalBootstrap shows `LOGIN_REQUIRED`, keeps the
+proof only in controlled form/request memory, clears form state before awaiting
+exchange, and then displays `LOCAL_BOOTSTRAP_AUTHENTICATED`,
+`LOCAL_BOOTSTRAP_ENABLED`, independent manual delivery, and logout. Composed
+browser canary scans cover URL/request URLs, local/session storage, IndexedDB and
+cache bodies. This is synthetic end-to-end evidence, not a claim that a real
+credential/private run occurred.
 
 ## 16. Security Acceptance Tests
 
@@ -574,16 +615,32 @@ and `0600` and reject `0620`, `0602`, and `0666`. The coordinator file passes
 tests, runtime smoke, and dependency audit pass. Generated Playwright result
 directories remain untracked and uncommitted.
 
+At LocalBootstrap commit
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228`, the complete gate passes 55 Vitest
+files/255 tests and 21/21 Chromium tests. New evidence includes cryptographic
+entropy/distinctness and verifier-only retained state; owner UID/mode, no-follow,
+bounded, pre-existing, symlink, socket and changed-mode output handling; single
+use, invalid proof, replay, expiry, restart and removal; exact v2 config and
+`0400`/`0600` acceptance with group/other-write rejection; exact loopback
+Host/Origin/Fetch Metadata/content/body/query/rate controls; cookie/CSRF/session
+rotation/logout/revocation/SSE close; proof non-disclosure across audit/response/
+URL/state/static/source/committed/browser stores/cache; actual canonical manifest
+v2 with fixture rejection; and manual-only gateway enforcement. Lint, strict
+typecheck, builds, disposable default-mode smoke, zero-high dependency audit,
+diff/credential scans and direct inspection of all composed baselines pass. Only
+named synthetic proofs and disposable loopback roots were used.
+
 ## 17. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-SEC-001 Loopback private fail-closed bind | `src/server/network/`, `src/server/http/static-shell.ts`, `config/agent-office.loopback.json` | `tests/security/bind-policy.test.ts`, `tests/security/static-shell.test.ts`, `tests/security/private-network-disabled.test.ts` | Explicit loopback bind/peer/Host only; proxy/wildcard/nonloopback/private-mode changes and unsafe static paths fail closed; no CORS/TLS/HSTS claim | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Private/public network and deployment separately gated |
-| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/runtime/composition.ts`, `src/runtime/test-composition.ts`, `src/ui/runtime/client.ts`, `src/server/auth/`, `src/server/config.ts` | `tests/integration/runtime-composition.test.ts`, `tests/security/auth-session.test.ts`, `tests/security/http-boundary.test.ts` | Production still supplies no provider/session and stays AUTH_BLOCKED; synthetic auth plus approved test delivery are separate explicit injections. Capability without delivery port is manual, and revocation/expiry removes SSE/mutation | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real provider/credential, AO-WU-14 posture, and lifecycle audit need explicit authority |
-| AO-SEC-003 CSRF/origin/rate/input/output and decision-authority controls | `src/domain/messages/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/runtime/` | `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts` | Existing request controls remain; composed lifecycle preserves immutable authorityRole/scope/hash evidence through decision and resume, while changed/duplicate input, unapproved authority, and missing evidence fail closed | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Shared limiter/private origin/TLS, real provider, and bounded Advisor routine authority remain gated |
+| AO-SEC-001 Loopback private fail-closed bind | `src/server/network/`, `src/server/http/static-shell.ts`, `src/server/config.ts`, `config/agent-office.loopback.json` | `tests/security/bind-policy.test.ts`, `tests/security/static-shell.test.ts`, `tests/security/private-network-disabled.test.ts` | Default exact loopback read-only remains; LocalBootstrap accepts only one IPv4 bind/Host/origin at port 4317. Proxy/wildcard/nonloopback/private-mode/CORS/TLS/HSTS changes fail closed | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Private/public network and deployment remain separately gated |
+| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/runtime/composition.ts`, `src/runtime/test-composition.ts`, `src/ui/runtime/client.ts`, `src/server/auth/`, `src/server/config.ts` | `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/auth-session.test.ts` | Default stays AUTH_BLOCKED; trusted production LocalBootstrap uses verifier-only owner-file proof, fixed `viewer`/`leo_input`, opaque server sessions and logout/revocation/SSE close while gateway stays manual | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run requires Fable5 PASS and Advisor authority |
+| AO-SEC-003 CSRF/origin/rate/input/output and decision-authority controls | `src/domain/messages/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/runtime/` | `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/http-boundary.test.ts` | Bootstrap has exact unauthenticated-origin/body/rate controls and no disclosure; authenticated routes keep session/capability/CSRF. Local session cannot call Advisor decision paths; immutable authority controls remain unchanged | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Private origin/TLS and bounded Advisor routine authority remain gated |
 | AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/acceptance/batch-gates.test.ts` | Six exact typed mutations and read/static routes only; command/target/role/path/Worker/Reviewer/terminal routes and fields reject; server has no process primitive | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Fixed prohibition; real Advisor transport remains external |
-| AO-SEC-005 Audit/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/security/audit-log.test.ts` | Executable uses only TmuxAdvisorGateway; capability plus port is required for READY, while absent authority, engaged kill, and ambiguous receipt remain manual with no invented target or duplicate execution | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real transport state/re-enable and audit retention remain external/gated |
-| AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Hashed shell install cache, sensitive-prefix/no-store exclusion, GET-only runtime cache, no sync queue, offline read-only, user update, unregister recovery pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated UI requires separately approved real provider |
+| AO-SEC-005 Audit/kill-switch/manual fallback | `src/runtime/composition.ts`, `src/adapters/gateways/tmux-advisor/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/audit-log.test.ts` | LocalBootstrap rejects gateway capability/port before bind and keeps delivery manual; proof is absent from audit. Existing kill/ambiguity/no-duplicate rules remain | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real transport and audit retention remain external/gated |
+| AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js`, `src/ui/runtime/` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Hashed static-only cache/no sync/offline read-only remains; composed proof canary is absent from storage, IndexedDB, caches and URLs while cookie is HttpOnly/Strict | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private-run browser inspection remains gated |
 | AO-SEC-007 Operational source authority and projection redaction | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Exact external manifest/root/source/actor registration is owner/no-follow/bounded and fail-closed; config mode must have `0o022` clear, with `0400`/`0600` accepted and `0620`/`0602`/`0666` rejected; projection exposes no absolute root/raw terminal/secret, and unverified activity cannot animate | `IMPLEMENTED_OPERATIONAL_CONFIG_MODE_PATCH__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real source config approval and remote-host trust remain external |
+| AO-SEC-008 LocalBootstrap proof-file and non-disclosure boundary | `src/server/auth/local-bootstrap.ts`, `src/runtime/composition-core.ts`, `src/server/http/server.ts` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/integration/runtime-composition.test.ts` | Entropy/verifier/single-use/expiry/restart plus owner/exact-0600/owner-only-directory/no-follow/special/stale/race and cross-surface canary scans pass; proof never enters durable/application/browser evidence | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Execute real handling only after independent PASS and Advisor authority |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

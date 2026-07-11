@@ -1,80 +1,73 @@
 # Agent Office
 
-Agent Office is an Advisor-managed web control-plane project. The intended
-product will project canonical mission state and support structured
-Leo-to-Advisor communication while preserving strict actor boundaries.
+Agent Office is the loopback-only M01 web control plane for canonical mission
+projection and structured Leo-to-Advisor communication. The repository contains
+the accepted Batch A-D foundation, Batch E runtime/PWA/recovery work, the final
+runtime reworks, and the LocalBootstrap private-run gate implemented at
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228`.
 
-This repository now contains the reviewed M01 design, Advisor-accepted Batch A/B,
-and the implemented Batch C structured-event office scene. Batch C
-code/config/tests/assets are at commit
-`e30a6cda52e14a4bf30b2d1b7445fa26645496e5` and remain pending Advisor
-acceptance as the dependency for Batch D.
+## Current as-built boundary
 
-Implemented through Batch C:
+- The default committed deployment remains `LOOPBACK_PRIVATE`,
+  `NONE_READ_ONLY`, mutation-disabled, and visibly `AUTH_BLOCKED`.
+- An explicit owner-controlled deployment configuration may select the exact
+  `LOCAL_BOOTSTRAP` / `ENABLED_LOCAL_BOOTSTRAP` mode. That mode binds only
+  `127.0.0.1:4317`; CORS, proxy trust, TLS, and HSTS remain disabled.
+- Production LocalBootstrap generates one cryptographically random proof and
+  writes it once to a caller-selected owner-only `0600` file in an isolated
+  `0700` directory outside Git. Provider state retains only a salted verifier.
+- The bounded same-origin exchange creates a server-side session with only
+  `viewer` and `leo_input`. The host-only cookie is `HttpOnly` and
+  `SameSite=Strict`; logout/revocation closes SSE and removes mutation access.
+- Production LocalBootstrap accepts only the current Git-verified canonical M01
+  manifest from the sibling `foundation-docs` repository. Fixture fallback is
+  rejected before proof creation or listener binding.
+- Advisor delivery remains `MANUAL_FALLBACK_REQUIRED`. LocalBootstrap rejects a
+  usable tmux capability or delivery-port injection, and no real tmux input is
+  sent.
+- The production UI has a restrained Korean proof-login state, explicit
+  LocalBootstrap authentication/mutation badges, logout, responsive containment,
+  reduced-motion behavior, and static-only PWA caching. Proofs and session values
+  are not placed in URLs, browser storage, service-worker caches, logs, audit
+  payloads, source, or committed artifacts.
 
-- strict TypeScript contracts and state machines;
-- exact approved 15-WorkUnit manifest import/fixture;
-- append-only local JSONL event store and immutable artifacts;
-- deterministic projections, checkpoints, restart, and corruption quarantine;
-- trusted project/root registration and bounded no-follow manifest/artifact reads;
-- fixed direct-argv, no-shell Git and structured exact-pane tmux observation;
-- deterministic local freshness/restart and dashboard view-model projection;
-- responsive React/Vite operations UI with exact Korean hierarchy/state labels,
-  separate WorkUnit/gate progress, typed freshness/blocker detail, and read-only
-  evidence copy;
-- full-width office scene with eight stable stations, exact structured-event
-  mapping, accepted-ID provenance/deduplication, safety precedence, bounded
-  delivery/result/patch cues, stale fail-closed behavior, and no prose inference;
-- local code-native actor/desk/document/barrier/tool/warning assets with pinned
-  dimensions, ownership/license classification, and source SHA-256;
-- explicit mobile pagination, reduced motion and visibility pause, keyboard/focus,
-  text/icon/shape semantics, semantic status list, and polite/assertive live
-  regions; and
-- exact-pinned dependencies, license inventory, 27 Vitest files/123 passing
-  tests, 10 passing Playwright Chromium tests, axe audits, and deterministic
-  desktop/mobile/reduced-motion visual baselines.
-
-The repository still contains no HTTP server or authority boundary, PWA/service
-worker, SSE, Advisor Inbox, Advisor gateway, role dispatch, real
-authentication/secret, database, remote collector, public/private network
-exposure, deployment, backup/restore operation, or live runtime. The dashboard is
-a local static build over deterministic approved/synthetic fixtures; it does not
-claim live collection or completion.
+The Worker pass created no real credential, started no real private run, and
+left no server running. Those actions remain deferred until independent Fable5
+code/security `PASS` and a separately authorized Advisor private-run step. The
+non-secret preparation procedure is
+[docs/operations/LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md](docs/operations/LOCAL_BOOTSTRAP_PRIVATE_RUN_PREPARATION.md).
 
 ## Verification
 
 ```text
 npm ci
-npm run test:unit
-npm run test:property
-npm run test:integration
-npm run test:ui
 npm run check
-npm run audit:dependencies
-npx playwright install chromium
 npm run test:e2e
+npm run smoke:runtime
+npm run audit:dependencies
+git diff --check
 ```
 
-Tests use disposable local roots and deterministic fake tool adapters. A bounded
-manual smoke check may read the registered local Git metadata and exact structured
-tmux pane identity; it never reads pane prose or sends tmux input.
+The LocalBootstrap implementation gate passes 55 Vitest files / 255 tests,
+18 demo/PWA Playwright tests plus 3 composed LocalBootstrap tests, lint, strict
+typecheck, core/dashboard builds, the disposable read-only runtime smoke, a
+zero-high-vulnerability audit, diff hygiene, credential-pattern scanning, and
+direct inspection of the desktop/mobile/reduced-motion composed baselines.
+Tests use only disposable roots, deterministic read-only adapters, and named
+synthetic proofs; they clean their listeners and state.
 
-## Operating Boundary
+## Operating boundary
 
-- Agent Office Worker performs only explicitly approved repo-local design and
-  implementation and returns every result to Advisor.
-- Advisor routes work and audits evidence.
-- Fable5 independently reviews work in a separate Reviewer session.
-- Leo/GPT is the final approver and selects any next mission.
-- The Batch B dashboard supports filtering, selection, native expansion, and
-  evidence copy only. Batch C adds presentation-only scene fixture, station,
-  pagination, and motion controls; none changes durable state or calls an adapter.
-  Structured Advisor communication remains Batch D; the browser may never
-  dispatch directly to Workers or Reviewers or provide arbitrary terminal
-  execution.
+- Agent Office Worker changes only explicitly approved repository scope and
+  returns durable evidence to Advisor.
+- Advisor routes work and audits evidence. Fable5 independently reviews in a
+  separate Reviewer session. Leo/GPT retains final approval and next-mission
+  authority.
+- Browser actions cannot dispatch to Workers or Reviewers, execute arbitrary
+  terminal commands, activate Hermes, or select a network/auth mode.
+- Public or private-network exposure, Tailscale, remote hosts, databases,
+  secrets in Git, real tmux delivery, production/live deployment, protected
+  branches, force pushes, and automatic mission progression remain forbidden.
 
-The working branch is `shadow/agent-office-m01`. Public exposure, databases,
-secrets, live/production access, protected-branch changes, force pushes, and
-automatic mission progression are not authorized.
-
-See `AGENTS.md`, `CLAUDE.md`, and `docs/agent/` before doing any work.
+The working branch is `shadow/agent-office-m01`. Read `AGENTS.md`, `CLAUDE.md`,
+and `docs/agent/` before changing the repository.

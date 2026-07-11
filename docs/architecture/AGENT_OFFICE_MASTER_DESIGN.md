@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `FINAL_REWORK_ROUND2_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_ADVISOR_VERIFICATION_AND_LEO_GPT_DECISION`
+Status: `LOCAL_BOOTSTRAP_GATE_IMPLEMENTED__PENDING_FABLE5_CODE_SECURITY_REVIEW_AND_ADVISOR_PRIVATE_RUN`
 
 Canonical owner: Agent Office repository
 
@@ -27,7 +27,7 @@ The intended UI is quiet and operations-focused: low visual noise, explicit
 staleness and authority labels, readable evidence, and animation that reflects
 structured events only.
 
-## 2. Current Truth and Final Rework Boundary
+## 2. Current Truth and LocalBootstrap Boundary
 
 Bootstrap commit `937f0c5f92cd3b39d81796c13bc00b4afe3407fb` remains the
 repository-governance baseline. Canonical design commit
@@ -131,11 +131,28 @@ fallback. A guarded composed test port proves fixed Advisor-only pointer deliver
 receipt, acknowledgement, intake, verified authority linkage, resume evidence,
 and duplicate-request non-execution without activating real tmux or real auth.
 
-The external canonical governance manifest remains version 1 with denominator
-15. At the round-2 handoff it records AO-WU-01 through AO-WU-12 as `COMPLETED`,
-AO-WU-13 as `NEEDS_PATCH`, and AO-WU-14/AO-WU-15 as
-`WAITING_DEPENDENCY`. The older repository manifest copy remains an explicit
-test/demo fixture only and is not a production authority fallback.
+LocalBootstrap private-run gate commit
+`2623922877bd52dc7f5b6c6cd45fae755e5ff228` adds the production provider and
+trusted v2 deployment selection while preserving the earlier fail-closed default.
+Only explicit owner-controlled configuration can select exact
+`LOCAL_BOOTSTRAP`/`ENABLED_LOCAL_BOOTSTRAP` on `127.0.0.1:4317`. Startup first
+requires the actual current Git-verified canonical foundation-docs manifest,
+isolated application/state/static/observed/proof roots, and a capability-less
+manual Advisor gateway. It then creates one cryptographically random proof in an
+exclusive owner-only file outside Git before binding. The HTTP exchange is exact
+Host/Origin/Fetch-Metadata/content-type/body/rate bounded; it creates only a
+server-side `viewer` plus `leo_input` session and a host-only HttpOnly/Strict
+cookie. Logout, expiry, revocation, rotation, and restart fail closed. A usable
+gateway capability or delivery-port injection rejects before proof creation, so
+delivery stays `MANUAL_FALLBACK_REQUIRED`.
+
+The external canonical governance manifest is now version 2 with denominator
+15. It records AO-WU-01 through AO-WU-13 as `COMPLETED`, AO-WU-14 as
+`WAITING_LEO`, and AO-WU-15 as `WAITING_DEPENDENCY`. The repository manifest copy
+remains test/demo-only and LocalBootstrap explicitly rejects it. This Worker pass
+created no real credential, did not start the real private run, and left no
+listener running; those actions require Fable5 code/security `PASS` and explicit
+Advisor authority.
 
 ## 3. Non-Goals and Fixed Prohibitions
 
@@ -271,19 +288,20 @@ a single repository, with strict module boundaries:
 The implemented Batch A-E local surface is strict TypeScript on Node.js 24 or
 later. React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, Vite 8.1.4,
 Playwright 1.61.1, and the axe Playwright adapter 4.12.1 are exact-pinned for the
-static local UI and deterministic verification. The Batch E server uses Node core
-HTTP/filesystem/crypto primitives and adds no runtime dependency. Real auth,
-private-network ingress, TLS, deployment, DB, and shared multi-host coordination
-remain unselected and gated.
+static local UI and deterministic verification. The server uses Node core
+HTTP/filesystem/crypto primitives and adds no runtime dependency. LocalBootstrap
+authentication is implemented only for exact loopback operation; private-network
+ingress, TLS, deployment, DB, and shared multi-host coordination remain
+unselected and gated.
 
 The default deployment descriptor is `LOOPBACK_PRIVATE`, `NONE_READ_ONLY`, and
-mutation-disabled. The executable production composition serves the built static
-shell and redacted status without authentication; projection/SSE require a
-session and all mutations fail closed without an approved provider. The
-production browser client clears protected state and its action port on expiry or
-revocation. The deterministic `TestAuthenticationProvider` is guarded twice and
-is reachable only through the separately imported synthetic test composition; it
-is not a production configuration switch or HTTP proof route.
+mutation-disabled. A separate exact v2 owner-controlled descriptor may select
+LocalBootstrap only on `127.0.0.1:4317`; neither requests, feature flags, nor
+environment values can select it. Projection/SSE require a valid session and all
+mutations fail closed without one. The production browser client clears protected
+state/action ports on expiry or revocation. `TestAuthenticationProvider` remains
+guarded twice in the synthetic composition and is distinct from the production
+cryptographic provider.
 
 ### 6.2 Single-writer rule
 
@@ -584,8 +602,8 @@ separate gate.
   reduced-motion inspection. No visual baseline changed.
 - Exit state:
   `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`;
-  AO-WU-14 remains `WAITING_DEPENDENCY`, and its auth-posture decision remains
-  unresolved for Leo/GPT.
+  at that historical handoff AO-WU-14 was `WAITING_DEPENDENCY`. The current
+  manifest-v2/LocalBootstrap truth is recorded in Sections 2 and 11.9.
 
 ### 11.8 Final rework round 2 AO-E-R3 as-built evidence
 
@@ -612,14 +630,40 @@ separate gate.
   private/public networking, deployment/live operation, remote hosts, DB, Hermes,
   and final approval remain closed or separately gated.
 
+### 11.9 LocalBootstrap private-run gate as-built evidence
+
+- Code/config/tests/baselines:
+  `2623922877bd52dc7f5b6c6cd45fae755e5ff228`.
+- Provider: `src/server/auth/local-bootstrap.ts` uses 32 random bytes, salted
+  SHA-256 verifier-only retained state, a 15-minute single-use proof, owner/UID
+  and exact `0600` file identity checks, no-follow exclusive creation, bounded
+  output, file/directory sync, secure removal, expiry and restart fail-closed.
+- Composition: `src/runtime/composition.ts` and
+  `src/runtime/composition-core.ts` bind the provider only from trusted v2
+  config, require the actual canonical sibling foundation-docs manifest/root/Git
+  source, isolate proof/state/static/observed roots, and reject gateway capability
+  or tmux delivery-port activation before bind.
+- HTTP/session/UI: the exact bounded exchange, host-only HttpOnly/Strict cookie,
+  CSRF-protected logout, session rotation/revocation/SSE close, Korean login,
+  explicit LocalBootstrap badges, manual delivery badge, and no browser-storage
+  proof retention are composed end to end.
+- Verification: 55 Vitest files/255 tests, 21/21 Playwright tests, lint,
+  typecheck, core/dashboard builds, zero-high dependency audit, disposable
+  read-only smoke, diff/credential scans, and direct inspection of three
+  composed baselines pass.
+- Exit state:
+  `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR`. No real proof,
+  real private run, real tmux input, private/public exposure, remote host, DB,
+  Hermes implementation, deployment/live operation, or final approval occurred.
+
 ## 12. Unknowns, Limitations, and Deferred Extensions
 
 | Item | Candidate decision | Current status | Gate |
 |---|---|---|---|
-| Application stack versions | Strict TypeScript/Node core plus exact pinned React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, Vite 8.1.4, Playwright 1.61.1, and axe Playwright 4.12.1; Node core implements HTTP/SSE/static serving with no added runtime dependency | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real provider/network/deployment only under new authority |
+| Application stack versions | Strict TypeScript/Node core plus exact pinned React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, Vite 8.1.4, Playwright 1.61.1, and axe Playwright 4.12.1; Node core implements HTTP/SSE/static/auth with no added runtime dependency | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Private/public network and deployment remain separate |
 | Persistence | Local append-only JSONL, immutable artifacts, atomic projections, owner-only complete backup and disjoint restore; no DB | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/encryption/schedule/retention and real-root operation remain gated |
 | Real-time | Authenticated bounded SSE plus independent idempotent POST, no WebSocket | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | WebSocket/shared multi-host fanout requires a new reviewed decision |
-| Loopback authentication | Provider/session/capability contract and guarded deterministic test provider; default runtime has no provider and is read-only | `IMPLEMENTED_BATCH_E_TEST_BOUNDARY_ONLY__PENDING_ADVISOR_ACCEPTANCE` | Any real provider/credential needs explicit secret-handling authority |
+| Loopback authentication | Default remains no-provider/read-only; explicit trusted v2 LocalBootstrap has cryptographic verifier-only proof delivery, server sessions, login/logout and exact port 4317 | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/run requires Fable5 PASS and Advisor authority; no transport authority follows |
 | Tailscale/private network | Designed disabled; identity/TLS/trust requirements reserved | `DEFERRED_WITH_GATE` | Leo/GPT private-network approval and threat review |
 | Remote Linux collectors | Signed structured observation interface only | `DEFERRED_WITH_GATE` | Multi-host implementation mission and key-provisioning approval |
 | Future Mac hosts | Same observation contract with platform adapter | `DEFERRED_WITH_GATE` | Mac implementation/test host approval |
@@ -648,10 +692,10 @@ separate gate.
 |---|---|---|---|---|---|
 | AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 15-unit fixture/hash remains accepted; Batch B declared scope/future-work rendering was accepted as the Batch C dependency | `IMPLEMENTED_THROUGH_BATCH_B__ADVISOR_ACCEPTED` | Any scope change still requires exact authority |
 | AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts`, `src/operations/` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted ledger/replay remains; Batch E adds complete checkpoint/hash manifest and replay-equivalent disjoint restore without active-root overwrite | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
-| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/`, `src/pwa/`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Round-2 commit `10fdee75dca73c4fb5cde09019c403d4dc1682bb` composes the verified operational projection, observation-change SSE revisions, durable alerts, and authenticated office scene; no-provider startup remains `AUTH_BLOCKED`, while guarded synthetic auth proves the same application path | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth/private network/deployment and AO-WU-14 posture remain gated |
-| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/runtime/observation-coordinator.ts`, `src/adapters/observations/`, `src/adapters/gateways/`, `src/server/application.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Exact isolated manifest/Git/tmux/artifact sources are operationally composed; production injects TmuxAdvisorGateway, never Hermes, and the composed lifecycle/kill/manual/ambiguous tests pass without real input | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real capability plus delivery-port activation remains external; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `playwright.composed.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/decision-authority-evidence.test.ts` | Batches A-D are accepted; AO-E-R3 round 2 passes 53/228 Vitest, 21/21 Chromium, 10/10 composition, 16/16 coordinator, 5/5 authority, and all named non-browser gates | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Same Reviewer delta review -> Advisor verification -> AO-WU-14/final Leo/GPT authority |
-| AO-ARCH-006 Explicit external manifest and evidence-correct operational projection | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Owner/no-follow config plus Git-verified external source starts; missing/unverified/stale/hash/path failures reject; current/stale/offline/missing/identity/dirty/unverified/restart/partial-failure projections pass with no fixture fallback | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Operator must supply the exact local config; remote collector and real authority sources remain gated |
+| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/`, `src/pwa/`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Default no-provider stays `AUTH_BLOCKED`; exact trusted LocalBootstrap now proves production login, protected projection, `viewer`/`leo_input`, logout/SSE revocation, static-only PWA caching and manual delivery on the same application path | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run, private network and deployment remain gated |
+| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/adapters/observations/`, `src/adapters/gateways/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts` | LocalBootstrap requires the actual canonical source and rejects fixture fallback; it composes TmuxAdvisorGateway without capability/port and rejects either injection before bind, so no real delivery occurs | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real capability/delivery remains external; Hermes and remote sources separately gated |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `playwright.composed.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts` | LocalBootstrap gate passes 55/255 Vitest, 21/21 Chromium, builds, audit, smoke, diff/secret scan and direct visual inspection at the named commit | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Fable5 code/security review -> Advisor private-run authority/evidence -> final approval |
+| AO-ARCH-006 Explicit external manifest and evidence-correct operational projection | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Owner/no-follow config and Git-verified actual foundation manifest start; fixture/alternate root, missing/unverified/stale/hash/path failures reject before LocalBootstrap proof/bind; manifest v2 projects without fallback | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Advisor must prepare exact current config; remote collectors remain gated |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.
