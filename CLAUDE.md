@@ -35,5 +35,8 @@ final approver and owns risk acceptance, final closure, and the next mission.
 If actor, scope, branch, allowed files, authority, dirty state, or a security
 boundary is unclear or conflicting, stop and return the exception to Advisor.
 
-The current bootstrap authorizes documentation/configuration only: the six files
-listed in `AGENTS.md`. It authorizes no product design or implementation.
+The six-file bootstrap allowlist is closed historical evidence. A later exact,
+committed Advisor handoff controls the current repo-local file and behavior scope;
+it grants nothing beyond its own mission. The current exact-delivery assignment
+is design/instruction-only and authorizes no runtime source, configuration, test,
+capability, server, credential, or tmux-input change.

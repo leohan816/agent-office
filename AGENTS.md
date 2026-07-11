@@ -59,16 +59,15 @@ the handoff directly. Historical reports are evidence, not current permission.
 - After writing the durable result and pointer, return them to Advisor and stop.
   Wait for an explicit new handoff; never continue into another work unit.
 
-## Bootstrap Lock
+## Exact-Handoff Scope Lock
 
-For the current bootstrap run, only these files may be created or committed:
+The six-file bootstrap allowlist was completed by commit
+`937f0c5f92cd3b39d81796c13bc00b4afe3407fb` and is historical evidence, not an
+active limit on a later exact Advisor handoff. For every current assignment, the
+exact committed Advisor handoff is the only repo-local file/scope authorization.
 
-- `AGENTS.md`
-- `CLAUDE.md`
-- `README.md`
-- `.gitignore`
-- `docs/agent/RUN_PROTOCOL.md`
-- `docs/agent/RESULT_REPORTING_PROTOCOL.md`
-
-No product design, runtime source, package manifest, application scaffold, or
-test file is authorized by this bootstrap.
+This replacement does not grant product work by itself. If a handoff authorizes
+design only, runtime source, configuration, tests, capabilities, server start,
+credentials, and tmux input remain forbidden. If it authorizes implementation,
+only its named files, behavior, tests, branch, and external boundaries are in
+scope. All actor, safety, review, Git, and STOP rules above remain active.

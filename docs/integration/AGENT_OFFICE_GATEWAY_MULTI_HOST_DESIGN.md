@@ -1,6 +1,6 @@
 # Agent Office Gateway and Multi-Host Design
 
-Status: `LOCAL_BOOTSTRAP_LOOPBACK_INTEGRATION_IMPLEMENTED__REMOTE_AND_REAL_TRANSPORT_GATED__PENDING_FABLE5_AND_ADVISOR`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_DESIGN_CANDIDATE__REAL_TRANSPORT_STILL_INACTIVE`
 
 This reviewed design defines typed integration ports, the M01 Advisor gateway,
 read-only observations, multi-project topology, and designed-but-gated remote host
@@ -151,6 +151,31 @@ manual fallback and no tmux input, remote host, key, or network is activated.
 - Fixed port `4317` is compatible with a later separately approved SSH local
   forward using the same local/remote port, but no remote-host or SSH operation
   is authorized by this implementation gate.
+
+### 2.4 Exact Advisor delivery design extension
+
+The separately authorized design candidate is canonical at
+[`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
+It does not change the as-built boundary above. It specifies the later reviewed
+production integration as:
+
+```text
+trusted loopback deployment v3 + operational runtime v2
+  -> Git-verified V2/transport/activation/registry/kill/mission snapshots
+  -> one-use structured Advisor readiness lease
+  -> double live structured preflight for foundation-advisor/$9/0/%9
+  -> in-memory notification-bound capability
+  -> owner-only pointer artifact + durable no-resend transport journal
+  -> exact no-shell tmux buffer/paste/Enter sequence
+  -> Git-verified internal Advisor evidence ingress
+```
+
+The default and current LocalBootstrap configurations still provide no
+capability or port. The production factory must reject caller-injected transport
+objects, build the exact port internally only under the two-key selection, and
+keep browser `advisor_operator` absent. A tmux receipt remains distinct from ACK;
+Advisor evidence enters through exact committed structured blobs, not an HTTP
+operator route or chat prose.
 
 ## 3. AdvisorGateway Contract
 
@@ -661,5 +686,6 @@ gated.
 | AO-INT-007 Canonical AlertKind notification, deterministic deduplication, manual fallback, and decision authority port | `src/application/alerts/`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/application.ts`, `src/ui/communication/` | `tests/integration/alert-application.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/security/http-boundary.test.ts` | Accepted alert/manual behavior remains; decision linkage now requires exact immutable registered authority correspondence and preserves the named role separately from the Advisor link actor; the unapproved Advisor routine variant fails closed | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real gateway delivery/re-enable and bounded Advisor routine authority remain externally gated |
 | AO-INT-008 Executable closed HTTP persistence, projection, and SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/application.ts`, `src/server/http/`, `src/server/sse/` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/e2e-composed/application-office-scene.spec.ts`, `scripts/runtime-smoke.mjs` | Default no-provider remains fail-closed; trusted LocalBootstrap composes production login/projection/message/logout/SSE over actual canonical manifest while delivery stays manual. Gate passes 55/255 and 21/21 | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run and remote fanout remain gated |
 | AO-INT-009 LocalBootstrap proof/session integration | `src/server/auth/local-bootstrap.ts`, `src/server/http/server.ts`, `src/server/config.ts`, `src/runtime/composition.ts`, `src/ui/runtime/` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/security/private-network-disabled.test.ts`, `tests/integration/runtime-composition.test.ts` | Exact port 4317, verifier-only owner-file proof, bounded exchange, host-only session, logout/revocation and actual-manifest/no-delivery composition pass with no secret disclosure | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real proof and private-run evidence require Fable5 PASS plus Advisor authority |
+| AO-INT-010 Exact Advisor delivery bridge | planned trusted config/composition, `src/adapters/gateways/tmux-advisor/`, durable delivery control, and internal Advisor evidence ingress | planned gateway/runtime/inbox/crash/security/E2E suites plus Advisor actual rehearsal | DQ-01 through DQ-08, exact argv, crash matrix, fixed destination, Git trust, and nine criteria are frozen in the canonical candidate; no source/config/test/capability/port/input exists | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | AO-WU-18 design PASS before implementation; refreshed exact window-ID registry evidence required before activation |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

@@ -1,16 +1,28 @@
 # Agent Office M01 Feature and Traceability Index
 
-Status: `LOCAL_BOOTSTRAP_GATE_IMPLEMENTED__PENDING_FABLE5_CODE_SECURITY_REVIEW_AND_ADVISOR_PRIVATE_RUN`
+Status: `LOCAL_BOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_DESIGN_CANDIDATE_PENDING_FABLE5`
 
 Mission: `AGENT_OFFICE_M01_ADVISOR_MANAGED_OFFICE_WEB_CONTROL_PLANE`
 
 This is the canonical discoverability and material-requirement traceability index
-for M01. It records the independent design PASS, Advisor-accepted Batches A-D,
-Batch E as-built evidence, both final delta `NEEDS_PATCH` findings, and the exact
-same-Worker final rework rounds. It does not claim a passing delta review, Advisor
-private-run verification, Leo/GPT final approval, or mission closure.
+for M01. It records the reviewed implementation, the completed LocalBootstrap
+private-run gate, and the separately authorized exact Advisor delivery design
+candidate. It does not claim Fable5 delivery-design `PASS`, a delivery
+capability/port, actual tmux input from Agent Office, Leo/GPT final approval, or
+mission closure.
 
 ## 1. Current Implemented Scope
+
+The LocalBootstrap private-run gate passed against Agent Office base
+`9c403da5662aeedc28a8c677c37a134aaa44dce3`; its server is stopped, proof is
+absent, and real delivery remains manual. Leo/GPT then opened the separate
+Level-3 exact delivery activation mission. Parent manifest version 5 declares 21
+WorkUnits, adds AO-WU-16 through AO-WU-21, and makes AO-WU-15 depend on AO-WU-21.
+The design-only candidate is
+[`architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
+It resolves DQ-01 through DQ-08 but creates no source/config/test/runtime change,
+capability, port, server, credential, or tmux input. Independent Fable5 design
+review is the next gate.
 
 - Bootstrap governance: commit
   `937f0c5f92cd3b39d81796c13bc00b4afe3407fb`.
@@ -152,6 +164,7 @@ baselines. No real credential or private run was created.
 
 | Document | Canonical subject |
 |---|---|
+| [`architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md) | DQ-01 through DQ-08, exact fixed-pane pointer bridge, durable no-resend transport, Git-verified Advisor evidence ingress, rehearsal, and nine-criterion traceability |
 | [`architecture/AGENT_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_MASTER_DESIGN.md) | Purpose, authority/source precedence, topology, stack boundary, SSE/PWA decision, batches/gates, unknowns |
 | [`contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md) | Manifest, event envelope, entity states, transitions, idempotency, ordering, decisions, projections, evidence completion |
 | [`security/AGENT_OFFICE_SECURITY_AUTHORITY_MODEL.md`](security/AGENT_OFFICE_SECURITY_AUTHORITY_MODEL.md) | Actors, threat/trust boundaries, loopback/private network, auth, CSRF, rate limits, audit, browser/adapter restrictions |
@@ -185,6 +198,7 @@ governance, review evidence, results, and pointers but no competing canonical co
 | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Earlier accepted behavior plus the named Batch E boundary is implemented; later external/private/production gates remain closed |
 | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | LocalBootstrap code/config/tests/docs exist at the named commit; no real credential/private run is claimed until Fable5 code/security PASS and Advisor authority |
 | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | The final-review code/documentation defect is patched at the named commit and verified; the same Fable5 Reviewer delta review and Advisor decision remain pending |
+| `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Design/instruction artifacts only; no delivery authority, capability, port, runtime behavior, or actual tmux input exists until the named serial review/implementation/review/rehearsal train passes |
 
 Every `CURRENT_EVIDENCE` value beginning with `NOT_IMPLEMENTED` is honest design
 evidence only. A document section is not proof that behavior exists.
@@ -241,8 +255,8 @@ evidence only. A document section is not proof that behavior exists.
 | AO-REQ-046 Application rollback and disable strategy | `src/operations/compatibility/`, `src/operations/readiness/`, `src/application/startup/` | `tests/recovery/rollback-disable.test.ts`, `tests/operations/readiness.test.ts` | Read/write/read-only/incompatible build classification, no destructive downgrade, default-off durable delivery disable/idempotency, and startup auth/quarantine/replay/stale/SSE modes pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Deployment/Git rollback and real gateway re-enable remain external/gated |
 | AO-REQ-047 Evidence-bearing proof of recovery | `src/operations/evidence/` | `tests/recovery/recovery-result.test.ts` | Immutable owner-only result requires actor/build/commit/mode, hashes, replay equivalence, idempotency conflict/replay, before/after denominator/state, controls, elapsed steps, forbidden scope, and Advisor review route | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Advisor audit and independent implementation review remain pending |
 | AO-REQ-048 Batch A-E dependencies, acceptance tests, reviews | `package.json`, `playwright.config.ts`, `playwright.composed.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts` | LocalBootstrap commit `2623922877bd52dc7f5b6c6cd45fae755e5ff228` passes 55/255 Vitest and 21/21 Chromium tests, builds, zero-high audit, disposable smoke, diff/secret scan and direct visual gates | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Fable5 code/security review, Advisor private-run authority/evidence, and final approval |
-| AO-REQ-049 Current bootstrap truth, unknowns, limitations | seven canonical docs, README, LocalBootstrap preparation runbook, and result artifact | `tests/acceptance/batch-gates.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts` | Canonical manifest v2 is required from the actual foundation-docs root; LocalBootstrap code exists, but no real credential/private run or tmux delivery is claimed. AO-WU-14 is `WAITING_LEO` in that authority | `DOCUMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Same Reviewer/Advisor gates; the runbook is preparation only |
-| AO-REQ-050 No DB/public/prod/Hermes implementation/automatic next mission | module/import/route/build policy | `tests/acceptance/batch-gates.test.ts`, `tests/security/private-network-disabled.test.ts` | Source/config/route scans prove no DB, public/prod or private-network mode, real secret, Hermes implementation, generic terminal/role dispatch, usable LocalBootstrap tmux capability, or automatic next mission | `OUT_OF_SCOPE` | New explicit Leo/GPT mission where applicable; Hermes/network/delivery remain separately gated |
+| AO-REQ-049 Current bootstrap truth, unknowns, limitations | eight canonical docs, README, LocalBootstrap preparation runbook, delivery candidate, and result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, design documentation checks | Canonical manifest v5 is required from the actual foundation-docs root; LocalBootstrap actual private-run evidence passed and was cleaned up. Exact Advisor delivery is now a design-only candidate with no capability/port/input; AO-WU-16 is entry/current and AO-WU-17 is this candidate | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Fable5 design PASS -> same Worker implementation -> Fable5 implementation/security PASS -> Advisor synthetic actual rehearsal |
+| AO-REQ-050 No DB/public/prod/Hermes implementation/automatic next mission | module/import/route/build policy and exact delivery candidate scope | `tests/acceptance/batch-gates.test.ts`, `tests/security/private-network-disabled.test.ts`, future delivery boundary scans | Existing source/config/route scans prove no DB, public/prod or private-network mode, real secret, Hermes implementation, generic terminal/role dispatch, usable LocalBootstrap tmux capability, or automatic next mission; this docs-only candidate preserves every prohibition | `OUT_OF_SCOPE` | Hermes/network/DB/prod remain separate missions; exact fixed Advisor pointer delivery alone follows its new reviewed train |
 
 ### 4.1 Fable5 F-1/F-2/F-3 rework anchors
 
@@ -251,6 +265,20 @@ evidence only. A document section is not proof that behavior exists.
 | `F-1` | Domain 6.3 maps all 16 exact required observable names across durable primary state plus structured activity; Domain 13 adds `WRITING_RESULT`; UI 5-6 maps triggers/end/precedence | `tests/contract/required-observable-conformance.test.ts`, `tests/domain/writing-result-activity.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts` | `DESIGN_PASS`; accepted domain/fallback behavior plus Batch C exact event-only mapping, order, precedence, deduplication, stale/evidence failure, and bounded cues pass |
 | `F-2` | Domain 7.2 defines closed `BlockerKind` plus exact `BlockerOpened` contract/lifecycle; Domain 7.3 defines closed `AlertKind`, payload, dedup, actions; Domain 8.4 pins all 13 GPT package fields; Integration 10 consumes canonical kinds only | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, later notification tests | `DESIGN_PASS`; Batch A contracts/snapshots implemented at code commit; notification integration deferred |
 | `F-3` | UI 3.4 fixes Korean hierarchy, all 16 status labels, nine alert labels, six alert actions, 16 blocker labels/fallback, two distinct progress labels, and `labelKo` preservation | `tests/domain/manifest.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx` | `DESIGN_PASS`; accepted prior vocabulary remains stable and Batch D renders all five message kinds, nine alert kinds, and six exact alert actions |
+
+### 4.2 Exact Advisor delivery candidate anchors
+
+| DESIGN_REQUIREMENT | PLANNED_IMPLEMENTATION_PATH | PLANNED_TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
+|---|---|---|---|---|---|
+| AO-REQ-051 Immutable message artifact and pointer-only transport | inbox artifact/event, canonical v1 pointer artifact, exact tmux port | gateway/inbox/crash/security integration suites | Exact schema, byte flow, and no-body invariant in the delivery candidate | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Fable5 design PASS |
+| AO-REQ-052 Fixed `foundation-advisor/$9/0/%9` destination and double preflight | trusted configuration, structured tmux runner, one-use readiness lease | wrong target/window/pane/path/process/sync/TOCTOU cases | Current active registry fixes `$9/%9`; refreshed exact window-ID row is a pre-activation prerequisite | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Reviewed registry refresh plus later implementation |
+| AO-REQ-053 Durable idempotency and no blind resend | gateway pointer journal and durable receipt lookup | duplicate/conflict/restart/all crash-boundary tests | Candidate binds request/message/notification/envelope/lease/destination and forbids retry from `PASTE_STARTED` | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Later implementation/security PASS |
+| AO-REQ-054 Git-verified Advisor ACK/intake/decision/resume ingress | internal evidence observer and immutable authority verifier | stage-order/forgery/authority/scope/resume tests | Candidate uses structured committed Advisor evidence, never browser `advisor_operator` or chat prose | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Fable5 confirms V2 routine subset; material decisions remain Leo/GPT-only |
+| AO-REQ-055 Kill/manual fallback and no auto-enable | external snapshot checks plus durable local enable/disable latch | kill/expiry/conflict/restart/re-enable-negative tests | Candidate makes every unhealthy/ambiguous state manual and requires a new exact grant after latch | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Later reviewed activation grant |
+| AO-REQ-056 No browser role/target/terminal route | existing Leo message boundary plus fixed internal adapter | route/unknown-field/module/process scans | Candidate adds no browser transport field or Advisor operator path | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Fixed prohibition |
+| AO-REQ-057 Exact no-shell buffer sequence | closed runner: load file, `paste-buffer -p ... -d`, exact `Enter` | argv/shell/hostile-content/output/timeout tests | Exact argv and crash barriers are frozen in candidate Section 7 | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Later implementation/security PASS |
+| AO-REQ-058 LocalBootstrap remains exact loopback-only | deployment v3 and operational v2 two-key selection preserving all v2 values | full auth/network/PWA/private-network regression | Design retains only `127.0.0.1:4317`; auth cannot grant transport | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | No remote/public decision exists |
+| AO-REQ-059 Serial dual review and synthetic actual rehearsal | AO-WU-18 -> 19 -> 20 -> 21 -> 15 | independent reviews plus exact rehearsal evidence matrix | Candidate maps all nine Leo/GPT criteria to implementation/test/review/rehearsal proof | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | No actual send before both Fable5 PASS gates |
 
 ## 5. Batch and Review Coverage
 
@@ -264,9 +292,11 @@ evidence only. A document section is not proof that behavior exists.
 | Batch E | PWA, security, recovery, full end-to-end tests | Batch D dependency/evidence accepted; any real auth/private gate remains closed | Code/config/tests/assets `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`; 50 Vitest files/196 tests, 18 Playwright tests, lint/typecheck/build/audit/diff/boundary/smoke/direct visual inspection pass; pending independent review and Advisor acceptance |
 | Final rework | AO-E-R1 executable composition/runtime client; AO-E-R2 immutable authority correspondence; D-1/D-2/D-3 docs | Final dual review `NEEDS_PATCH`; same Worker and same Reviewer | Code/config/tests `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`; 52/205 Vitest, 18/18 Playwright, 4/4 composition, 5/5 authority, full gates/smoke/direct inspection pass; delta review pending |
 | Final rework round 2 | AO-E-R3 R3.1-R3.8 operational composition and R3.9 seven-doc as-built correction | Fable5 delta rereview `NEEDS_PATCH`; same Worker must return exact patch | Code/config/tests `10fdee75dca73c4fb5cde09019c403d4dc1682bb`; 53/228 Vitest, 21/21 Playwright, 10/10 composition, 16/16 coordinator, 5/5 authority, full gates/smoke/direct inspection pass; delta review pending |
+| LocalBootstrap private run | Exact loopback login/logout/expiry/restart/recovery/private UI evidence | Fable5 code/security PASS, then Advisor run | `PASS`; target remains `9c403da5662aeedc28a8c677c37a134aaa44dce3`, server/proof/listener/lock cleaned up, delivery still manual |
+| Exact delivery design | DQ-01 through DQ-08, schemas/order, fixed port, durable no-resend, Advisor evidence ingress, threats/rehearsal | Fable5 Level-3 design review of exact candidate commit | Design/instruction files only; no source/config/test/runtime/capability/port/tmux input |
 | Worker result | Exact final-rework-round-2 as-built evidence package | Advisor verification | Published after this canonical docs commit through the exact foundation-docs result/pointer paths; approval pending |
 | Implementation review | Actual code/tests/design conformance | Fable5 `IMPLEMENTATION_REVIEW` | Original final dual review and first rework delta review returned `NEEDS_PATCH`; this round-2 patch is pending the same Reviewer's next delta review |
-| Private run/final audit | Private desktop/mobile/PWA/recovery evidence | Advisor audit, then Leo/GPT final approval | `NOT_IMPLEMENTED` |
+| Exact delivery implementation/rehearsal/final audit | Reviewed bridge implementation, Fable5 security review, one Advisor synthetic actual rehearsal, final audit | Strict AO-WU-19 -> AO-WU-20 -> AO-WU-21 -> AO-WU-15 dependency | `NOT_IMPLEMENTED`; safe state is stopped/manual/no capability/no port |
 
 Verdict routing is fixed: `NEEDS_PATCH` returns through the same Worker and
 Reviewer; `PASS_WITH_RISK` returns to Leo/GPT; `FAIL` stops; only `PASS` permits the

@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `LOCAL_BOOTSTRAP_GATE_IMPLEMENTED__PENDING_FABLE5_CODE_SECURITY_REVIEW_AND_ADVISOR_PRIVATE_RUN`
+Status: `LOCAL_BOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_DESIGN_CANDIDATE_PENDING_FABLE5`
 
 Canonical owner: Agent Office repository
 
@@ -146,13 +146,21 @@ cookie. Logout, expiry, revocation, rotation, and restart fail closed. A usable
 gateway capability or delivery-port injection rejects before proof creation, so
 delivery stays `MANUAL_FALLBACK_REQUIRED`.
 
-The external canonical governance manifest is now version 2 with denominator
-15. It records AO-WU-01 through AO-WU-13 as `COMPLETED`, AO-WU-14 as
-`WAITING_LEO`, and AO-WU-15 as `WAITING_DEPENDENCY`. The repository manifest copy
-remains test/demo-only and LocalBootstrap explicitly rejects it. This Worker pass
-created no real credential, did not start the real private run, and left no
-listener running; those actions require Fable5 code/security `PASS` and explicit
-Advisor authority.
+The external canonical governance manifest is now version 5 with denominator
+21. AO-WU-01 through AO-WU-14 are complete; AO-WU-16 through AO-WU-21 define the
+separate exact Advisor delivery train, and AO-WU-15 depends on AO-WU-21. The
+LocalBootstrap private-run gate passed against base `9c403da`; its proof was
+consumed/removed and its server, listener, and writer lock were cleaned up.
+
+Leo/GPT then authorized the design-first exact delivery mission. Its canonical
+candidate is
+[`AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
+It resolves DQ-01 through DQ-08 with a fixed `foundation-advisor/$9/%9`
+pointer-only transport, durable no-resend journal, Git-verified structured
+Advisor evidence ingress, and a nine-criterion rehearsal plan. This is a
+design/instruction change only: no capability, production port, source/config/
+test change, server, credential, or tmux input exists. Fable5 Level-3 design
+`PASS` is required before implementation.
 
 ## 3. Non-Goals and Fixed Prohibitions
 
@@ -472,6 +480,21 @@ After all batches, AO-WU-12 publishes evidence. Fable5 independently reviews the
 actual implementation in AO-WU-13. Advisor privately verifies only after the
 required review result. Leo/GPT alone closes the mission or chooses another one.
 
+The later exact-delivery extension is also strictly serial:
+
+```text
+AO-WU-16 scope freeze
+-> AO-WU-17 canonical delivery design candidate
+-> AO-WU-18 independent Fable5 design review
+-> AO-WU-19 same-Worker implementation
+-> AO-WU-20 independent Fable5 implementation/security review
+-> AO-WU-21 Advisor synthetic actual rehearsal
+-> AO-WU-15 final audit
+```
+
+At the current commit only AO-WU-17 design artifacts exist. The exact bridge
+candidate cannot be treated as transport activation or implementation evidence.
+
 ### 11.1 Batch exclusions
 
 Every batch excludes DBs, public access, production/live deployment, Hermes
@@ -663,7 +686,8 @@ separate gate.
 | Application stack versions | Strict TypeScript/Node core plus exact pinned React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, Vite 8.1.4, Playwright 1.61.1, and axe Playwright 4.12.1; Node core implements HTTP/SSE/static/auth with no added runtime dependency | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Private/public network and deployment remain separate |
 | Persistence | Local append-only JSONL, immutable artifacts, atomic projections, owner-only complete backup and disjoint restore; no DB | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/encryption/schedule/retention and real-root operation remain gated |
 | Real-time | Authenticated bounded SSE plus independent idempotent POST, no WebSocket | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | WebSocket/shared multi-host fanout requires a new reviewed decision |
-| Loopback authentication | Default remains no-provider/read-only; explicit trusted v2 LocalBootstrap has cryptographic verifier-only proof delivery, server sessions, login/logout and exact port 4317 | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/run requires Fable5 PASS and Advisor authority; no transport authority follows |
+| Loopback authentication | Default remains no-provider/read-only; exact trusted v2 LocalBootstrap passed its authorized private run with verifier-only proof delivery, server sessions, login/logout and exact port 4317, then was fully cleaned up | `LOCAL_BOOTSTRAP_PRIVATE_RUN_PASS__SERVER_STOPPED` | A future synthetic run creates a fresh one-use proof; authentication still grants no transport authority |
+| Exact Advisor delivery | Fixed local `$9/%9` pointer-only bridge, double structured preflight, durable no-resend journal, and Git-verified Advisor evidence ingress | `DESIGNED_CANDIDATE__NO_CAPABILITY__PENDING_FABLE5_DESIGN_REVIEW` | Fable5 design PASS -> same Worker implementation -> Fable5 implementation/security PASS -> Advisor actual rehearsal |
 | Tailscale/private network | Designed disabled; identity/TLS/trust requirements reserved | `DEFERRED_WITH_GATE` | Leo/GPT private-network approval and threat review |
 | Remote Linux collectors | Signed structured observation interface only | `DEFERRED_WITH_GATE` | Multi-host implementation mission and key-provisioning approval |
 | Future Mac hosts | Same observation contract with platform adapter | `DEFERRED_WITH_GATE` | Mac implementation/test host approval |
@@ -672,6 +696,9 @@ separate gate.
 | Public exposure | Explicitly unsupported | `OUT_OF_SCOPE` | New Leo/GPT mission; not a deployment toggle |
 
 ## 13. Canonical Document Map
+
+- Exact Advisor delivery bridge:
+  [`AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md)
 
 - Domain/event truth:
   [`../contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](../contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md)
@@ -696,6 +723,7 @@ separate gate.
 | AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/adapters/observations/`, `src/adapters/gateways/` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts` | LocalBootstrap requires the actual canonical source and rejects fixture fallback; it composes TmuxAdvisorGateway without capability/port and rejects either injection before bind, so no real delivery occurs | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real capability/delivery remains external; Hermes and remote sources separately gated |
 | AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `playwright.composed.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts` | LocalBootstrap gate passes 55/255 Vitest, 21/21 Chromium, builds, audit, smoke, diff/secret scan and direct visual inspection at the named commit | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Fable5 code/security review -> Advisor private-run authority/evidence -> final approval |
 | AO-ARCH-006 Explicit external manifest and evidence-correct operational projection | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/composition.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Owner/no-follow config and Git-verified actual foundation manifest start; fixture/alternate root, missing/unverified/stale/hash/path failures reject before LocalBootstrap proof/bind; manifest v2 projects without fallback | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Advisor must prepare exact current config; remote collectors remain gated |
+| AO-ARCH-007 Exact Advisor delivery extension | planned `src/adapters/gateways/tmux-advisor/`, runtime trusted config/composition, durable delivery control, internal Advisor evidence ingress, and UI projection | planned gateway/inbox/crash/security/runtime/E2E regressions plus Advisor rehearsal | Exact DQ-01 through DQ-08 and nine-criterion candidate; no runtime change or capability | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | AO-WU-18 design PASS before AO-WU-19 implementation |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

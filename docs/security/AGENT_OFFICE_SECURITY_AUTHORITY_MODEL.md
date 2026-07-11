@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `LOCAL_BOOTSTRAP_SECURITY_GATE_IMPLEMENTED__REAL_CREDENTIAL_AND_RUN_PENDING_FABLE5_AND_ADVISOR`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_SECURITY_DESIGN_PENDING_FABLE5`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -60,6 +60,14 @@ gateway capability or delivery-port injection. This Worker pass generated only
 isolated synthetic canaries; it created/accessed no real proof or host credential
 and started no real private run. Fable5 code/security `PASS` and explicit Advisor
 authority remain mandatory before that operation.
+
+That private-run gate subsequently passed and was cleaned up at Agent Office base
+`9c403da`; no proof, listener, writer lock, or delivery capability remains.
+Leo/GPT then opened the separate exact Advisor delivery activation mission. Its
+design-only security boundary is canonical in
+[`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
+No source/config/test behavior, usable capability, production port, or tmux input
+is present until the separate Fable5 design and implementation/security gates.
 
 ## 1. Security Objectives
 
@@ -478,6 +486,30 @@ Runtime checks accept only the exact three closed vocabularies, require a
 canonical UTC clock on health/new-queue/uncached-lookup paths, reject a future
 `issuedAt`, and treat `expiresAt` as an exclusive boundary.
 
+### 12.1 Exact-delivery candidate security refinement
+
+The new candidate does not grant the browser or LocalBootstrap session transport
+authority. A later production composition must require owner-only deployment and
+operational configuration to agree, validate exact Git-visible V2/transport/
+activation/registry/kill/mission blobs, consume a committed one-use Advisor
+readiness lease, and match the fixed `foundation-advisor/$9/0/%9` destination in
+two live structured preflights. Only then may it mint one in-memory,
+notification-bound capability.
+
+The exact transport runner is a separate closed port, not an extension of the
+read-only observation runner or a generic process service. It can load one
+internally derived owner-only pointer file, paste that buffer with `-p` to `%9`,
+and send only `Enter`, all with fixed direct argv and no shell. A fsynced journal
+makes every crash/timeout at or after `PASTE_STARTED` ambiguous and permanently
+non-retryable automatically.
+
+Advisor ACK/intake/decision/resume evidence is accepted only through an internal
+Git-verified structured evidence observer. LocalBootstrap retains exactly
+`viewer`/`leo_input`; browser `advisor_operator` is not a production trust path.
+Advisor routine decision evidence is accepted only for an exact already-approved
+V2 route with immutable governing Leo authority. Material authority, final
+approval, and next mission remain Leo/GPT-only.
+
 ## 13. Audit and Redaction
 
 The append-only security audit stream records:
@@ -642,5 +674,6 @@ named synthetic proofs and disposable loopback roots were used.
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js`, `src/ui/runtime/` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e-composed/application-office-scene.spec.ts` | Hashed static-only cache/no sync/offline read-only remains; composed proof canary is absent from storage, IndexedDB, caches and URLs while cookie is HttpOnly/Strict | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private-run browser inspection remains gated |
 | AO-SEC-007 Operational source authority and projection redaction | `src/runtime/operational-config.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts` | `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts`, `scripts/runtime-smoke.mjs` | Exact external manifest/root/source/actor registration is owner/no-follow/bounded and fail-closed; config mode must have `0o022` clear, with `0400`/`0600` accepted and `0620`/`0602`/`0666` rejected; projection exposes no absolute root/raw terminal/secret, and unverified activity cannot animate | `IMPLEMENTED_OPERATIONAL_CONFIG_MODE_PATCH__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real source config approval and remote-host trust remain external |
 | AO-SEC-008 LocalBootstrap proof-file and non-disclosure boundary | `src/server/auth/local-bootstrap.ts`, `src/runtime/composition-core.ts`, `src/server/http/server.ts` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/integration/runtime-composition.test.ts` | Entropy/verifier/single-use/expiry/restart plus owner/exact-0600/owner-only-directory/no-follow/special/stale/race and cross-surface canary scans pass; proof never enters durable/application/browser evidence | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Execute real handling only after independent PASS and Advisor authority |
+| AO-SEC-009 Exact Advisor delivery authority/no-resend/evidence ingress | planned trusted v3/v2 config, exact tmux port/journal, local latch, Git evidence observer, and immutable authority verifier | planned authority/preflight/argv/crash/forgery/kill/no-browser-route suites plus Fable5 threat review | Canonical candidate resolves DQ-01 through DQ-08 and maps all nine Leo/GPT criteria; current runtime remains capability-less/manual | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Design PASS, implementation/security PASS, then one Advisor synthetic actual rehearsal |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

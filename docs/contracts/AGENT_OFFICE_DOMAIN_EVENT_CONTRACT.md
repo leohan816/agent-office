@@ -1,6 +1,6 @@
 # Agent Office Domain and Event Contract
 
-Status: `LOCAL_BOOTSTRAP_GATE_IMPLEMENTED_WITH_NO_DOMAIN_SCHEMA_CHANGE__PENDING_FABLE5_AND_ADVISOR`
+Status: `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__EXACT_ADVISOR_DELIVERY_CONTRACT_CANDIDATE_PENDING_FABLE5`
 
 Contract version: `agent-office.domain.v1`
 
@@ -43,6 +43,15 @@ also adds no domain event, state, transition, entity authority, completion rule,
 or denominator change. Authentication proof/session lifecycle stays in the
 server/runtime boundary and redacted security audit; proof, cookie, CSRF and
 session handles never enter domain commands, artifacts, events or projections.
+
+The LocalBootstrap private run subsequently passed and was cleaned up at base
+`9c403da`. Leo/GPT then authorized a separate exact Advisor delivery design. Its
+canonical candidate is
+[`../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](../architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md).
+This docs-only pass defines external transport/evidence schemas and ordering; it
+does not yet add a domain event, transition, capability, source/config/test
+change, or tmux input. Any implementation-time schema change remains subject to
+Fable5 design `PASS` and the normal evolution rules below.
 The actual canonical manifest instance is now manifest version 2 under the same
 version-1 manifest schema and denominator 15.
 
@@ -634,6 +643,33 @@ an intake artifact that classifies the message, cites its hash, identifies the
 mission/WorkUnit, and states `ROUTINE_ROUTE`, `NEEDS_LEO_DECISION`, `NO_ACTION`, or
 `REJECTED_OUT_OF_SCOPE`. No state resumes merely because delivery occurred.
 
+### 8.3A Exact Advisor evidence-ingress contract candidate
+
+Production acknowledgement/intake/decision/resume evidence must not use the
+browser `advisor_operator` test route. The exact-delivery candidate instead
+derives four closed paths for a known message under the trusted Advisor job,
+reads exact committed Git blobs, and verifies repository, commit, path, blob,
+SHA-256, ancestry, correlations, time, scope, and prior stage before an internal
+application append.
+
+The closed external schema sequence is:
+
+```text
+agent-office.advisor-acknowledgement-evidence.v1
+-> agent-office.advisor-intake-evidence.v1
+-> agent-office.advisor-decision-evidence.v1
+-> agent-office.advisor-resume-evidence.v1 per WorkUnit
+```
+
+ACK additionally proves the Advisor read the immutable message artifact and
+verified its hash; a tmux receipt alone cannot create it. Intake preserves the
+existing four classifications. Decision evidence preserves `authorityRole` and
+accepts Advisor only for an exact V2 `ROUTINE_ROUTE` already authorized by the
+current Leo/GPT mission evidence. Any material decision remains Leo/GPT-only.
+Resume still requires the existing exact `ResumeProof` and expected stream
+version. No delivery, ACK, elapsed time, UI action, restart, or prose can skip a
+stage.
+
 ### 8.4 Deterministic GPT decision package
 
 When Leo/GPT authority is required, the package builder consumes only canonical
@@ -879,7 +915,7 @@ or intake as a resume transition.
 |---|---|---|---|---|---|
 | Authentication remains outside mission event truth | `src/server/auth/`, `src/server/http/server.ts`, `src/runtime/composition.ts` | `tests/security/local-bootstrap-provider.test.ts`, `tests/security/local-bootstrap-http.test.ts`, `tests/integration/runtime-composition.test.ts` | Cryptographic proof exchange, session, logout and revocation are server/runtime state only; no proof/session value or new domain event/artifact exists | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real credential/private run remains gated |
 | Local capability does not become Advisor or completion authority | `src/server/auth/local-bootstrap.ts`, `src/server/application.ts`, `src/application/advisor-inbox/` | `tests/integration/runtime-composition.test.ts`, `tests/security/auth-session.test.ts` | Fixed capabilities are exactly `viewer`/`leo_input`; Advisor operator paths remain denied and gateway delivery remains manual | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Real delivery and final authority remain external |
-| Current canonical scope is consumed without fixture fallback | `src/runtime/composition.ts`, `src/runtime/observation-coordinator.ts`, `src/domain/manifest/index.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts` | Actual foundation-docs manifest version 2 is Git/hash/path verified before proof/bind; fixture authority rejects | `IMPLEMENTED_LOCAL_BOOTSTRAP_GATE__PENDING_FABLE5_AND_ADVISOR` | Future scope versions still require canonical authority |
+| Current canonical scope is consumed without fixture fallback | `src/runtime/composition.ts`, `src/runtime/observation-coordinator.ts`, `src/domain/manifest/index.ts` | `tests/integration/runtime-composition.test.ts`, `tests/integration/observation-coordinator.test.ts` | LocalBootstrap private-run evidence consumed the then-current canonical manifest and rejected fixture authority; the current external authority is manifest v5/21 and remains required on the next start | `LOCALBOOTSTRAP_PRIVATE_RUN_PASS__SERVER_STOPPED` | Every future scope version still requires canonical authority |
 
 ## 15. Local Traceability
 
@@ -892,6 +928,7 @@ or intake as a resume transition.
 | AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/runtime/observation-coordinator.ts`, `src/runtime/projection.ts`, `src/operations/restore/`, `src/server/sse/` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/observation-coordinator.test.ts`, `tests/integration/runtime-composition.test.ts` | Canonical mission projection is unchanged; read-only source freshness is a separate overlay, semantic observation changes get monotonic SSE revisions, and no observation/scene/alert projection creates completion truth | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Remote evidence remains gated |
 | AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch C event-ID-only activity/result mapping is Advisor-accepted and remains unchanged in Batch D regression | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene activity |
 | AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts`, `src/application/alerts/`, `src/runtime/projection.ts`, `src/ui/communication/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, `tests/integration/alert-application.test.ts`, `tests/integration/runtime-composition.test.ts` | Closed vocabularies remain; hash-verified durable detail now projects type, question/options/recommendation/safe default/evidence/actions for open/resolved/suppressed alerts without raw terminal or secret data | `IMPLEMENTED_FINAL_REWORK_ROUND2__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real Advisor/Leo decision and delivery authority remain external |
+| AO-DOM-008 Exact pointer receipt versus Git-verified Advisor evidence chain | planned gateway journal, inbox evidence ingress, authority verifier, ResumeProof, event/projector replay | planned exact-schema/order/idempotency/forgery/authority/crash tests plus actual rehearsal | Candidate preserves v1 pointer/message events and freezes the external ACK/intake/decision/resume trust path; no domain/runtime implementation exists | `DESIGNED_EXACT_ADVISOR_DELIVERY_CANDIDATE__PENDING_FABLE5` | Fable5 design PASS before any schema or code patch |
 
 The cross-document matrix in `docs/FEATURE_INDEX.md` is authoritative for package
 discoverability and links these contract IDs to the remaining security, gateway,
