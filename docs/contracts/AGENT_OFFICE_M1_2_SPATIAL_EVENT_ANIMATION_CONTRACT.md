@@ -1,6 +1,6 @@
 # Agent Office M1.2 Spatial Event and Animation Contract
 
-Status: `NARROW_PRODUCT_INTENT_PATCH_APPLIED__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+Status: `AO12_A_PROJECTION_CONTRACT_IMPLEMENTED__SPATIAL_CUES_NOT_STARTED__PENDING_FOCUSED_REVIEW`
 
 Contract candidate: `agent-office.spatial-cue.v1`
 
@@ -11,10 +11,12 @@ bounded M1.2 presentation cue. It does not add a domain event, state, command,
 authority, transport route, timer-based mission transition, or persistence
 requirement. The canonical M1 event and activity contract remains
 [`AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md).
-The narrow patch authority is
-`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`;
-this contract remains design-only until the clean delta review, Advisor freeze,
-exact implementation manifest, and separate handoff.
+The design patch received a clean delta `PASS`, Advisor freeze, exact manifest,
+and separate AO12-A handoff. AO12-A implements the versioned source projection,
+closed validation, M1 fallback, pure Team Pod projection, and assignment/name
+invariants only. Spatial cue projection/reduction/rendering remains AO12-C work
+and is not started or authorized; no production projection selects this
+contract.
 
 ## 1. Contract principles
 
@@ -514,10 +516,12 @@ cannot assign project history to old events, change source IDs, replay a cue, or
 convert station proximity into an assignment. Unknown spatial contract versions
 fail to the verified M1/static view.
 
-## 14. Future verification contract
+## 14. Verification contract
 
-No test is implemented in this design pass. A separately authorized
-implementation must add tests that prove at least:
+AO12-A implements focused projection/adapter/projector/assignment/current-name
+tests for the applicable items below. Cue, rendering, accessibility, responsive,
+and performance proofs remain future work under their separately authorized
+batches. The complete train must prove at least:
 
 - every cue row has valid and invalid source/evidence cases;
 - terminal/model/process-shaped prose cannot change a cue;
@@ -547,7 +551,7 @@ implementation must add tests that prove at least:
 - source modules have no observation/process/network/write/dispatch import; and
 - every benchmark target is measured and honestly classified.
 
-Exact proposed paths and WorkUnits are in
+Exact as-built AO12-A and proposed later paths/WorkUnits are in
 [`../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md).
 
 ## 15. Authority and transport non-change

@@ -376,11 +376,13 @@ function parseTmuxSources(value: unknown): readonly TmuxSourceRegistration[] {
       sessionId: requireString(item.sessionId, 'sessionId', { maxLength: 32 }),
       windowId: requireString(item.windowId, 'windowId', { maxLength: 32 }),
       paneId: requireString(item.paneId, 'paneId', { maxLength: 32 }),
-      sessionNameEscaped: normalizedLegacyText(
+      sessionNameEscaped: requiredCurrentProductText(
         requireString(item.sessionNameEscaped, 'sessionNameEscaped', { maxLength: 4096 }),
+        'sessionNameEscaped',
       ),
-      windowNameEscaped: normalizedLegacyText(
+      windowNameEscaped: requiredCurrentProductText(
         requireString(item.windowNameEscaped, 'windowNameEscaped', { maxLength: 4096 }),
+        'windowNameEscaped',
       ),
       windowIndex: requireInteger(item.windowIndex, 'windowIndex', 0),
       paneIndex: requireInteger(item.paneIndex, 'paneIndex', 0),
@@ -448,7 +450,7 @@ function normalizedStationId(value: unknown, label: string): OfficeStationId {
 
 function normalizedActorRole(value: unknown, label: string): string {
   const role = requireString(value, label, { maxLength: 256 });
-  return role === 'Shashu Worker' ? 'SIASIU Worker' : role;
+  return requiredCurrentProductText(role, label);
 }
 
 function parseLimits(value: unknown, label: string): ToolReadLimits {
@@ -462,15 +464,23 @@ function parseLimits(value: unknown, label: string): ToolReadLimits {
 
 function stringList(value: unknown, label: string): readonly string[] {
   return requireArray(value, label).map((item, index) =>
-    normalizedLegacyText(requireString(item, `${label}[${index}]`, { maxLength: 256 })));
+    requiredCurrentProductText(
+      requireString(item, `${label}[${index}]`, { maxLength: 256 }),
+      `${label}[${index}]`,
+    ));
 }
 
 function requiredId(value: unknown, label: string): string {
-  return normalizedLegacyText(requireString(value, label, { maxLength: 128 }));
+  return requiredCurrentProductText(requireString(value, label, { maxLength: 128 }), label);
 }
 
-function normalizedLegacyText(value: string): string {
-  return value.replaceAll('Shashu Worker', 'SIASIU Worker').replaceAll('shashu', 'siasiu');
+function requiredCurrentProductText(value: string, label: string): string {
+  const latin = String.fromCodePoint(115, 104, 97, 115, 104, 117);
+  const korean = String.fromCodePoint(0xc0e4, 0xc288);
+  if (value.toLocaleLowerCase('en-US').includes(latin) || value.includes(korean)) {
+    throw new DomainError('INVALID_SCHEMA', `${label} uses a forbidden current product name`);
+  }
+  return value;
 }
 
 function optionalId(value: unknown, label: string): string | undefined {

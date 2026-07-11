@@ -1,6 +1,6 @@
 # Agent Office M1.2 Character and Project Identity System
 
-Status: `NARROW_PRODUCT_INTENT_PATCH_APPLIED__NO_ASSET_CREATED_OR_SELECTED__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+Status: `AO12_A_CURRENT_NAME_GATE_IMPLEMENTED__NO_ASSET_CREATED_OR_SELECTED__AO12_B_NOT_AUTHORIZED`
 
 Identity catalog candidate: `agent-office.project-identity.v1`
 
@@ -88,13 +88,15 @@ tests, and baselines. A canonical naming test must reject every current-product
 use; an explicitly labelled historical citation is the only documentation
 exception.
 
-Historical M1 compatibility evidence at design base `3ba65e0` still contains a
+Historical M1 compatibility evidence at design base `3ba65e0` contained a
 legacy alias normalizer and negative fixture in `src/runtime/operational-config.ts`,
 `src/ui/scene/types.ts`, and `tests/integration/exact-advisor-delivery.test.ts`.
 Those citations are explicitly historical, not accepted current naming. The
-conditional AO12-A SIASIU correction must remove the forbidden current tokens
-while preserving actor authority/assignment meaning; this design patch changes
-none of those source or test files.
+separately authorized AO12-A SIASIU correction removed the forbidden current
+tokens from those current source/test surfaces, rejects such configuration
+instead of rewriting identity, and preserves actor authority/assignment
+meaning. The repository current-product scanner retains no raw negative token
+in its own source or fixtures.
 
 For an otherwise unmapped future registered project under catalog
 `agent-office.project-identity.v1`, use this deterministic fallback:
@@ -542,11 +544,12 @@ Candidate future tests are named in
 The chained decision status is
 `DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
 
-No asset has been created or selected. Implementation remains
-`NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`; the clean delta review,
-Advisor freeze, exact manifest, and separate handoff are still required. No
-customization, likeness, purchase, import, external generation, or runtime
-activation is implied.
+The clean delta review, Advisor freeze, exact manifest, and separate AO12-A
+handoff occurred. AO12-A implements only the current-name gate and identity-safe
+projection references; no asset has been created or selected. Independent
+focused review and Advisor acceptance remain required, and AO12-B is not
+authorized. No customization, likeness, purchase, import, external generation,
+or runtime activation is implied.
 
 ## 13. Authority, security, and privacy non-change
 

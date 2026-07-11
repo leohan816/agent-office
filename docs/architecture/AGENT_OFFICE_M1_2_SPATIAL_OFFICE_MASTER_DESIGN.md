@@ -1,18 +1,21 @@
 # Agent Office M1.2 Spatial Advisor-Team Office Master Design
 
-Status: `NARROW_PRODUCT_INTENT_PATCH_APPLIED__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+Status: `AO12_A_IMPLEMENTED__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED`
 
 Canonical owner: Agent Office repository
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-Target implementation status: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+Target implementation status: `AO12_IWU_01_THROUGH_04_IMPLEMENTED__NOT_PRODUCTION_SELECTED`
 
-This document is an additive design candidate over the closed M1 base
+This document is the frozen additive design over the closed M1 base
 `2f663304a88c432f19fe56055641b66e57f18ef2`. It defines a spatial,
 evidence-backed office projection for Advisor-led teams across registered
-projects. It does not authorize source, configuration, test, asset, authority,
-transport, authentication, network, database, deployment, or runtime changes.
+projects. The later exact AO12-A handoff authorized only the additive contracts,
+compatibility adapter, pure projectors, invariants, tests, and naming correction
+recorded here. This design document itself does not authorize AO12-B, assets,
+authority, transport, authentication, network, database, deployment, or runtime
+activation.
 
 ## 1. Purpose and binding inheritance
 
@@ -666,16 +669,16 @@ when the four canonical documents and the Feature Index status/pointer:
 - provide future file/test/gate traceability and reversible batches;
 - preserve M1 authority, communication, security, event, and compatibility
   boundaries; and
-- contain no implementation, asset, credential, external fetch, or runtime
-  activation claim.
+- keep design intent distinct from as-built status and contain no asset,
+  credential, external fetch, or runtime activation claim.
 
-The original Fable5 design review passed. A clean delta `PASS` with no risk,
-unresolved defect, new decision, or scope expansion permits Advisor to freeze
-the patched design and convert `IWU-01` through `IWU-14` into an exact serial,
-reversible implementation manifest. It does not itself start implementation.
-Until Advisor performs that freeze and issues a separate exact implementation
-handoff, status remains
-`NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`.
+The original Fable5 design review and clean same-context Level-3 delta review
+passed. Advisor froze `AO12-IWU-01` through `AO12-IWU-14` into the exact serial,
+reversible manifest and issued a separate AO12-A handoff. `AO12-IWU-01..04` are
+now implemented as a non-production-selected application layer with unchanged
+M1 baselines. Independent focused implementation review and Advisor acceptance
+remain open, so AO12-B is not authorized. No later WorkUnit, asset, spatial cue
+runtime, or production projection wiring is claimed.
 
 ## 16. Canonical M1.2 design map
 

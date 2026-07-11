@@ -37,9 +37,8 @@ export const OFFICE_STATIONS: readonly OfficeStationDefinition[] = [
 ] as const;
 
 export function normalizeOfficeStationId(value: unknown): OfficeStationId | undefined {
-  const normalized = value === 'shashu' ? 'siasiu' : value;
-  return typeof normalized === 'string' && OFFICE_STATION_IDS.includes(normalized as OfficeStationId)
-    ? normalized as OfficeStationId
+  return typeof value === 'string' && OFFICE_STATION_IDS.includes(value as OfficeStationId)
+    ? value as OfficeStationId
     : undefined;
 }
 

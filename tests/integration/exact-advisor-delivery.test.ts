@@ -82,28 +82,15 @@ describe('reviewed exact Advisor delivery bridge', () => {
     expect(parseOperationalRuntimeConfiguration(legacy).schemaVersion).toBe(
       'agent-office.operational-runtime.v1',
     );
-    const legacyAlias = {
-      ...legacy,
-      tmuxSources: legacy.tmuxSources.map((source) => source.sourceId === 'siasiu-tmux'
-        ? { ...source, sourceId: 'shashu-tmux', windowNameEscaped: 'shashu' }
-        : source),
-      actors: legacy.actors.map((actor) => actor.stationId === 'siasiu'
-        ? {
-            ...actor,
-            roleInstanceId: 'shashu-role',
-            stationId: 'shashu',
-            actorRole: 'Shashu Worker',
-            tmuxSourceId: 'shashu-tmux',
-          }
-        : actor),
-    };
-    const normalizedAlias = parseOperationalRuntimeConfiguration(legacyAlias);
-    expect(normalizedAlias.actors.find((actor) => actor.stationId === 'siasiu')).toMatchObject({
+    const currentNames = parseOperationalRuntimeConfiguration(legacy);
+    expect(currentNames.actors.find((actor) => actor.stationId === 'siasiu')).toMatchObject({
       roleInstanceId: 'siasiu-role',
       actorRole: 'SIASIU Worker',
       tmuxSourceId: 'siasiu-tmux',
     });
-    expect(JSON.stringify(normalizedAlias)).not.toMatch(/shashu/iu);
+    expect(currentNames.tmuxSources.find((source) => source.sourceId === 'siasiu-tmux')).toMatchObject({
+      windowNameEscaped: 'siasiu',
+    });
     expect(parseOperationalRuntimeConfiguration({
       ...legacy,
       schemaVersion: 'agent-office.operational-runtime.v2',

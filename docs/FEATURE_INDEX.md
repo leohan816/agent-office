@@ -11,16 +11,17 @@ disabled implementation. It does not claim an enabled descriptor, live
 capability/port instance, actual tmux input from Agent Office, implementation
 review `PASS`, rehearsal, Leo/GPT final approval, or mission closure.
 
-The additive M1.2 spatial Advisor-team office package has the narrow chained
-product-intent patch applied at status
-`DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`.
-The exact decision state is
-`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
-Its four canonical documents are indexed in Section 2. The original design
-review passed; the same-existing-Fable5 Level-3 delta review, Advisor freeze,
-exact implementation manifest, and separate handoff remain mandatory. This
-pointer does not change M01 runtime behavior, authority, transport, security,
-assets, mission scope, or implementation status.
+The additive M1.2 spatial Advisor-team office package is at status
+`IMPLEMENTED_M1_2_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED`.
+The original design review and clean same-context Level-3 design delta review
+passed, Advisor froze the 14-WorkUnit manifest, and the exact AO12-A handoff
+authorized only `AO12-IWU-01..04`. AO12-A now supplies closed spatial projection
+contracts, a static M1 compatibility adapter, pure Team Pod and assignment
+projection, and the current-name gate. It does not mount the new projection in
+the production/private surface, add an asset or cue runtime, or change M01
+authority, transport, authentication, delivery, persistence, or network
+behavior. AO12-B remains unauthorized pending independent focused review and
+Advisor acceptance of AO12-A.
 
 ## 1. Current Implemented Scope
 
@@ -184,7 +185,7 @@ baselines. No real credential or private run was created.
 | [`architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md) | Shared wide open-office floor, exact Advisor Team ownership/assignments, selected-detail/non-selected spatial visibility, complete mission boards, resolved Channy and placeholder direction, responsive/accessibility architecture, and M1 adapter |
 | [`contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md`](contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md) | Accepted structured handoff/dispatch/work/test/review/result/patch/decision/completion cues, Channy status reflection, provenance, precedence, deduplication, stale/reload suppression, budgets, and static equivalence |
 | [`ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md`](ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md) | Advisor Team-first identity, fixed approved project palette, SIASIU naming rule, current/future Advisor-character uniqueness, Channy Bedlington Terrier boundary, and project-authored placeholder inventory/hash contract |
-| [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Reviewed design versus conditional freeze-ready `IWU-01` through `IWU-14`, serial reversible batches, exact tests/rollback/acceptance, and AO12-U01-U14 traceability; implementation remains blocked pending clean delta PASS and Advisor handoff |
+| [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Frozen `AO12-IWU-01` through `AO12-IWU-14`, serial reversible batches, exact tests/rollback/acceptance, AO12-U01-U14 traceability, and AO12-A as-built status pending focused review; AO12-B remains unauthorized |
 | [`architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md`](architecture/AGENT_OFFICE_EXACT_ADVISOR_DELIVERY_BRIDGE_DESIGN.md) | DQ-01 through DQ-08, exact fixed-pane pointer bridge, durable no-resend transport, Git-verified Advisor evidence ingress, rehearsal, and nine-criterion traceability |
 | [`architecture/AGENT_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_MASTER_DESIGN.md) | Purpose, authority/source precedence, topology, stack boundary, SSE/PWA decision, batches/gates, unknowns |
 | [`contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md`](contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md) | Manifest, event envelope, entity states, transitions, idempotency, ordering, decisions, projections, evidence completion |
@@ -225,14 +226,22 @@ governance, review evidence, results, and pointers but no competing canonical co
   `CHANNY_ENABLED__NON_OPERATIONAL_AMBIENT_COMPANION_AND_STRUCTURED_STATUS_REFLECTOR`;
   art direction is resolved as
   `APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION`.
-  Neither decision authorizes implementation, external assets, operational
-  behavior, authority, transport, or state inference.
+  Neither decision by itself authorizes a batch, external assets, operational
+  behavior, authority, transport, or state inference. The separate exact
+  handoff authorized AO12-A contracts/invariants only; no asset was created.
+
+AO12-A is additive and not production-selected. Its as-built paths are
+`src/application/spatial-office/`, the focused contract/UI tests, and the exact
+SIASIU current-name compatibility correction. The existing `sceneRoles` M1
+surface remains authoritative, unknown spatial versions retain the static M1
+view, and all six M1 baselines remain byte-identical to design base `b7d8cdb`.
 
 ## 3. Status and Gate Vocabulary
 
 | Status | Meaning |
 |---|---|
 | `DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS` | The four M1.2 canonical design documents and this discoverability pointer contain the authorized narrow product-intent patch; no source/config/test/dependency/asset/runtime implementation is started or authorized until clean same-context Fable5 delta PASS, Advisor freeze, exact manifest, and separate handoff |
+| `IMPLEMENTED_M1_2_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED` | `AO12-IWU-01..04` are implemented and locally verified as an additive non-production-selected layer; independent focused review and Advisor acceptance remain required before AO12-B |
 | `IMPLEMENTED_BOOTSTRAP_ONLY` | Present in bootstrap commit; documentation/configuration only |
 | `DESIGNED_CANDIDATE` | Reviewed design target that is not yet implemented; its named implementation gate still applies |
 | `DESIGNED_FOR_EXTENSION` | Interface/invariant reserved; only local subset may be in M01 |

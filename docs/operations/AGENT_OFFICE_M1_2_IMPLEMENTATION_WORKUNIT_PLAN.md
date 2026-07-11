@@ -1,15 +1,14 @@
-# Agent Office M1.2 Future Implementation WorkUnit Plan
+# Agent Office M1.2 Implementation WorkUnit Plan
 
-Status: `DESIGN_PATCH_ONLY__IWU_01_THROUGH_IWU_14_FREEZE_READY_AFTER_CLEAN_DELTA_PASS__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+Status: `AO12_A_IMPLEMENTED__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED`
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-This plan describes a reversible future implementation train patched under
-`DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
-It is not an implementation launcher, handoff, permission, review verdict,
-branch decision, asset approval, or authority change. Every future batch
-requires a new exact Advisor handoff after the preceding dependency and review
-gate are accepted.
+This plan records the frozen reversible implementation train and AO12-A
+as-built status. It is not an implementation launcher, handoff, permission,
+review verdict, branch decision, asset approval, or authority change. Every
+later batch requires a new exact Advisor handoff after the preceding dependency
+and review gate are accepted.
 
 ## 1. Two distinct WorkUnit namespaces
 
@@ -30,22 +29,16 @@ Those rows are prior reviewed evidence, not current execution state. The current
 narrow patch applies chained product decisions P-01 through P-08 to the same
 five canonical design documents. It cannot start an implementation WorkUnit.
 
-### 1.2 Proposed future implementation namespace
+### 1.2 Frozen implementation namespace
 
-`AO12-IWU-*` below is the freeze-ready candidate plan. Every row currently has
-the immutable state:
-
-```text
-NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS
-```
-
-These IDs are not part of a current canonical implementation manifest. They do
-not change the design-mission denominator and must not be projected as active
-scope. Only after the same existing Fable5 context returns a clean Level-3 delta
-`PASS` with no risk, unresolved defect, new decision, or scope expansion may
-Advisor freeze `AO12-IWU-01` through `AO12-IWU-14`, convert them into an exact
-versioned implementation manifest, and route the serial reversible batches.
-That freeze still does not itself start implementation.
+The clean same-context Level-3 design delta review returned `PASS` with no risk,
+unresolved defect, new decision, or scope expansion. Advisor then froze
+`AO12-IWU-01` through `AO12-IWU-14` in the exact versioned implementation
+manifest. The separate AO12-A handoff authorized `AO12-IWU-01..04`, which are
+implemented pending independent focused review and Advisor acceptance.
+`AO12-IWU-05..14` remain waiting and unauthorized. These implementation IDs do
+not change the five-WorkUnit design-mission denominator and no later batch may be
+projected as active scope.
 
 No Designer session is assumed or created. The existing Agent Office Worker is
 the candidate implementation owner unless a later exact manifest identifies an
@@ -70,6 +63,10 @@ No `AO12-IWU-*` may start unless all are true:
 `NEEDS_PATCH`, any risk, or any new decision returns to Advisor. `FAIL` stops.
 Silence, a design commit, or a passing local check is not authorization.
 
+These entry conditions were satisfied for the exact AO12-A handoff only. Local
+AO12-A verification is not independent review or Advisor acceptance and does not
+satisfy the gate for AO12-B.
+
 ## 3. Reversible batch overview
 
 | Batch | Future WorkUnits | Reversible boundary | Required gate after batch |
@@ -83,13 +80,17 @@ No batch may be combined to bypass its dependency or review. No batch may add
 an auth, network, Advisor delivery, role dispatch, DB, secret, or asset-purchase
 change.
 
+Current batch state: AO12-A is implemented and locally verified, pending focused
+Fable5 review and Advisor acceptance. AO12-B, AO12-C, and AO12-D remain
+unauthorized.
+
 ## 4. Batch AO12-A - contracts, compatibility, Team/Advisor invariants, and SIASIU correction
 
 ### `AO12-IWU-01` Spatial projection types and validators
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/application/spatial-office/types.ts`
 - `src/application/spatial-office/validation.ts`
@@ -111,9 +112,9 @@ Acceptance criteria:
 
 ### `AO12-IWU-02` M1 fixed-station compatibility adapter
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/application/spatial-office/m1-fixed-station-adapter.ts`
 - `tests/ui/m1-spatial-adapter.test.ts`
@@ -133,9 +134,9 @@ Acceptance criteria:
 
 ### `AO12-IWU-03` Dynamic Team Pod projector
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/application/spatial-office/projector.ts`
 - `src/application/spatial-office/fixtures.ts`
@@ -161,9 +162,9 @@ Acceptance criteria:
 
 ### `AO12-IWU-04` Assignment, Single Advisor, and SIASIU current-name invariants
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `IMPLEMENTED_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/application/spatial-office/assignment-resolver.ts`
 - `tests/ui/spatial-assignment.test.ts`
@@ -212,6 +213,20 @@ Required checks:
   fixtures, actor labels, locale strings, tests, and baselines; and
 - exact changed-path/staged-path audit.
 
+AO12-A local as-built evidence, pending independent review:
+
+- five focused files pass 22 tests;
+- the full sequential Vitest suite passes 61 files and 318 tests;
+- existing Playwright demo and composed suites pass 18/18 and 3/3;
+- lint, strict typecheck, core/dashboard builds, and dependency audit pass;
+- the repository current-product name gate passes 214 scanned files;
+- the spatial application folder has no process, network, write, adapter,
+  gateway, persistence, transport, or dispatch dependency;
+- all six pre-existing visual baseline SHA-256 values equal exact base
+  `b7d8cdb`; and
+- no package, lockfile, asset, production projection, authority, transport,
+  authentication, DB, network, or runtime-selection path changed.
+
 Rollback: revert the additive `src/application/spatial-office/` consumer/tests
 and the exact naming-only source/test correction as one reviewed AO12-A unit.
 The prior M1 surface remains operable but is ineligible for M1.2 until the
@@ -225,7 +240,7 @@ acceptance before AO12-B.
 
 ### `AO12-IWU-05` Deterministic project identity catalog
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -251,7 +266,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-06` Project-authored character placeholders and inventory
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -286,7 +301,7 @@ The placeholder decision is
 
 ### `AO12-IWU-07` Static Team Pod, mission board, and semantic zones
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -321,7 +336,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-08` Responsive and accessible static architecture
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -367,7 +382,7 @@ AO12-C.
 
 ### `AO12-IWU-09` Spatial cue projector and reducer
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -392,7 +407,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-10` Spatial routes, poses, and lounge
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -423,7 +438,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-11` Motion, visual, accessibility, and performance proof
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -464,7 +479,7 @@ Advisor acceptance before AO12-D.
 
 ### `AO12-IWU-12` Additive authenticated application projection wiring
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope, subject to a future exact allowlist:
 
@@ -490,7 +505,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-13` Compatibility selection, degradation, and rollback proof
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
@@ -512,7 +527,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-14` As-built evidence and implementation result
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS`
+State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Candidate scope:
 
