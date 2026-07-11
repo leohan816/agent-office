@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `REVIEWED_DESIGN__BATCH_A_B_C_D_ACCEPTED__BATCH_E_IMPLEMENTED__PENDING_IMPLEMENTATION_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `FINAL_REWORK_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_ADVISOR_VERIFICATION_AND_LEO_GPT_DECISION`
 
 Canonical owner: Agent Office repository
 
@@ -27,7 +27,7 @@ The intended UI is quiet and operations-focused: low visual noise, explicit
 staleness and authority labels, readable evidence, and animation that reflects
 structured events only.
 
-## 2. Current Truth and Batch D Boundary
+## 2. Current Truth and Final Rework Boundary
 
 Bootstrap commit `937f0c5f92cd3b39d81796c13bc00b4afe3407fb` remains the
 repository-governance baseline. Canonical design commit
@@ -93,6 +93,26 @@ recovery proof. The complete gate is 50 Vitest files/196 tests and 18 sequential
 Chromium tests. No real provider/credential, private/public network mode,
 TLS/HSTS, deployment, DB, remote host, Hermes implementation, off-host backup,
 real tmux input, production/live operation, or automatic next mission was added.
+
+The final dual review reproduced AO-E-R1 and AO-E-R2 and returned `NEEDS_PATCH`.
+Final rework commit `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`
+adds the executable production composition and runtime client, plus immutable
+decision-authority correspondence. `npm run start:loopback` invokes
+`src/runtime/cli.ts`; it validates explicit config/state/static/manifest roots,
+opens the single writer, composes application/projection/SSE/static HTTP, and
+closes listeners before releasing the writer lock. The production UI entry is
+the typed status/projection/SSE/CSRF client; synthetic fixtures require explicit
+`test-demo` mode. No provider is configured by the production composition, so
+shell and redacted status remain available while protected projection, SSE, and
+all mutations fail closed as `AUTH_BLOCKED`/read-only. Decision links now retain
+`authorityRole` through HTTP, application, immutable link artifact, event,
+projector, replay, and command hash only after registered immutable
+repository/commit/path/SHA-256, mission, exact WorkUnit scope, and named-authority
+verification. No safe bounded Advisor routine authority was defined, so that
+variant remains rejected. The 52-file/205-test Vitest gate, 18 Chromium tests,
+4/4 composition tests, 5/5 authority tests, full security/recovery/PWA/audit/build
+gates, exact cleanup smoke, and direct desktop/mobile/reduced-motion inspection
+pass. Same-Reviewer delta review and Advisor/Leo gates remain pending.
 
 The byte-exact approved governance manifest remains version 1 with denominator
 15. Its imported facts record AO-WU-01 through AO-WU-05 as `COMPLETED`, AO-WU-06
@@ -225,6 +245,8 @@ a single repository, with strict module boundaries:
 - `src/adapters/`: read-only Git/tmux/artifact/manifest/host adapters plus fixed
   Advisor gateway adapters;
 - `src/server/`: HTTP, SSE, auth, CSRF, rate limiting, headers, and audit wiring;
+- `src/runtime/`: executable composition, validated startup, application
+  projection, system identity, synthetic test harness, and ordered cleanup;
 - `src/ui/`: responsive React UI, scene mapping, and accessible components; and
 - `src/pwa/`: manifest, service worker, cache policy, and update behavior.
 
@@ -237,11 +259,13 @@ private-network ingress, TLS, deployment, DB, and shared multi-host coordination
 remain unselected and gated.
 
 The default deployment descriptor is `LOOPBACK_PRIVATE`, `NONE_READ_ONLY`, and
-mutation-disabled. The same-origin server may serve the built static shell and
-redacted status without authentication; projection/SSE require a session and all
-mutations fail closed without an approved provider. The deterministic
-`TestAuthenticationProvider` is guarded for tests only and is not selected by
-the deployment descriptor.
+mutation-disabled. The executable production composition serves the built static
+shell and redacted status without authentication; projection/SSE require a
+session and all mutations fail closed without an approved provider. The
+production browser client clears protected state and its action port on expiry or
+revocation. The deterministic `TestAuthenticationProvider` is guarded twice and
+is reachable only through the separately imported synthetic test composition; it
+is not a production configuration switch or HTTP proof route.
 
 ### 6.2 Single-writer rule
 
@@ -294,6 +318,14 @@ Its exact crash-consistency protocol is in the operations design.
    projection revision.
 8. SSE announces the revision. The browser reads the projection and verifies the
    visible freshness/evidence labels; it never mutates its own canonical state.
+
+For `AdvisorMessageDecisionLinked`, step 3 additionally verifies an allowlisted
+immutable authority artifact against repository, commit, path, SHA-256, mission,
+exact message WorkUnit scope, claimed `authorityRole`, and decision/time fields.
+Failure uses `AUTHORITY_ARTIFACT_INVALID` before any decision-link artifact or
+event. Advisor remains the linking actor; verified `Leo/GPT` remains the named
+canonical authority. Advisor routine authority remains unavailable until an
+approved bounded scope exists.
 
 Completion is evidence-backed, never animation-backed or prose-backed. A Worker
 result can produce `RESULT_REPORTED`; `COMPLETED` requires the manifest's explicit
@@ -511,6 +543,31 @@ separate gate.
   reduced-motion inspection pass.
 - Exit state: `IMPLEMENTED_BATCH_E__PENDING_IMPLEMENTATION_REVIEW_AND_ADVISOR_ACCEPTANCE`.
 
+### 11.7 Final AO-E rework as-built evidence
+
+- Code/config/tests:
+  `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`.
+- Executable composition: `src/runtime/`, `npm run start:loopback`, explicit
+  owner/containment/state-root/config/manifest/static-root validation, one
+  loopback listener set, real event/artifact/application projection, built
+  production shell, readiness, and listener-then-writer-lock shutdown.
+- Browser composition: `src/ui/runtime/` is the production default and implements
+  status, protected projection/session context, SSE cursor/reconnect/reset,
+  revocation/expiry clearing, and capability-plus-CSRF Advisor action-port gating;
+  `src/ui/demo-entry.tsx` is selected only by explicit `test-demo` mode.
+- Authority linkage: `src/adapters/observations/artifacts/decision-authority.ts`
+  and `src/application/advisor-inbox/` verify and persist exact named authority
+  evidence. The default composition registers none and therefore rejects all
+  decision linkage; the unapproved Advisor routine variant also fails closed.
+- Verification: 52 Vitest files/205 tests, 18/18 sequential Chromium tests, 4/4
+  composition, 5/5 authority, lint/typecheck/core and production-dashboard
+  builds, 21/21 security, 20/20 recovery/operations, 6/6 PWA, zero-vulnerability
+  audit, diff/boundary scans, exact disposable smoke, and direct desktop/mobile/
+  reduced-motion inspection. No visual baseline changed.
+- Exit state:
+  `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`;
+  AO-WU-14 remains `NEEDS_LEO_GPT_DECISION`.
+
 ## 12. Unknowns, Limitations, and Deferred Extensions
 
 | Item | Candidate decision | Current status | Gate |
@@ -547,9 +604,9 @@ separate gate.
 |---|---|---|---|---|---|
 | AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 15-unit fixture/hash remains accepted; Batch B declared scope/future-work rendering was accepted as the Batch C dependency | `IMPLEMENTED_THROUGH_BATCH_B__ADVISOR_ACCEPTED` | Any scope change still requires exact authority |
 | AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts`, `src/operations/` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted ledger/replay remains; Batch E adds complete checkpoint/hash manifest and replay-equivalent disjoint restore without active-root overwrite | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
-| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/ui/`, `src/server/`, `src/pwa/`, `public/` | `tests/security/http-boundary.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e/pwa-cache-security.spec.ts` | Loopback same-origin static/status, capability-routed idempotent POST, revision-only SSE, install/update/offline shell, and visible safe modes pass at the Batch E commit | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real auth/private network/deployment remain gated |
+| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/runtime/`, `src/ui/runtime/`, `src/server/`, `src/pwa/`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e/pwa-cache-security.spec.ts` | Rework commit `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1` supplies the executable loopback composition and production projection/SSE client; no-provider startup is proven `AUTH_BLOCKED`/mutation-disabled with listener and lock cleanup, while guarded synthetic auth proves the same client/application message path | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real auth/private network/deployment and AO-WU-14 posture remain gated |
 | AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`, `src/adapters/gateways/`, `src/server/application.ts` | `tests/adapters/tmux-readonly.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/security/http-boundary.test.ts` | Batch D is accepted; Batch E binds only typed Advisor application ports and preserves no browser Worker/Reviewer/terminal route; Hermes remains disabled | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real capability activation external; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts` | Batches A-D dependencies are accepted; Batch E passes 50/196 Vitest and 18/18 Chromium plus all named non-browser gates | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Worker result -> independent implementation review -> Advisor/Leo authority |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, result artifacts | `tests/acceptance/batch-gates.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/integration/decision-authority-evidence.test.ts` | Batches A-D dependencies are accepted; final dual review returned `NEEDS_PATCH`; exact rework passes 52/205 Vitest, 18/18 Chromium, 4/4 composition, 5/5 authority, and all named non-browser gates | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Same Reviewer delta review -> Advisor verification -> AO-WU-14/final Leo/GPT authority |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.

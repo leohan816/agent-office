@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `REVIEWED_DESIGN__BATCH_B_C_D_ACCEPTED__BATCH_E_LOOPBACK_SECURITY_IMPLEMENTED__REAL_AUTH_PRIVATE_NETWORK_GATED__PENDING_REVIEW`
+Status: `FINAL_FAIL_CLOSED_COMPOSITION_AND_AUTHORITY_REWORK_IMPLEMENTED__REAL_AUTH_PRIVATE_NETWORK_GATED__PENDING_DELTA_REVIEW`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -29,6 +29,11 @@ test-auth/session-contract, closed HTTP/SSE, PWA-cache, redacted audit, and loca
 recovery security boundary described here. It accesses no real credential and
 does not enable private/public ingress, TLS/HSTS, deployment, DB, remote host,
 Hermes, real tmux input, off-host backup, or production/live mode.
+Final rework commit `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`
+adds an executable no-provider composition, production runtime client, and
+immutable decision-authority verifier while preserving every closed gate. It
+contains no real secret/provider and remains subject to same-Reviewer delta
+review, Advisor verification, and the unresolved AO-WU-14 Leo/GPT decision.
 
 ## 1. Security Objectives
 
@@ -84,14 +89,28 @@ Availability never outranks actor separation or evidence integrity.
   auth, opaque revocable sessions, capability/CSRF/Fetch Metadata, strict JSON,
   body/time/rate bounds, CSP/no-store, and owner-only hash-chained audit. Default
   config selects no provider and mutation-disabled read-only mode.
+- `src/runtime/composition.ts` is the only production executable composition:
+  it supplies no `BrowserSessionRegistry`, selects no authentication bootstrap,
+  and uses a rejecting decision-authority verifier until exact trusted authority
+  registrations are approved. `src/runtime/test-composition.ts` alone constructs
+  the doubly guarded synthetic provider and exposes no HTTP proof exchange.
+- `src/ui/runtime/client.ts` accepts only loopback same-origin HTTP, reads public
+  status, requires a protected projection-provided session capability/CSRF/expiry
+  context before exposing the Advisor action port, and clears projection/session/
+  mutation state when expiry or revocation is observed.
+- `ArtifactDecisionAuthorityEvidenceVerifier` accepts only exact registered
+  immutable `ArtifactSource` bytes whose repository, commit, path, SHA-256,
+  mission, decision, named authority, and exact nonempty WorkUnit scope correspond.
+  Any missing/unreadable/mutable/stale/mismatch rejects before link artifact/event;
+  no bounded Advisor routine scope is approved, so that role remains fail-closed.
 - `src/pwa/`, `public/sw.js`, and `src/ui/pwa/` precache the built hashed shell,
   exclude all API/auth/message/evidence routes, provide no sync queue, and show
   loopback/auth/read-only/delivery/offline/update/recovery state.
 - Adapter/security boundary tests are deterministic and use fake tool runners;
   traversal, symlink, special-file, hostile argv/ref/name, timeout/cap, root
   isolation, malicious inert text, capability matrix, and forbidden-scope cases
-  pass in 50 Vitest files/196 tests plus 18 Chromium tests at
-  `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`.
+  pass in 52 Vitest files/205 tests plus 18 Chromium tests at final rework commit
+  `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`.
 
 ## 2. Threat Model
 
@@ -228,6 +247,14 @@ implementations are selected by trusted startup configuration, not a request.
 
 There is no `NoAuth` mutation provider. Missing/invalid provider configuration
 disables mutation endpoints and reports a redacted health failure.
+
+The executable M01 production composition does not instantiate any provider or
+session registry. `NONE_READ_ONLY` is an unavailable-auth declaration, not a
+localhost identity and not a `NoAuth` provider. It serves the static shell and
+redacted status while returning `AUTH_PROVIDER_UNAVAILABLE` for protected
+projection, SSE, and mutation routes. Synthetic proof exchange occurs only
+out-of-band inside the explicit test composition; no production route, flag, or
+environment variable can enable it.
 
 ### 6.3 Session handling
 
@@ -463,10 +490,12 @@ changes nor bypasses the external canonical transport kill switch.
 - A service-worker update is versioned, integrity checked, and activated through a
   visible reload flow. A broken worker has a documented unregister/recovery path.
 
-The Batch E default UI has no live authenticated provider and therefore holds no
-server-loaded sensitive projection. It remains visibly `AUTH_BLOCKED` and
-`READ_ONLY`; the real logout/session-expiry client binding remains part of the
-separately gated real-provider work rather than a hidden fake login.
+The production UI now contains the runtime client but has no live authenticated
+provider and therefore holds no server-loaded sensitive projection by default.
+It remains visibly `AUTH_BLOCKED` and `READ_ONLY`. Guarded synthetic tests prove
+that server revocation/expiry closes SSE and removes the action port; this is
+client behavior evidence, not a claim that a real provider or authenticated
+private run exists.
 
 ## 16. Security Acceptance Tests
 
@@ -481,6 +510,11 @@ Batch E evidence includes:
 - command/target field rejection and proof no browser route reaches Worker/Reviewer;
 - direct-exec argv tests proving no shell and no writable Git/tmux observation;
 - same-ID/same-hash replay and same-ID/different-hash conflict after restart;
+- executable production no-provider composition, protected-route denial,
+  synthetic client/SSE/message path, session expiry/revocation, and exact
+  listener/writer-lock cleanup;
+- immutable decision-authority acceptance plus role/mission/scope/hash/missing/
+  mutable/unreadable/stale rejection with no decision-link artifact or event;
 - gateway invalid-vocabulary/inactive/kill-switch/registry/time-boundary/manual
   fallback tests;
 - audit redaction tests seeded with canary secret-like values; and
@@ -489,19 +523,21 @@ Batch E evidence includes:
 Tests use synthetic credentials/canaries only. No real secret, external exposure,
 Tailscale action, or production identity is permitted by this design.
 
-At commit `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`, all listed applicable local
-tests pass within the 50-file/196-test Vitest and 18-test Chromium suites. The
+At final rework commit `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`,
+all listed applicable local tests pass within the 52-file/205-test Vitest and
+18-test Chromium suites, including 4/4 composition and 5/5 authority tests. The
 path/special-file/direct-exec items also remain covered by the accepted Batch B-D
-adapter regression. Local built-shell smoke confirms `127.0.0.1`, CSP, immutable
-hashed assets, redacted status, and `AUTH_PROVIDER_UNAVAILABLE` mutation denial.
+adapter regression. Local built-shell smoke confirms `127.0.0.1`, immutable
+hashed assets, redacted `AUTH_BLOCKED` status, protected projection denial, no
+fixture asset, listener rebind, and writer-lock release.
 
 ## 17. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-SEC-001 Loopback private fail-closed bind | `src/server/network/`, `src/server/http/static-shell.ts`, `config/agent-office.loopback.json` | `tests/security/bind-policy.test.ts`, `tests/security/static-shell.test.ts`, `tests/security/private-network-disabled.test.ts` | Explicit loopback bind/peer/Host only; proxy/wildcard/nonloopback/private-mode changes and unsafe static paths fail closed; no CORS/TLS/HSTS claim | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Private/public network and deployment separately gated |
-| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/server/auth/`, `src/server/config.ts` | `tests/security/auth-session.test.ts`, `tests/security/http-boundary.test.ts` | Provider interface, guarded synthetic provider, opaque host-only session/cookie, rotation/expiry/revocation/capability checks pass; no-provider default denies mutation | `IMPLEMENTED_BATCH_E_TEST_BOUNDARY_ONLY__PENDING_ADVISOR_ACCEPTANCE` | Real provider/credential and lifecycle audit need secret-handling authority |
-| AO-SEC-003 CSRF/origin/rate/input/output controls | `src/domain/messages/`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/security/rate-limit.test.ts`, `tests/integration/http-advisor-message.test.ts` | Exact Host/origin/fetch/CSRF/content/schema/size/time/rate controls, CSP/no-store, typed receipt-only POST, restart replay/conflict, inert text and redacted errors/audit pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Shared limiter/private origin/TLS remain gated |
+| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/runtime/composition.ts`, `src/runtime/test-composition.ts`, `src/ui/runtime/client.ts`, `src/server/auth/`, `src/server/config.ts` | `tests/integration/runtime-composition.test.ts`, `tests/security/auth-session.test.ts`, `tests/security/http-boundary.test.ts` | Production executable supplies no provider/session registry and stays `AUTH_BLOCKED`; only the separately imported doubly guarded synthetic harness authenticates. Protected projection supplies capability/CSRF/expiry context, and revocation/expiry closes SSE and removes mutation | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real provider/credential, AO-WU-14 posture, and lifecycle audit need explicit authority |
+| AO-SEC-003 CSRF/origin/rate/input/output and decision-authority controls | `src/domain/messages/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/runtime/` | `tests/integration/decision-authority-evidence.test.ts`, `tests/integration/runtime-composition.test.ts`, `tests/security/http-boundary.test.ts`, `tests/security/rate-limit.test.ts`, `tests/integration/http-advisor-message.test.ts` | Existing request controls remain; the production client gates its message port on capability plus protected CSRF context, and decision linkage independently requires exact immutable named-authority correspondence before any durable link | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Shared limiter/private origin/TLS, real provider, and bounded Advisor routine authority remain gated |
 | AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/acceptance/batch-gates.test.ts` | Six exact typed mutations and read/static routes only; command/target/role/path/Worker/Reviewer/terminal routes and fields reject; server has no process primitive | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Fixed prohibition; real Advisor transport remains external |
 | AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/security/audit-log.test.ts`, `tests/recovery/rollback-disable.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Accepted gateway fail-closed/manual behavior plus owner-only security audit and default-off durable app disable/replay/conflict pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real transport state/re-enable and audit retention remain external/gated |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Hashed shell install cache, sensitive-prefix/no-store exclusion, GET-only runtime cache, no sync queue, offline read-only, user update, unregister recovery pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated UI requires separately approved real provider |

@@ -1,6 +1,6 @@
 # Agent Office UI and Animation Mapping
 
-Status: `REVIEWED_DESIGN__BATCH_B_C_D_ACCEPTED__BATCH_E_PWA_SHELL_IMPLEMENTED__REAL_AUTH_LIVE_BINDING_GATED__PENDING_REVIEW`
+Status: `FINAL_PRODUCTION_RUNTIME_CLIENT_REWORK_IMPLEMENTED__REAL_AUTH_OPERATION_GATED__PENDING_DELTA_REVIEW`
 
 This reviewed design defines the responsive, private PWA surface and the only
 allowed mapping from structured events to visual activity. Batch B implements the
@@ -17,8 +17,11 @@ the configured local browser/font runtime. Advisor accepted Batch C as the Batch
 D dependency. Batch D Inbox/Alerts code/tests are implemented at
 `7366036f8a1e6fc9d4e911e8d193e17eeb95f54c` and were accepted as the Batch E
 dependency. Batch E PWA/runtime-strip code/tests/assets are implemented at
-`e0a11f69fffc9d35d67cc478cbefbb92d93cf528`; a real authenticated live-data
-binding remains gated because no real provider/credential is approved.
+`e0a11f69fffc9d35d67cc478cbefbb92d93cf528`. Final rework commit
+`0f90e39d3995ffca97eb7a05ef051d8f9a3719c1` replaces the production fixture
+entry with the typed status/projection/SSE client and keeps synthetic fixtures
+behind explicit `test-demo` mode. Real authenticated operation remains gated
+because no real provider/credential is approved.
 
 ## 1. Experience Principles
 
@@ -106,9 +109,10 @@ indicator. It never shows a generic command box.
 - A stable request ID is visible before submission. The direct typed application
   port can report only a `PERSISTED` receipt; delivery, acknowledgement, intake,
   decision, resume, and close remain distinct timeline rows with evidence refs.
-- The shipped fixture is explicitly `SYNTHETIC_READ_ONLY`: submit and alert
+- The test/demo fixture is explicitly `SYNTHETIC_READ_ONLY`: submit and alert
   lifecycle mutations are disabled, no acknowledgement is claimed, and pause/
-  cancel/reply actions prepare an unsent Advisor draft only.
+  cancel/reply actions prepare an unsent Advisor draft only. It is no longer the
+  production default and is selected only by explicit `test-demo` build mode.
 - Alert cards render the nine canonical kinds, severity/state/occurrence/dedup,
   blocker reason, resolution owner, next action, safe default, facts, unknowns,
   question, options, recommendation, blocked capability, and evidence. Critical
@@ -121,6 +125,25 @@ indicator. It never shows a generic command box.
 - Semantic role/status lists, roving keyboard focus, icon/text/shape semantics,
   44px scene controls, polite/assertive live regions, reduced-motion behavior,
   and an accessible activity log are implemented and browser-tested.
+
+### 2.4 Final production runtime-client boundary
+
+- `src/ui/main.tsx` mounts a virtual entry selected by Vite: production resolves
+  only `src/ui/runtime/entry.tsx`; explicit `test-demo` resolves only
+  `src/ui/demo-entry.tsx`.
+- `AgentOfficeRuntimeClient` reads redacted status, validates the protected
+  application projection/session context, tracks the revision cursor, consumes
+  SSE projection/reset/revocation events, reconnects after a bounded delay, and
+  clears protected state on auth failure, expiry, or revocation.
+- The Advisor action port exists only when a parsed protected session includes
+  `leo_input` and a bounded CSRF token. Alert acknowledgement separately rechecks
+  `advisor_operator`. No role/session/pane/tmux/terminal target exists.
+- With the production no-provider composition, the responsive UI renders the
+  exact `AUTH_BLOCKED / READ_ONLY`, `AUTH_PROVIDER_UNAVAILABLE`, mutation-disabled,
+  and disconnected-SSE facts. It does not display a fixture projection.
+- A guarded synthetic composition test exercises this same client against the
+  real HTTP/application/store/SSE path; this is test evidence only, not a claim of
+  an approved real provider or private authenticated run.
 
 ## 3. Hierarchy and Mission Views
 
@@ -535,18 +558,19 @@ alerts.
 ## 12. Advisor Inbox UI
 
 Batch D implements this local typed-port UI under `src/ui/communication/`.
-The Batch E default remains a read-only fixture because no real authentication
-provider is approved. The server-side typed application/HTTP boundary exists,
-but activating a live authenticated compose binding requires the separately
-gated real provider rather than a hidden fake login.
+The final-rework production default is the runtime client, not a fixture. Because
+no real authentication provider is approved, it receives only redacted status and
+renders `AUTH_BLOCKED`/read-only; protected projection and the compose action port
+remain absent. The explicit guarded synthetic composition proves the client/
+application wiring without becoming a production login or provider switch.
 
 The compose form contains mission, structured kind, subject, text, and allowlisted
 entity references. It never contains role/session/pane/command fields.
 
 Submission behavior:
 
-1. Generate/preserve `requestId` before direct application submission (and before
-   a future Batch E POST).
+1. Generate/preserve `requestId` before direct application or authenticated HTTP
+   submission.
 2. Disable only duplicate local submission while request is in flight.
 3. On timeout, present retry with the same request ID, never a new implicit ID.
 4. Show durable `PERSISTED` receipt fields and hash after success.
@@ -599,9 +623,15 @@ Commit `e0a11f69fffc9d35d67cc478cbefbb92d93cf528` adds:
 - the persistent `RuntimeBoundary` showing `LOOPBACK_PRIVATE`, read-only/auth,
   app delivery/manual fallback, online/offline, worker/update, and recovery state.
 
+Final rework makes `src/ui/runtime/entry.tsx` the production build entry and
+`src/ui/demo-entry.tsx` an explicit `test-demo` entry. The production runtime
+shell renders server-derived status and, only when authenticated, the application
+projection and Advisor action port. It never silently imports the approved-source
+or synthetic communication fixtures.
+
 Because no approved real provider exists, the current UI truthfully renders
-`AUTH_BLOCKED`, `READ_ONLY`, and `MANUAL_FALLBACK_REQUIRED`; it does not render a
-fake authenticated live projection or queue offline submissions.
+`AUTH_BLOCKED`, `READ_ONLY`, and delivery-disabled/manual-safe state; it does not
+render a fake authenticated projection or queue offline submissions.
 
 ## 15. UI Acceptance Tests
 
@@ -657,17 +687,25 @@ configured locale/runtime, directly inspected at desktop/mobile/reduced-motion,
 and the 18/18 suite passes. Dialog/drawer focus remains inapplicable because no
 new dialog/drawer was added.
 
+Final rework expands the complete regression to 52 Vitest files/205 tests while
+the same 18/18 Chromium suite and all three committed scene baselines pass
+unchanged. `tests/integration/runtime-composition.test.ts` passes 4/4 for the
+production no-provider shell, protected-route denial, guarded client projection/
+SSE/idempotent message path, expiry/revocation, explicit demo mode, and cleanup.
+The new production fail-closed page was directly inspected at desktop, mobile,
+and reduced motion; it reflows without clipping and caused no snapshot update.
+
 ## 16. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/`, `src/ui/pwa/` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/communication-center.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Accepted dashboard/scene/communication remain; Batch E adds only the persistent private/safe-mode/PWA strip and passes all responsive gates | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated data requires real-provider gate |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/`, `src/ui/runtime/`, `src/ui/pwa/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/dashboard.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/communication-center.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Accepted dashboard/scene/communication remain; production now uses the application runtime client and an exact responsive fail-closed page, while fixtures require explicit demo mode; desktop/mobile/reduced output is directly inspected and 18/18 browser tests pass unchanged | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated data/provider and AO-WU-14 posture remain gated |
 | AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts` | Exact Batch C scene mapping is Advisor-accepted and all visual baselines remain unchanged in Batch D | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene mapping |
 | AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/communication-center.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Runtime strip uses semantic status/details/buttons; 44px, keyboard, reduced-motion, WCAG A/AA, offline warning, 320/200%-text and landscape gates pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Future live-auth focus transitions require real-provider review |
 | AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `public/icons/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/e2e/office-scene.spec.ts` | Accepted scene/local-font runtime remains; Batch E adds two licensed project-authored local PWA SVGs and intentionally updates exactly three inspected baselines for the visible status strip | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Cross-host/browser/font portability remains an operations prerequisite |
-| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/`, `src/server/application.ts`, `src/server/http/` | `tests/ui/communication-center.component.test.tsx`, `tests/integration/http-advisor-message.test.ts`, `tests/e2e/communication-center.spec.ts` | Accepted closed form/evidence stages remain; server returns PERSISTED only and replay/conflict passes, while the default UI stays read-only because no real provider is approved | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated binding requires separate real-provider authority |
+| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/`, `src/ui/runtime/client.ts`, `src/server/application.ts`, `src/server/http/` | `tests/integration/runtime-composition.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/integration/http-advisor-message.test.ts`, `tests/e2e/communication-center.spec.ts` | Production client supplies the existing action port only with protected `leo_input` plus CSRF context; guarded synthetic composition proves one PERSISTED/replayed message and SSE update, while production no-provider UI remains read-only | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation requires separate provider/AO-WU-14 authority |
 | AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/alerts/`, `src/ui/communication/`, `src/ui/scene/`, `src/ui/pwa/`, `src/operations/` | `tests/integration/alert-application.test.ts`, `tests/recovery/recovery-result.test.ts`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted alert UI remains; PWA runtime exposes read-only/offline/manual/recovery controls while backup/restore success remains evidence artifacts, not a UI toast | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Rich live recovery projection awaits approved real binding |
-| AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/`, `public/` | `tests/pwa/cache-policy.test.ts`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e/pwa-cache-security.spec.ts` | Manifest/icons, hashed install cache, offline read-only, no background write, user-gated update/reload, and unregister recovery pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real authenticated live binding remains gated |
+| AO-UI-007 PWA install/offline/update and runtime selection | `src/pwa/`, `src/ui/pwa/`, `src/ui/runtime/`, `src/ui/demo-entry.tsx`, `vite.config.ts`, `public/` | `tests/integration/runtime-composition.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e/pwa-cache-security.spec.ts` | Existing PWA gates pass; production build resolves only the runtime client, explicit `test-demo` resolves fixtures, and smoke verifies the production asset excludes the synthetic critical fixture | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation remains gated |
 | AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted domain labels remain exact; Batch E security/PWA state codes are deliberately visible stable operational codes with no silent authority translation | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Product localization of new security codes requires a reviewed vocabulary change |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

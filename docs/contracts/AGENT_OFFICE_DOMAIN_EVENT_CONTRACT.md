@@ -1,6 +1,6 @@
 # Agent Office Domain and Event Contract
 
-Status: `REVIEWED_DESIGN__BATCH_A_B_C_D_ACCEPTED__BATCH_E_BOUNDARY_IMPLEMENTED__PENDING_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `FINAL_AUTHORITY_REWORK_IMPLEMENTED__PENDING_FABLE5_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Contract version: `agent-office.domain.v1`
 
@@ -21,6 +21,11 @@ adds HTTP/session/SSE and recovery boundaries without adding or changing a
 domain event type, transition, actor authority, completion rule, or manifest
 denominator. Its typed server maps only to the Batch D application ports; backup
 and restore copy/replay the same version-1 ledger rather than rewriting it.
+Final rework commit `0f90e39d3995ffca97eb7a05ef051d8f9a3719c1`
+closes the reproduced authority-link divergence without inventing a new decision
+authority: it extends the existing link command/artifact/event/projection evidence
+and adds an immutable authority-verification port. The same-Reviewer delta review
+and Advisor acceptance remain pending.
 
 ## 1. Contract Principles
 
@@ -89,6 +94,27 @@ key, occurrence folding, acknowledgement/snooze/resolution/suppression, and an
 immutable detail artifact. `src/application/audit/` exposes only allowlisted IDs,
 states, hashes, sequence, actor role, and the existing event hash chain. No
 message body enters gateway requests or the redacted audit projection.
+
+### 1.4 Final authority-link as-built boundary
+
+`LinkAdvisorDecision` now carries `authorityRole`. The field is included in the
+actor-bound idempotency command hash, exact version-2 immutable link artifact,
+`AdvisorMessageDecisionLinked` event, projector, restart replay, and durable
+message projection. Before any link artifact/event is written,
+`ArtifactDecisionAuthorityEvidenceVerifier` resolves only an exact registered
+repository/commit/path/SHA-256 reference through `ArtifactSource`, requires
+immutable `VERIFIED` bytes and metadata, parses the closed version-1 authority
+record, and matches decision ID, mission, exact nonempty WorkUnit scope, named
+authority, and time ordering. The application independently rechecks the returned
+evidence hash and correspondence.
+
+Missing, unreadable, mutable, stale, malformed, hash/path/commit/repository,
+mission, scope, or named-authority mismatch returns the stable
+`AUTHORITY_ARTIFACT_INVALID` code and appends neither a decision-link artifact nor
+event. Advisor remains the actor recording the link; this does not grant Advisor
+the recorded canonical authority. The current approved contract defines no safe
+bounded Advisor routine decision scope, so `authorityRole=Advisor` rejects closed
+until a separate authority decision defines one.
 
 ## 2. Identity, Encoding, Time, and Hashing
 
@@ -633,6 +659,18 @@ The transition is rejected if the decision scope does not cover the WorkUnit, a
 hash fails, blockers remain open, or `resumeTo` differs from the captured prior
 state without an Advisor correction.
 
+The as-built `AdvisorMessageDecisionLinked` path is narrower than decision
+creation or application. Its HTTP/application command contains `authorityRole`
+and one immutable `SourceArtifactRef`. The verifier must prove exact correspondence
+between that claim and the canonical authority record before the application
+writes `agent-office.advisor-decision-link.v2`. The durable event/projection then
+contains the verified role, authority subject, evidence ref/hash, and exact scope.
+Same request/same actor/same command returns the prior projection; changing the
+role or other command bytes conflicts because authority participates in the
+command hash. Linkage alone does not create `DecisionApplied`, construct a
+`ResumeProof`, resolve a blocker, resume a WorkUnit, or transfer final authority
+to the Advisor actor.
+
 ## 9. Command Validation and Invalid Transitions
 
 Validation order is deterministic:
@@ -798,8 +836,8 @@ or intake as a resume transition.
 |---|---|---|---|---|---|
 | AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Dashboard consumption implemented in Batch B; later scope changes still require authority |
 | AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts`, `src/application/audit/`, `src/server/security/audit.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/integration/lifecycle-audit.test.ts`, `tests/security/audit-log.test.ts` | Accepted ledger remains intact; Batch E adds a separate owner-only serialized/tamper-checked redacted security audit without changing domain sequence | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real-auth lifecycle audit/retention remain gated |
-| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch C mapping and Batch D transitions are Advisor-accepted; Batch E changes no state machine and the full 196-test regression preserves all rejections/reconciliation | `IMPLEMENTED_THROUGH_BATCH_D__ADVISOR_ACCEPTED` | None for the local domain application |
-| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/`, `src/server/application.ts`, `src/server/http/` | `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/integration/http-advisor-message.test.ts` | Accepted exact five-kind/artifact/event lifecycle remains; persistence-only HTTP replay returns the original receipt and changed input is 409 with sequence unchanged | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real authenticated UI binding remains gated |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch C mapping and Batch D transitions are Advisor-accepted; final rework changes no transition table and the full 205-test regression preserves all rejections/reconciliation | `IMPLEMENTED_THROUGH_BATCH_D__ADVISOR_ACCEPTED` | None for the local domain application |
+| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/`, `src/adapters/observations/artifacts/decision-authority.ts`, `src/server/application.ts`, `src/server/http/` | `tests/integration/advisor-inbox.test.ts`, `tests/integration/decision-authority-evidence.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/integration/http-advisor-message.test.ts` | Accepted lifecycle/replay remains; verified Leo/GPT authority is preserved through HTTP, v2 artifact, event, replay, projection, and command hash. Role/mission/scope/hash/mutable/stale/missing/unreadable mismatches return one stable code with zero link artifact/event; unapproved Advisor routine scope fails closed | `IMPLEMENTED_FINAL_REWORK__PENDING_DELTA_REVIEW_AND_ADVISOR_ACCEPTANCE` | Real authenticated operation remains gated; bounded Advisor routine authority requires an explicit canonical decision |
 | AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/operations/restore/`, `src/server/sse/` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/backup-restore.test.ts`, `tests/integration/sse-reconnect.test.ts` | Accepted projection/completion authority remains; isolated restore proves the same projection hash and SSE exposes revision/notification IDs only, never creates truth | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Remote evidence remains gated |
 | AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch C event-ID-only activity/result mapping is Advisor-accepted and remains unchanged in Batch D regression | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene activity |
 | AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts`, `src/application/alerts/`, `src/server/application.ts`, `src/ui/communication/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, `tests/integration/alert-application.test.ts`, `tests/security/http-boundary.test.ts` | Accepted closed vocabularies and byte-exact package remain; Batch E typed alert acknowledgement/intake/decision routes add no new kind or authority | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real Advisor/Leo decision authority remains external |
