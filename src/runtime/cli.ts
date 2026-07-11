@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     appRoot: options.appRoot,
     stateRoot: options.stateRoot,
     staticRoot: options.staticRoot,
-    buildId: 'agent-office-m01-final-rework-round2',
+    buildId: 'agent-office-m01-local-bootstrap-gate',
   });
   process.stdout.write(`${JSON.stringify({
     schemaVersion: 'agent-office.runtime-start.v1',

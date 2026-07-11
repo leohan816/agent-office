@@ -9,9 +9,10 @@ import {
 
 export interface RuntimeBoundaryProps {
   readonly controller?: PwaRuntimeController;
-  readonly authState?: 'AUTH_BLOCKED' | 'TEST_AUTHENTICATED';
-  readonly mutationState?: 'READ_ONLY' | 'TEST_MUTATION_ENABLED';
+  readonly authState?: 'AUTH_BLOCKED' | 'LOGIN_REQUIRED' | 'LOCAL_BOOTSTRAP_AUTHENTICATED' | 'TEST_AUTHENTICATED';
+  readonly mutationState?: 'READ_ONLY' | 'LOCAL_BOOTSTRAP_ENABLED' | 'TEST_MUTATION_ENABLED';
   readonly deliveryState?: 'MANUAL_FALLBACK_REQUIRED' | 'DISABLED' | 'READY';
+  readonly onLogout?: () => Promise<void>;
 }
 
 export function RuntimeBoundary({
@@ -19,6 +20,7 @@ export function RuntimeBoundary({
   authState = 'AUTH_BLOCKED',
   mutationState = 'READ_ONLY',
   deliveryState = 'MANUAL_FALLBACK_REQUIRED',
+  onLogout,
 }: RuntimeBoundaryProps) {
   const pwa = usePwaRuntimeState(controller);
   useEffect(() => {
@@ -41,6 +43,11 @@ export function RuntimeBoundary({
         <span className="runtime-state">SW: {pwa.serviceWorkerStatus}</span>
       </div>
       <div className="runtime-boundary-actions">
+        {onLogout === undefined ? null : (
+          <button type="button" onClick={() => void onLogout()}>
+            Logout
+          </button>
+        )}
         {pwa.installAvailable ? (
           <button type="button" onClick={() => void controller.requestInstall()}>
             <Download aria-hidden="true" size={16} /> Install

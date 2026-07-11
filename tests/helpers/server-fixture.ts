@@ -5,6 +5,7 @@ import type {
   RunningAgentOfficeHttpServer,
 } from '../../src/server/index.js';
 import {
+  AuthenticationExchange,
   BrowserSessionRegistry,
   InMemorySecurityAuditSink,
   ProjectionSseBroker,
@@ -17,6 +18,7 @@ import {
 import { FIXED_TIME, MISSION_ID, uuidV7 } from './fixtures.js';
 
 export const SYNTHETIC_TEST_PROOF = 'synthetic-proof-for-agent-office-tests';
+export const LOCAL_BOOTSTRAP_TEST_PROOF = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 export interface HttpServerFixture {
   readonly server: RunningAgentOfficeHttpServer;
@@ -30,16 +32,30 @@ export interface HttpServerFixture {
   readonly mutationHeaders: Readonly<Record<string, string>>;
 }
 
+export interface BootstrapHttpServerFixture {
+  readonly server: RunningAgentOfficeHttpServer;
+  readonly sessions: BrowserSessionRegistry;
+  readonly provider: TestAuthenticationProvider;
+  readonly audit: InMemorySecurityAuditSink;
+  readonly sse: ProjectionSseBroker;
+  readonly application: RecordingHttpApplication;
+  readonly proofs: readonly string[];
+}
+
 export class RecordingHttpApplication implements AgentOfficeHttpApplication {
   public readonly messages: SubmitAdvisorMessage[] = [];
+
+  public constructor(private readonly localBootstrap = false) {}
 
   public readStatus() {
     return Promise.resolve({
       schemaVersion: 'agent-office.local-runtime-status.v1' as const,
       networkMode: 'LOOPBACK_PRIVATE' as const,
       startupState: 'MUTATION_READY' as const,
-      authMode: 'TEST_ONLY' as const,
-      mutationMode: 'ENABLED_TEST_ONLY' as const,
+      authMode: this.localBootstrap ? 'LOCAL_BOOTSTRAP' as const : 'TEST_ONLY' as const,
+      mutationMode: this.localBootstrap
+        ? 'ENABLED_LOCAL_BOOTSTRAP' as const
+        : 'ENABLED_TEST_ONLY' as const,
       deliveryMode: 'DISABLED' as const,
       sseMode: 'READY' as const,
       projectionRevision: 7,
@@ -155,6 +171,52 @@ export async function startTestHttpServer(
       'X-AO-CSRF': session.csrfToken,
     },
   };
+}
+
+export async function startBootstrapHttpServer(
+  proofs: readonly string[] = [LOCAL_BOOTSTRAP_TEST_PROOF],
+  heartbeatMs = 20,
+): Promise<BootstrapHttpServerFixture> {
+  let opaqueSequence = 0;
+  let idSequence = 3000;
+  const nextOpaque = (): string => `bootstrap_opaque_${String(opaqueSequence++).padStart(32, '0')}`;
+  const provider = new TestAuthenticationProvider({
+    buildMode: 'TEST',
+    testRuntime: true,
+    identities: proofs.map((proof, index) => ({
+      proof,
+      subjectId: `local-bootstrap-test-${index}`,
+      capabilities: ['viewer', 'leo_input'],
+    })),
+    now: () => FIXED_TIME,
+    nextOpaque,
+  });
+  const sessions = new BrowserSessionRegistry(provider, nextOpaque, () => FIXED_TIME);
+  const limiter = new (await import(
+    '../../src/server/security/rate-limiter.js'
+  )).InMemoryRateLimiter();
+  const bootstrapExchange = new AuthenticationExchange(
+    provider,
+    sessions,
+    limiter,
+    () => Date.parse(FIXED_TIME),
+  );
+  const application = new RecordingHttpApplication(true);
+  const audit = new InMemorySecurityAuditSink();
+  const sse = new ProjectionSseBroker();
+  const server = await startAgentOfficeHttpServer({
+    bindAddress: '127.0.0.1',
+    application,
+    sessions,
+    bootstrapExchange,
+    audit,
+    limiter,
+    sse,
+    heartbeatMs,
+    now: () => FIXED_TIME,
+    nextId: () => uuidV7(idSequence++),
+  });
+  return { server, sessions, provider, audit, sse, application, proofs };
 }
 
 export function advisorMessageBody(sequence = 920): SubmitAdvisorMessage {

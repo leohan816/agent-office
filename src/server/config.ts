@@ -6,21 +6,37 @@ import { DomainError } from '../contracts/types.js';
 import { assertExactKeys, assertRecord } from '../contracts/validation.js';
 import { LOOPBACK_BIND_ADDRESSES, type LoopbackBindAddress } from './network/policy.js';
 
-export interface PrivateDeploymentConfiguration {
-  readonly schemaVersion: 'agent-office.loopback-deployment.v1';
+interface CommonPrivateDeploymentConfiguration {
   readonly networkMode: 'LOOPBACK_PRIVATE';
   readonly bindAddresses: readonly LoopbackBindAddress[];
   readonly port: number;
   readonly allowedHosts: readonly string[];
-  readonly authProvider: 'NONE_READ_ONLY';
-  readonly mutationMode: 'DISABLED';
   readonly cors: false;
   readonly trustProxy: false;
   readonly tls: false;
   readonly hsts: false;
 }
 
-export const DEFAULT_LOOPBACK_CONFIGURATION: PrivateDeploymentConfiguration = {
+export interface ReadOnlyPrivateDeploymentConfiguration
+  extends CommonPrivateDeploymentConfiguration {
+  readonly schemaVersion: 'agent-office.loopback-deployment.v1';
+  readonly authProvider: 'NONE_READ_ONLY';
+  readonly mutationMode: 'DISABLED';
+}
+
+export interface LocalBootstrapPrivateDeploymentConfiguration
+  extends CommonPrivateDeploymentConfiguration {
+  readonly schemaVersion: 'agent-office.loopback-deployment.v2';
+  readonly authProvider: 'LOCAL_BOOTSTRAP';
+  readonly mutationMode: 'ENABLED_LOCAL_BOOTSTRAP';
+  readonly bootstrapProofFile: string;
+}
+
+export type PrivateDeploymentConfiguration =
+  | ReadOnlyPrivateDeploymentConfiguration
+  | LocalBootstrapPrivateDeploymentConfiguration;
+
+export const DEFAULT_LOOPBACK_CONFIGURATION: ReadOnlyPrivateDeploymentConfiguration = {
   schemaVersion: 'agent-office.loopback-deployment.v1',
   networkMode: 'LOOPBACK_PRIVATE',
   bindAddresses: ['127.0.0.1', '::1'],
@@ -53,6 +69,7 @@ export async function loadPrivateDeploymentConfiguration(
     if (
       !info.isFile() ||
       (currentUid !== undefined && info.uid !== currentUid) ||
+      (info.mode & 0o022) !== 0 ||
       info.size < 1 ||
       info.size > 16 * 1024
     ) {
@@ -76,6 +93,7 @@ export function assertPrivateDeploymentConfiguration(
   value: unknown,
 ): asserts value is PrivateDeploymentConfiguration {
   assertRecord(value, 'PrivateDeploymentConfiguration');
+  const localBootstrap = value.schemaVersion === 'agent-office.loopback-deployment.v2';
   assertExactKeys(
     value,
     [
@@ -90,11 +108,12 @@ export function assertPrivateDeploymentConfiguration(
       'trustProxy',
       'tls',
       'hsts',
+      ...(localBootstrap ? ['bootstrapProofFile'] : []),
     ],
     'PrivateDeploymentConfiguration',
   );
   if (
-    value.schemaVersion !== 'agent-office.loopback-deployment.v1' ||
+    (value.schemaVersion !== 'agent-office.loopback-deployment.v1' && !localBootstrap) ||
     value.networkMode !== 'LOOPBACK_PRIVATE' ||
     !Array.isArray(value.bindAddresses) ||
     value.bindAddresses.length === 0 ||
@@ -109,14 +128,34 @@ export function assertPrivateDeploymentConfiguration(
     !Array.isArray(value.allowedHosts) ||
     value.allowedHosts.length !== value.bindAddresses.length ||
     value.allowedHosts.some((host) => typeof host !== 'string') ||
-    value.authProvider !== 'NONE_READ_ONLY' ||
-    value.mutationMode !== 'DISABLED' ||
     value.cors !== false ||
     value.trustProxy !== false ||
     value.tls !== false ||
     value.hsts !== false
   ) {
     throw new DomainError('INVALID_SCHEMA', 'private deployment configuration is invalid');
+  }
+  if (localBootstrap) {
+    if (
+      value.authProvider !== 'LOCAL_BOOTSTRAP' ||
+      value.mutationMode !== 'ENABLED_LOCAL_BOOTSTRAP' ||
+      value.port !== 4317 ||
+      (value.bindAddresses as readonly unknown[]).length !== 1 ||
+      value.bindAddresses[0] !== '127.0.0.1' ||
+      (value.allowedHosts as readonly unknown[]).length !== 1 ||
+      value.allowedHosts[0] !== '127.0.0.1:4317' ||
+      typeof value.bootstrapProofFile !== 'string' ||
+      !path.isAbsolute(value.bootstrapProofFile) ||
+      value.bootstrapProofFile.length > 4096 ||
+      value.bootstrapProofFile.includes('\0')
+    ) {
+      throw new DomainError('INVALID_SCHEMA', 'LocalBootstrap deployment configuration is invalid');
+    }
+  } else if (
+    value.authProvider !== 'NONE_READ_ONLY' ||
+    value.mutationMode !== 'DISABLED'
+  ) {
+    throw new DomainError('INVALID_SCHEMA', 'read-only deployment configuration is invalid');
   }
   const expectedHosts = new Set(
     (value.bindAddresses as LoopbackBindAddress[]).map((address) =>

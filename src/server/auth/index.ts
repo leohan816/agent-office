@@ -234,20 +234,27 @@ export class BrowserSessionRegistry {
   }
 }
 
-export class TestAuthenticationExchange {
+export class AuthenticationExchange {
   public constructor(
-    private readonly provider: TestAuthenticationProvider,
+    private readonly provider: AuthenticationProvider,
     private readonly sessions: BrowserSessionRegistry,
     private readonly limiter: InMemoryRateLimiter,
     private readonly nowMs: () => number,
   ) {}
 
-  public async exchange(peerAddress: string, proof: string): Promise<BrowserSession> {
+  public async exchange(
+    peerAddress: string,
+    proof: string,
+    priorCookieHandle?: string,
+  ): Promise<BrowserSession> {
     this.limiter.require(peerAddress, RATE_LIMIT_POLICIES.bootstrapExchange, this.nowMs());
     const providerSession = await this.provider.exchangeOneTimeProof(proof);
+    if (priorCookieHandle !== undefined) await this.sessions.revoke(priorCookieHandle);
     return this.sessions.establish(providerSession);
   }
 }
+
+export class TestAuthenticationExchange extends AuthenticationExchange {}
 
 export const SESSION_COOKIE_NAME = 'AO_SESSION';
 
@@ -311,3 +318,5 @@ function safeEqual(left: string, right: string): boolean {
   const rightBytes = Buffer.from(right, 'utf8');
   return leftBytes.byteLength === rightBytes.byteLength && timingSafeEqual(leftBytes, rightBytes);
 }
+
+export * from './local-bootstrap.js';

@@ -23,8 +23,8 @@ export interface LocalRuntimeStatus {
     | 'STORE_QUARANTINED'
     | 'REPLAY_FAILED'
     | 'READ_ONLY_DEGRADED';
-  readonly authMode: 'TEST_ONLY' | 'UNAVAILABLE_READ_ONLY';
-  readonly mutationMode: 'ENABLED_TEST_ONLY' | 'DISABLED';
+  readonly authMode: 'LOCAL_BOOTSTRAP' | 'TEST_ONLY' | 'UNAVAILABLE_READ_ONLY';
+  readonly mutationMode: 'ENABLED_LOCAL_BOOTSTRAP' | 'ENABLED_TEST_ONLY' | 'DISABLED';
   readonly deliveryMode: 'ENABLED' | 'DISABLED' | 'MANUAL_FALLBACK_REQUIRED';
   readonly sseMode: 'READY' | 'DEGRADED';
   readonly projectionRevision: number;

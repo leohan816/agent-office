@@ -9,10 +9,17 @@ import type {
   ToolReadResult,
 } from '../../src/adapters/observations/process-runner.js';
 import type { OperationalRuntimeConfiguration } from '../../src/runtime/operational-config.js';
-import { TMUX_METADATA_FORMAT } from '../../src/adapters/observations/process-runner.js';
+import {
+  NodeReadonlyToolRunner,
+  TMUX_METADATA_FORMAT,
+} from '../../src/adapters/observations/process-runner.js';
+import { sha256Bytes } from '../../src/persistence/file-store/hashing.js';
 import { FIXED_TIME } from './fixtures.js';
 
 export const projectRoot = path.resolve(import.meta.dirname, '../..');
+export const foundationRoot = path.resolve(projectRoot, '../foundation-docs');
+export const canonicalManifestRelativePath =
+  'advisor/jobs/20260711_agent_office_m01_advisor_managed_office_web_control_plane/10_MISSION_MANIFEST.json';
 
 const ACTOR_STATIONS = [
   ['leo', 'Leo/GPT', []],
@@ -122,6 +129,64 @@ export async function operationalRuntimeConfiguration(
   };
 }
 
+export async function actualCanonicalOperationalRuntime(): Promise<{
+  readonly configuration: OperationalRuntimeConfiguration;
+  readonly runner: ReadonlyToolRunner;
+}> {
+  const base = await operationalRuntimeConfiguration();
+  const manifestBytes = await readFile(path.join(foundationRoot, canonicalManifestRelativePath));
+  const gitReader = new NodeReadonlyToolRunner(undefined, () => FIXED_TIME);
+  const limits = { timeoutMs: 1_000, maxOutputBytes: 64 * 1024 };
+  const head = await gitReader.readGit({ kind: 'HEAD', cwd: foundationRoot, limits });
+  if (head.exitCode !== 0) throw new Error('canonical foundation HEAD is unavailable');
+  const commit = Buffer.from(head.stdout).toString('utf8').trim();
+  if (!/^[0-9a-f]{40}$/u.test(commit)) throw new Error('canonical foundation HEAD is invalid');
+  const configuration: OperationalRuntimeConfiguration = {
+    ...base,
+    missionSourceId: 'canonical-foundation-mission-manifest',
+    projects: [
+      ...base.projects,
+      {
+        projectId: 'foundation-docs',
+        displayName: 'Foundation Docs',
+        hostId: 'local-host',
+        roots: [{
+          rootId: 'foundation-root',
+          absolutePath: foundationRoot,
+          capabilities: ['GIT', 'MANIFEST'],
+        }],
+      },
+    ],
+    gitSources: [
+      ...base.gitSources,
+      gitSource('foundation-git', 'foundation-docs', 'foundation-root'),
+    ],
+    manifestSources: [{
+      sourceId: 'canonical-foundation-mission-manifest',
+      projectId: 'foundation-docs',
+      rootId: 'foundation-root',
+      relativePath: canonicalManifestRelativePath,
+      maxBytes: 128 * 1024,
+      sourceMetadata: {
+        schemaVersion: 'agent-office.manifest-source.v1',
+        repository: 'foundation-docs',
+        commit,
+        path: canonicalManifestRelativePath,
+        sha256: sha256Bytes(manifestBytes),
+      },
+      gitSourceId: 'foundation-git',
+    }],
+  };
+  return {
+    configuration,
+    runner: currentObservationRunner({
+      git: (request) => request.cwd === foundationRoot
+        ? canonicalGitResult(request, commit)
+        : undefined,
+    }),
+  };
+}
+
 export function currentObservationRunner(
   overrides: {
     readonly git?: (request: GitReadRequest) => ToolReadResult | undefined;
@@ -191,6 +256,23 @@ function defaultTmuxResult(request: TmuxReadRequest): ToolReadResult {
     throw new Error('tmux fixture field count drifted');
   }
   return result(`${values.join('\u001f')}\n`);
+}
+
+function canonicalGitResult(request: GitReadRequest, commit: string): ToolReadResult {
+  switch (request.kind) {
+    case 'TOP_LEVEL':
+      return result(`${foundationRoot}\n`);
+    case 'HEAD':
+    case 'UPSTREAM_COMMIT':
+      return result(`${commit}\n`);
+    case 'UPSTREAM_NAME':
+      return result('origin/main\n');
+    case 'STATUS':
+    case 'ALLOWLISTED_REFS':
+    case 'COMMIT_DIFF':
+    case 'ANCESTRY':
+      return result('');
+  }
 }
 
 function result(stdout: string, exitCode = 0): ToolReadResult {

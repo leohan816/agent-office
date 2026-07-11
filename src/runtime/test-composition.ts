@@ -6,6 +6,7 @@ import {
   type TmuxPointerDeliveryPort,
 } from '../adapters/gateways/tmux-advisor/index.js';
 import {
+  AuthenticationExchange,
   BrowserSessionRegistry,
   TestAuthenticationExchange,
   TestAuthenticationProvider,
@@ -45,6 +46,21 @@ export interface RunningSyntheticTestComposition {
   readonly provider: TestAuthenticationProvider;
   readonly sessions: BrowserSessionRegistry;
   readonly session: BrowserSession;
+}
+
+export interface StartSyntheticBootstrapTestCompositionOptions
+  extends Omit<StartSyntheticTestCompositionOptions, 'syntheticProof' | 'subjectId' | 'capabilities'> {
+  readonly identities: readonly {
+    readonly proof: string;
+    readonly subjectId: string;
+    readonly capabilities: readonly BrowserCapability[];
+  }[];
+}
+
+export interface RunningSyntheticBootstrapTestComposition {
+  readonly composition: RunningAgentOfficeComposition;
+  readonly provider: TestAuthenticationProvider;
+  readonly sessions: BrowserSessionRegistry;
 }
 
 export async function startSyntheticTestComposition(
@@ -97,8 +113,58 @@ export async function startSyntheticTestComposition(
     authorityEvidenceVerifier:
       options.authorityEvidenceVerifier ?? new RejectingDecisionAuthorityEvidenceVerifier(),
     sessions,
-    testMutationEnabled: true,
+    authenticationProvider: provider,
+    authenticationReadiness: 'TEST_READY',
+    mutationConfigured: true,
     ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
   });
   return { composition, provider, sessions, session };
+}
+
+export async function startSyntheticBootstrapTestComposition(
+  options: StartSyntheticBootstrapTestCompositionOptions,
+): Promise<RunningSyntheticBootstrapTestComposition> {
+  const provider = new TestAuthenticationProvider({
+    buildMode: 'TEST',
+    testRuntime: true,
+    identities: options.identities,
+    now: () => options.runtime.now(),
+    nextOpaque: options.nextOpaque,
+    ...(options.sessionLifetimeMs === undefined
+      ? {}
+      : { sessionLifetimeMs: options.sessionLifetimeMs }),
+  });
+  const sessions = new BrowserSessionRegistry(
+    provider,
+    options.nextOpaque,
+    () => options.runtime.now(),
+  );
+  const exchange = new AuthenticationExchange(
+    provider,
+    sessions,
+    new InMemoryRateLimiter(),
+    () => Date.parse(options.runtime.now()),
+  );
+  const composition = await startAgentOfficeCompositionCore({
+    configuration: options.configuration,
+    appRoot: options.appRoot,
+    stateRoot: options.stateRoot,
+    staticRoot: options.staticRoot,
+    operationalConfiguration: options.operationalConfiguration,
+    ...(options.readonlyToolRunner === undefined
+      ? {}
+      : { readonlyToolRunner: options.readonlyToolRunner }),
+    buildId: options.buildId,
+    runtime: options.runtime,
+    advisorGateway: new TmuxAdvisorGateway({ now: () => options.runtime.now() }),
+    authorityEvidenceVerifier:
+      options.authorityEvidenceVerifier ?? new RejectingDecisionAuthorityEvidenceVerifier(),
+    sessions,
+    authenticationProvider: provider,
+    authenticationReadiness: 'LOCAL_BOOTSTRAP_READY',
+    bootstrapExchange: exchange,
+    mutationConfigured: true,
+    ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
+  });
+  return { composition, provider, sessions };
 }

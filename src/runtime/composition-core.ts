@@ -8,7 +8,10 @@ import { AdvisorInboxService } from '../application/advisor-inbox/service.js';
 import { DurableAlertCenter } from '../application/alerts/index.js';
 import { DomainError } from '../contracts/types.js';
 import { DurableDeliveryControl } from '../operations/readiness/delivery-control.js';
-import { assessStartupReadiness } from '../operations/readiness/index.js';
+import {
+  assessStartupReadiness,
+  type AuthenticationReadiness,
+} from '../operations/readiness/index.js';
 import { ImmutableArtifactStore } from '../persistence/file-store/artifact-store.js';
 import { EventStore } from '../persistence/file-store/event-store.js';
 import { hashCanonical } from '../persistence/file-store/hashing.js';
@@ -18,7 +21,11 @@ import {
   type AgentOfficeHttpApplication,
   type LocalRuntimeStatus,
 } from '../server/application.js';
-import type { BrowserSessionRegistry } from '../server/auth/index.js';
+import type {
+  AuthenticationExchange,
+  AuthenticationProvider,
+  BrowserSessionRegistry,
+} from '../server/auth/index.js';
 import {
   assertPrivateDeploymentConfiguration,
   type PrivateDeploymentConfiguration,
@@ -49,7 +56,12 @@ export interface CompositionCoreOptions {
   readonly readonlyToolRunner?: ReadonlyToolRunner;
   readonly authorityEvidenceVerifier: DecisionAuthorityEvidenceVerifier;
   readonly sessions?: BrowserSessionRegistry;
-  readonly testMutationEnabled?: boolean;
+  readonly authenticationProvider?: AuthenticationProvider;
+  readonly authenticationReadiness?: AuthenticationReadiness;
+  readonly bootstrapExchange?: AuthenticationExchange;
+  readonly mutationConfigured?: boolean;
+  readonly authenticationStartup?: () => Promise<void>;
+  readonly authenticationCleanup?: () => Promise<void>;
   readonly heartbeatMs?: number;
 }
 
@@ -63,6 +75,7 @@ export interface RunningAgentOfficeComposition {
   readonly observations: RuntimeObservationCoordinator;
   readonly sse: ProjectionSseBroker;
   readonly sessions?: BrowserSessionRegistry;
+  readonly authenticationProvider?: AuthenticationProvider;
   readStatus(): LocalRuntimeStatus;
   close(): Promise<void>;
 }
@@ -76,6 +89,13 @@ export async function startAgentOfficeCompositionCore(
   const staticRoot = await canonicalDirectory(options.staticRoot, 'built dashboard root');
   if (pathsOverlap(stateRoot, appRoot) || pathsOverlap(stateRoot, staticRoot)) {
     throw new DomainError('INVALID_SCHEMA', 'state root must be outside application and static roots');
+  }
+  if (options.configuration.authProvider === 'LOCAL_BOOTSTRAP') {
+    await assertProofDeliveryPathIsolated(
+      options.configuration.bootstrapProofFile,
+      [appRoot, stateRoot, staticRoot],
+      options.operationalConfiguration,
+    );
   }
   await assertObservedRootsOutsideStateRoot(stateRoot, options.operationalConfiguration);
   const observations = await RuntimeObservationCoordinator.create({
@@ -139,6 +159,8 @@ export async function startAgentOfficeCompositionCore(
         notificationIds: Object.keys(inbox.project().notifications).sort(),
       });
     };
+    const authenticationReadiness = options.authenticationReadiness ??
+      (options.sessions === undefined ? 'UNAVAILABLE' : 'TEST_READY');
     const readStatus = (): LocalRuntimeStatus => {
       const deliveryControl = delivery.project();
       const gatewayHealth = options.advisorGateway.health();
@@ -152,8 +174,8 @@ export async function startAgentOfficeCompositionCore(
         writerLock: 'ACQUIRED',
         store: 'VERIFIED',
         projection: 'VERIFIED',
-        authentication: options.sessions === undefined ? 'UNAVAILABLE' : 'TEST_READY',
-        mutationConfigured: options.sessions !== undefined && options.testMutationEnabled === true,
+        authentication: authenticationReadiness,
+        mutationConfigured: options.sessions !== undefined && options.mutationConfigured === true,
         delivery: deliveryMode,
         sse: 'READY',
         projectionRevision,
@@ -185,12 +207,16 @@ export async function startAgentOfficeCompositionCore(
       sse,
       nextProjectionRevision,
     );
+    await options.authenticationStartup?.();
     for (const bindAddress of options.configuration.bindAddresses) {
       const server = await startAgentOfficeHttpServer(
         {
           bindAddress,
           application,
           ...(options.sessions === undefined ? {} : { sessions: options.sessions }),
+          ...(options.bootstrapExchange === undefined
+            ? {}
+            : { bootstrapExchange: options.bootstrapExchange }),
           audit,
           sse,
           now: () => options.runtime.now(),
@@ -224,6 +250,9 @@ export async function startAgentOfficeCompositionCore(
       observations,
       sse,
       ...(options.sessions === undefined ? {} : { sessions: options.sessions }),
+      ...(options.authenticationProvider === undefined
+        ? {}
+        : { authenticationProvider: options.authenticationProvider }),
       readStatus,
       close: async () => {
         if (closed) return;
@@ -236,6 +265,11 @@ export async function startAgentOfficeCompositionCore(
           } catch (error) {
             failure ??= error;
           }
+        }
+        try {
+          await options.authenticationCleanup?.();
+        } catch (error) {
+          failure ??= error;
         }
         try {
           await store.close();
@@ -251,8 +285,32 @@ export async function startAgentOfficeCompositionCore(
   } catch (error) {
     if (refreshTimer !== undefined) clearInterval(refreshTimer);
     for (const server of [...servers].reverse()) await server.close().catch(() => undefined);
+    await options.authenticationCleanup?.().catch(() => undefined);
     await store.close().catch(() => undefined);
     throw error;
+  }
+}
+
+async function assertProofDeliveryPathIsolated(
+  proofPath: string,
+  runtimeRoots: readonly string[],
+  configuration: OperationalRuntimeConfiguration,
+): Promise<void> {
+  const parent = await canonicalDirectory(path.dirname(proofPath), 'LocalBootstrap proof directory');
+  const observedRoots = await Promise.all(
+    configuration.projects.flatMap((project) => project.roots.map(async (root) => {
+      const canonicalRoot = await realpath(root.absolutePath).catch(() => undefined);
+      if (canonicalRoot === undefined) {
+        throw new DomainError('INVALID_SCHEMA', 'observed root is unavailable');
+      }
+      return canonicalRoot;
+    })),
+  );
+  if ([...runtimeRoots, ...observedRoots].some((root) => pathsOverlap(parent, root))) {
+    throw new DomainError(
+      'INVALID_SCHEMA',
+      'LocalBootstrap proof directory must be isolated from application, state, static, and observed roots',
+    );
   }
 }
 

@@ -179,7 +179,7 @@ describe('Batch A-D regression and Batch E scope gates', () => {
     }
   });
 
-  it('contains the closed Batch E boundary while keeping forbidden capabilities absent', async () => {
+  it('contains the approved LocalBootstrap extension while keeping forbidden capabilities absent', async () => {
     const source = await readSourceTree(path.join(root, 'src'));
     const gatewaySource = await readSourceTree(path.join(root, 'src/adapters/gateways'));
     expect(gatewaySource).not.toMatch(/node:child_process|node:(?:http|https|net|tls)/u);
@@ -201,7 +201,8 @@ describe('Batch A-D regression and Batch E scope gates', () => {
     await expect(access(path.join(root, 'src/pwa'))).resolves.toBeUndefined();
     await expect(access(path.join(root, 'src/operations'))).resolves.toBeUndefined();
     expect(serverSource).not.toMatch(/\/api\/v1\/(?:terminal|worker|reviewer|dispatch|command)/u);
-    expect(serverSource).not.toMatch(/Tailscale|LocalBootstrapAuthenticationProvider|PrivateNetworkAuthenticationProvider/u);
+    expect(serverSource).toMatch(/LocalBootstrapAuthenticationProvider/u);
+    expect(serverSource).not.toMatch(/Tailscale|PrivateNetworkAuthenticationProvider/u);
   });
 });
 

@@ -4,7 +4,7 @@ import type { LocalRuntimeStatus } from '../../server/application.js';
 
 export type StoreReadiness = 'VERIFIED' | 'UNAVAILABLE' | 'QUARANTINED';
 export type ProjectionReadiness = 'VERIFIED' | 'STALE' | 'REPLAY_FAILED';
-export type AuthenticationReadiness = 'TEST_READY' | 'UNAVAILABLE';
+export type AuthenticationReadiness = 'LOCAL_BOOTSTRAP_READY' | 'TEST_READY' | 'UNAVAILABLE';
 
 export interface StartupReadinessInput {
   readonly configValidated: boolean;
@@ -30,8 +30,16 @@ export function assessStartupReadiness(input: StartupReadinessInput): LocalRunti
     schemaVersion: 'agent-office.local-runtime-status.v1',
     networkMode: 'LOOPBACK_PRIVATE',
     startupState,
-    authMode: input.authentication === 'TEST_READY' ? 'TEST_ONLY' : 'UNAVAILABLE_READ_ONLY',
-    mutationMode: mutationReady ? 'ENABLED_TEST_ONLY' : 'DISABLED',
+    authMode: input.authentication === 'LOCAL_BOOTSTRAP_READY'
+      ? 'LOCAL_BOOTSTRAP'
+      : input.authentication === 'TEST_READY'
+        ? 'TEST_ONLY'
+        : 'UNAVAILABLE_READ_ONLY',
+    mutationMode: mutationReady
+      ? input.authentication === 'LOCAL_BOOTSTRAP_READY'
+        ? 'ENABLED_LOCAL_BOOTSTRAP'
+        : 'ENABLED_TEST_ONLY'
+      : 'DISABLED',
     deliveryMode: input.delivery,
     sseMode: input.sse,
     projectionRevision: input.projectionRevision,

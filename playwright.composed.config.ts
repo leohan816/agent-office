@@ -30,7 +30,7 @@ export default defineConfig({
   snapshotPathTemplate: '{testDir}/baselines/{testFilePath}/{arg}{ext}',
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: 'http://127.0.0.1:4183',
+    baseURL: 'http://127.0.0.1:4317',
     locale: 'ko-KR',
     timezoneId: 'UTC',
     colorScheme: 'dark',
@@ -40,7 +40,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run build && node scripts/e2e-composed-runtime-server.mjs',
     env: { LANG: locale, LC_ALL: locale },
-    url: 'http://127.0.0.1:4183/health/live',
+    url: 'http://127.0.0.1:4317/health/live',
     reuseExistingServer: false,
     timeout: 120_000,
   },

@@ -41,10 +41,11 @@ describe('operational observation/import coordinator', () => {
     const manifest = await coordinator.start();
 
     expect(manifest.source.path).toBe(manifestRelativePath);
+    expect(manifest.manifestVersion).toBe(2);
     expect(manifest.workUnits).toHaveLength(15);
     expect(coordinator.snapshot()).toMatchObject({
       missionId: manifest.missionId,
-      manifestVersion: 1,
+      manifestVersion: manifest.manifestVersion,
       manifest: { status: 'VERIFIED' },
       refreshSequence: 1,
     });
@@ -146,7 +147,7 @@ describe('operational observation/import coordinator', () => {
     ['CURRENT', {}, 'CURRENT'],
     ['STALE', { tmuxMode: 'STALE' }, 'STALE'],
     ['OFFLINE', { tmuxMode: 'OFFLINE' }, 'OFFLINE'],
-    ['MISSING', { omitFableTmux: true }, 'UNKNOWN'],
+    ['MISSING', { omitAdvisorTmux: true }, 'UNKNOWN'],
     ['IDENTITY_MISMATCH', { tmuxMode: 'IDENTITY_MISMATCH' }, 'CONFLICT'],
     ['DIRTY_GIT', { actorGitMode: 'DIRTY' }, 'CONFLICT'],
     ['UNVERIFIED_GIT', { actorGitMode: 'UNVERIFIED' }, 'UNKNOWN'],
@@ -154,20 +155,20 @@ describe('operational observation/import coordinator', () => {
     'projects evidence-correct %s activity freshness',
     async (_label, mode, expected) => {
       const configuration = await externalConfiguration();
-      if ('omitFableTmux' in mode) {
-        const index = configuration.actors.findIndex((actor) => actor.stationId === 'fable5');
+      if ('omitAdvisorTmux' in mode) {
+        const index = configuration.actors.findIndex((actor) => actor.stationId === 'advisor');
         const actor = configuration.actors[index];
-        if (actor === undefined) throw new Error('Fable5 actor missing');
+        if (actor === undefined) throw new Error('Advisor actor missing');
         configuration.actors[index] = withoutTmux(actor);
       }
       const coordinator = await createCoordinator(configuration, observationRunner({
-        ...('tmuxMode' in mode ? { tmuxMode: mode.tmuxMode } : {}),
+        ...('tmuxMode' in mode ? { tmuxMode: mode.tmuxMode, tmuxPaneId: '%2' as const } : {}),
         ...('actorGitMode' in mode ? { actorGitMode: mode.actorGitMode } : {}),
       }));
       const manifest = await coordinator.start();
-      const { projection, events } = activeFableProjection(manifest);
+      const { projection, events } = activeAdvisorProjection(manifest);
       const observation = coordinator.workUnitObservations(projection, events)
-        .find((candidate) => candidate.workUnitId === 'AO-WU-13');
+        .find((candidate) => candidate.workUnitId === 'AO-WU-15');
       expect(observation).toMatchObject({ presentation: expected });
       if (expected !== 'CURRENT') {
         expect(observation?.reasonCode).not.toBe('VERIFIED_STRUCTURED_ACTIVITY_AND_ACTOR_SOURCE');
@@ -276,6 +277,7 @@ function observationRunner(
     readonly manifestGitMode?: 'FAILED' | 'STALE';
     readonly actorGitMode?: 'DIRTY' | 'UNVERIFIED';
     readonly tmuxMode?: 'STALE' | 'OFFLINE' | 'IDENTITY_MISMATCH' | 'FAILED';
+    readonly tmuxPaneId?: '%2' | '%4';
   } = {},
 ): ReadonlyToolRunner {
   const base = currentObservationRunner();
@@ -296,7 +298,7 @@ function observationRunner(
     },
     readTmux: async (request) => {
       const result = await base.readTmux(request);
-      if (request.paneId !== '%4' || mode.tmuxMode === undefined) return result;
+      if (request.paneId !== (mode.tmuxPaneId ?? '%4') || mode.tmuxMode === undefined) return result;
       if (mode.tmuxMode === 'FAILED') return toolResult('', 1);
       const fields = Buffer.from(result.stdout).toString('utf8').replace(/\n$/u, '').split('\u001f');
       if (mode.tmuxMode === 'IDENTITY_MISMATCH') fields[0] = '$999';
@@ -355,7 +357,7 @@ function withoutTmux(actor: OperationalRuntimeConfiguration['actors'][number]) {
   return withoutSource;
 }
 
-function activeFableProjection(manifest: MissionManifest): {
+function activeAdvisorProjection(manifest: MissionManifest): {
   readonly projection: ReturnType<typeof createInitialProjection>;
   readonly events: readonly EventEnvelope[];
 } {
@@ -363,19 +365,23 @@ function activeFableProjection(manifest: MissionManifest): {
   const inputs = [
     {
       eventType: 'WorkUnitStateTransitioned' as const,
-      payload: { workUnitId: 'AO-WU-13', from: 'NEEDS_PATCH', to: 'DISPATCHED' },
+      payload: { workUnitId: 'AO-WU-15', from: 'WAITING_DEPENDENCY', to: 'READY' },
     },
     {
       eventType: 'WorkUnitStateTransitioned' as const,
-      payload: { workUnitId: 'AO-WU-13', from: 'DISPATCHED', to: 'RUNNING' },
+      payload: { workUnitId: 'AO-WU-15', from: 'READY', to: 'DISPATCHED' },
+    },
+    {
+      eventType: 'WorkUnitStateTransitioned' as const,
+      payload: { workUnitId: 'AO-WU-15', from: 'DISPATCHED', to: 'RUNNING' },
     },
     {
       eventType: 'RoleActivityChanged' as const,
       payload: {
-        workUnitId: 'AO-WU-13',
+        workUnitId: 'AO-WU-15',
         activity: 'WORKING',
         reasonCode: 'STRUCTURED_TEST_ACTIVITY',
-        sourceEventIds: [uuidV7(9303)],
+        sourceEventIds: [uuidV7(9304)],
         effectiveFrom: FIXED_TIME,
       },
     },

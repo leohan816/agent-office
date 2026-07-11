@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net';
 
 import { DomainError } from '../../contracts/types.js';
+import { assertExactKeys, assertRecord, requireString } from '../../contracts/validation.js';
 import { assertUtcTimestamp, assertUuidV7 } from '../../domain/time/index.js';
 import { StoreError } from '../../persistence/file-store/errors.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
@@ -13,9 +14,12 @@ import {
   type BrowserCapability,
   type BrowserSession,
   type BrowserSessionRegistry,
+  type AuthenticationExchange,
   readSessionCookie,
   requireCapability,
   requireCsrf,
+  serializeClearedSessionCookie,
+  serializeSessionCookie,
 } from '../auth/index.js';
 import { HttpBoundaryError, type HttpErrorCode } from './errors.js';
 import { isStaticShellPath, StaticShell } from './static-shell.js';
@@ -44,12 +48,14 @@ import {
 import { ProjectionSseBroker } from '../sse/index.js';
 
 const MAX_MUTATION_BODY_BYTES = 32 * 1024;
+const MAX_BOOTSTRAP_BODY_BYTES = 1024;
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 
 export interface AgentOfficeHttpServerOptions {
   readonly bindAddress: LoopbackBindAddress;
   readonly application: AgentOfficeHttpApplication;
   readonly sessions?: BrowserSessionRegistry;
+  readonly bootstrapExchange?: AuthenticationExchange;
   readonly audit: SecurityAuditSink;
   readonly limiter?: InMemoryRateLimiter;
   readonly sse?: ProjectionSseBroker;
@@ -244,6 +250,46 @@ async function handleRequest(
       sendJson(response, 200, await options.application.readStatus());
       return;
     }
+    if (route.kind === 'BOOTSTRAP_EXCHANGE') {
+      if (singleHeader(request.headers.origin) !== policy.origin) {
+        throw new HttpBoundaryError(
+          'ORIGIN_REJECTED',
+          403,
+          'LocalBootstrap requires the exact loopback Origin',
+        );
+      }
+      if (options.bootstrapExchange === undefined || options.sessions === undefined) {
+        throw new HttpBoundaryError(
+          'AUTH_PROVIDER_UNAVAILABLE',
+          503,
+          'LocalBootstrap authentication is unavailable',
+        );
+      }
+      const body = await readJsonBody(
+        request,
+        options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+        MAX_BOOTSTRAP_BODY_BYTES,
+      );
+      const proof = parseBootstrapExchange(body);
+      const peerAddress = request.socket.remoteAddress;
+      if (peerAddress === undefined) {
+        throw new HttpBoundaryError('NETWORK_BOUNDARY_REJECTED', 403, 'request peer is unavailable');
+      }
+      const session = await options.bootstrapExchange.exchange(
+        peerAddress,
+        proof,
+        readSessionCookie(singleHeader(request.headers.cookie)),
+      );
+      context.subjectRef = session.subjectId;
+      await appendAudit(options, context, 'AUTHENTICATED');
+      response.setHeader('Set-Cookie', serializeSessionCookie(session, Date.parse(receivedAt)));
+      sendJson(response, 200, {
+        schemaVersion: 'agent-office.local-bootstrap-exchange.v1',
+        status: 'AUTHENTICATED',
+        expiresAt: session.expiresAt,
+      });
+      return;
+    }
     if (route.kind === 'PROJECTION') {
       const session = await authorize(request, options.sessions, 'viewer', false);
       context.subjectRef = session.subjectId;
@@ -279,6 +325,27 @@ async function handleRequest(
           }
         },
         ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
+      });
+      return;
+    }
+
+    if (route.kind === 'LOGOUT') {
+      const session = await authorize(request, options.sessions, 'viewer', true);
+      context.subjectRef = session.subjectId;
+      requireRateLimit(limiter, session.subjectId, RATE_LIMIT_POLICIES.mutation, receivedAt);
+      const body = await readJsonBody(
+        request,
+        options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+        MAX_BOOTSTRAP_BODY_BYTES,
+      );
+      parseEmptyObject(body, 'LocalBootstrapLogout');
+      context.payloadHash = hashCanonical(body);
+      await options.sessions?.revoke(session.cookieHandle);
+      await appendAudit(options, context, 'LOGGED_OUT');
+      response.setHeader('Set-Cookie', serializeClearedSessionCookie());
+      sendJson(response, 200, {
+        schemaVersion: 'agent-office.logout.v1',
+        status: 'LOGGED_OUT',
       });
       return;
     }
@@ -342,6 +409,9 @@ async function handleRequest(
     sendJson(response, route.kind === 'MESSAGE' ? 201 : 200, result);
   } catch (error) {
     const failure = mapError(error);
+    if (failure.code === 'SESSION_INVALID_OR_EXPIRED') {
+      response.setHeader('Set-Cookie', serializeClearedSessionCookie());
+    }
     try {
       await appendAudit(options, context, failure.code);
     } catch {
@@ -358,8 +428,10 @@ async function handleRequest(
 type ResolvedRoute =
   | { readonly kind: 'LIVENESS' }
   | { readonly kind: 'STATUS' }
+  | { readonly kind: 'BOOTSTRAP_EXCHANGE' }
   | { readonly kind: 'PROJECTION' }
   | { readonly kind: 'SSE' }
+  | { readonly kind: 'LOGOUT' }
   | { readonly kind: 'MESSAGE'; readonly capability: 'leo_input' }
   | { readonly kind: 'MESSAGE_ACK'; readonly capability: 'advisor_operator'; readonly messageId: string }
   | { readonly kind: 'INTAKE' | 'DECISION' | 'DELIVERY_DISABLE'; readonly capability: 'advisor_operator' }
@@ -377,6 +449,10 @@ function resolveRoute(method: string | undefined, pathname: string): ResolvedRou
     if (pathname === '/api/v1/events') return { kind: 'SSE' };
   }
   if (method === 'POST') {
+    if (pathname === '/api/v1/auth/local-bootstrap/exchange') {
+      return { kind: 'BOOTSTRAP_EXCHANGE' };
+    }
+    if (pathname === '/api/v1/auth/logout') return { kind: 'LOGOUT' };
     if (pathname === '/api/v1/advisor/messages') return { kind: 'MESSAGE', capability: 'leo_input' };
     const acknowledgement = /^\/api\/v1\/advisor\/messages\/([0-9a-f-]{36})\/ack$/u.exec(pathname);
     if (acknowledgement?.[1] !== undefined) {
@@ -407,6 +483,8 @@ function expectedMethodForPath(pathname: string): 'GET' | 'POST' | undefined {
   if (
     [
       '/api/v1/advisor/messages',
+      '/api/v1/auth/local-bootstrap/exchange',
+      '/api/v1/auth/logout',
       '/api/v1/advisor/intakes',
       '/api/v1/decisions',
       '/api/v1/delivery/disable',
@@ -442,7 +520,11 @@ async function authorize(
   return session;
 }
 
-async function readJsonBody(request: IncomingMessage, timeoutMs: number): Promise<unknown> {
+async function readJsonBody(
+  request: IncomingMessage,
+  timeoutMs: number,
+  maxBytes = MAX_MUTATION_BODY_BYTES,
+): Promise<unknown> {
   const contentType = singleHeader(request.headers['content-type']);
   if (
     contentType === undefined ||
@@ -453,8 +535,8 @@ async function readJsonBody(request: IncomingMessage, timeoutMs: number): Promis
   const declaredLength = singleHeader(request.headers['content-length']);
   if (declaredLength !== undefined) {
     const length = Number(declaredLength);
-    if (!Number.isSafeInteger(length) || length < 0 || length > MAX_MUTATION_BODY_BYTES) {
-      throw new HttpBoundaryError('BODY_TOO_LARGE', 413, 'mutation body exceeds 32 KiB');
+    if (!Number.isSafeInteger(length) || length < 0 || length > maxBytes) {
+      throw new HttpBoundaryError('BODY_TOO_LARGE', 413, 'request body exceeds its bounded limit');
     }
   }
   const chunks: Buffer[] = [];
@@ -466,8 +548,8 @@ async function readJsonBody(request: IncomingMessage, timeoutMs: number): Promis
     for await (const chunk of request) {
       const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
       size += bytes.byteLength;
-      if (size > MAX_MUTATION_BODY_BYTES) {
-        throw new HttpBoundaryError('BODY_TOO_LARGE', 413, 'mutation body exceeds 32 KiB');
+      if (size > maxBytes) {
+        throw new HttpBoundaryError('BODY_TOO_LARGE', 413, 'request body exceeds its bounded limit');
       }
       chunks.push(bytes);
     }
@@ -488,6 +570,21 @@ async function readJsonBody(request: IncomingMessage, timeoutMs: number): Promis
   } catch {
     throw new HttpBoundaryError('INVALID_JSON', 400, 'request body is not valid JSON');
   }
+}
+
+function parseBootstrapExchange(value: unknown): string {
+  assertRecord(value, 'LocalBootstrapExchange');
+  assertExactKeys(value, ['proof'], 'LocalBootstrapExchange');
+  const proof = requireString(value.proof, 'proof', { maxLength: 64 });
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(proof)) {
+    throw new DomainError('INVALID_SCHEMA', 'LocalBootstrap proof has an invalid shape');
+  }
+  return proof;
+}
+
+function parseEmptyObject(value: unknown, label: string): void {
+  assertRecord(value, label);
+  assertExactKeys(value, [], label);
 }
 
 function requireRateLimit(
@@ -615,6 +712,8 @@ export const CLOSED_HTTP_ROUTES = [
   'GET /api/v1/status',
   'GET /api/v1/projection',
   'GET /api/v1/events',
+  'POST /api/v1/auth/local-bootstrap/exchange',
+  'POST /api/v1/auth/logout',
   'POST /api/v1/advisor/messages',
   'POST /api/v1/advisor/messages/:id/ack',
   'POST /api/v1/advisor/intakes',

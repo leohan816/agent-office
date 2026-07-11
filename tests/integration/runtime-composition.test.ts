@@ -1,5 +1,5 @@
 import { createServer } from 'node:net';
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -21,7 +21,10 @@ import {
 } from '../../src/domain/alerts/index.js';
 import { initializeStateRoot } from '../../src/persistence/file-store/path-safety.js';
 import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
-import type { PrivateDeploymentConfiguration } from '../../src/server/config.js';
+import type {
+  LocalBootstrapPrivateDeploymentConfiguration,
+  PrivateDeploymentConfiguration,
+} from '../../src/server/config.js';
 import { startAgentOfficeComposition } from '../../src/runtime/composition.js';
 import type { AgentOfficeRuntimeIdentity } from '../../src/runtime/identity.js';
 import { startSyntheticTestComposition } from '../../src/runtime/test-composition.js';
@@ -33,6 +36,8 @@ import {
 import { FIXED_TIME, MISSION_ID, uuidV7, verifiedEvidence } from '../helpers/fixtures.js';
 import {
   currentObservationRunner,
+  actualCanonicalOperationalRuntime,
+  canonicalManifestRelativePath,
   operationalRuntimeConfiguration,
 } from '../helpers/operational-runtime.js';
 
@@ -100,6 +105,178 @@ describe('executable loopback composition and production runtime client', () => 
     });
     closeables.push(restarted);
     expect((await fetch(`${restarted.primaryOrigin}/health/live`)).status).toBe(200);
+  });
+
+  it('runs trusted LocalBootstrap against the actual canonical manifest with no delivery activation or proof disclosure', async () => {
+    await assertFixedPortAvailable(4317);
+    const fixture = await compositionPaths();
+    const canonical = await actualCanonicalOperationalRuntime();
+    const proofRoot = await createTemporaryRoot('agent-office-local-bootstrap-proof-');
+    await chmod(proofRoot, 0o700);
+    const proofDirectory = path.join(proofRoot, 'delivery');
+    await mkdir(proofDirectory, { mode: 0o700 });
+    const proofPath = path.join(proofDirectory, 'bootstrap.json');
+    const runtime = mutableRuntime(15_000);
+    const configuration = localBootstrapConfiguration(proofPath);
+    const composition = await startAgentOfficeComposition({
+      configuration,
+      ...fixture,
+      operationalConfiguration: canonical.configuration,
+      readonlyToolRunner: canonical.runner,
+      buildId: 'runtime-local-bootstrap-test',
+      runtime,
+    });
+    closeables.push(composition);
+    const delivery = JSON.parse(await readFile(proofPath, 'utf8')) as {
+      readonly proof: string;
+      readonly origin: string;
+    };
+    expect(delivery.proof).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(delivery.origin).toBe('http://127.0.0.1:4317');
+    expect(composition.readStatus()).toMatchObject({
+      startupState: 'MUTATION_READY',
+      authMode: 'LOCAL_BOOTSTRAP',
+      mutationMode: 'ENABLED_LOCAL_BOOTSTRAP',
+      deliveryMode: 'MANUAL_FALLBACK_REQUIRED',
+    });
+    expect(composition.observations.snapshot().manifest).toMatchObject({
+      status: 'VERIFIED',
+      evidence: {
+        sourceId: 'canonical-foundation-mission-manifest',
+        relativePath: canonicalManifestRelativePath,
+      },
+    });
+
+    const unauthenticated = await fetch(`${composition.primaryOrigin}/api/v1/projection`);
+    expect(unauthenticated.status).toBe(401);
+    const login = await postJson(
+      `${composition.primaryOrigin}/api/v1/auth/local-bootstrap/exchange`,
+      { proof: delivery.proof },
+      productionMutationHeaders(composition.primaryOrigin),
+    );
+    expect(login.response.status).toBe(200);
+    expect(login.response.url).not.toContain(delivery.proof);
+    expect(JSON.stringify(login.value)).not.toContain(delivery.proof);
+    const setCookie = login.response.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).not.toContain(delivery.proof);
+    const cookie = setCookie.split(';')[0] ?? '';
+    await expect(access(proofPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    const projectionResponse = await fetch(`${composition.primaryOrigin}/api/v1/projection`, {
+      headers: { Cookie: cookie },
+    });
+    const projection = await projectionResponse.json() as {
+      readonly missionId: string;
+      readonly dashboard: { readonly fixtureKind: string };
+      readonly session: { readonly csrfToken: string; readonly capabilities: readonly string[] };
+    };
+    expect(projectionResponse.status).toBe(200);
+    expect(projection).toMatchObject({
+      missionId: MISSION_ID,
+      dashboard: { fixtureKind: 'APPLICATION_PROJECTION' },
+      session: { capabilities: ['viewer', 'leo_input'] },
+    });
+    const message = await postJson(
+      `${composition.primaryOrigin}/api/v1/advisor/messages`,
+      { ...messageCommand(15_100), manifestVersion: 2 },
+      {
+        ...productionMutationHeaders(composition.primaryOrigin),
+        Cookie: cookie,
+        'X-AO-CSRF': projection.session.csrfToken,
+      },
+    );
+    expect(message.response.status, JSON.stringify(message.value)).toBe(201);
+    const messageId = (message.value as { readonly messageId: string }).messageId;
+    expect(composition.inbox.project().messages[messageId]?.state).toBe('MANUAL_FALLBACK_REQUIRED');
+    expect(await scanPathsForValue(
+      [
+        fixture.stateRoot,
+        fixture.staticRoot,
+        path.join(projectRoot, 'src'),
+        path.join(projectRoot, 'tests'),
+        path.join(projectRoot, 'docs'),
+        path.join(projectRoot, 'config'),
+        path.join(projectRoot, 'scripts'),
+        path.join(projectRoot, 'public'),
+      ],
+      delivery.proof,
+    )).toEqual([]);
+    expect(await readFile(path.join(projectRoot, 'README.md'), 'utf8')).not.toContain(delivery.proof);
+    expect(await readFile(path.join(projectRoot, 'package.json'), 'utf8')).not.toContain(delivery.proof);
+
+    await composition.close();
+    removeCloseable(composition);
+    const restarted = await startAgentOfficeComposition({
+      configuration,
+      ...fixture,
+      operationalConfiguration: canonical.configuration,
+      readonlyToolRunner: canonical.runner,
+      buildId: 'runtime-local-bootstrap-restart-test',
+      runtime: mutableRuntime(15_500),
+    });
+    closeables.push(restarted);
+    const replacement = JSON.parse(await readFile(proofPath, 'utf8')) as { readonly proof: string };
+    expect(replacement.proof).not.toBe(delivery.proof);
+    const replayedProof = await postJson(
+      `${restarted.primaryOrigin}/api/v1/auth/local-bootstrap/exchange`,
+      { proof: delivery.proof },
+      productionMutationHeaders(restarted.primaryOrigin),
+    );
+    expect(replayedProof.response.status).toBe(401);
+    expect(restarted.readStatus().deliveryMode).toBe('MANUAL_FALLBACK_REQUIRED');
+    await restarted.close();
+    removeCloseable(restarted);
+    await expect(access(proofPath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects LocalBootstrap startup with a gateway capability or injected delivery port before binding', async () => {
+    const fixture = await compositionPaths();
+    const canonical = await actualCanonicalOperationalRuntime();
+    const proofRoot = await createTemporaryRoot('agent-office-local-bootstrap-reject-');
+    await chmod(proofRoot, 0o700);
+    const proofDirectory = path.join(proofRoot, 'delivery');
+    await mkdir(proofDirectory, { mode: 0o700 });
+    const configuration = localBootstrapConfiguration(path.join(proofDirectory, 'proof.json'));
+    await expect(startAgentOfficeComposition({
+      configuration,
+      ...fixture,
+      operationalConfiguration: {
+        ...canonical.configuration,
+        gateway: {
+          ...canonical.configuration.gateway,
+          capability: approvedCapability(),
+        },
+      },
+      readonlyToolRunner: canonical.runner,
+      buildId: 'runtime-local-bootstrap-capability-reject-test',
+      runtime: deterministicRuntime(15_800),
+    })).rejects.toMatchObject({ code: 'INVALID_SCHEMA' });
+    await expect(startAgentOfficeComposition({
+      configuration,
+      ...fixture,
+      operationalConfiguration: canonical.configuration,
+      readonlyToolRunner: canonical.runner,
+      tmuxDeliveryPort: new RecordingPointerDelivery('DELIVERED'),
+      buildId: 'runtime-local-bootstrap-port-reject-test',
+      runtime: deterministicRuntime(15_900),
+    })).rejects.toMatchObject({ code: 'INVALID_SCHEMA' });
+    await expect(access(configuration.bootstrapProofFile)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects a fixture mission manifest in LocalBootstrap mode before creating a proof', async () => {
+    const fixture = await compositionPaths();
+    const proofRoot = await createTemporaryRoot('agent-office-local-bootstrap-fixture-reject-');
+    await chmod(proofRoot, 0o700);
+    const proofDirectory = path.join(proofRoot, 'delivery');
+    await mkdir(proofDirectory, { mode: 0o700 });
+    const configuration = localBootstrapConfiguration(path.join(proofDirectory, 'proof.json'));
+    await expect(startAgentOfficeComposition({
+      configuration,
+      ...fixture,
+      buildId: 'runtime-local-bootstrap-fixture-reject-test',
+      runtime: deterministicRuntime(15_950),
+    })).rejects.toMatchObject({ code: 'AUTHORITY_ARTIFACT_INVALID' });
+    await expect(access(configuration.bootstrapProofFile)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('loads an application projection, consumes SSE, and persists one message idempotently through the runtime client', async () => {
@@ -728,6 +905,25 @@ function loopbackConfiguration(port: number): PrivateDeploymentConfiguration {
   };
 }
 
+function localBootstrapConfiguration(
+  bootstrapProofFile: string,
+): LocalBootstrapPrivateDeploymentConfiguration {
+  return {
+    schemaVersion: 'agent-office.loopback-deployment.v2',
+    networkMode: 'LOOPBACK_PRIVATE',
+    bindAddresses: ['127.0.0.1'],
+    port: 4317,
+    allowedHosts: ['127.0.0.1:4317'],
+    authProvider: 'LOCAL_BOOTSTRAP',
+    mutationMode: 'ENABLED_LOCAL_BOOTSTRAP',
+    bootstrapProofFile,
+    cors: false,
+    trustProxy: false,
+    tls: false,
+    hsts: false,
+  };
+}
+
 function productionMutationHeaders(origin: string): Readonly<Record<string, string>> {
   return {
     Origin: origin,
@@ -862,6 +1058,31 @@ async function reservePort(): Promise<number> {
   if (address === null || typeof address === 'string') throw new Error('test listener address missing');
   await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)));
   return address.port;
+}
+
+async function assertFixedPortAvailable(port: number): Promise<void> {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => resolve());
+  });
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => error === undefined ? resolve() : reject(error)));
+}
+
+async function scanPathsForValue(roots: readonly string[], value: string): Promise<readonly string[]> {
+  const matches: string[] = [];
+  for (const root of roots) {
+    const entries = await readdir(root, { recursive: true, withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const parentPath = entry.parentPath;
+      const filePath = path.join(parentPath, entry.name);
+      const bytes = await readFile(filePath);
+      if (bytes.includes(Buffer.from(value, 'utf8'))) matches.push(filePath);
+    }
+  }
+  return matches;
 }
 
 async function waitForState(

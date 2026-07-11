@@ -10,6 +10,8 @@ import type { CommunicationCenterActionPort } from '../communication/types.js';
 export type RuntimeClientPhase =
   | 'STARTING'
   | 'AUTH_BLOCKED'
+  | 'LOGIN_REQUIRED'
+  | 'LOGGED_OUT'
   | 'PROJECTION_READY'
   | 'PROJECTION_UNAVAILABLE'
   | 'SESSION_EXPIRED';
@@ -136,6 +138,46 @@ export class AgentOfficeRuntimeClient {
     };
   }
 
+  public async login(proof: string): Promise<void> {
+    if (!/^[A-Za-z0-9_-]{43}$/u.test(proof)) {
+      this.update({ ...this.state, lastErrorCode: 'INVALID_SCHEMA' });
+      throw new RuntimeClientError('INVALID_SCHEMA');
+    }
+    const response = await this.transport.fetch(
+      `${this.origin}/api/v1/auth/local-bootstrap/exchange`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ proof }),
+      },
+    );
+    const value = await readResponse(response);
+    if (!response.ok) {
+      const code = errorCode(value);
+      this.update({ ...this.state, phase: 'LOGIN_REQUIRED', lastErrorCode: code });
+      throw new RuntimeClientError(code);
+    }
+    await this.start();
+  }
+
+  public async logout(): Promise<void> {
+    const session = this.requireMutationSession('viewer');
+    const response = await this.transport.fetch(`${this.origin}/api/v1/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-AO-CSRF': session.csrfToken,
+      },
+      body: '{}',
+    });
+    const value = await readResponse(response);
+    if (!response.ok) {
+      this.handleMutationFailure(response.status, errorCode(value));
+      throw new RuntimeClientError(errorCode(value));
+    }
+    this.clearSession('LOGGED_OUT', 'LOGGED_OUT');
+  }
+
   public async submitAdvisorMessage(
     command: SubmitAdvisorMessage,
   ): Promise<AdvisorMessagePersistenceReceipt> {
@@ -215,7 +257,12 @@ export class AgentOfficeRuntimeClient {
       if (!this.isCurrentRun(expectedRunId)) return false;
       if (!response.ok) {
         const code = errorCode(value);
-        this.clearSession(isSessionFailure(response.status, code) ? 'AUTH_BLOCKED' : 'PROJECTION_UNAVAILABLE', code);
+        const phase = isSessionFailure(response.status, code)
+          ? this.state.status?.authMode === 'LOCAL_BOOTSTRAP'
+            ? 'LOGIN_REQUIRED'
+            : 'AUTH_BLOCKED'
+          : 'PROJECTION_UNAVAILABLE';
+        this.clearSession(phase, code);
         return false;
       }
       const projection = parseProjection(value);
@@ -332,7 +379,10 @@ export class AgentOfficeRuntimeClient {
   }
 
   private clearSession(
-    phase: Extract<RuntimeClientPhase, 'AUTH_BLOCKED' | 'PROJECTION_UNAVAILABLE' | 'SESSION_EXPIRED'>,
+    phase: Extract<
+      RuntimeClientPhase,
+      'AUTH_BLOCKED' | 'LOGIN_REQUIRED' | 'LOGGED_OUT' | 'PROJECTION_UNAVAILABLE' | 'SESSION_EXPIRED'
+    >,
     code: string,
   ): void {
     this.session = undefined;
@@ -340,7 +390,9 @@ export class AgentOfficeRuntimeClient {
     this.sseAbort = undefined;
     this.update({
       phase,
-      sseState: phase === 'AUTH_BLOCKED' ? 'DISCONNECTED' : 'DEGRADED',
+      sseState: phase === 'AUTH_BLOCKED' || phase === 'LOGIN_REQUIRED' || phase === 'LOGGED_OUT'
+        ? 'DISCONNECTED'
+        : 'DEGRADED',
       ...(this.state.status === undefined ? {} : { status: this.state.status }),
       lastErrorCode: code,
     });
