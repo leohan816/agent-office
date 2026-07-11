@@ -1,6 +1,6 @@
 # Agent Office Operations and Recovery Design
 
-Status: `REVIEWED_DESIGN__BATCH_A_ACCEPTED__BATCH_B_LOCAL_OBSERVATION_IMPLEMENTED`
+Status: `REVIEWED_DESIGN__BATCH_A_B_ACCEPTED__BATCH_C_PRESENTATION_IMPLEMENTED`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
@@ -10,6 +10,12 @@ checkpoint/projection, and startup/replay primitives at code commit
 only local read-only observation/freshness/dashboard behavior at code commit
 `85e66d856e33a0df73041cb4b33aba30a8f9f96d`. Backup, restore, service operation,
 credentials, deployment, and live/private operation remain unimplemented.
+
+Batch C code commit `22baff7cf0d1cb6ccd41d1c9f810af37a53e1413`
+adds only a presentation-side recovery/staleness scene. Its recovery step count,
+read-only label, blocker/decision overlays, cue expiry, and visibility state do
+not call the state root, append an event, resolve a blocker, or re-enable any
+operation.
 
 ## 1. Operating Model
 
@@ -64,6 +70,19 @@ single-writer authority and remain separately gated.
   gateway, PWA cache, backup, restore, or deployment operation was added.
 - The full 23-file/84-test suite, production builds, audit, diff check, and bounded
   real read-only Git/tmux smoke pass at the Batch B code commit.
+
+### 1.3 Batch C as-built presentation boundary
+
+- `src/ui/scene/state-machine.ts` treats `RECOVERY` as a bounded structured-step
+  overlay with exact event provenance and safety precedence; it has no
+  persistence or operation port.
+- Stale/offline/conflict/error/unaccepted scene inputs immediately select
+  `UNKNOWN_OR_STALE`, preserve the last accepted state as text, and suppress all
+  motion. A fresh fixture cannot resume a WorkUnit or resolve a blocker.
+- Initial load, reload, and tab resume queue no presentation cue. Page visibility
+  pauses CSS animation, and resume renders the current projection without replay.
+- Batch C regression/browser tests pass without creating a state root, running a
+  recovery operation, or mutating observed repositories/tmux.
 
 ## 2. Durability Objectives
 
@@ -452,7 +471,7 @@ accessed.
 |---|---|---|---|---|---|
 | AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; owner-only init, writer exclusion/stale recovery, artifact/event durability, rotation, and hash-chain tests pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
 | AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/checkpoint-store.ts` | `tests/recovery/restart-replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | Same-request replay/conflict, event-before-projection rebuild, verified checkpoint, and invalid-checkpoint genesis fallback pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Service recovery remains Batch E |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/hosts/freshness.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/recovery/corruption-quarantine.test.ts`, `tests/integration/project-freshness.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A quarantine is accepted; Batch B local restart aging, current/stale/offline/unknown/conflict/error, and non-completion behavior pass at `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_BATCH_B_LOCAL_OVERLAY__PENDING_ADVISOR_ACCEPTANCE` | Remote/service recovery overlays remain Batch E |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/hosts/freshness.ts`, `src/application/queries/dashboard-view-model.ts`, `src/ui/scene/state-machine.ts` | `tests/recovery/corruption-quarantine.test.ts`, `tests/integration/project-freshness.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/office-scene.component.test.tsx` | Batch A quarantine and Batch B local freshness are accepted; Batch C fail-closed suppression and visibility/reload/resume behavior pass at `22baff7cf0d1cb6ccd41d1c9f810af37a53e1413` | `IMPLEMENTED_BATCH_C_LOCAL_OVERLAY__PENDING_ADVISOR_ACCEPTANCE` | Remote/service recovery remains Batch E |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12, 16 | `DESIGNED_CANDIDATE` | Batch E; off-host/encryption gated |
 | AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/operations/`, `src/adapters/gateways/` | `tests/recovery/rollback-disable.test.ts` | `NOT_IMPLEMENTED`; Sections 13-14 | `DESIGNED_CANDIDATE` | Batch E; external transport remains canonical |
 | AO-OPS-006 Redacted health/observability | `src/server/health/`, `src/application/audit/` | `tests/security/observability-redaction.test.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |

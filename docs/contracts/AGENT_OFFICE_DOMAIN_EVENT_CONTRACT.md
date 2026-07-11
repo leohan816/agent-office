@@ -1,6 +1,6 @@
 # Agent Office Domain and Event Contract
 
-Status: `REVIEWED_DESIGN__BATCH_A_ACCEPTED__BATCH_B_CONSUMER_IMPLEMENTED`
+Status: `REVIEWED_DESIGN__BATCH_A_B_ACCEPTED__BATCH_C_SCENE_CONSUMER_IMPLEMENTED`
 
 Contract version: `agent-office.domain.v1`
 
@@ -11,7 +11,10 @@ The Batch A local domain/store/projection subset is implemented at code commit
 dependency. Batch B consumes the contract through read-only observation and
 dashboard projections at code commit
 `85e66d856e33a0df73041cb4b33aba30a8f9f96d`; gateway, mutation/server, and
-later-batch application flows remain unimplemented.
+later-batch application flows remain unimplemented. Batch C consumes the same
+contract in a pure presentation runtime at code commit
+`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413`; it appends no event and cannot
+change a durable projection.
 
 ## 1. Contract Principles
 
@@ -52,6 +55,18 @@ activity for primary-only `DISPATCHED`, `RUNNING`, `RESULT_REPORTED`, or
 `UNKNOWN_OR_STALE`. Batch B preserves that required-observable fallback while
 separately rendering the durable primary `WAITING_ADVISOR` and `HOLD` states with
 fixed locale entries; it does not invent an active observable alias.
+
+### 1.2 Batch C as-built consumer boundary
+
+`src/ui/scene/state-machine.ts` consumes only typed `RoleSceneProjection` fields,
+accepted UUIDv7 event IDs, durable primary state, structured RoleActivity,
+freshness/connection state, and typed blocker/decision/recovery/result evidence.
+It projects all 16 exact required observable names plus the reviewed durable
+`WAITING_ADVISOR`, `HOLD`, `UNKNOWN_OR_STALE`, presentation-only `IDLE`, and
+bounded `RECOVERY` states. Missing/unaccepted source IDs, stale/offline/conflicted
+evidence, incompatible activity, or a result return without verified result and
+pointer refs fails closed and suppresses motion. Fixture choice, cue expiry,
+animation completion, reload, and tab resume never append or mutate domain state.
 
 ## 2. Identity, Encoding, Time, and Hashing
 
@@ -727,6 +742,13 @@ process title, animation state, or elapsed time. Expiry returns the visual to
 `RESULT_REPORTED`; and `REVIEW` only with `REVIEW_PENDING`. These pair constraints
 are command-validated and reproduce Section 6.3 exactly.
 
+Batch C implements the scene consumer at
+`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413`. Initial load, reload, and tab resume
+mark accepted IDs as already seen and render a static current pose. Only a new
+accepted live event ID may create one bounded presentation cue; same-ID updates
+are deduplicated, bursts retain safety precedence and at most three cues, and
+presentation completion does not produce an event.
+
 ## 14. Schema Evolution
 
 - Event and manifest schemas use explicit versions.
@@ -745,10 +767,10 @@ are command-validated and reproduce Section 6.3 exactly.
 |---|---|---|---|---|---|
 | AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Dashboard consumption implemented in Batch B; later scope changes still require authority |
 | AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; envelope/hash-chain tests pass and Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Gateway event application remains Batch D |
-| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 16-name/R-1 fallback remains accepted; Batch B primary-state/fallback rendering passes at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_THROUGH_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Structured scene/animation remains Batch C |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts`, `tests/ui/activity-mapping.test.ts` | Batch A exact mapping and Batch B fallback are accepted; Batch C projects every exact primary/activity pair and fail-closed source/evidence cases at code commit `22baff7cf0d1cb6ccd41d1c9f810af37a53e1413` | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/domain/state-machines/entities.ts` | `tests/domain/transitions.test.ts` | Batch A schemas/state machines implemented at `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; delivery/intake application flow absent | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Batch D application/gateway handoff |
-| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/domain/completion/index.ts`, `src/application/hosts/freshness.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/project-freshness.test.ts` | Batch A replay core is Advisor-accepted; Batch B proves stale/offline/conflict observations cannot satisfy completion | `IMPLEMENTED_BATCH_B_LOCAL_EVIDENCE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full evidence collector/application flows remain Batches D/E |
-| AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts` | `tests/domain/writing-result-activity.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Domain pairing, expiry, structured-source, and `UNKNOWN_OR_STALE` behavior pass at code commit | `IMPLEMENTED_BATCH_A_DOMAIN_CORE` | UI/animation remains Batch C |
+| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/domain/completion/index.ts`, `src/application/hosts/freshness.ts`, `src/ui/scene/state-machine.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/project-freshness.test.ts`, `tests/ui/activity-mapping.test.ts` | Batch A replay and Batch B freshness are accepted; Batch C stale/offline/conflict and missing result-pointer inputs fail closed in presentation | `IMPLEMENTED_BATCH_C_LOCAL_EVIDENCE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full evidence collector/application flows remain Batches D/E |
+| AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/contract/required-observable-conformance.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts` | Domain pairing remains accepted; Batch C event-ID-only presentation, result/pointer verification, order, deduplication, burst, reload/resume, stale, and prose-exclusion tests pass | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts` | Closed 16/9 vocabularies, deduplication, and exact ordered 13-field snapshot pass at code commit | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Notification/inbox delivery remains Batch D |
 
 The cross-document matrix in `docs/FEATURE_INDEX.md` is authoritative for package

@@ -1,6 +1,6 @@
 # Agent Office Gateway and Multi-Host Design
 
-Status: `REVIEWED_DESIGN__BATCH_B_LOCAL_OBSERVATION_IMPLEMENTED__GATEWAYS_REMOTE_GATED`
+Status: `REVIEWED_DESIGN__BATCH_B_ACCEPTED__BATCH_C_LOCAL_PRESENTATION_IMPLEMENTED__GATEWAYS_REMOTE_GATED`
 
 This reviewed design defines typed integration ports, the M01 Advisor gateway,
 read-only observations, multi-project topology, and designed-but-gated remote host
@@ -9,6 +9,11 @@ and freshness subset at code commit
 `85e66d856e33a0df73041cb4b33aba30a8f9f96d`. It does not authorize or implement
 a network connection, tmux input, Advisor/Hermes gateway, Tailscale action, key
 provisioning, remote collector, or external exposure.
+Advisor accepted the Batch B local observation boundary as the Batch C
+dependency. Batch C code commit
+`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413` adds a pure scene consumer over
+typed projection fixtures only; it does not call these ports, observe a process,
+connect to a host, or add any gateway/mutation method.
 
 ## 1. Integration Principles
 
@@ -59,6 +64,10 @@ provisioning, remote collector, or external exposure.
   errors. Tests use a deterministic fake runner.
 - A bounded local smoke verified the implemented Git and exact `%13` tmux paths
   without pane capture, tmux input, or repository mutation.
+- Batch C `src/ui/scene/` has no import from observation adapters or process
+  runners. Its event/provenance, freshness, connection, and evidence fields are
+  supplied through `RoleSceneProjection`; stale/conflicted inputs remain visible
+  and cannot become fresh or complete through animation.
 
 ## 3. AdvisorGateway Contract
 
@@ -465,10 +474,10 @@ gated.
 |---|---|---|---|---|---|
 | AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/adapters/gateways/tmux-advisor/` | `tests/integration/tmux-advisor-gateway.test.ts` | `NOT_IMPLEMENTED`; Sections 3-4 | `DESIGNED_CANDIDATE` | Batch D plus approved transport profile |
 | AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/` | `tests/adapters/hermes-disabled.test.ts` | `NOT_IMPLEMENTED`; Section 5 | `DEFERRED_WITH_GATE` | Separate Leo/GPT Hermes mission |
-| AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/adapters/observations/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Fixed argv, no-shell/no-write, hostile input, cap/timeout, bounded file, exact structured tmux, and real read-only smoke pass at `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch B acceptance |
-| AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts` | `tests/integration/project-freshness.test.ts` | Stable ID lookup, path-free summary, wrong-project denial, and cross-project overlap rejection pass at Batch B code commit | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch B acceptance; browser registry mutation remains absent |
+| AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/adapters/observations/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Fixed argv, no-shell/no-write, hostile input, cap/timeout, bounded file, exact structured tmux, and real read-only smoke were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | None for the local Batch B subset |
+| AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts` | `tests/integration/project-freshness.test.ts` | Stable ID lookup, path-free summary, wrong-project denial, and cross-project overlap rejection were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | Browser registry mutation remains absent |
 | AO-INT-005 Linux/Mac multi-host trust and observation envelope | `src/adapters/hosts/` | `tests/contract/host-observation.test.ts` | `NOT_IMPLEMENTED`; Sections 7-9 | `DEFERRED_WITH_GATE` | Private-network, key, remote-host mission |
-| AO-INT-006 Offline/reconnect/gap/stale evidence | `src/application/hosts/freshness.ts` | `tests/integration/project-freshness.test.ts` | Local current/stale/offline/unknown/conflict/error, completion eligibility, and restart aging pass at Batch B code commit; remote envelope/gap/reconnect is absent | `IMPLEMENTED_BATCH_B_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Remote behavior remains gated |
+| AO-INT-006 Offline/reconnect/gap/stale evidence | `src/application/hosts/freshness.ts`, `src/ui/scene/state-machine.ts` | `tests/integration/project-freshness.test.ts`, `tests/ui/activity-mapping.test.ts` | Batch B local freshness is accepted; Batch C suppresses all motion and shows `UNKNOWN_OR_STALE` for stale/offline/unknown/conflict/error scene input; remote envelope/gap/reconnect is absent | `IMPLEMENTED_BATCH_C_LOCAL_PRESENTATION_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Remote behavior remains gated |
 | AO-INT-007 Canonical AlertKind notification, deterministic deduplication, and manual fallback | `src/application/notifications/` | `tests/integration/notification-recovery.test.ts`, `tests/contract/alert-notification-vocabulary.test.ts` | `NOT_IMPLEMENTED`; Section 10 and Domain 7.3 | `DESIGNED_CANDIDATE` | Batch D |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

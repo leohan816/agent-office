@@ -1,13 +1,16 @@
 # Agent Office UI and Animation Mapping
 
-Status: `REVIEWED_DESIGN__BATCH_B_BASE_DASHBOARD_IMPLEMENTED__ANIMATION_PWA_GATED`
+Status: `REVIEWED_DESIGN__BATCH_B_ACCEPTED__BATCH_C_SCENE_IMPLEMENTED__PWA_GATED`
 
 This reviewed design defines the responsive, private PWA surface and the only
 allowed mapping from structured events to visual activity. Batch B implements the
 read-only local base dashboard, locale, pinned local icons, and stable responsive
 layout at code commit `85e66d856e33a0df73041cb4b33aba30a8f9f96d`.
-Animation, office scene, Advisor Inbox, HTTP/live data, auth, SSE, PWA, and service
-worker remain unimplemented.
+Advisor accepted that base as the Batch C dependency. The structured-event office
+scene, bounded presentation cues, responsive mapping, local assets, reduced
+motion, and Batch C accessibility/visual tests are implemented at code commit
+`22baff7cf0d1cb6ccd41d1c9f810af37a53e1413`. Advisor Inbox, HTTP/live data,
+auth, SSE, PWA, and service worker remain unimplemented.
 
 ## 1. Experience Principles
 
@@ -65,6 +68,26 @@ indicator. It never shows a generic command box.
 - React/React DOM 19.2.7, Lucide React 1.24.0, and Vite 8.1.4 are exact-pinned;
   `src/ui/assets/LICENSES.md` records local bundle licensing. No remote asset is
   loaded.
+
+### 2.2 Batch C as-built office scene
+
+- `src/ui/scene/types.ts` defines eight stable station identities and the only
+  typed `RoleSceneProjection` input. `state-machine.ts` is a pure projector over
+  accepted UUIDv7 IDs, primary WorkUnit state, RoleActivity, explicit evaluation
+  time, freshness/connection, and typed safety/evidence overlays.
+- `office-scene.tsx` renders a full-width unframed first-screen workspace before
+  the Batch B dashboard grid. Desktop/tablet use an eight-station 4x2 plan;
+  narrow/short viewports use explicit two-station pagination.
+- Initial load, reload, and tab resume are static. New accepted live IDs can
+  produce one bounded cue; event IDs deduplicate, same-entity bursts honor safety
+  precedence, and at most three transient cues remain.
+- Motion preference, visibility pause, cue completion, selection, pagination,
+  and deterministic fixture selection are browser-local presentation state only.
+  They do not append events, change a WorkUnit, call an adapter, or claim live
+  observation.
+- Semantic role/status lists, roving keyboard focus, icon/text/shape semantics,
+  44px scene controls, polite/assertive live regions, reduced-motion behavior,
+  and an accessible activity log are implemented and browser-tested.
 
 ## 3. Hierarchy and Mission Views
 
@@ -238,6 +261,12 @@ Stations do not imply a session exists. Missing/stale registry evidence shows an
 outlined unavailable station with last verified time. The scene never invents a
 person/avatar from a model name.
 
+Batch C fixes the visible plan to Leo/GPT, Advisor, Control, Fable5 Reviewer,
+Foundation Worker, Shashu Worker, Cosmile Worker, and Agent Office Worker. Neutral
+project-authored actor shapes represent stations rather than model/person
+identity. Leo is the decision-document destination; Advisor is the dispatch and
+result-tray destination.
+
 ### 4.2 Render input
 
 The scene consumes a `RoleSceneProjection` only:
@@ -260,6 +289,12 @@ Components cannot query tmux, Git, filesystem, or terminal output directly. If a
 source event is unavailable or projection revision conflicts, the station renders
 `UNKNOWN/STALE` without activity motion.
 
+The as-built consumer is `RoleSceneProjection` in `src/ui/scene/types.ts`. A
+source ID must be a valid accepted UUIDv7 included in the projection. Result
+return additionally requires verified immutable result and pointer refs;
+blocker/decision/recovery overlays retain their exact typed evidence. Extra
+prose/process-shaped object properties are ignored.
+
 ## 5. Structured Event-to-Animation Mapping
 
 All durations below are presentation constants, not domain timers. Each transition
@@ -281,6 +316,12 @@ runs at most once per accepted source event ID and is deduplicated across reload
 
 No cue is triggered by substring matching such as "testing", "done", or
 "blocked" in terminal/model text.
+
+Batch C implements every row through direct lookup of the exact required
+observable name. Delivery is pinned to Advisor pickup -> target -> handoff ->
+Advisor return; result return is target pickup -> Advisor -> tray handoff; patch
+return is Fable5 -> Agent Office Worker. Each full-motion sequence is 1200 ms or
+less, uses transform/opacity only, and ends in the static projected state.
 
 ## 6. Visual Precedence and Concurrency
 
@@ -306,6 +347,12 @@ activity. Offline/stale/conflicted overlays suppress all motion and display the
 last accepted activity as stale text. For equal precedence, greater mission
 sequence wins; ties use event ID lexical order only for deterministic display.
 
+The Batch C reducer implements this exact precedence. Persistent safety winners
+suppress lower-precedence cues for the same station; a critical alert is an
+immediate static border/warning overlay. Missing/stale sources select
+`UNKNOWN_OR_STALE` and suppress the queue rather than preserving apparent
+activity.
+
 Transient presentation expiry does not append domain state. Persistent WorkUnit,
 blocker, decision, recovery, and stale states remain until their structured exit
 event.
@@ -323,6 +370,11 @@ event.
 - Page visibility pause stops animation. Resume renders current projection and
   does not replay stale cues.
 - Animation cannot delay display of blocker, decision, alert, or evidence text.
+
+The as-built CSS contains only bounded transform/opacity keyframes, no transition,
+flash, shake, parallax, sound, or indeterminate progress. Visibility applies
+`animation-play-state: paused`; resume folds the current fixture with
+`TAB_RESUME`, marks IDs seen, and queues nothing.
 
 ## 8. Reduced Motion and Accessibility
 
@@ -351,6 +403,12 @@ Accessibility requirements:
 - timestamps expose absolute UTC/local rendering and freshness, not relative text
   alone.
 
+Batch C automated axe audits report no WCAG A/AA violations for current and
+safety fixtures. Chromium tests cover roving focus, visible focus styling,
+44-pixel controls, status text/icon/shape, semantic lists, polite/assertive live
+regions, and reduced-motion suppression. Dialog/drawer requirements remain tied
+to later surfaces because Batch C creates neither.
+
 ## 9. Color, Icon, and Asset Strategy
 
 ### 9.1 Design tokens
@@ -378,9 +436,13 @@ assets, if later approved, have deterministic dimensions, content hashes,
 attribution/license records, and 1x/2x variants. No remote image fetch, tracking
 pixel, user-supplied SVG execution, or image-generated claim is allowed.
 
-Assets live under future `src/ui/assets/`; semantic mapping lives under
-`src/ui/scene/asset-registry.ts`; license evidence lives beside the assets. No
-asset is authorized or created in this design pass.
+Batch C assets live under `src/ui/scene/assets/`; semantic dimensions/source are
+in `src/ui/scene/asset-registry.ts`; ownership, license classification, stable
+view boxes, and source SHA-256
+`4033619cf7d0dfd7d20555fa0a424df299e2445ec0149d95594a2830b974a854` are
+recorded in `ASSET_INVENTORY.md`. They are local project-authored code-native SVG
+components with no script, remote fetch, user SVG execution, model logo, or real
+person claim.
 
 ## 10. Stable Layout and Text Overflow
 
@@ -485,14 +547,15 @@ turns fenced code or shell-looking text into an executable control.
 
 ## 15. UI Acceptance Tests
 
-Batch B component/view-model tests now cover the base hierarchy, all reviewed
+Batch B component/view-model tests cover the base hierarchy, all reviewed
 Korean labels including the three R-1 entries, separate progress denominators,
 typed freshness banners, blocker detail, evidence copy, terminal-prose exclusion,
 long IDs/hashes/Korean expansion, table scrolling, 320px rules, and absence of
-animation/PWA/server surfaces. The full Batch C/E acceptance scope below remains
-gated.
+PWA/server surfaces. Batch C adds 27 Vitest files/122 total regression tests and
+10 Playwright Chromium tests, including three committed deterministic visual
+baselines; the remaining Batch D/E scope stays gated.
 
-Batch C/E test paths must cover:
+Batch C test paths now cover:
 
 - the exact 16 required observable names, every primary/activity pairing in Domain
   Section 6.3, `WRITING_RESULT` between work/testing and result return, and
@@ -500,29 +563,35 @@ Batch C/E test paths must cover:
 - proof that terminal/prose/process fixtures cannot change activity;
 - precedence, stale/offline suppression, burst coalescing, reload, and tab resume;
 - reduced motion and no-flash behavior;
-- keyboard, focus, tree, live region, dialog, touch target, and contrast audits;
+- keyboard/focus, semantic status list, live region, touch target, and axe
+  contrast audits; later dialog/drawer focus remains gated;
 - wide/medium/320px mobile, portrait/landscape, 200% zoom, and text expansion;
 - long IDs, hashes, labels, messages, tables, and translated content without page
   overflow or layout shift;
+- deterministic visual regression snapshots using projection fixtures, not live
+  tmux/prose.
+
+Remaining Batch D/E test paths must cover:
+
 - PWA installability, offline read-only, no mutation queue, update, and cache
   exclusion tests;
 - Advisor form schema proving no role/session/command target; and
-- exact Korean hierarchy/status/alert/action/blocker/progress labels, unknown
+- exact Korean alert/action/inbox usage beyond the already implemented
+  hierarchy/status/blocker/progress labels, unknown
   reasonCode fallback, preserved `labelKo`, and proof no silent translation; and
-- visual regression snapshots using deterministic projection fixtures, not live
-  tmux/prose.
+- later dialog/drawer focus restoration and PWA offline/update accessibility.
 
 ## 16. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/application/queries/dashboard-view-model.ts`, `src/ui/i18n/ko.ts` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/dashboard-view-model.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/layout-contract.test.ts` | Responsive base operations first screen, exact hierarchy, distinct progress, typed table/detail, overflow rules, and deterministic fixtures pass at `85e66d856e33a0df73041cb4b33aba30a8f9f96d` | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch B acceptance; live/server/PWA behavior remains Batch E |
-| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/contract/required-observable-conformance.test.ts` | `NOT_IMPLEMENTED`; Sections 4-6 and Domain 6.3 | `DESIGNED_CANDIDATE` | Batch C |
-| AO-UI-003 Accessibility/reduced motion | `src/ui/a11y/`, `src/ui/scene/` | `tests/e2e/accessibility.spec.ts`, `tests/ui/reduced-motion.test.ts` | `NOT_IMPLEMENTED`; Sections 7-8 | `DESIGNED_CANDIDATE` | Batch C/E |
-| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/dashboard.tsx`, `src/ui/styles.css` | `tests/ui/layout-contract.test.ts`, `tests/ui/dashboard.component.test.tsx` | Exact-pinned locally bundled Lucide icons, license inventory, fixed icon controls, and stable base layout implemented; office-scene asset registry is absent | `IMPLEMENTED_BATCH_B_ICON_LAYOUT_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Office scene/assets remain Batch C |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/application/queries/dashboard-view-model.ts`, `src/ui/i18n/ko.ts` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/dashboard-view-model.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/layout-contract.test.ts` | Responsive Batch B operations base was Advisor-accepted; Batch C preserves it and inserts the scene before the grid | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Live/server/PWA behavior remains Batch E |
+| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Exact mapping, accepted-ID provenance, evidence fail-closed, precedence, bounded order, dedup/burst/reload/resume, and prose exclusion pass at `22baff7cf0d1cb6ccd41d1c9f810af37a53e1413` | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
+| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/office-scene.spec.ts` | Semantic list/live regions/roving focus/44px controls, motion toggle, visibility pause, reduced-motion suppression, axe A/AA, and responsive browser gates pass | `IMPLEMENTED_BATCH_C_SCENE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Later dialog/drawer/PWA accessibility remains Batch D/E |
+| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts` | Exact-pinned Lucide plus project-authored local actor/desk/document/barrier/tool/warning SVG source with pinned SHA-256, ownership/license inventory, explicit dimensions, and stable screenshots | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
 | AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/inbox/` | `tests/e2e/advisor-inbox.spec.ts` | `NOT_IMPLEMENTED`; Section 12 | `DESIGNED_CANDIDATE` | Batch D/E |
-| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/queries/dashboard-view-model.ts`, `src/ui/dashboard.tsx` | `tests/ui/dashboard-view-model.test.ts`, `tests/ui/dashboard.component.test.tsx` | Base blocker reason/owner/action and freshness/conflict/error banners implemented from typed projection input; alert lifecycle/recovery controls are absent | `IMPLEMENTED_BATCH_B_PRESENTATION_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full alert/recovery UX remains Batch D/E |
+| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/queries/dashboard-view-model.ts`, `src/ui/dashboard.tsx`, `src/ui/scene/` | `tests/ui/dashboard-view-model.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/e2e/office-scene.spec.ts` | Accepted Batch B blocker/freshness detail plus Batch C immediate typed blocker, WAITING_LEO, patch, bounded recovery, critical, and stale scene overlays; lifecycle controls remain absent | `IMPLEMENTED_BATCH_C_PRESENTATION_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full alert/recovery controls remain Batch D/E |
 | AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/` | `tests/e2e/pwa-lifecycle.spec.ts` | `NOT_IMPLEMENTED`; Section 14 | `DESIGNED_CANDIDATE` | Batch E |
-| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Exact hierarchy, 16 required observables, blocker/freshness labels, plus reviewed `WAITING_ADVISOR`, `HOLD`, and `UNKNOWN_OR_STALE` entries pass at Batch B code commit | `IMPLEMENTED_BATCH_B__PENDING_ADVISOR_ACCEPTANCE` | Alert action/inbox usage remains Batch D |
+| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/e2e/office-scene.spec.ts` | Batch B exact vocabulary was accepted; Batch C directly renders all exact observable/durable fallback labels without translation or aliases | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Alert action/inbox usage remains Batch D |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.
