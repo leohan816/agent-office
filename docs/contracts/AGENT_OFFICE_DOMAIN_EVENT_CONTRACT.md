@@ -1,6 +1,6 @@
 # Agent Office Domain and Event Contract
 
-Status: `REVIEWED_DESIGN__BATCH_A_B_ACCEPTED__BATCH_C_SCENE_CONSUMER_IMPLEMENTED`
+Status: `REVIEWED_DESIGN__BATCH_A_B_C_ACCEPTED__BATCH_D_APPLICATION_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
 
 Contract version: `agent-office.domain.v1`
 
@@ -10,11 +10,13 @@ The Batch A local domain/store/projection subset is implemented at code commit
 `7edc8f79bedb059ab6697e64ddaf57fbebde2c87` and accepted by Advisor as the Batch B
 dependency. Batch B consumes the contract through read-only observation and
 dashboard projections at code commit
-`85e66d856e33a0df73041cb4b33aba30a8f9f96d`; gateway, mutation/server, and
-later-batch application flows remain unimplemented. Batch C consumes the same
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d`. Batch C consumes the same
 contract in a pure presentation runtime at code commit
 `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; it appends no event and cannot
-change a durable projection.
+change a durable projection. Advisor accepted Batch C as the Batch D dependency.
+Batch D implements the local message/notification/alert/lifecycle application at
+`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`; HTTP/server and Batch E flows
+remain unimplemented.
 
 ## 1. Contract Principles
 
@@ -67,6 +69,22 @@ bounded `RECOVERY` states. Missing/unaccepted source IDs, stale/offline/conflict
 evidence, incompatible activity, or a result return without verified result and
 pointer refs fails closed and suppresses motion. Fixture choice, cue expiry,
 animation completion, reload, and tab resume never append or mutate domain state.
+
+### 1.3 Batch D as-built application boundary
+
+`src/application/advisor-inbox/` persists one scoped owner-only message artifact
+before `AdvisorMessagePersisted`, reconstructs message/notification state from the
+hash-chained ledger, and keeps delivery, Advisor acknowledgement, intake,
+decision link, ResumeProof, and close as separate artifacts/events. It completes
+partial outbox writes after restart and reconciles a started delivery by receipt
+lookup only; an absent/ambiguous receipt becomes manual fallback and is never
+blindly resent.
+
+`src/application/alerts/` preserves the closed nine-kind policy, canonical dedup
+key, occurrence folding, acknowledgement/snooze/resolution/suppression, and an
+immutable detail artifact. `src/application/audit/` exposes only allowlisted IDs,
+states, hashes, sequence, actor role, and the existing event hash chain. No
+message body enters gateway requests or the redacted audit projection.
 
 ## 2. Identity, Encoding, Time, and Hashing
 
@@ -239,7 +257,7 @@ Version 1 reserves these accepted domain events:
 | Manifest | `MissionManifestRegistered`, `MissionScopeChanged`, `ManifestImportRejected` (audit stream only) |
 | WorkUnit | `WorkUnitStateTransitioned`, `WorkUnitCompletionRevoked`, `WorkUnitRetryAuthorized`, `RoleActivityChanged` |
 | Evidence | `EvidenceAttached`, `EvidenceVerified`, `EvidenceMarkedStale`, `EvidenceInvalidated`, `ReviewResultRecorded` |
-| Message | `AdvisorMessagePersisted`, `AdvisorMessageDeliveryQueued`, `AdvisorMessageDelivered`, `AdvisorMessageDeliveryFailed`, `AdvisorMessageAcknowledged`, `AdvisorIntakeRecorded`, `AdvisorMessageClosed` |
+| Message | `AdvisorMessagePersisted`, `AdvisorMessageDeliveryQueued`, `AdvisorMessageDelivered`, `AdvisorMessageDeliveryFailed`, `AdvisorMessageManualFallbackRequired`, `AdvisorMessageAcknowledged`, `AdvisorIntakeRecorded`, `AdvisorMessageDecisionLinked`, `AdvisorMessageClosed` |
 | Decision | `DecisionRequested`, `DecisionAcknowledged`, `DecisionRecorded`, `DecisionApplied`, `DecisionSuperseded`, `DecisionWithdrawn` |
 | Blocker | `BlockerOpened`, `BlockerAcknowledged`, `BlockerRouteChanged`, `BlockerResolved`, `BlockerSuperseded` |
 | Alert | `AlertRaised`, `AlertAcknowledged`, `AlertSnoozed`, `AlertResolved`, `AlertSuppressed` |
@@ -507,13 +525,13 @@ acknowledgement is distinct from message/decision acknowledgement.
 
 ## 8. Advisor Message, Intake, Decision, and Resume Proof
 
-### 8.1 Browser command
+### 8.1 Typed browser/application command
 
 `SubmitAdvisorMessage` contains only:
 
 ```text
 requestId, missionId, manifestVersion,
-kind: NOTE | QUESTION | DECISION_INPUT | SCOPE_REQUEST | ACKNOWLEDGEMENT,
+kind: NEW_MISSION | CLARIFICATION | DECISION_RESPONSE | PAUSE | CANCEL,
 subject, bodyText, referencedEntityIds[], clientCreatedAt
 ```
 
@@ -522,8 +540,8 @@ There is no `targetRole`, `targetSession`, `pane`, `command`, `shell`, `argv`,
 
 ### 8.2 Immutable message artifact
 
-After validation, the server builds canonical JSON containing the accepted fields,
-authenticated subject reference, `receivedAt`, and content hash. It writes with
+After validation, the application builds canonical JSON containing the accepted
+fields and content identity. It writes with
 create-exclusive semantics at:
 
 ```text
@@ -531,15 +549,16 @@ artifacts/inbox/<missionId>/<requestId>/<payloadSha256>.json
 ```
 
 Only after file and directory durability does it append
-`AdvisorMessagePersisted`. The HTTP acknowledgement includes:
+`AdvisorMessagePersisted`. The direct application persistence receipt includes:
 
 ```text
-requestId, messageId, artifactRef, artifactHash,
-eventId, missionSequence, acceptedAt, status=PERSISTED
+requestId, messageId, messageArtifactRef, messageArtifactHash, messagePayloadHash,
+persistedEventId, persistedMissionSequence, acceptedAt, status=PERSISTED, replayed
 ```
 
-A retry with the same `requestId` and same payload hash returns byte-equivalent
-receipt fields. Same ID/different hash returns `409 IDEMPOTENCY_KEY_REUSED`.
+A retry with the same `requestId` and same payload hash returns the prior durable
+receipt. Same ID/different hash returns `IDEMPOTENCY_KEY_REUSED`; a future HTTP
+boundary may map that stable rejection to 409 in Batch E.
 
 ### 8.3 Canonical Advisor intake
 
@@ -749,6 +768,12 @@ accepted live event ID may create one bounded presentation cue; same-ID updates
 are deduplicated, bursts retain safety precedence and at most three cues, and
 presentation completion does not produce an event.
 
+Batch D uses `WorkUnitStateTransitioned` for an optional decision-backed resume,
+with the immutable `ResumeProof` artifact reference/hash carried alongside the
+exact `from` waiting state and `to=resumeTo`. The message projection records the
+resume evidence reference but does not treat GPT copy, delivery, acknowledgement,
+or intake as a resume transition.
+
 ## 14. Schema Evolution
 
 - Event and manifest schemas use explicit versions.
@@ -766,12 +791,12 @@ presentation completion does not produce an event.
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Dashboard consumption implemented in Batch B; later scope changes still require authority |
-| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; envelope/hash-chain tests pass and Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Gateway event application remains Batch D |
-| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/contract/required-observable-conformance.test.ts`, `tests/ui/activity-mapping.test.ts` | Batch A exact mapping and Batch B fallback are accepted; Batch C projects every exact primary/activity pair and fail-closed source/evidence cases at code commit `e30a6cda52e14a4bf30b2d1b7445fa26645496e5` | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
-| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/domain/state-machines/entities.ts` | `tests/domain/transitions.test.ts` | Batch A schemas/state machines implemented at `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; delivery/intake application flow absent | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Batch D application/gateway handoff |
-| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/domain/completion/index.ts`, `src/application/hosts/freshness.ts`, `src/ui/scene/state-machine.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/project-freshness.test.ts`, `tests/ui/activity-mapping.test.ts` | Batch A replay and Batch B freshness are accepted; Batch C stale/offline/conflict and missing result-pointer inputs fail closed in presentation | `IMPLEMENTED_BATCH_C_LOCAL_EVIDENCE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full evidence collector/application flows remain Batches D/E |
-| AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/contract/required-observable-conformance.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts` | Domain pairing remains accepted; Batch C event-ID-only presentation, result/pointer verification, order, deduplication, burst, reload/resume, stale, and prose-exclusion tests pass | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
-| AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts` | Closed 16/9 vocabularies, deduplication, and exact ordered 13-field snapshot pass at code commit | `IMPLEMENTED_BATCH_A_CONTRACT_ONLY` | Notification/inbox delivery remains Batch D |
+| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts`, `src/application/audit/` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/integration/lifecycle-audit.test.ts` | Accepted ledger remains intact; Batch D lifecycle/gateway/ack/decision/resume records preserve sequence/hash chain in a content-redacted audit view | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Separate security log/service wiring remains Batch E |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch C activity mapping is Advisor-accepted; Batch D message/notification/alert transitions reject premature acknowledgement/intake and reconcile crash boundaries deterministically | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | None for local Batch D application |
+| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/` | `tests/domain/transitions.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Exact five kinds, artifact-before-event, same-ID replay/conflict, outbox/manual delivery, separate acknowledgement/intake/decision/ResumeProof/close pass | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | HTTP/live runtime remains Batch E |
+| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/ui/scene/state-machine.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/advisor-inbox.test.ts` | Batch A-C projection/freshness behavior is accepted; Batch D adds replay-only message/notification projection without changing completion authority | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Full service/remote evidence remains Batch E |
+| AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch C event-ID-only activity/result mapping is Advisor-accepted and remains unchanged in Batch D regression | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene activity |
+| AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts`, `src/application/alerts/`, `src/ui/communication/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, `tests/integration/alert-application.test.ts`, `tests/ui/communication-center.component.test.tsx` | Closed 16/9 vocabularies, alert dedup/lifecycle/detail, and byte-exact ordered 13-field UI copy pass | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Server notification wiring remains Batch E |
 
 The cross-document matrix in `docs/FEATURE_INDEX.md` is authoritative for package
 discoverability and links these contract IDs to the remaining security, gateway,

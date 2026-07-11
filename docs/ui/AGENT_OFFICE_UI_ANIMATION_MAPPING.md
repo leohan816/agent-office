@@ -1,6 +1,6 @@
 # Agent Office UI and Animation Mapping
 
-Status: `REVIEWED_DESIGN__BATCH_B_ACCEPTED__BATCH_C_SCENE_IMPLEMENTED__PWA_GATED`
+Status: `REVIEWED_DESIGN__BATCH_B_C_ACCEPTED__BATCH_D_INBOX_ALERTS_IMPLEMENTED__PWA_GATED`
 
 This reviewed design defines the responsive, private PWA surface and the only
 allowed mapping from structured events to visual activity. Batch B implements the
@@ -13,8 +13,10 @@ motion, and Batch C accessibility/visual tests are implemented at code commit
 `ad74b9e8f98298269534676237a66cfaac055e00` and Playwright process-locale
 correction `243d3a5731a6b22c29caeaba6567aed505f78d59` make the committed images
 reproducible across the approved `C.UTF-8` and `ko_KR.UTF-8` caller contexts on
-the configured local browser/font runtime. Advisor Inbox, HTTP/live data, auth,
-SSE, PWA, and service worker remain unimplemented.
+the configured local browser/font runtime. Advisor accepted Batch C as the Batch
+D dependency. Batch D Inbox/Alerts code/tests are implemented at
+`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`. HTTP/live data, auth, SSE, PWA,
+and service worker remain unimplemented.
 
 ## 1. Experience Principles
 
@@ -93,6 +95,27 @@ indicator. It never shows a generic command box.
   and deterministic fixture selection are browser-local presentation state only.
   They do not append events, change a WorkUnit, call an adapter, or claim live
   observation.
+
+### 2.3 Batch D as-built communication center
+
+- `src/ui/communication/communication-center.tsx` is mounted after the existing
+  operations grid and exposes Inbox/Alerts tabs only. Compose fields are mission,
+  one of five message kinds, subject, body, and allowlisted entity checkboxes.
+- A stable request ID is visible before submission. The direct typed application
+  port can report only a `PERSISTED` receipt; delivery, acknowledgement, intake,
+  decision, resume, and close remain distinct timeline rows with evidence refs.
+- The shipped fixture is explicitly `SYNTHETIC_READ_ONLY`: submit and alert
+  lifecycle mutations are disabled, no acknowledgement is claimed, and pause/
+  cancel/reply actions prepare an unsent Advisor draft only.
+- Alert cards render the nine canonical kinds, severity/state/occurrence/dedup,
+  blocker reason, resolution owner, next action, safe default, facts, unknowns,
+  question, options, recommendation, blocked capability, and evidence. Critical
+  alerts persist when switching Inbox/Alerts.
+- GPT copy is byte-equal to the domain package renderer's exact 13-field ordered
+  Markdown. Copy/open/hold never approves, acknowledges, resolves, or executes.
+- React text nodes and inert fenced code render hostile markup as text. At
+  1440/1024/390/320, mobile landscape, and 200% text, the center has no page
+  overflow or hidden submit/actions; all controls have at least 44px targets.
 - Semantic role/status lists, roving keyboard focus, icon/text/shape semantics,
   44px scene controls, polite/assertive live regions, reduced-motion behavior,
   and an accessible activity log are implemented and browser-tested.
@@ -509,12 +532,17 @@ alerts.
 
 ## 12. Advisor Inbox UI
 
+Batch D implements this local typed-port UI under `src/ui/communication/`.
+The static fixture remains read-only; a live authenticated browser binding is
+still Batch E.
+
 The compose form contains mission, structured kind, subject, text, and allowlisted
 entity references. It never contains role/session/pane/command fields.
 
 Submission behavior:
 
-1. Generate/preserve `requestId` before POST.
+1. Generate/preserve `requestId` before direct application submission (and before
+   a future Batch E POST).
 2. Disable only duplicate local submission while request is in flight.
 3. On timeout, present retry with the same request ID, never a new implicit ID.
 4. Show durable `PERSISTED` receipt fields and hash after success.
@@ -565,8 +593,18 @@ baselines. `playwright.config.ts` normalizes `LANG` and `LC_ALL` to
 `ko_KR.UTF-8` in the Playwright process and explicitly passes the same locale to
 Chromium and the loopback Vite server; a focused acceptance contract verifies
 that configuration without self-spawning the browser suite. The ordinary
-10-test command passes from both `C.UTF-8` and `ko_KR.UTF-8` callers. The
-remaining Batch D/E scope stays gated.
+10-test command passes from both `C.UTF-8` and `ko_KR.UTF-8` callers. Advisor
+accepted that Batch C evidence as the Batch D dependency.
+
+Batch D expands the complete regression to 35 Vitest files/149 tests and 15
+sequential Chromium tests. Inbox/Alerts component and browser coverage verifies
+the exact closed compose schema, read-only fixture, separate durable stages,
+manual pointer/hash, canonical GPT copy, nine alert kinds/six Korean actions,
+acknowledge-versus-resolve controls, inert hostile content, persistent critical
+alerts, visible keyboard focus, 44px controls, WCAG A/AA, and
+1440/1024/390/320/mobile-landscape/200%-text layout. Desktop, tablet Alerts, and
+mobile Inbox were directly inspected. Existing three Batch C baselines remain
+unchanged.
 
 Batch C test paths now cover:
 
@@ -586,27 +624,23 @@ Batch C test paths now cover:
 - caller-locale-independent browser/font selection on the configured host, with
   the three baseline bytes unchanged after process-locale normalization.
 
-Remaining Batch D/E test paths must cover:
+Remaining Batch E test paths must cover:
 
 - PWA installability, offline read-only, no mutation queue, update, and cache
   exclusion tests;
-- Advisor form schema proving no role/session/command target; and
-- exact Korean alert/action/inbox usage beyond the already implemented
-  hierarchy/status/blocker/progress labels, unknown
-  reasonCode fallback, preserved `labelKo`, and proof no silent translation; and
 - later dialog/drawer focus restoration and PWA offline/update accessibility.
 
 ## 16. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/application/queries/dashboard-view-model.ts`, `src/ui/i18n/ko.ts` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/dashboard-view-model.test.ts`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/layout-contract.test.ts` | Responsive Batch B operations base was Advisor-accepted; Batch C preserves it and inserts the scene before the grid | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Live/server/PWA behavior remains Batch E |
-| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts`, `tests/contract/required-observable-conformance.test.ts` | Exact mapping, accepted-ID provenance, evidence fail-closed, precedence, bounded order, dedup/burst/reload/resume, and prose exclusion pass at `e30a6cda52e14a4bf30b2d1b7445fa26645496e5` | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance |
-| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/office-scene.spec.ts` | Semantic list/live regions/roving focus/44px controls, motion toggle, visibility pause, reduced-motion suppression, axe A/AA, and responsive browser gates pass | `IMPLEMENTED_BATCH_C_SCENE_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Later dialog/drawer/PWA accessibility remains Batch D/E |
-| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts`, `tests/acceptance/batch-gates.test.ts` | Exact-pinned Lucide plus project-authored local asset source, ownership/license inventory, dimensions, and hashes remain stable; explicit Korean UTF-8 process locale makes unchanged screenshots pass from both approved caller locales on the configured host | `IMPLEMENTED_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor Batch C acceptance; cross-host/browser/font portability remains Batch E |
-| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/inbox/` | `tests/e2e/advisor-inbox.spec.ts` | `NOT_IMPLEMENTED`; Section 12 | `DESIGNED_CANDIDATE` | Batch D/E |
-| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/queries/dashboard-view-model.ts`, `src/ui/dashboard.tsx`, `src/ui/scene/` | `tests/ui/dashboard-view-model.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/e2e/office-scene.spec.ts` | Accepted Batch B blocker/freshness detail plus Batch C immediate typed blocker, WAITING_LEO, patch, bounded recovery, critical, and stale scene overlays; lifecycle controls remain absent | `IMPLEMENTED_BATCH_C_PRESENTATION_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full alert/recovery controls remain Batch D/E |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Accepted dashboard/scene remain stable; Batch D adds responsive Advisor communication after the operations grid | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Live/server/PWA remains Batch E |
+| AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts` | Exact Batch C scene mapping is Advisor-accepted and all visual baselines remain unchanged in Batch D | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene mapping |
+| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/communication-center.spec.ts` | Scene plus Inbox/Alerts semantic/live/focus/44px/reduced-motion/WCAG A/AA responsive browser gates pass | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | PWA/dialog lifecycle remains Batch E |
+| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts` | Batch C asset and locale evidence is Advisor-accepted; Batch D uses the existing exact-pinned local Lucide dependency and changes no baseline asset | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | Cross-host/browser/font portability remains Batch E |
+| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/` | `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Fixed request ID, closed form, PERSISTED-only response, separate delivery/ack/intake/decision/resume/close evidence, manual pointer/hash, and read-only fixture pass | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated binding remains Batch E |
+| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/alerts/`, `src/ui/communication/`, `src/ui/scene/` | `tests/integration/alert-application.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Nine-kind detail/dedup/lifecycle, six safe actions, exact question/options/recommendation/default/owner/action/evidence, and persistent critical display pass; backup/recovery operations remain absent | `IMPLEMENTED_BATCH_D_ALERT_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full recovery/PWA controls remain Batch E |
 | AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/` | `tests/e2e/pwa-lifecycle.spec.ts` | `NOT_IMPLEMENTED`; Section 14 | `DESIGNED_CANDIDATE` | Batch E |
-| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/e2e/office-scene.spec.ts` | Batch B exact vocabulary was accepted; Batch C directly renders all exact observable/durable fallback labels without translation or aliases | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Alert action/inbox usage remains Batch D |
+| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx`, `src/ui/communication/` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Accepted prior labels plus all five message kinds, nine alert kinds, and six exact Korean alert actions render without aliases or silent translation | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | PWA vocabulary remains Batch E |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `REVIEWED_DESIGN__BATCH_B_ACCEPTED__BATCH_C_PRESENTATION_BOUNDARY_IMPLEMENTED__SERVER_SECURITY_GATED`
+Status: `REVIEWED_DESIGN__BATCH_B_C_ACCEPTED__BATCH_D_LOCAL_AUTHORITY_BOUNDARY_IMPLEMENTED__SERVER_SECURITY_GATED`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -11,6 +11,14 @@ Advisor accepted that subset as the Batch C dependency. Batch C adds only the
 structured-event scene and deterministic browser tests at
 `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; it adds no server, gateway,
 credential, adapter call, role target, process execution, or durable mutation.
+
+Advisor accepted Batch C as the Batch D dependency. Batch D code commit
+`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c` adds the typed Advisor-only command
+port, owner-only immutable message/lifecycle artifacts, capability-gated pointer
+gateway, disabled Hermes stub, content-redacted lifecycle audit projection, inert
+Inbox/Alerts rendering, and no-role-target acceptance tests. It adds no HTTP,
+auth credential, CSRF/rate server, real tmux input, process/network gateway,
+private exposure, or live deployment.
 
 ## 1. Security Objectives
 
@@ -30,7 +38,7 @@ Agent Office must:
 
 Availability never outranks actor separation or evidence integrity.
 
-### 1.1 Batch B-C as-built security subset
+### 1.1 Batch B-D as-built security subset
 
 - `src/application/projects/registry.ts` validates trusted absolute roots and
   rejects cross-project overlap; browser summaries contain IDs, not paths.
@@ -43,17 +51,27 @@ Availability never outranks actor separation or evidence integrity.
   configured source ID whose only command shape is exact-pane structured
   `display-message`. No capture, input, buffer, shell, signal, or mutation method
   is exposed.
-- `src/ui/dashboard.tsx` provides filtering, selection, expansion, and evidence
-  copy only. There is no dispatch form, server route, arbitrary path/target, auth,
-  or gateway.
+- `src/ui/dashboard.tsx` retains filtering, selection, expansion, and evidence
+  copy; `src/ui/communication/` adds only the closed Advisor message form and
+  typed alert actions. There is no server route, arbitrary path/role/session/
+  pane/command target, or auth surface.
 - `src/ui/scene/` receives only typed scene projections and accepted event IDs.
   Extra prose/process-shaped properties are ignored; stale, conflicted,
   disconnected, incompatible, or unaccepted sources fail closed and suppress
   motion. Fixture selection, animation completion, and motion preferences are
   presentation-only and cannot append an event or call an adapter.
+- `src/application/advisor-inbox/` accepts Leo/GPT submission only for the fixed
+  mission and allowlisted entity IDs. Advisor alone records acknowledgement,
+  intake, decision link, ResumeProof, and close evidence. Message content stays
+  in the scoped immutable artifact and is excluded from event/gateway/audit
+  summaries.
+- `src/adapters/gateways/` exposes no process/network primitive. A prevalidated
+  opaque `ADVISOR_ONLY` capability gates the canonical pointer envelope; any
+  disabled/kill/stale/conflict/ambiguous state is manual fallback.
 - Adapter/security boundary tests are deterministic and use fake tool runners;
   traversal, symlink, special-file, hostile argv/ref/name, timeout/cap, root
-  isolation, and later-batch forbidden-scope cases pass in the 84-test suite.
+  isolation, malicious inert text, capability matrix, and Batch E forbidden-scope
+  cases pass in the 149-test suite plus 15 Chromium tests.
 
 ## 2. Threat Model
 
@@ -269,6 +287,13 @@ Security headers include a nonce/hash-based CSP with no unsafe inline/eval,
 Private-network HTTPS adds HSTS only after exact host/TLS review; it is not emitted
 carelessly on generic localhost names.
 
+Batch D implements only the non-HTTP content subset: subject is at most 200
+Unicode scalars, body at most 16 KiB, the whole structured command/artifact at
+most 32 KiB, and references at most 50 allowlisted IDs; disallowed control
+characters and unknown fields fail closed. React text nodes and an inert fenced
+code renderer never interpret supplied HTML or code as a control. HTTP headers,
+link policy, request parsing, and rate limiting remain Batch E.
+
 ## 10. Rate Limits and Resource Bounds
 
 Initial candidate limits are configuration constants reviewed in Batch E:
@@ -287,6 +312,9 @@ Limits return `429` with bounded `Retry-After` and append a redacted audit recor
 In-memory limiter reset after restart is acceptable only because durable request
 idempotency remains enforced; private-network/multi-instance operation requires a
 new shared-limit design and is deferred.
+
+The message body/whole-payload/reference bounds in this table are enforced in
+Batch D domain/application code. Per-subject and HTTP rate limits are not.
 
 ## 11. Filesystem and Adapter Security
 
@@ -310,8 +338,8 @@ new shared-limit design and is deferred.
 
 ## 12. Advisor Delivery and Authority Safety
 
-Message persistence and delivery are separate. HTTP success means the immutable
-message and event are durable. Delivery may later become
+Message persistence and delivery are separate. The Batch D application receipt
+means only that the immutable message and event are durable. Delivery may later become
 `MANUAL_FALLBACK_REQUIRED` without losing the message.
 
 Before TmuxAdvisorGateway delivery, a trusted adapter must verify, by reference:
@@ -327,6 +355,12 @@ Agent Office does not reimplement the transport decision matrix. A failed or
 ambiguous check disables delivery, records a typed receipt, and surfaces manual
 fallback. It never sends a retry, approval, Ctrl-C, auth response, or alternate
 target automatically.
+
+The as-built capability contains only an opaque UUID, fixed `ADVISOR_ONLY` route,
+TMUX transport tag, active/disabled/conflict and kill/synchronization state,
+issue/expiry times, and authority/activation/registry hashes. Locator and process
+details stay outside Agent Office. The injected delivery port receives only the
+capability ID, notification ID, and canonical pointer-envelope bytes.
 
 ## 13. Audit and Redaction
 
@@ -351,6 +385,13 @@ Audit files are owner-only, segmented, hash chained, backed up, and never served
 directly. UI presents a redacted projection. Audit deletion/retention policy is a
 future Leo/GPT/operations decision; M01 does not auto-delete history.
 
+Batch D implements a narrower redacted projection over the already durable
+hash-chained domain ledger in `src/application/audit/`. It filters to lifecycle
+events and allowlists IDs, state, hashes, sequence, actor role, and timestamps;
+tests prove message/note content is absent. The separate security audit stream,
+auth/CSRF/rate rejections, backup/retention, and server presentation remain
+Batch E and are not claimed here.
+
 ## 14. Kill Switch, Disable, and Manual Fallback
 
 Two distinct controls exist:
@@ -363,6 +404,12 @@ Two distinct controls exist:
    available, and marks queued messages for manual fallback.
 
 Neither switch terminates role processes, deletes data, or authorizes rollback.
+
+Batch D implements the gateway side of these semantics only: absent, disabled,
+kill-switched, stale, or conflicting capability invokes no delivery port and
+returns manual fallback; ambiguous started delivery performs lookup only and
+persists manual evidence when no receipt exists. It does not read or mutate the
+real external transport state.
 The UI always shows delivery state and the manual pointer path. Re-enable requires
 fresh configuration/authority validation and an audit receipt; it is never timed
 or automatic.
@@ -405,9 +452,9 @@ Tailscale action, or production identity is permitted by this design.
 |---|---|---|---|---|---|
 | AO-SEC-001 Loopback private fail-closed bind | `src/server/network/` | `tests/security/bind-policy.test.ts` | `NOT_IMPLEMENTED`; Section 5 | `DESIGNED_CANDIDATE` | Batch E; private network separately gated |
 | AO-SEC-002 Auth/session/capability model without embedded secrets | `src/server/auth/` | `tests/security/auth-session.test.ts` | `NOT_IMPLEMENTED`; Sections 3 and 6 | `DESIGNED_CANDIDATE` | Batch E and real-secret authority if activated |
-| AO-SEC-003 CSRF/origin/rate/input/output controls | `src/server/security/` | `tests/security/http-boundary.test.ts` | `NOT_IMPLEMENTED`; Sections 7-10 | `DESIGNED_CANDIDATE` | Batch E |
-| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/ui/dashboard.tsx`, `src/ui/scene/`; future `src/server/routes/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/tmux-readonly.test.ts`, `tests/acceptance/batch-gates.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch B read-only boundary is accepted; Batch C adds only typed presentation and proves no adapter/process/network/write/dispatch import at code commit `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; server routes do not exist | `IMPLEMENTED_BATCH_C_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Re-prove for Batch D gateway and Batch E HTTP boundary |
-| AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/` | `tests/security/audit-redaction.test.ts`, `tests/integration/kill-switch.test.ts` | `NOT_IMPLEMENTED`; Sections 12-14 | `DESIGNED_CANDIDATE` | Batch D/E; canonical transport remains external |
+| AO-SEC-003 CSRF/origin/rate/input/output controls | `src/domain/messages/`, `src/ui/communication/`; future `src/server/security/` | `tests/domain/transitions.test.ts`, `tests/ui/communication-center.component.test.tsx` | Batch D implements closed fields, message/artifact bounds, allowlisted refs, control rejection, and inert text/code rendering only; CSRF/origin/rate/HTTP controls remain absent | `IMPLEMENTED_BATCH_D_CONTENT_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | HTTP security remains Batch E |
+| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/ui/communication/`; future `src/server/routes/` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/acceptance/batch-gates.test.ts` | Batch D form exposes no target field; gateway accepts one exact pointer schema, has no process/network import, and cannot route Worker/Reviewer/session/pane/command | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Re-prove at Batch E HTTP boundary |
+| AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/`, `src/application/advisor-inbox/` | `tests/integration/lifecycle-audit.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Redacted ledger projection, capability/kill/stale/conflict fail-closed behavior, durable receipt/manual evidence, and ambiguous no-resend pass | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Separate security audit/server and real transport remain Batch E/external |
 | AO-SEC-006 PWA/offline confidentiality | `src/pwa/` | `tests/e2e/pwa-cache-security.spec.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

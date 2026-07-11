@@ -1,6 +1,6 @@
 # Agent Office Operations and Recovery Design
 
-Status: `REVIEWED_DESIGN__BATCH_A_B_ACCEPTED__BATCH_C_PRESENTATION_IMPLEMENTED`
+Status: `REVIEWED_DESIGN__BATCH_A_B_C_ACCEPTED__BATCH_D_DURABLE_COMMUNICATION_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
@@ -16,6 +16,12 @@ adds only a presentation-side recovery/staleness scene. Its recovery step count,
 read-only label, blocker/decision overlays, cue expiry, and visibility state do
 not call the state root, append an event, resolve a blocker, or re-enable any
 operation.
+
+Advisor accepted Batch C as the Batch D dependency. Batch D code commit
+`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c` adds only the authorized local
+durable Advisor message/outbox/receipt/acknowledgement/intake/decision/resume and
+alert application. It does not implement service backup/restore, deployment,
+credentials, HTTP, PWA, remote recovery, or live transport operation.
 
 ## 1. Operating Model
 
@@ -90,6 +96,23 @@ single-writer authority and remain separately gated.
   Korean locale plus configured local browser/font root remain host
   prerequisites, while cross-host/browser/font portability remains a Batch E
   operations verification item. No product or service process locale is changed.
+
+### 1.4 Batch D as-built durability boundary
+
+- `ImmutableArtifactStore.putScopedCanonicalJson` confines generated paths below
+  `artifacts/<kind>/<identity...>/<sha>.json`, enforces one immutable byte
+  identity, owner-only/no-follow/create-exclusive writes, byte bounds,
+  descriptor hash verification, file fsync, link, and directory fsync.
+- `AdvisorInboxService` writes the message artifact before the persisted event,
+  derives its outbox from durable events, and writes gateway receipts before
+  notification/message terminal events. Separate scoped artifacts back
+  acknowledgement, intake, decision link, alert detail, and ResumeProof.
+- Startup reconstruction completes a message-queued/outbox-missing crash. A
+  `DELIVERING` notification performs receipt lookup only; missing/ambiguous
+  receipt records `FAILED -> MANUAL_FALLBACK_REQUIRED` and no blind resend.
+- Disposable tests cover orphan artifact, durable event before observed receipt,
+  partial outbox, and started delivery without receipt. No real state root,
+  observed repository, tmux input, process, network, or live data is used.
 
 ## 2. Durability Objectives
 
@@ -454,9 +477,15 @@ include:
 
 ### Batch D
 
-- notification queued/sent/receipt crash points;
-- ambiguous receipt produces manual fallback and no blind resend;
-- kill-switch/inactive transport persists messages without delivery loss.
+At `7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`,
+`tests/recovery/advisor-message-crash-consistency.test.ts`,
+`tests/persistence/scoped-artifact.test.ts`, and the inbox/gateway integration
+tests pass:
+
+- artifact/event/outbox/started-delivery/receipt crash points;
+- ambiguous receipt produces durable manual fallback and no blind resend; and
+- kill-switch/inactive/stale/conflicting transport persists messages without
+  delivery loss or process side effect.
 
 ### Batch E
 
@@ -478,9 +507,9 @@ accessed.
 |---|---|---|---|---|---|
 | AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; owner-only init, writer exclusion/stale recovery, artifact/event durability, rotation, and hash-chain tests pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
 | AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/checkpoint-store.ts` | `tests/recovery/restart-replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | Same-request replay/conflict, event-before-projection rebuild, verified checkpoint, and invalid-checkpoint genesis fallback pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Service recovery remains Batch E |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/hosts/freshness.ts`, `src/application/queries/dashboard-view-model.ts`, `src/ui/scene/state-machine.ts` | `tests/recovery/corruption-quarantine.test.ts`, `tests/integration/project-freshness.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/office-scene.component.test.tsx` | Batch A quarantine and Batch B local freshness are accepted; Batch C fail-closed suppression and visibility/reload/resume behavior pass at `e30a6cda52e14a4bf30b2d1b7445fa26645496e5` | `IMPLEMENTED_BATCH_C_LOCAL_OVERLAY__PENDING_ADVISOR_ACCEPTANCE` | Remote/service recovery remains Batch E |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/advisor-inbox/`, `src/application/hosts/freshness.ts`, `src/ui/scene/` | `tests/recovery/corruption-quarantine.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/integration/project-freshness.test.ts` | Batch A-C quarantine/freshness/presentation is accepted; Batch D scoped-artifact conflict and ambiguous delivery recover to replay/manual without blind resend | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Remote/service recovery remains Batch E |
 | AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12, 16 | `DESIGNED_CANDIDATE` | Batch E; off-host/encryption gated |
-| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/operations/`, `src/adapters/gateways/` | `tests/recovery/rollback-disable.test.ts` | `NOT_IMPLEMENTED`; Sections 13-14 | `DESIGNED_CANDIDATE` | Batch E; external transport remains canonical |
-| AO-OPS-006 Redacted health/observability | `src/server/health/`, `src/application/audit/` | `tests/security/observability-redaction.test.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |
+| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/adapters/gateways/`, `src/application/advisor-inbox/`; future `src/operations/` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch D implements transport disable/kill/manual fallback only; service rollback/backup controls remain absent | `IMPLEMENTED_BATCH_D_GATEWAY_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full operations controls remain Batch E; external transport is canonical |
+| AO-OPS-006 Redacted health/observability | `src/application/audit/`, `src/adapters/gateways/`; future `src/server/health/` | `tests/integration/lifecycle-audit.test.ts`, `tests/adapters/hermes-disabled.test.ts` | Batch D provides typed gateway health and redacted event-chain lifecycle audit with no body/secret/terminal content; server health/metrics remain absent | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Server observability remains Batch E |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

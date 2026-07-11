@@ -1,6 +1,6 @@
 # Agent Office M01 Master Design
 
-Status: `REVIEWED_DESIGN__BATCH_A_B_ACCEPTED__BATCH_C_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
+Status: `REVIEWED_DESIGN__BATCH_A_B_C_ACCEPTED__BATCH_D_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
 
 Canonical owner: Agent Office repository
 
@@ -27,7 +27,7 @@ The intended UI is quiet and operations-focused: low visual noise, explicit
 staleness and authority labels, readable evidence, and animation that reflects
 structured events only.
 
-## 2. Current Truth and Batch C Boundary
+## 2. Current Truth and Batch D Boundary
 
 Bootstrap commit `937f0c5f92cd3b39d81796c13bc00b4afe3407fb` remains the
 repository-governance baseline. Canonical design commit
@@ -66,8 +66,21 @@ Playwright tests, with the ordinary browser command passing under both
 `C.UTF-8` and `ko_KR.UTF-8` callers and lint, strict typecheck, production builds,
 dependency audit, and diff/boundary checks passing. It does not implement an
 HTTP server, auth, PWA, SSE, Advisor Inbox, gateway, remote collector, DB,
-network exposure, deployment, or durable mutation. Batch C is pending Advisor
-acceptance and does not authorize Batch D.
+network exposure, deployment, or durable mutation. Advisor accepted Batch C as
+the Batch D dependency in foundation-docs commit
+`3edcf7914715463e0ec793527c963c1847260b0f`.
+
+Batch D code/config/test commit
+`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c` implements the typed Advisor-only
+communication application, scoped immutable message and lifecycle artifacts,
+durable message/notification outbox projection and crash reconciliation,
+capability-gated fixed `TmuxAdvisorGateway`, disabled Hermes stub, canonical
+alert application, redacted lifecycle audit, deterministic GPT-package copy,
+and responsive Inbox/Alerts UI. The complete suite is 35 Vitest files/149 tests
+and 15 sequential Chromium tests. No HTTP/SSE/auth/PWA, real tmux input, Hermes
+implementation, DB, secret, remote host, network exposure, deployment, or live
+runtime was added. Batch D is pending Advisor acceptance and does not authorize
+Batch E.
 
 The byte-exact approved governance manifest remains version 1 with denominator
 15. Its imported facts record AO-WU-01 through AO-WU-05 as `COMPLETED`, AO-WU-06
@@ -203,11 +216,16 @@ a single repository, with strict module boundaries:
 - `src/ui/`: responsive React UI, scene mapping, and accessible components; and
 - `src/pwa/`: manifest, service worker, cache policy, and update behavior.
 
-The implemented Batch A-C local surface is strict TypeScript on Node.js 24 or
+The implemented Batch A-D local surface is strict TypeScript on Node.js 24 or
 later. React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, Vite 8.1.4,
 Playwright 1.61.1, and the axe Playwright adapter 4.12.1 are exact-pinned for the
 static local UI and deterministic verification. HTTP/server, auth, SSE, and PWA
 dependencies remain unselected and deferred to exact later-batch handoffs.
+
+Batch D invokes typed application ports directly in tests and the static
+dashboard fixture. The fixture is explicitly read-only and cannot claim
+persistence, delivery, acknowledgement, intake, decision, resolution, or
+execution. HTTP and live browser wiring remain Batch E.
 
 ### 6.2 Single-writer rule
 
@@ -308,6 +326,12 @@ the Batch B dashboard grid. It uses eight stable stations, two-station mobile
 pagination, local code-native SVG assets, and a deterministic fixture selector;
 it remains static on initial navigation/reload/tab resume and has no live adapter
 or mutation authority.
+
+The Batch D communication center follows the operations grid. Its Inbox shows a
+fixed request ID, immutable pointer/hash, and separate delivery,
+acknowledgement, intake, decision, resume, and close evidence. Alerts preserve
+typed severity/dedup/lifecycle/action policy. At 1440/1024/390/320 widths,
+mobile landscape, and 200% text, controls remain visible and at least 44px.
 
 ## 9. Adapter and Gateway Boundaries
 
@@ -426,21 +450,40 @@ separate gate.
   typecheck, production builds, dependency audit, and boundary/diff checks pass.
   The ordinary 10-test browser command passes from both `C.UTF-8` and
   `ko_KR.UTF-8` callers with unchanged final baseline bytes.
-- Exit state: `IMPLEMENTED__PENDING_ADVISOR_BATCH_C_ACCEPTANCE`; Batch D is not
+- Exit state: `IMPLEMENTED__ADVISOR_ACCEPTED_AS_BATCH_D_DEPENDENCY`, recorded in
+  foundation-docs commit `3edcf7914715463e0ec793527c963c1847260b0f`.
+
+### 11.5 Batch D as-built evidence
+
+- Code/config/tests: `7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`.
+- Inbox/application: `src/application/advisor-inbox/`, scoped owner-only
+  artifacts in `src/persistence/file-store/artifact-store.ts`, and exact five
+  message kinds in `src/domain/messages/index.ts`.
+- Gateway/audit/alerts: `src/adapters/gateways/`, `src/application/audit/`, and
+  `src/application/alerts/`; tmux delivery is an inert capability-injected
+  pointer port, and Hermes is disabled/not implemented.
+- UI: `src/ui/communication/`, with read-only fixture behavior, deterministic
+  GPT copy, separate evidence stages, persistent critical alerts, inert content,
+  and no role/session/pane/command/path input.
+- Verification: 35 Vitest files/149 tests plus 15 sequential Chromium tests;
+  1440/1024/390/320/mobile-landscape/200%-text, 44px controls, keyboard focus,
+  WCAG A/AA, direct visual inspection, lint, strict typecheck, core/dashboard
+  builds, zero-vulnerability audit, diff, and forbidden-boundary checks pass.
+- Exit state: `IMPLEMENTED__PENDING_ADVISOR_BATCH_D_ACCEPTANCE`; Batch E is not
   started.
 
 ## 12. Unknowns, Limitations, and Deferred Extensions
 
 | Item | Candidate decision | Current status | Gate |
 |---|---|---|---|
-| Application stack versions | Strict TypeScript/Node core plus exact pinned React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, Vite 8.1.4, Playwright 1.61.1, and axe Playwright 4.12.1 for the local static dashboard/scene and tests; server/PWA stack remains unselected | `IMPLEMENTED_THROUGH_BATCH_C_LOCAL_UI` | Batch C Advisor acceptance; server/PWA only under later handoff |
+| Application stack versions | Strict TypeScript/Node core plus exact pinned React 19.2.7, React DOM 19.2.7, Lucide React 1.24.0, Vite 8.1.4, Playwright 1.61.1, and axe Playwright 4.12.1 for the local static dashboard/scene/communication UI and tests; server/PWA stack remains unselected | `IMPLEMENTED_THROUGH_BATCH_D_LOCAL_UI` | Batch D Advisor acceptance; server/PWA only under Batch E handoff |
 | Persistence | Local append-only JSONL, immutable artifacts, atomic projections; no DB | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
 | Real-time | SSE plus POST, no WebSocket | `NOT_IMPLEMENTED` | Fable5 design PASS, Batch E |
 | Loopback authentication | Provider contract, ephemeral/local secure provisioning, no embedded credential | `NOT_IMPLEMENTED` | Batch E and explicit secret-handling authority if a real credential is used |
 | Tailscale/private network | Designed disabled; identity/TLS/trust requirements reserved | `DEFERRED_WITH_GATE` | Leo/GPT private-network approval and threat review |
 | Remote Linux collectors | Signed structured observation interface only | `DEFERRED_WITH_GATE` | Multi-host implementation mission and key-provisioning approval |
 | Future Mac hosts | Same observation contract with platform adapter | `DEFERRED_WITH_GATE` | Mac implementation/test host approval |
-| Hermes gateway | Interface/stub only | `DEFERRED_WITH_GATE` | Separate Leo/GPT Hermes mission |
+| Hermes gateway | Interface-compatible disabled stub; no endpoint/credential/network/process/write | `IMPLEMENTED_DISABLED_STUB__DEFERRED_WITH_GATE` | Separate Leo/GPT Hermes mission |
 | Database/multi-user service | No design selection beyond replaceable ports | `OUT_OF_SCOPE` | New mission, data/security/operations design |
 | Public exposure | Explicitly unsupported | `OUT_OF_SCOPE` | New Leo/GPT mission; not a deployment toggle |
 
@@ -465,9 +508,9 @@ separate gate.
 |---|---|---|---|---|---|
 | AO-ARCH-001 Hierarchy and versioned denominator | `src/domain/manifest/index.ts`, `src/application/queries/dashboard-view-model.ts` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts`, `tests/ui/dashboard-view-model.test.ts` | Batch A exact 15-unit fixture/hash remains accepted; Batch B declared scope/future-work rendering was accepted as the Batch C dependency | `IMPLEMENTED_THROUGH_BATCH_B__ADVISOR_ACCEPTED` | Any scope change still requires exact authority |
 | AO-ARCH-002 Append-only store and deterministic projection | `src/persistence/file-store/`, `src/application/projections/mission-projector.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/crash-consistency.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/corruption-quarantine.test.ts` | Code commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; replay/crash/restart/quarantine tests pass and Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
-| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/ui/`; future `src/server/`, `src/pwa/` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts`; future SSE/PWA tests | Responsive read-only dashboard and structured-event office scene implemented through Batch C; HTTP authority, SSE, auth, and PWA remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_C_UI_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Batch C acceptance; server/SSE/PWA remain Batch E |
-| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`; future `src/adapters/gateways/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Read-only observation subset was Advisor-accepted after Batch B; Advisor/Hermes gateways remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_B_OBSERVATION_SUBSET__ADVISOR_ACCEPTED` | Advisor gateway Batch D; Hermes separately gated |
-| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batch A/B dependencies accepted; Batch A/B regression, explicit Playwright process-locale contract, and Batch D/E forbidden-scope guards pass in the 124-test Batch C Vitest suite; the 10-test browser suite passes from both approved caller locales | `IMPLEMENTED_THROUGH_BATCH_C__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept Batch C before any Batch D handoff |
+| AO-ARCH-003 Private responsive PWA over POST plus SSE | `src/ui/`; future `src/server/`, `src/pwa/` | `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts`; future SSE/PWA tests | Responsive local dashboard/scene/Inbox/Alerts are implemented through Batch D; HTTP authority, SSE, auth, and PWA remain `NOT_IMPLEMENTED` | `IMPLEMENTED_BATCH_D_UI_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Server/SSE/PWA remain Batch E |
+| AO-ARCH-004 Fixed Advisor gateway and read-only adapters | `src/adapters/observations/`, `src/adapters/gateways/` | `tests/adapters/tmux-readonly.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/adapters/hermes-disabled.test.ts` | Accepted read-only observation remains unchanged; Batch D adds fixed capability-gated Advisor pointer delivery and disabled Hermes stub with no real transport side effect | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Real capability activation external; Hermes separately gated |
+| AO-ARCH-005 Sequential Batch A-E review train | `package.json`, `playwright.config.ts`, `tests/acceptance/batch-gates.test.ts`, future batch result artifacts | `tests/acceptance/batch-gates.test.ts` | Batches A-C dependencies are accepted; 35 Vitest files/149 tests and 15 Chromium tests pass with Batch E forbidden | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Advisor must accept Batch D before Batch E |
 
 The exhaustive material-requirement matrix is in `docs/FEATURE_INDEX.md`; local
 rows above are architecture anchors, not a substitute for that index.
