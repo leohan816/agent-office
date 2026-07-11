@@ -1,6 +1,6 @@
 # Agent Office Operations and Recovery Design
 
-Status: `REVIEWED_DESIGN__BATCH_A_B_C_ACCEPTED__BATCH_D_DURABLE_COMMUNICATION_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
+Status: `REVIEWED_DESIGN__BATCH_A_B_C_D_ACCEPTED__BATCH_E_LOCAL_RECOVERY_IMPLEMENTED__PENDING_IMPLEMENTATION_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 This design defines local durability, failure handling, restart, corruption
 quarantine, backup, restore, rollback, disable, and proof-of-recovery behavior.
@@ -8,8 +8,7 @@ Batch A implements the local state-root, ledger, immutable-artifact,
 checkpoint/projection, and startup/replay primitives at code commit
 `7edc8f79bedb059ab6697e64ddaf57fbebde2c87` and is Advisor-accepted. Batch B adds
 only local read-only observation/freshness/dashboard behavior at code commit
-`85e66d856e33a0df73041cb4b33aba30a8f9f96d`. Backup, restore, service operation,
-credentials, deployment, and live/private operation remain unimplemented.
+`85e66d856e33a0df73041cb4b33aba30a8f9f96d`.
 
 Batch C code commit `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`
 adds only a presentation-side recovery/staleness scene. Its recovery step count,
@@ -22,6 +21,13 @@ Advisor accepted Batch C as the Batch D dependency. Batch D code commit
 durable Advisor message/outbox/receipt/acknowledgement/intake/decision/resume and
 alert application. It does not implement service backup/restore, deployment,
 credentials, HTTP, PWA, remote recovery, or live transport operation.
+
+Advisor accepted Batch D as the Batch E dependency. Batch E implements the local
+disposable-fixture backup/restore/compatibility/readiness/delivery-disable/
+recovery-proof boundary at
+`e0a11f69fffc9d35d67cc478cbefbb92d93cf528`. Actual deployment, real-root
+operation, credentials, remote recovery, off-host/encrypted/scheduled backup,
+retention, and live transport operation remain unimplemented and gated.
 
 ## 1. Operating Model
 
@@ -94,8 +100,9 @@ single-writer authority and remain separately gated.
   Chromium, and the loopback Vite server to `ko_KR.UTF-8`; the ordinary 10-test
   command passes from both `C.UTF-8` and `ko_KR.UTF-8` callers. The installed
   Korean locale plus configured local browser/font root remain host
-  prerequisites, while cross-host/browser/font portability remains a Batch E
-  operations verification item. No product or service process locale is changed.
+  prerequisites. Batch E reverified all three regenerated status-strip baselines
+  under that configured runtime but makes no cross-host/browser/font portability
+  claim. No product or service process locale is changed.
 
 ### 1.4 Batch D as-built durability boundary
 
@@ -113,6 +120,32 @@ single-writer authority and remain separately gated.
 - Disposable tests cover orphan artifact, durable event before observed receipt,
   partial outbox, and started delivery without receipt. No real state root,
   observed repository, tmux input, process, network, or live data is used.
+
+### 1.5 Batch E as-built operations boundary
+
+Commit `e0a11f69fffc9d35d67cc478cbefbb92d93cf528` adds `src/operations/` and extends
+the owner-only state-root layout with `audit/` and `backups/`:
+
+- backup requires the writer lock to be absent, scans only regular owner-owned
+  `0700`/`0600` entries, requires an exact projection/checkpoint/idempotency/event
+  checkpoint, writes hashes/schema/build/source sequence, and publishes
+  `COMPLETE.json` last;
+- restore rejects incomplete/schema/path/mode/hash/build violations before use,
+  creates only a new owner-controlled candidate outside both active and backup
+  roots, replays/verifies projection/hash/idempotency, and returns
+  `selected: false`; explicit stopped-service selection remains a separate plan;
+- compatibility classification permits mutation only for a stopped,
+  read-write-compatible build and never performs destructive downgrade;
+- `DurableDeliveryControl` defaults off and durably replays/conflicts disable
+  requests; readiness exposes config/lock/store/replay/auth/SSE/delivery modes
+  without automatic re-enable; and
+- `writeRecoveryResult` creates an immutable proof with build/commit, hashes,
+  replay/idempotency, before/after denominator states, control receipts, elapsed
+  steps, forbidden scope, and Advisor review route.
+
+All recovery tests use disposable owner-only roots. No active/real root,
+off-host/cloud target, encryption key, schedule, retention action, deployment,
+Git rollback, process termination, or real transport state is touched.
 
 ## 2. Durability Objectives
 
@@ -499,6 +532,13 @@ tests pass:
 - service-worker unregister/update recovery; and
 - evidence-bearing recovery result generation.
 
+All listed Batch E cases pass in `tests/recovery/backup-restore.test.ts`,
+`tests/recovery/rollback-disable.test.ts`,
+`tests/recovery/recovery-result.test.ts`,
+`tests/operations/readiness.test.ts`, and the PWA/security suites at commit
+`e0a11f69fffc9d35d67cc478cbefbb92d93cf528`. The complete gate is 50 Vitest
+files/196 tests and 18 Chromium tests.
+
 All tests use disposable local fixtures and synthetic canary data. No real secret,
 DB, production/live system, remote host, protected branch, or public service is
 accessed.
@@ -507,11 +547,11 @@ accessed.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; owner-only init, writer exclusion/stale recovery, artifact/event durability, rotation, and hash-chain tests pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Backup/restore remains Batch E |
-| AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/event-store.ts`, `src/persistence/file-store/checkpoint-store.ts` | `tests/recovery/restart-replay.test.ts`, `tests/recovery/crash-consistency.test.ts` | Same-request replay/conflict, event-before-projection rebuild, verified checkpoint, and invalid-checkpoint genesis fallback pass; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Service recovery remains Batch E |
-| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/advisor-inbox/`, `src/application/hosts/freshness.ts`, `src/ui/scene/` | `tests/recovery/corruption-quarantine.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/integration/project-freshness.test.ts` | Batch A-C quarantine/freshness/presentation is accepted; Batch D scoped-artifact conflict and ambiguous delivery recover to replay/manual without blind resend | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Remote/service recovery remains Batch E |
-| AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | `NOT_IMPLEMENTED`; Sections 11-12, 16 | `DESIGNED_CANDIDATE` | Batch E; off-host/encryption gated |
-| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/adapters/gateways/`, `src/application/advisor-inbox/`; future `src/operations/` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch D implements transport disable/kill/malformed/stale manual fallback with strict clock and temporal boundaries; service rollback/backup controls remain absent | `IMPLEMENTED_BATCH_D_GATEWAY_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full operations controls remain Batch E; external transport is canonical |
-| AO-OPS-006 Redacted health/observability | `src/application/audit/`, `src/adapters/gateways/`; future `src/server/health/` | `tests/integration/lifecycle-audit.test.ts`, `tests/adapters/hermes-disabled.test.ts` | Batch D provides typed gateway health and redacted event-chain lifecycle audit with no body/secret/terminal content; server health/metrics remain absent | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Server observability remains Batch E |
+| AO-OPS-001 Single-writer durable artifact/event/projection protocol | `src/persistence/file-store/`, `src/operations/backup/` | `tests/recovery/crash-consistency.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/recovery/backup-restore.test.ts` | Accepted append protocol remains; backup refuses a live writer and captures only a complete exact checkpoint with modes/hashes/source metadata | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/real-root operation remains gated |
+| AO-OPS-002 Restart/idempotent recovery | `src/application/startup/recovery.ts`, `src/persistence/file-store/`, `src/operations/restore/` | `tests/recovery/restart-replay.test.ts`, `tests/integration/http-advisor-message.test.ts`, `tests/recovery/backup-restore.test.ts` | Existing restart replay plus HTTP same-request replay/conflict and restored candidate replay/projection/idempotency equivalence pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Explicit operator selection/re-enable remains required |
+| AO-OPS-003 Corruption quarantine and stale/conflict handling | `src/persistence/file-store/`, `src/application/advisor-inbox/`, `src/application/hosts/freshness.ts`, `src/operations/readiness/` | `tests/recovery/corruption-quarantine.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/operations/readiness.test.ts` | Accepted corruption/manual fallback remains; config/lock/store/replay/auth/stale/SSE failure modes now project mutation-disabled readiness | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Remote collectors/real service supervision remain gated |
+| AO-OPS-004 Backup/restore proof | `src/operations/backup/`, `src/operations/restore/` | `tests/recovery/backup-restore.test.ts` | Complete marker, schema/path/mode/hash/build/tamper checks, disjoint candidate, replay/projection/idempotency equality, and explicit non-selection pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Off-host/encryption/schedule/retention/real-root operation gated |
+| AO-OPS-005 Rollback/disable/kill-switch/manual fallback | `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/operations/compatibility/`, `src/operations/readiness/delivery-control.ts` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/recovery/rollback-disable.test.ts` | Accepted external kill/manual behavior plus build compatibility/no-downgrade and default-off durable local disable/replay/conflict pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Deployment/Git rollback and real transport re-enable remain external |
+| AO-OPS-006 Redacted health/observability and recovery proof | `src/application/audit/`, `src/server/security/audit.ts`, `src/server/application.ts`, `src/operations/evidence/` | `tests/security/audit-log.test.ts`, `tests/security/http-boundary.test.ts`, `tests/recovery/recovery-result.test.ts` | Redacted local status/security audit and immutable evidence-bearing recovery result pass without body/secret/path/terminal data | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real auth lifecycle audit, metrics, retention, Advisor review remain gated/pending |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

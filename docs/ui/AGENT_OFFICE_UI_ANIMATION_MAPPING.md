@@ -1,6 +1,6 @@
 # Agent Office UI and Animation Mapping
 
-Status: `REVIEWED_DESIGN__BATCH_B_C_ACCEPTED__BATCH_D_INBOX_ALERTS_IMPLEMENTED__PWA_GATED`
+Status: `REVIEWED_DESIGN__BATCH_B_C_D_ACCEPTED__BATCH_E_PWA_SHELL_IMPLEMENTED__REAL_AUTH_LIVE_BINDING_GATED__PENDING_REVIEW`
 
 This reviewed design defines the responsive, private PWA surface and the only
 allowed mapping from structured events to visual activity. Batch B implements the
@@ -15,8 +15,10 @@ correction `243d3a5731a6b22c29caeaba6567aed505f78d59` make the committed images
 reproducible across the approved `C.UTF-8` and `ko_KR.UTF-8` caller contexts on
 the configured local browser/font runtime. Advisor accepted Batch C as the Batch
 D dependency. Batch D Inbox/Alerts code/tests are implemented at
-`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`. HTTP/live data, auth, SSE, PWA,
-and service worker remain unimplemented.
+`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c` and were accepted as the Batch E
+dependency. Batch E PWA/runtime-strip code/tests/assets are implemented at
+`e0a11f69fffc9d35d67cc478cbefbb92d93cf528`; a real authenticated live-data
+binding remains gated because no real provider/credential is approved.
 
 ## 1. Experience Principles
 
@@ -533,8 +535,10 @@ alerts.
 ## 12. Advisor Inbox UI
 
 Batch D implements this local typed-port UI under `src/ui/communication/`.
-The static fixture remains read-only; a live authenticated browser binding is
-still Batch E.
+The Batch E default remains a read-only fixture because no real authentication
+provider is approved. The server-side typed application/HTTP boundary exists,
+but activating a live authenticated compose binding requires the separately
+gated real provider rather than a hidden fake login.
 
 The compose form contains mission, structured kind, subject, text, and allowlisted
 entity references. It never contains role/session/pane/command fields.
@@ -581,6 +585,24 @@ turns fenced code or shell-looking text into an executable control.
 - A failed service worker exposes a browser-specific unregister/reload recovery
   instruction without deleting server data.
 
+### 14.1 Batch E as-built PWA boundary
+
+Commit `e0a11f69fffc9d35d67cc478cbefbb92d93cf528` adds:
+
+- `public/manifest.webmanifest` and two project-authored local SVG icons;
+- `public/sw.js`, which install-caches the fixed shell plus built hashed assets,
+  caches only same-origin static GETs, excludes API/health/auth/message/artifact/
+  alert/decision paths and `no-store`, and has no sync handler or mutation queue;
+- `PwaRuntimeController`, with install-prompt capture, waiting-worker update only
+  after user action, controller-change reload, offline/online state, and shell-
+  cache-only unregister/reload recovery; and
+- the persistent `RuntimeBoundary` showing `LOOPBACK_PRIVATE`, read-only/auth,
+  app delivery/manual fallback, online/offline, worker/update, and recovery state.
+
+Because no approved real provider exists, the current UI truthfully renders
+`AUTH_BLOCKED`, `READ_ONLY`, and `MANUAL_FALLBACK_REQUIRED`; it does not render a
+fake authenticated live projection or queue offline submissions.
+
 ## 15. UI Acceptance Tests
 
 Batch B component/view-model tests cover the base hierarchy, all reviewed
@@ -624,23 +646,28 @@ Batch C test paths now cover:
 - caller-locale-independent browser/font selection on the configured host, with
   the three baseline bytes unchanged after process-locale normalization.
 
-Remaining Batch E test paths must cover:
-
-- PWA installability, offline read-only, no mutation queue, update, and cache
-  exclusion tests;
-- later dialog/drawer focus restoration and PWA offline/update accessibility.
+Batch E expands the complete regression to 50 Vitest files/196 tests and 18
+sequential Chromium tests. `tests/ui/runtime-boundary.component.test.tsx`,
+`tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-lifecycle.spec.ts`, and
+`tests/e2e/pwa-cache-security.spec.ts` cover install prompt, user-gated update,
+offline read-only state, no mutation queue, install-time hashed assets, sensitive
+cache exclusion, and unregister recovery. The required runtime strip caused the
+only visual delta: exactly the three scene baselines were regenerated under the
+configured locale/runtime, directly inspected at desktop/mobile/reduced-motion,
+and the 18/18 suite passes. Dialog/drawer focus remains inapplicable because no
+new dialog/drawer was added.
 
 ## 16. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Accepted dashboard/scene remain stable; Batch D adds responsive Advisor communication after the operations grid | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Live/server/PWA remains Batch E |
+| AO-UI-001 Quiet responsive hierarchy/operations UI with fixed Korean hierarchy/progress vocabulary | `src/ui/dashboard.tsx`, `src/ui/styles.css`, `src/ui/i18n/ko.ts`, `src/ui/communication/`, `src/ui/pwa/` | `tests/ui/dashboard.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/communication-center.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Accepted dashboard/scene/communication remain; Batch E adds only the persistent private/safe-mode/PWA strip and passes all responsive gates | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated data requires real-provider gate |
 | AO-UI-002 Structured-event-only 16-name conformance and animations including result writing | `src/ui/scene/` | `tests/ui/activity-mapping.test.ts`, `tests/ui/activity-precedence.test.ts`, `tests/ui/scene-boundary.test.ts` | Exact Batch C scene mapping is Advisor-accepted and all visual baselines remain unchanged in Batch D | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene mapping |
-| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/communication-center.spec.ts` | Scene plus Inbox/Alerts semantic/live/focus/44px/reduced-motion/WCAG A/AA responsive browser gates pass | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | PWA/dialog lifecycle remains Batch E |
-| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/e2e/office-scene.spec.ts` | Batch C asset and locale evidence is Advisor-accepted; Batch D uses the existing exact-pinned local Lucide dependency and changes no baseline asset | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | Cross-host/browser/font portability remains Batch E |
-| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/` | `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Fixed request ID, closed form, PERSISTED-only response, separate delivery/ack/intake/decision/resume/close evidence, manual pointer/hash, and read-only fixture pass | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated binding remains Batch E |
-| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/alerts/`, `src/ui/communication/`, `src/ui/scene/` | `tests/integration/alert-application.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Nine-kind detail/dedup/lifecycle, six safe actions, exact question/options/recommendation/default/owner/action/evidence, and persistent critical display pass; backup/recovery operations remain absent | `IMPLEMENTED_BATCH_D_ALERT_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Full recovery/PWA controls remain Batch E |
-| AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/` | `tests/e2e/pwa-lifecycle.spec.ts` | `NOT_IMPLEMENTED`; Section 14 | `DESIGNED_CANDIDATE` | Batch E |
-| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx`, `src/ui/communication/` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/e2e/communication-center.spec.ts` | Accepted prior labels plus all five message kinds, nine alert kinds, and six exact Korean alert actions render without aliases or silent translation | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | PWA vocabulary remains Batch E |
+| AO-UI-003 Accessibility/reduced motion | `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/`, `src/ui/styles.css` | `tests/ui/office-scene.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/communication-center.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Runtime strip uses semantic status/details/buttons; 44px, keyboard, reduced-motion, WCAG A/AA, offline warning, 320/200%-text and landscape gates pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Future live-auth focus transitions require real-provider review |
+| AO-UI-004 Local asset/icon licensing and stable dimensions | `src/ui/assets/LICENSES.md`, `src/ui/scene/asset-registry.ts`, `src/ui/scene/assets/`, `public/icons/`, `playwright.config.ts` | `tests/ui/layout-contract.test.ts`, `tests/pwa/cache-policy.test.ts`, `tests/e2e/office-scene.spec.ts` | Accepted scene/local-font runtime remains; Batch E adds two licensed project-authored local PWA SVGs and intentionally updates exactly three inspected baselines for the visible status strip | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Cross-host/browser/font portability remains an operations prerequisite |
+| AO-UI-005 Advisor inbox receipt/ack/intake/decision UX | `src/ui/communication/`, `src/server/application.ts`, `src/server/http/` | `tests/ui/communication-center.component.test.tsx`, `tests/integration/http-advisor-message.test.ts`, `tests/e2e/communication-center.spec.ts` | Accepted closed form/evidence stages remain; server returns PERSISTED only and replay/conflict passes, while the default UI stays read-only because no real provider is approved | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated binding requires separate real-provider authority |
+| AO-UI-006 Canonical typed alert/blocker/recovery/stale evidence UX | `src/application/alerts/`, `src/ui/communication/`, `src/ui/scene/`, `src/ui/pwa/`, `src/operations/` | `tests/integration/alert-application.test.ts`, `tests/recovery/recovery-result.test.ts`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted alert UI remains; PWA runtime exposes read-only/offline/manual/recovery controls while backup/restore success remains evidence artifacts, not a UI toast | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Rich live recovery projection awaits approved real binding |
+| AO-UI-007 PWA install/offline/update | `src/pwa/`, `src/ui/pwa/`, `public/` | `tests/pwa/cache-policy.test.ts`, `tests/ui/runtime-boundary.component.test.tsx`, `tests/e2e/pwa-lifecycle.spec.ts`, `tests/e2e/pwa-cache-security.spec.ts` | Manifest/icons, hashed install cache, offline read-only, no background write, user-gated update/reload, and unregister recovery pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real authenticated live binding remains gated |
+| AO-UI-008 Canonical Korean status/action/blocker vocabulary and deterministic fallback | `src/ui/i18n/ko.ts`, `src/ui/scene/office-scene.tsx`, `src/ui/communication/`, `src/ui/pwa/` | `tests/ui/korean-vocabulary.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/ui/runtime-boundary.component.test.tsx` | Accepted domain labels remain exact; Batch E security/PWA state codes are deliberately visible stable operational codes with no silent authority translation | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Product localization of new security codes requires a reviewed vocabulary change |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

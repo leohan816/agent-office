@@ -1,6 +1,6 @@
 # Agent Office Gateway and Multi-Host Design
 
-Status: `REVIEWED_DESIGN__BATCH_B_C_ACCEPTED__BATCH_D_LOCAL_GATEWAYS_IMPLEMENTED__REMOTE_GATED`
+Status: `REVIEWED_DESIGN__BATCH_B_C_D_ACCEPTED__BATCH_E_HTTP_SSE_BINDING_IMPLEMENTED__REMOTE_AND_REAL_TRANSPORT_GATED__PENDING_REVIEW`
 
 This reviewed design defines typed integration ports, the M01 Advisor gateway,
 read-only observations, multi-project topology, and designed-but-gated remote host
@@ -23,7 +23,11 @@ manual fallback. Tests used fakes only; no tmux input, launcher execution,
 network, credential, host mutation, or remote capability was used.
 AO-D-R1 rework commit `04809004bfd863181f4af8260879f56bc8b6ede6`
 closes runtime vocabulary and temporal boundary validation without adding a
-transport, target, retry, repair, process, or network path.
+transport or authority surface. Advisor accepted Batch D as the Batch E
+dependency. Batch E commit `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`
+adds the typed loopback HTTP application binding and read-only SSE only. It does
+not activate or inspect real tmux, Hermes, remote hosts, keys, Tailscale, or any
+external network capability.
 
 ## 1. Integration Principles
 
@@ -150,8 +154,19 @@ message PERSISTED
   -> optional DECISION_RECORDED/APPLIED
 ```
 
-The Batch D direct application receipt confirms only `PERSISTED`. Future HTTP/SSE
-wiring remains Batch E and must preserve this separation.
+The Batch D direct application receipt confirms only `PERSISTED`. Batch E
+`src/server/application.ts` and `src/server/http/server.ts` preserve that exact
+boundary: HTTP returns the durable persistence receipt only; delivery,
+acknowledgement, intake, decision, resume, and close remain separate typed ports
+and evidence. `tests/integration/http-advisor-message.test.ts` proves the same
+request returns the original persistence receipt after store/server restart and
+changed bytes return 409 without a second event.
+
+Batch E SSE is projection notification only. `src/server/sse/index.ts` carries
+revision plus notification IDs, never the message body/pointer artifact/terminal
+data. It enforces authentication, two concurrent streams per session, six
+attempts/minute, bounded cursor replay/reset, heartbeat validation, and immediate
+server-side session revocation. It does not call a gateway or mutation port.
 
 ## 4. TmuxAdvisorGateway
 
@@ -508,12 +523,13 @@ gated.
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/adapters/gateways/tmux-advisor/`, `src/adapters/gateways/advisor.ts` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Exact request/receipt/pointer schema, same-ID replay/conflict, strict runtime vocabulary, valid-clock/future-issued/exclusive-expiry checks, manual fallback, ambiguous lookup/no resend, and no process/network import pass through AO-D-R1 | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Real approved transport capability remains external and unused |
-| AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/` | `tests/adapters/hermes-disabled.test.ts` | Health is `DISABLED_NOT_IMPLEMENTED`; queue returns typed `DISABLED`; lookup returns undefined with no endpoint/credential/network/process/write/cache | `IMPLEMENTED_BATCH_D_DISABLED_STUB__PENDING_ADVISOR_ACCEPTANCE` | Separate Leo/GPT Hermes mission |
+| AO-INT-001 TmuxAdvisorGateway fixed Advisor-only pointer delivery | `src/adapters/gateways/tmux-advisor/`, `src/adapters/gateways/advisor.ts` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Exact request/receipt/pointer schema, replay/conflict, time/vocabulary/kill/manual/ambiguous no-resend and no process/network import passed AO-D-R1 and were accepted as the Batch E dependency | `IMPLEMENTED_BATCH_D__ADVISOR_ACCEPTED` | Real approved transport capability remains external and unused |
+| AO-INT-002 Hermes interface/stub only | `src/adapters/gateways/hermes/` | `tests/adapters/hermes-disabled.test.ts`, `tests/acceptance/batch-gates.test.ts` | Accepted disabled stub remains byte/behavior compatible; Batch E adds no endpoint/credential/network/process/write/cache or activation path | `IMPLEMENTED_BATCH_D_DISABLED_STUB__ADVISOR_ACCEPTED` | Separate Leo/GPT Hermes mission |
 | AO-INT-003 Read-only manifest/Git/artifact/tmux adapters | `src/adapters/observations/` | `tests/adapters/git-readonly.test.ts`, `tests/adapters/artifact-manifest.test.ts`, `tests/adapters/tmux-readonly.test.ts` | Fixed argv, no-shell/no-write, hostile input, cap/timeout, bounded file, exact structured tmux, and real read-only smoke were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | None for the local Batch B subset |
 | AO-INT-004 Multi-project registry/root isolation | `src/application/projects/registry.ts` | `tests/integration/project-freshness.test.ts` | Stable ID lookup, path-free summary, wrong-project denial, and cross-project overlap rejection were Advisor-accepted after Batch B | `IMPLEMENTED_BATCH_B__ADVISOR_ACCEPTED` | Browser registry mutation remains absent |
 | AO-INT-005 Linux/Mac multi-host trust and observation envelope | `src/adapters/hosts/` | `tests/contract/host-observation.test.ts` | `NOT_IMPLEMENTED`; Sections 7-9 | `DEFERRED_WITH_GATE` | Private-network, key, remote-host mission |
 | AO-INT-006 Offline/reconnect/gap/stale evidence | `src/application/hosts/freshness.ts`, `src/ui/scene/state-machine.ts` | `tests/integration/project-freshness.test.ts`, `tests/ui/activity-mapping.test.ts` | Batch B/C local freshness/presentation is Advisor-accepted; remote envelope/gap/reconnect remains absent | `IMPLEMENTED_BATCH_C_LOCAL_PRESENTATION_SUBSET__ADVISOR_ACCEPTED` | Remote behavior remains gated |
-| AO-INT-007 Canonical AlertKind notification, deterministic deduplication, and manual fallback | `src/application/alerts/`, `src/application/advisor-inbox/`, `src/ui/communication/` | `tests/integration/alert-application.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/ui/communication-center.component.test.tsx` | Nine-kind dedup/action preservation, durable message notification recovery/manual fallback, and persistent alert UI pass | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | HTTP/live notification sink remains Batch E |
+| AO-INT-007 Canonical AlertKind notification, deterministic deduplication, and manual fallback | `src/application/alerts/`, `src/application/advisor-inbox/`, `src/server/application.ts`, `src/ui/communication/` | `tests/integration/alert-application.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/security/http-boundary.test.ts` | Accepted nine-kind/durable/manual behavior remains; exact Advisor-only HTTP ports expose acknowledgement/intake/decision/alert-ack/app-disable without generic role/target dispatch | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real gateway delivery/re-enable remains externally gated |
+| AO-INT-008 Closed HTTP persistence and read-only SSE | `src/server/application.ts`, `src/server/http/`, `src/server/sse/` | `tests/integration/http-advisor-message.test.ts`, `tests/integration/sse-reconnect.test.ts`, `tests/security/http-boundary.test.ts` | Persistence-only receipt replays across restart; changed input conflicts; SSE is auth/cursor/heartbeat/revocation bounded and body-free; 50/196 and 18/18 full regression passes at `e0a11f69fffc9d35d67cc478cbefbb92d93cf528` | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real auth provider and remote/multi-host fanout remain gated |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.

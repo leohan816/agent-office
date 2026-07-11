@@ -1,6 +1,6 @@
 # Agent Office Domain and Event Contract
 
-Status: `REVIEWED_DESIGN__BATCH_A_B_C_ACCEPTED__BATCH_D_APPLICATION_IMPLEMENTED__PENDING_ADVISOR_ACCEPTANCE`
+Status: `REVIEWED_DESIGN__BATCH_A_B_C_D_ACCEPTED__BATCH_E_BOUNDARY_IMPLEMENTED__PENDING_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Contract version: `agent-office.domain.v1`
 
@@ -15,8 +15,12 @@ contract in a pure presentation runtime at code commit
 `e30a6cda52e14a4bf30b2d1b7445fa26645496e5`; it appends no event and cannot
 change a durable projection. Advisor accepted Batch C as the Batch D dependency.
 Batch D implements the local message/notification/alert/lifecycle application at
-`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c`; HTTP/server and Batch E flows
-remain unimplemented.
+`7366036f8a1e6fc9d4e911e8d193e17eeb95f54c` and was accepted as the Batch E
+dependency. Batch E commit `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`
+adds HTTP/session/SSE and recovery boundaries without adding or changing a
+domain event type, transition, actor authority, completion rule, or manifest
+denominator. Its typed server maps only to the Batch D application ports; backup
+and restore copy/replay the same version-1 ledger rather than rewriting it.
 
 ## 1. Contract Principles
 
@@ -557,8 +561,10 @@ persistedEventId, persistedMissionSequence, acceptedAt, status=PERSISTED, replay
 ```
 
 A retry with the same `requestId` and same payload hash returns the prior durable
-receipt. Same ID/different hash returns `IDEMPOTENCY_KEY_REUSED`; a future HTTP
-boundary may map that stable rejection to 409 in Batch E.
+receipt. Same ID/different hash returns `IDEMPOTENCY_KEY_REUSED`; the Batch E HTTP
+boundary maps that stable rejection to 409 and returns no second domain event.
+`tests/integration/http-advisor-message.test.ts` proves both outcomes across a
+server/store restart.
 
 ### 8.3 Canonical Advisor intake
 
@@ -791,12 +797,12 @@ or intake as a resume transition.
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
 | AO-DOM-001 Manifest hierarchy/counting/scope change | `src/domain/manifest/index.ts`, `fixtures/manifests/` | `tests/domain/manifest.test.ts`, `tests/property/scope-counting.test.ts` | Commit `7edc8f79bedb059ab6697e64ddaf57fbebde2c87`; exact source SHA-256 `195b65b5afa1cd71833f67aa63aa85dd3c869e63f2a017f122584b374a835ac8`; Advisor accepted Batch A | `IMPLEMENTED_BATCH_A__ADVISOR_ACCEPTED` | Dashboard consumption implemented in Batch B; later scope changes still require authority |
-| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts`, `src/application/audit/` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/integration/lifecycle-audit.test.ts` | Accepted ledger remains intact; Batch D lifecycle/gateway/ack/decision/resume records preserve sequence/hash chain in a content-redacted audit view | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Separate security log/service wiring remains Batch E |
-| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch C activity mapping is Advisor-accepted; Batch D message/notification/alert transitions reject premature acknowledgement/intake and reconcile crash boundaries deterministically | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | None for local Batch D application |
-| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/` | `tests/domain/transitions.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Exact five kinds, artifact-before-event, same-ID replay/conflict, outbox/manual delivery, separate acknowledgement/intake/decision/ResumeProof/close pass | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | HTTP/live runtime remains Batch E |
-| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/ui/scene/state-machine.ts` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/integration/advisor-inbox.test.ts` | Batch A-C projection/freshness behavior is accepted; Batch D adds replay-only message/notification projection without changing completion authority | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Full service/remote evidence remains Batch E |
+| AO-DOM-002 Event envelope/hash chain/order/causality | `src/domain/events/index.ts`, `src/persistence/file-store/event-store.ts`, `src/application/audit/`, `src/server/security/audit.ts` | `tests/domain/event-envelope.test.ts`, `tests/persistence/hash-chain.test.ts`, `tests/integration/lifecycle-audit.test.ts`, `tests/security/audit-log.test.ts` | Accepted ledger remains intact; Batch E adds a separate owner-only serialized/tamper-checked redacted security audit without changing domain sequence | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real-auth lifecycle audit/retention remain gated |
+| AO-DOM-003 Complete entity state machines, required observable conformance, and invalid-transition handling | `src/domain/state-machines/`, `src/domain/activity/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/ui/scene/state-machine.ts` | `tests/property/transition-matrix.test.ts`, `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Batch C mapping and Batch D transitions are Advisor-accepted; Batch E changes no state machine and the full 196-test regression preserves all rejections/reconciliation | `IMPLEMENTED_THROUGH_BATCH_D__ADVISOR_ACCEPTED` | None for the local domain application |
+| AO-DOM-004 Idempotent Advisor message/intake/decision/resume | `src/domain/messages/index.ts`, `src/domain/decisions/resume-proof.ts`, `src/application/advisor-inbox/`, `src/server/application.ts`, `src/server/http/` | `tests/integration/advisor-inbox.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts`, `tests/integration/http-advisor-message.test.ts` | Accepted exact five-kind/artifact/event lifecycle remains; persistence-only HTTP replay returns the original receipt and changed input is 409 with sequence unchanged | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real authenticated UI binding remains gated |
+| AO-DOM-005 Deterministic projection and evidence completion | `src/application/projections/mission-projector.ts`, `src/application/evidence/index.ts`, `src/application/advisor-inbox/projector.ts`, `src/operations/restore/`, `src/server/sse/` | `tests/persistence/replay.test.ts`, `tests/recovery/restart-replay.test.ts`, `tests/recovery/backup-restore.test.ts`, `tests/integration/sse-reconnect.test.ts` | Accepted projection/completion authority remains; isolated restore proves the same projection hash and SSE exposes revision/notification IDs only, never creates truth | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Remote evidence remains gated |
 | AO-DOM-006 Structured-event-only activity including result writing/return | `src/domain/activity/index.ts`, `src/ui/scene/` | `tests/domain/writing-result-activity.test.ts`, `tests/ui/activity-mapping.test.ts`, `tests/ui/scene-boundary.test.ts` | Batch C event-ID-only activity/result mapping is Advisor-accepted and remains unchanged in Batch D regression | `IMPLEMENTED_BATCH_C__ADVISOR_ACCEPTED` | None for scene activity |
-| AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts`, `src/application/alerts/`, `src/ui/communication/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, `tests/integration/alert-application.test.ts`, `tests/ui/communication-center.component.test.tsx` | Closed 16/9 vocabularies, alert dedup/lifecycle/detail, and byte-exact ordered 13-field UI copy pass | `IMPLEMENTED_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Server notification wiring remains Batch E |
+| AO-DOM-007 Typed blocker/alert/GPT package contracts | `src/domain/blockers/index.ts`, `src/domain/alerts/index.ts`, `src/domain/decisions/gpt-package.ts`, `src/application/alerts/`, `src/server/application.ts`, `src/ui/communication/` | `tests/contract/blocker-alert-vocabulary.test.ts`, `tests/snapshot/gpt-package.test.ts`, `tests/integration/alert-application.test.ts`, `tests/security/http-boundary.test.ts` | Accepted closed vocabularies and byte-exact package remain; Batch E typed alert acknowledgement/intake/decision routes add no new kind or authority | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real Advisor/Leo decision authority remains external |
 
 The cross-document matrix in `docs/FEATURE_INDEX.md` is authoritative for package
 discoverability and links these contract IDs to the remaining security, gateway,

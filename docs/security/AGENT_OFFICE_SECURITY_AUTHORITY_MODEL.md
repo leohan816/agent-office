@@ -1,6 +1,6 @@
 # Agent Office Security and Authority Model
 
-Status: `REVIEWED_DESIGN__BATCH_B_C_ACCEPTED__BATCH_D_LOCAL_AUTHORITY_BOUNDARY_IMPLEMENTED__SERVER_SECURITY_GATED`
+Status: `REVIEWED_DESIGN__BATCH_B_C_D_ACCEPTED__BATCH_E_LOOPBACK_SECURITY_IMPLEMENTED__REAL_AUTH_PRIVATE_NETWORK_GATED__PENDING_REVIEW`
 
 This reviewed design defines browser, service, adapter, actor, and deployment
 trust boundaries. Batch B implements only the local read-only adapter and static
@@ -23,6 +23,13 @@ AO-D-R1 rework commit `04809004bfd863181f4af8260879f56bc8b6ede6`
 adds strict runtime capability vocabulary, clock, and temporal validation without
 adding any authority or transport surface.
 
+Advisor accepted Batch D as the Batch E dependency. Batch E commit
+`e0a11f69fffc9d35d67cc478cbefbb92d93cf528` implements only the loopback,
+test-auth/session-contract, closed HTTP/SSE, PWA-cache, redacted audit, and local
+recovery security boundary described here. It accesses no real credential and
+does not enable private/public ingress, TLS/HSTS, deployment, DB, remote host,
+Hermes, real tmux input, off-host backup, or production/live mode.
+
 ## 1. Security Objectives
 
 Agent Office must:
@@ -41,7 +48,7 @@ Agent Office must:
 
 Availability never outranks actor separation or evidence integrity.
 
-### 1.1 Batch B-D as-built security subset
+### 1.1 Batch B-E as-built security boundary
 
 - `src/application/projects/registry.ts` validates trusted absolute roots and
   rejects cross-project overlap; browser summaries contain IDs, not paths.
@@ -56,8 +63,9 @@ Availability never outranks actor separation or evidence integrity.
   is exposed.
 - `src/ui/dashboard.tsx` retains filtering, selection, expansion, and evidence
   copy; `src/ui/communication/` adds only the closed Advisor message form and
-  typed alert actions. There is no server route, arbitrary path/role/session/
-  pane/command target, or auth surface.
+  typed alert actions. Batch E `src/server/http/` exposes only the documented
+  static/read/status/SSE routes and six exact typed mutations; arbitrary
+  path/role/session/pane/command/Worker/Reviewer targets do not exist.
 - `src/ui/scene/` receives only typed scene projections and accepted event IDs.
   Extra prose/process-shaped properties are ignored; stale, conflicted,
   disconnected, incompatible, or unaccepted sources fail closed and suppress
@@ -71,10 +79,19 @@ Availability never outranks actor separation or evidence integrity.
 - `src/adapters/gateways/` exposes no process/network primitive. A prevalidated
   opaque `ADVISOR_ONLY` capability gates the canonical pointer envelope; any
   disabled/kill/malformed/stale/conflict/ambiguous state is manual fallback.
+- `src/server/network/`, `src/server/auth/`, and `src/server/security/` enforce
+  loopback peer/bind, exact Host/same origin, no forwarding/CORS, guarded test
+  auth, opaque revocable sessions, capability/CSRF/Fetch Metadata, strict JSON,
+  body/time/rate bounds, CSP/no-store, and owner-only hash-chained audit. Default
+  config selects no provider and mutation-disabled read-only mode.
+- `src/pwa/`, `public/sw.js`, and `src/ui/pwa/` precache the built hashed shell,
+  exclude all API/auth/message/evidence routes, provide no sync queue, and show
+  loopback/auth/read-only/delivery/offline/update/recovery state.
 - Adapter/security boundary tests are deterministic and use fake tool runners;
   traversal, symlink, special-file, hostile argv/ref/name, timeout/cap, root
-  isolation, malicious inert text, capability matrix, and Batch E forbidden-scope
-  cases pass in the 155-test suite plus 15 Chromium tests.
+  isolation, malicious inert text, capability matrix, and forbidden-scope cases
+  pass in 50 Vitest files/196 tests plus 18 Chromium tests at
+  `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`.
 
 ## 2. Threat Model
 
@@ -290,16 +307,16 @@ Security headers include a nonce/hash-based CSP with no unsafe inline/eval,
 Private-network HTTPS adds HSTS only after exact host/TLS review; it is not emitted
 carelessly on generic localhost names.
 
-Batch D implements only the non-HTTP content subset: subject is at most 200
-Unicode scalars, body at most 16 KiB, the whole structured command/artifact at
-most 32 KiB, and references at most 50 allowlisted IDs; disallowed control
-characters and unknown fields fail closed. React text nodes and an inert fenced
-code renderer never interpret supplied HTML or code as a control. HTTP headers,
-link policy, request parsing, and rate limiting remain Batch E.
+Batch E preserves the Batch D content bounds and adds exact HTTP enforcement:
+subject at most 200 Unicode scalars, body at most 16 KiB, whole mutation at most
+32 KiB, at most 50 allowlisted IDs, fatal UTF-8/JSON parsing, unknown-field and
+control rejection, bounded timeout, CSP with no unsafe inline/eval, redacted
+error bodies, and typed application responses. React text nodes and the inert
+fenced-code renderer continue to treat hostile markup as content only.
 
 ## 10. Rate Limits and Resource Bounds
 
-Initial candidate limits are configuration constants reviewed in Batch E:
+The implemented single-instance loopback limits are:
 
 | Surface | Limit |
 |---|---|
@@ -316,8 +333,11 @@ In-memory limiter reset after restart is acceptable only because durable request
 idempotency remains enforced; private-network/multi-instance operation requires a
 new shared-limit design and is deferred.
 
-The message body/whole-payload/reference bounds in this table are enforced in
-Batch D domain/application code. Per-subject and HTTP rate limits are not.
+`src/server/security/rate-limiter.ts` and `src/server/http/server.ts` enforce the
+table, including the two-connection SSE cap in `src/server/sse/index.ts`.
+`tests/security/rate-limit.test.ts`, `tests/security/http-boundary.test.ts`, and
+`tests/integration/sse-reconnect.test.ts` pass. The limiter is intentionally
+in-memory and makes no shared/multi-host safety claim.
 
 ## 11. Filesystem and Adapter Security
 
@@ -394,9 +414,14 @@ future Leo/GPT/operations decision; M01 does not auto-delete history.
 Batch D implements a narrower redacted projection over the already durable
 hash-chained domain ledger in `src/application/audit/`. It filters to lifecycle
 events and allowlists IDs, state, hashes, sequence, actor role, and timestamps;
-tests prove message/note content is absent. The separate security audit stream,
-auth/CSRF/rate rejections, backup/retention, and server presentation remain
-Batch E and are not claimed here.
+tests prove message/note content is absent. Batch E adds serialized owner-only
+`audit/security-000001.jsonl` records for startup/bind class and HTTP outcomes,
+with IDs, stable codes, subject/request/correlation refs and safe payload hashes
+only. Restart hash-chain validation, concurrent append ordering, tamper rejection,
+and canary redaction pass in `tests/security/audit-log.test.ts` and
+`tests/security/http-boundary.test.ts`. A real auth provider and its lifecycle
+audit, audit rotation, and retention remain gated because no real provider or
+retention authority exists.
 
 ## 14. Kill Switch, Disable, and Manual Fallback
 
@@ -421,6 +446,11 @@ The UI always shows delivery state and the manual pointer path. Re-enable requir
 fresh configuration/authority validation and an audit receipt; it is never timed
 or automatic.
 
+Batch E adds `DurableDeliveryControl`, which starts disabled, writes an immutable
+disable receipt plus owner-only idempotency index, replays the same request after
+restart, conflicts on changed input, and exposes no enable method. It neither
+changes nor bypasses the external canonical transport kill switch.
+
 ## 15. PWA and Offline Security
 
 - Service worker precaches only content-hashed static app-shell assets.
@@ -433,9 +463,14 @@ or automatic.
 - A service-worker update is versioned, integrity checked, and activated through a
   visible reload flow. A broken worker has a documented unregister/recovery path.
 
+The Batch E default UI has no live authenticated provider and therefore holds no
+server-loaded sensitive projection. It remains visibly `AUTH_BLOCKED` and
+`READ_ONLY`; the real logout/session-expiry client binding remains part of the
+separately gated real-provider work rather than a hidden fake login.
+
 ## 16. Security Acceptance Tests
 
-Batch E must include at least:
+Batch E evidence includes:
 
 - non-loopback bind fail-closed tests;
 - missing/invalid auth provider mutation denial;
@@ -454,15 +489,21 @@ Batch E must include at least:
 Tests use synthetic credentials/canaries only. No real secret, external exposure,
 Tailscale action, or production identity is permitted by this design.
 
+At commit `e0a11f69fffc9d35d67cc478cbefbb92d93cf528`, all listed applicable local
+tests pass within the 50-file/196-test Vitest and 18-test Chromium suites. The
+path/special-file/direct-exec items also remain covered by the accepted Batch B-D
+adapter regression. Local built-shell smoke confirms `127.0.0.1`, CSP, immutable
+hashed assets, redacted status, and `AUTH_PROVIDER_UNAVAILABLE` mutation denial.
+
 ## 17. Local Traceability
 
 | DESIGN_REQUIREMENT | IMPLEMENTATION_PATH | TEST_PATH | CURRENT_EVIDENCE | STATUS | DEFERRED_GATE |
 |---|---|---|---|---|---|
-| AO-SEC-001 Loopback private fail-closed bind | `src/server/network/` | `tests/security/bind-policy.test.ts` | `NOT_IMPLEMENTED`; Section 5 | `DESIGNED_CANDIDATE` | Batch E; private network separately gated |
-| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/server/auth/` | `tests/security/auth-session.test.ts` | `NOT_IMPLEMENTED`; Sections 3 and 6 | `DESIGNED_CANDIDATE` | Batch E and real-secret authority if activated |
-| AO-SEC-003 CSRF/origin/rate/input/output controls | `src/domain/messages/`, `src/ui/communication/`; future `src/server/security/` | `tests/domain/transitions.test.ts`, `tests/ui/communication-center.component.test.tsx` | Batch D implements closed fields, message/artifact bounds, allowlisted refs, control rejection, and inert text/code rendering only; CSRF/origin/rate/HTTP controls remain absent | `IMPLEMENTED_BATCH_D_CONTENT_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | HTTP security remains Batch E |
-| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/ui/communication/`; future `src/server/routes/` | `tests/integration/tmux-advisor-gateway.test.ts`, `tests/ui/communication-center.component.test.tsx`, `tests/acceptance/batch-gates.test.ts` | Batch D form exposes no target field; gateway accepts one exact pointer schema, has no process/network import, and cannot route Worker/Reviewer/session/pane/command | `IMPLEMENTED_THROUGH_BATCH_D__PENDING_ADVISOR_ACCEPTANCE` | Re-prove at Batch E HTTP boundary |
-| AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/`, `src/application/advisor-inbox/` | `tests/integration/lifecycle-audit.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Redacted ledger projection, strict capability vocabulary/clock/time boundary, kill/stale/conflict fail-closed behavior, durable receipt/manual evidence, and ambiguous no-resend pass | `IMPLEMENTED_BATCH_D_LOCAL_SUBSET__PENDING_ADVISOR_ACCEPTANCE` | Separate security audit/server and real transport remain Batch E/external |
-| AO-SEC-006 PWA/offline confidentiality | `src/pwa/` | `tests/e2e/pwa-cache-security.spec.ts` | `NOT_IMPLEMENTED`; Section 15 | `DESIGNED_CANDIDATE` | Batch E |
+| AO-SEC-001 Loopback private fail-closed bind | `src/server/network/`, `src/server/http/static-shell.ts`, `config/agent-office.loopback.json` | `tests/security/bind-policy.test.ts`, `tests/security/static-shell.test.ts`, `tests/security/private-network-disabled.test.ts` | Explicit loopback bind/peer/Host only; proxy/wildcard/nonloopback/private-mode changes and unsafe static paths fail closed; no CORS/TLS/HSTS claim | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Private/public network and deployment separately gated |
+| AO-SEC-002 Auth/session/capability model without embedded secrets | `src/server/auth/`, `src/server/config.ts` | `tests/security/auth-session.test.ts`, `tests/security/http-boundary.test.ts` | Provider interface, guarded synthetic provider, opaque host-only session/cookie, rotation/expiry/revocation/capability checks pass; no-provider default denies mutation | `IMPLEMENTED_BATCH_E_TEST_BOUNDARY_ONLY__PENDING_ADVISOR_ACCEPTANCE` | Real provider/credential and lifecycle audit need secret-handling authority |
+| AO-SEC-003 CSRF/origin/rate/input/output controls | `src/domain/messages/`, `src/server/network/`, `src/server/security/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/security/rate-limit.test.ts`, `tests/integration/http-advisor-message.test.ts` | Exact Host/origin/fetch/CSRF/content/schema/size/time/rate controls, CSP/no-store, typed receipt-only POST, restart replay/conflict, inert text and redacted errors/audit pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Shared limiter/private origin/TLS remain gated |
+| AO-SEC-004 No browser role dispatch or arbitrary command | `src/adapters/observations/`, `src/adapters/gateways/`, `src/application/advisor-inbox/`, `src/server/http/`, `src/ui/communication/` | `tests/security/http-boundary.test.ts`, `tests/integration/tmux-advisor-gateway.test.ts`, `tests/acceptance/batch-gates.test.ts` | Six exact typed mutations and read/static routes only; command/target/role/path/Worker/Reviewer/terminal routes and fields reject; server has no process primitive | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Fixed prohibition; real Advisor transport remains external |
+| AO-SEC-005 Audit/kill-switch/manual fallback | `src/application/audit/`, `src/adapters/gateways/`, `src/operations/readiness/delivery-control.ts`, `src/server/security/audit.ts` | `tests/security/audit-log.test.ts`, `tests/recovery/rollback-disable.test.ts`, `tests/recovery/advisor-message-crash-consistency.test.ts` | Accepted gateway fail-closed/manual behavior plus owner-only security audit and default-off durable app disable/replay/conflict pass | `IMPLEMENTED_THROUGH_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Real transport state/re-enable and audit retention remain external/gated |
+| AO-SEC-006 PWA/offline confidentiality | `src/pwa/`, `src/ui/pwa/`, `public/sw.js` | `tests/pwa/cache-policy.test.ts`, `tests/e2e/pwa-cache-security.spec.ts`, `tests/e2e/pwa-lifecycle.spec.ts` | Hashed shell install cache, sensitive-prefix/no-store exclusion, GET-only runtime cache, no sync queue, offline read-only, user update, unregister recovery pass | `IMPLEMENTED_BATCH_E__PENDING_ADVISOR_ACCEPTANCE` | Live authenticated UI requires separately approved real provider |
 
 Cross-document traceability is indexed in `docs/FEATURE_INDEX.md`.
