@@ -83,6 +83,7 @@ export async function loadOperationalRuntimeConfiguration(
     if (
       !info.isFile() ||
       (currentUid !== undefined && info.uid !== currentUid) ||
+      (info.mode & 0o022) !== 0 ||
       info.size < 1 ||
       info.size > 256 * 1024
     ) {

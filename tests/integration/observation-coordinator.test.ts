@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -65,6 +65,37 @@ describe('operational observation/import coordinator', () => {
     const linkedPath = path.join(root, 'linked.json');
     await symlink(configPath, linkedPath);
     await expect(loadOperationalRuntimeConfiguration(linkedPath)).rejects.toMatchObject({
+      code: 'INVALID_SCHEMA',
+    });
+  });
+
+  it.each([
+    ['0400', 0o400],
+    ['0600', 0o600],
+  ] as const)('accepts owner-controlled config mode %s', async (_label, mode) => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-office-operational-config-mode-'));
+    temporaryRoots.push(root);
+    const configPath = path.join(root, 'operational.json');
+    await writeFile(configPath, `${JSON.stringify(await externalConfiguration())}\n`, { mode: 0o600 });
+    await chmod(configPath, mode);
+
+    await expect(loadOperationalRuntimeConfiguration(configPath)).resolves.toMatchObject({
+      schemaVersion: 'agent-office.operational-runtime.v1',
+    });
+  });
+
+  it.each([
+    ['0620', 0o620],
+    ['0602', 0o602],
+    ['0666', 0o666],
+  ] as const)('rejects group or other writable config mode %s', async (_label, mode) => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-office-operational-config-mode-'));
+    temporaryRoots.push(root);
+    const configPath = path.join(root, 'operational.json');
+    await writeFile(configPath, `${JSON.stringify(await externalConfiguration())}\n`, { mode: 0o600 });
+    await chmod(configPath, mode);
+
+    await expect(loadOperationalRuntimeConfiguration(configPath)).rejects.toMatchObject({
       code: 'INVALID_SCHEMA',
     });
   });
