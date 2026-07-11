@@ -4,6 +4,18 @@ import path from 'node:path';
 
 import { defineConfig, devices } from '@playwright/test';
 
+export const PLAYWRIGHT_PROCESS_LOCALE = 'ko_KR.UTF-8';
+
+export function withPlaywrightProcessLocale(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...environment,
+    LANG: PLAYWRIGHT_PROCESS_LOCALE,
+    LC_ALL: PLAYWRIGHT_PROCESS_LOCALE,
+  };
+}
+
+Object.assign(process.env, withPlaywrightProcessLocale(process.env));
+
 const localRuntimeRoot = path.join(homedir(), '.cache/ms-playwright/local-runtime/root');
 if (existsSync(localRuntimeRoot)) {
   const localLibraries = [
@@ -15,6 +27,8 @@ if (existsSync(localRuntimeRoot)) {
   process.env.FONTCONFIG_PATH = path.join(localRuntimeRoot, 'etc/fonts');
   process.env.FONTCONFIG_SYSROOT = localRuntimeRoot;
 }
+
+const browserProcessEnvironment = withPlaywrightProcessLocale(process.env);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -31,10 +45,17 @@ export default defineConfig({
     locale: 'ko-KR',
     timezoneId: 'UTC',
     colorScheme: 'dark',
+    launchOptions: {
+      env: browserProcessEnvironment,
+    },
     trace: 'retain-on-failure',
   },
   webServer: {
     command: 'npm run dev -- --port 4173',
+    env: {
+      LANG: PLAYWRIGHT_PROCESS_LOCALE,
+      LC_ALL: PLAYWRIGHT_PROCESS_LOCALE,
+    },
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: false,
     timeout: 120_000,

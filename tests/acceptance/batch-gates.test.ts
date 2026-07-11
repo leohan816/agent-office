@@ -80,6 +80,59 @@ describe('Batch A/B regression and Batch C scope gates', () => {
     }
   });
 
+  it('normalizes Playwright browser and web-server process locales in configuration', async () => {
+    const environmentKeys = [
+      'LANG',
+      'LC_ALL',
+      'LD_LIBRARY_PATH',
+      'FONTCONFIG_PATH',
+      'FONTCONFIG_SYSROOT',
+    ] as const;
+    const originalEnvironment = new Map(
+      environmentKeys.map((key) => [key, process.env[key]] as const),
+    );
+    process.env.LANG = 'C.UTF-8';
+    process.env.LC_ALL = 'C.UTF-8';
+
+    try {
+      const {
+        default: playwrightConfig,
+        PLAYWRIGHT_PROCESS_LOCALE,
+        withPlaywrightProcessLocale,
+      } = await import('../../playwright.config.js');
+
+      expect(PLAYWRIGHT_PROCESS_LOCALE).toBe('ko_KR.UTF-8');
+      expect(withPlaywrightProcessLocale({
+        LANG: 'C.UTF-8',
+        LC_ALL: 'C.UTF-8',
+        PATH: '/test/bin',
+      })).toEqual({
+        LANG: 'ko_KR.UTF-8',
+        LC_ALL: 'ko_KR.UTF-8',
+        PATH: '/test/bin',
+      });
+      expect(process.env.LANG).toBe(PLAYWRIGHT_PROCESS_LOCALE);
+      expect(process.env.LC_ALL).toBe(PLAYWRIGHT_PROCESS_LOCALE);
+      expect(playwrightConfig.use?.launchOptions?.env).toMatchObject({
+        LANG: PLAYWRIGHT_PROCESS_LOCALE,
+        LC_ALL: PLAYWRIGHT_PROCESS_LOCALE,
+      });
+      const webServer = playwrightConfig.webServer;
+      if (webServer === undefined || Array.isArray(webServer)) {
+        throw new Error('expected one deterministic Playwright web server');
+      }
+      expect(webServer.env).toEqual({
+        LANG: PLAYWRIGHT_PROCESS_LOCALE,
+        LC_ALL: PLAYWRIGHT_PROCESS_LOCALE,
+      });
+    } finally {
+      for (const [key, value] of originalEnvironment) {
+        if (value === undefined) Reflect.deleteProperty(process.env, key);
+        else process.env[key] = value;
+      }
+    }
+  });
+
   it('keeps Batch D/E and forbidden mutation/network/database surfaces absent', async () => {
     const source = await readSourceTree(path.join(root, 'src'));
     expect(source).not.toMatch(/node:(?:http|https|net|tls)/u);
