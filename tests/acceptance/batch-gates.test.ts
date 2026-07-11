@@ -37,10 +37,19 @@ const requiredTests = [
   'tests/ui/office-scene.component.test.tsx',
   'tests/e2e/office-scene.spec.ts',
   'tests/e2e/accessibility.spec.ts',
+  'tests/persistence/scoped-artifact.test.ts',
+  'tests/recovery/advisor-message-crash-consistency.test.ts',
+  'tests/integration/advisor-inbox.test.ts',
+  'tests/integration/tmux-advisor-gateway.test.ts',
+  'tests/integration/alert-application.test.ts',
+  'tests/integration/lifecycle-audit.test.ts',
+  'tests/adapters/hermes-disabled.test.ts',
+  'tests/ui/communication-center.component.test.tsx',
+  'tests/e2e/communication-center.spec.ts',
 ] as const;
 
-describe('Batch A/B regression and Batch C scope gates', () => {
-  it('contains every required Batch A-C test and deterministic verification command', async () => {
+describe('Batch A-C regression and Batch D scope gates', () => {
+  it('contains every required Batch A-D test and deterministic verification command', async () => {
     await Promise.all(requiredTests.map((file) => access(path.join(root, file))));
     const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as {
       dependencies: Record<string, string>;
@@ -69,7 +78,7 @@ describe('Batch A/B regression and Batch C scope gates', () => {
     }
   });
 
-  it('preserves the approved denominator while exposing only the approved Batch C top-level surfaces', async () => {
+  it('preserves the approved denominator while exposing only approved Batch D top-level surfaces', async () => {
     const manifest = await loadApprovedManifest();
     expect(manifest.workUnits).toHaveLength(15);
     expect(manifest.counting.denominator).toBe(15);
@@ -133,14 +142,21 @@ describe('Batch A/B regression and Batch C scope gates', () => {
     }
   });
 
-  it('keeps Batch D/E and forbidden mutation/network/database surfaces absent', async () => {
+  it('contains Batch D application/gateway surfaces while keeping Batch E and forbidden capabilities absent', async () => {
     const source = await readSourceTree(path.join(root, 'src'));
+    const gatewaySource = await readSourceTree(path.join(root, 'src/adapters/gateways'));
     expect(source).not.toMatch(/node:(?:http|https|net|tls)/u);
+    expect(gatewaySource).not.toMatch(/node:child_process|node:(?:http|https|net|tls)/u);
     expect(source).not.toMatch(/(?:express|sqlite|postgres|mysql|prisma|typeorm)/iu);
-    expect(source).not.toMatch(/TmuxAdvisorGateway|HermesAdvisorGateway/u);
-    expect(source).not.toMatch(/AdvisorInbox|serviceWorker|EventSource|WebSocket/u);
+    expect(source).toMatch(/TmuxAdvisorGateway/u);
+    expect(source).toMatch(/HermesAdvisorGateway/u);
+    expect(source).toMatch(/AdvisorInboxService/u);
+    expect(source).not.toMatch(/serviceWorker|EventSource|WebSocket/u);
     expect(source).not.toMatch(/send-keys|capture-pane|run-shell|paste-buffer|load-buffer/u);
     await expect(access(path.join(root, 'src/ui/scene'))).resolves.toBeUndefined();
+    await expect(access(path.join(root, 'src/ui/communication'))).resolves.toBeUndefined();
+    await expect(access(path.join(root, 'src/adapters/gateways/tmux-advisor/index.ts'))).resolves.toBeUndefined();
+    await expect(access(path.join(root, 'src/adapters/gateways/hermes/index.ts'))).resolves.toBeUndefined();
     await expect(access(path.join(root, 'src/server'))).rejects.toBeDefined();
     await expect(access(path.join(root, 'src/pwa'))).rejects.toBeDefined();
   });

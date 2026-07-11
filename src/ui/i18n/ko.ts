@@ -1,6 +1,8 @@
 import type { ObservationPresentation } from '../../application/hosts/freshness.js';
 import type { ObservableProjectionName, RequiredObservableName } from '../../domain/activity/index.js';
 import type { BlockerKind, ResolutionOwner } from '../../domain/blockers/index.js';
+import type { AlertActionCode, AlertKind } from '../../domain/alerts/index.js';
+import type { AdvisorMessageKind } from '../../domain/messages/index.js';
 
 export const HIERARCHY_LABELS_KO = {
   initiative: '활성 작업 묶음',
@@ -83,3 +85,32 @@ export const RESOLUTION_OWNER_LABELS_KO: Readonly<Record<ResolutionOwner | 'UNKN
 export function blockerReasonLabel(kind: BlockerKind, reasonCode: string): string {
   return `${BLOCKER_LABELS_KO[kind]} (${reasonCode})`;
 }
+
+export const ADVISOR_MESSAGE_KIND_LABELS_KO: Readonly<Record<AdvisorMessageKind, string>> = {
+  NEW_MISSION: '새 미션',
+  CLARIFICATION: '명확화 요청',
+  DECISION_RESPONSE: '결정 응답',
+  PAUSE: '일시정지 요청',
+  CANCEL: '취소 요청',
+};
+
+export const ALERT_KIND_LABELS_KO: Readonly<Record<AlertKind, string>> = {
+  NEEDS_LEO_DECISION: 'Leo/GPT 결정 필요',
+  PASS_WITH_RISK: '위험을 포함한 통과',
+  BLOCKED: '차단됨',
+  AUTHENTICATION_REQUIRED: '인증 필요',
+  MANUAL_ACTION_REQUIRED: '수동 조치 필요',
+  FINAL_APPROVAL_REQUIRED: '최종 승인 필요',
+  MISSION_COMPLETE: '미션 완료',
+  MISSION_FAILED: '미션 실패',
+  INFORMATION: '정보',
+};
+
+export const ALERT_ACTION_LABELS_KO: Readonly<Record<AlertActionCode, string>> = {
+  COPY_GPT_PACKAGE: 'GPT 패키지 복사',
+  OPEN_EVIDENCE: '증거 열기',
+  REPLY_TO_ADVISOR: 'Advisor에게 답장',
+  HOLD: '보류',
+  PAUSE_MISSION: '미션 일시정지',
+  CANCEL_MISSION: '미션 취소',
+};

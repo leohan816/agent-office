@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BLOCKER_LABELS_KO,
+  ADVISOR_MESSAGE_KIND_LABELS_KO,
+  ALERT_ACTION_LABELS_KO,
+  ALERT_KIND_LABELS_KO,
   FRESHNESS_LABELS_KO,
   HIERARCHY_LABELS_KO,
   PROGRESS_LABELS_KO,
@@ -73,6 +76,35 @@ describe('reviewed Korean operations vocabulary', () => {
       UNKNOWN: '알 수 없음',
       CONFLICT: '충돌',
       ERROR: '오류',
+    });
+  });
+
+  it('keeps the closed Batch D message, alert, and action vocabulary', () => {
+    expect(ADVISOR_MESSAGE_KIND_LABELS_KO).toEqual({
+      NEW_MISSION: '새 미션',
+      CLARIFICATION: '명확화 요청',
+      DECISION_RESPONSE: '결정 응답',
+      PAUSE: '일시정지 요청',
+      CANCEL: '취소 요청',
+    });
+    expect(Object.keys(ALERT_KIND_LABELS_KO)).toEqual([
+      'NEEDS_LEO_DECISION',
+      'PASS_WITH_RISK',
+      'BLOCKED',
+      'AUTHENTICATION_REQUIRED',
+      'MANUAL_ACTION_REQUIRED',
+      'FINAL_APPROVAL_REQUIRED',
+      'MISSION_COMPLETE',
+      'MISSION_FAILED',
+      'INFORMATION',
+    ]);
+    expect(ALERT_ACTION_LABELS_KO).toEqual({
+      COPY_GPT_PACKAGE: 'GPT 패키지 복사',
+      OPEN_EVIDENCE: '증거 열기',
+      REPLY_TO_ADVISOR: 'Advisor에게 답장',
+      HOLD: '보류',
+      PAUSE_MISSION: '미션 일시정지',
+      CANCEL_MISSION: '미션 취소',
     });
   });
 });

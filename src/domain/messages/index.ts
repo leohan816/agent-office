@@ -9,11 +9,11 @@ import {
 import { assertUtcTimestamp, assertUuidV7 } from '../time/index.js';
 
 export const ADVISOR_MESSAGE_KINDS = [
-  'NOTE',
-  'QUESTION',
-  'DECISION_INPUT',
-  'SCOPE_REQUEST',
-  'ACKNOWLEDGEMENT',
+  'NEW_MISSION',
+  'CLARIFICATION',
+  'DECISION_RESPONSE',
+  'PAUSE',
+  'CANCEL',
 ] as const;
 
 export type AdvisorMessageKind = (typeof ADVISOR_MESSAGE_KINDS)[number];
@@ -78,5 +78,8 @@ export function assertSubmitAdvisorMessage(value: unknown): asserts value is Sub
     if (!/^[A-Z0-9][A-Z0-9._-]{0,127}$/u.test(entityId)) {
       throw new DomainError('INVALID_SCHEMA', 'message entity reference is invalid');
     }
+  }
+  if (Buffer.byteLength(JSON.stringify(value), 'utf8') > 32 * 1024) {
+    throw new DomainError('INVALID_SCHEMA', 'message payload exceeds its whole-payload bound');
   }
 }

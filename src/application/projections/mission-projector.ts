@@ -159,8 +159,10 @@ export function applyMissionEvent(
     case 'AdvisorMessageDeliveryQueued':
     case 'AdvisorMessageDelivered':
     case 'AdvisorMessageDeliveryFailed':
+    case 'AdvisorMessageManualFallbackRequired':
     case 'AdvisorMessageAcknowledged':
     case 'AdvisorIntakeRecorded':
+    case 'AdvisorMessageDecisionLinked':
     case 'AdvisorMessageClosed':
       candidate = applyEntityRecord(candidate, event, 'messages', 'messageId');
       break;

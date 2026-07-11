@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { link, open, unlink } from 'node:fs/promises';
+import { link, open, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -15,6 +15,7 @@ import {
 } from './path-safety.js';
 
 const ARTIFACT_KIND = /^[a-z][a-z0-9-]{0,63}$/u;
+const IDENTITY_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 
 export interface ImmutableArtifactReceipt {
   readonly relativePath: string;
@@ -34,11 +35,52 @@ export class ImmutableArtifactStore {
     return this.putBytes(kind, Buffer.concat([canonicalBytes(value), Buffer.from('\n', 'utf8')]), 'json');
   }
 
+  public async putScopedCanonicalJson(
+    kind: string,
+    identitySegments: readonly string[],
+    value: unknown,
+    maxByteLength = 32 * 1024,
+  ): Promise<ImmutableArtifactReceipt> {
+    if (
+      !ARTIFACT_KIND.test(kind) ||
+      identitySegments.length === 0 ||
+      identitySegments.some((segment) => !IDENTITY_SEGMENT.test(segment))
+    ) {
+      throw new StoreError('PATH_CONTAINMENT_FAILED', 'scoped artifact identity is invalid');
+    }
+    const bytes = Buffer.concat([canonicalBytes(value), Buffer.from('\n', 'utf8')]);
+    if (!Number.isSafeInteger(maxByteLength) || maxByteLength < 1 || bytes.byteLength > maxByteLength) {
+      throw new StoreError('IO_DURABILITY_FAILED', 'scoped artifact exceeds its byte bound');
+    }
+    const directory = await ensurePrivateDirectory(
+      this.root,
+      path.join('artifacts', kind, ...identitySegments),
+    );
+    const sha256 = sha256Bytes(bytes);
+    const filename = `${sha256.slice('sha256:'.length)}.json`;
+    const existingNames = (await readdir(directory)).filter((name) => name.endsWith('.json'));
+    if (existingNames.some((name) => name !== filename)) {
+      throw new StoreError(
+        'IMMUTABLE_ARTIFACT_CONFLICT',
+        'scoped artifact identity already contains different immutable bytes',
+      );
+    }
+    return this.putBytesInDirectory(directory, bytes, 'json');
+  }
+
   public async putBytes(kind: string, bytes: Uint8Array, extension = 'bin'): Promise<ImmutableArtifactReceipt> {
     if (!ARTIFACT_KIND.test(kind) || !/^[a-z0-9]{1,16}$/u.test(extension)) {
       throw new StoreError('PATH_CONTAINMENT_FAILED', 'artifact kind or extension is invalid');
     }
     const directory = await ensurePrivateDirectory(this.root, path.join('artifacts', kind));
+    return this.putBytesInDirectory(directory, bytes, extension);
+  }
+
+  private async putBytesInDirectory(
+    directory: string,
+    bytes: Uint8Array,
+    extension: string,
+  ): Promise<ImmutableArtifactReceipt> {
     const sha256 = sha256Bytes(bytes);
     const filename = `${sha256.slice('sha256:'.length)}.${extension}`;
     const finalPath = path.join(directory, filename);

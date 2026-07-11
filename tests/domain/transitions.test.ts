@@ -58,13 +58,18 @@ describe('entity state transitions', () => {
       requestId: uuidV7(1),
       missionId: MISSION_ID,
       manifestVersion: 1,
-      kind: 'QUESTION',
+      kind: 'CLARIFICATION',
       subject: 'Bounded question',
       bodyText: 'Synthetic body',
       referencedEntityIds: ['AO-WU-07'],
       clientCreatedAt: FIXED_TIME,
     };
-    expect(() => assertSubmitAdvisorMessage(message)).not.toThrow();
+    for (const kind of ['NEW_MISSION', 'CLARIFICATION', 'DECISION_RESPONSE', 'PAUSE', 'CANCEL']) {
+      expect(() => assertSubmitAdvisorMessage({ ...message, kind })).not.toThrow();
+    }
+    expect(() => assertSubmitAdvisorMessage({ ...message, kind: 'QUESTION' })).toThrow(
+      expect.objectContaining<Partial<DomainError>>({ code: 'INVALID_SCHEMA' }),
+    );
     expect(() => assertSubmitAdvisorMessage({ ...message, targetRole: 'Agent Office Worker' })).toThrow(
       expect.objectContaining<Partial<DomainError>>({ code: 'UNKNOWN_FIELD' }),
     );

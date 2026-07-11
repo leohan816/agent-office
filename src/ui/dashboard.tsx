@@ -16,14 +16,18 @@ import type {
   DashboardWorkUnitViewModel,
 } from '../application/queries/dashboard-view-model.js';
 import { OfficeScene } from './scene/office-scene.js';
+import { CommunicationCenter } from './communication/communication-center.js';
+import type { CommunicationCenterActionPort, CommunicationCenterModel } from './communication/types.js';
 
 type FilterValue = 'ALL' | 'ATTENTION' | 'WAITING' | 'COMPLETED';
 
 export interface DashboardProps {
   readonly model: DashboardViewModel;
+  readonly communicationModel?: CommunicationCenterModel;
+  readonly communicationActionPort?: CommunicationCenterActionPort;
 }
 
-export function Dashboard({ model }: DashboardProps) {
+export function Dashboard({ model, communicationModel, communicationActionPort }: DashboardProps) {
   const [filter, setFilter] = useState<FilterValue>('ALL');
   const firstAttention = model.workUnits.find((workUnit) => workUnit.blocker !== undefined);
   const [selectedId, setSelectedId] = useState(firstAttention?.id ?? model.workUnits[0]?.id ?? '');
@@ -248,6 +252,12 @@ export function Dashboard({ model }: DashboardProps) {
           </div>
         </aside>
       </div>
+      {communicationModel === undefined ? null : (
+        <CommunicationCenter
+          model={communicationModel}
+          {...(communicationActionPort === undefined ? {} : { actionPort: communicationActionPort })}
+        />
+      )}
     </div>
   );
 }
