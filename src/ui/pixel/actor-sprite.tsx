@@ -15,19 +15,19 @@ export function drawActorSprite(
   const x = Math.round(frame.x - 16);
   const y = Math.round(frame.y - 44 + walkOffset);
 
-  graphics.ellipse(frame.x, frame.y + 1, 13, 5).fill({ color: 0x171925, alpha: 0.42 });
+  graphics.ellipse(frame.x, frame.y + 1, 13, 5).fill({ color: 0x5c5b58, alpha: 0.2 });
   if (selected) {
     graphics.roundRect(x - 4, y - 4, 40, 52, 8)
       .stroke({ color: identity.secondaryColor, width: 2, alpha: 0.9 });
   }
 
   // Hair, head, eyes and warm skin pixels.
-  pixelRect(graphics, x + 9, y + 1, 14, 4, 0x2e2632);
+  pixelRect(graphics, x + 9, y + 1, 14, 4, 0x47484a);
   pixelRect(graphics, x + 7, y + 5, 18, 11, 0xffd6a3);
-  pixelRect(graphics, x + 7, y + 5, 3, 8, 0x3b2e38);
-  pixelRect(graphics, x + 22, y + 5, 3, 8, 0x3b2e38);
-  pixelRect(graphics, x + 11, y + 9, 2, 2, 0x252536);
-  pixelRect(graphics, x + 19, y + 9, 2, 2, 0x252536);
+  pixelRect(graphics, x + 7, y + 5, 3, 8, 0x575456);
+  pixelRect(graphics, x + 22, y + 5, 3, 8, 0x575456);
+  pixelRect(graphics, x + 11, y + 9, 2, 2, 0x383a3c);
+  pixelRect(graphics, x + 19, y + 9, 2, 2, 0x383a3c);
   pixelRect(graphics, x + 14, y + 13, 4, 1, 0xb65f5d);
 
   // Project clothing is redundant with DOM text, glyph, pattern and sign.
@@ -36,10 +36,10 @@ export function drawActorSprite(
   drawIdentityPattern(graphics, identity, x + 8, y + 22);
   pixelRect(graphics, x + 3, y + 19 + typeOffset, 4, 13, identity.primaryColor);
   pixelRect(graphics, x + 25, y + 19 - typeOffset, 4, 13, identity.primaryColor);
-  pixelRect(graphics, x + 8, y + 35, 7, 9 + walkOffset, 0x35405c);
-  pixelRect(graphics, x + 18, y + 35, 7, 9 - walkOffset, 0x35405c);
-  pixelRect(graphics, x + 6, y + 43 + walkOffset, 10, 3, 0x252536);
-  pixelRect(graphics, x + 17, y + 43 - walkOffset, 10, 3, 0x252536);
+  pixelRect(graphics, x + 8, y + 35, 7, 9 + walkOffset, 0x69727c);
+  pixelRect(graphics, x + 18, y + 35, 7, 9 - walkOffset, 0x69727c);
+  pixelRect(graphics, x + 6, y + 43 + walkOffset, 10, 3, 0x4b4e51);
+  pixelRect(graphics, x + 17, y + 43 - walkOffset, 10, 3, 0x4b4e51);
 
   if (frame.animation === 'TYPE') drawKeyboard(graphics, x + 3, y + 29 + typeOffset);
   if (frame.animation === 'REVIEW') drawChecklist(graphics, x + 25 + reviewOffset, y + 18);
@@ -85,8 +85,8 @@ function drawIdentityPattern(
 }
 
 function drawKeyboard(graphics: PixelGraphicsPort, x: number, y: number): void {
-  pixelRect(graphics, x, y, 25, 6, 0x222839);
-  for (let key = 0; key < 5; key += 1) pixelRect(graphics, x + 3 + key * 4, y + 2, 2, 2, 0x75d5d0);
+  pixelRect(graphics, x, y, 25, 6, 0x5a5d60);
+  for (let key = 0; key < 5; key += 1) pixelRect(graphics, x + 3 + key * 4, y + 2, 2, 2, 0xa9d4d9);
 }
 
 function drawChecklist(graphics: PixelGraphicsPort, x: number, y: number): void {

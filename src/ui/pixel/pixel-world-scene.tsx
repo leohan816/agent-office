@@ -29,6 +29,7 @@ export interface PixelWorldSceneProps {
   readonly running: boolean;
   readonly restartToken: number;
   readonly onFrame: (frame: PixelWorldFrameV1) => void;
+  readonly onVisualFrame: (frame: PixelWorldFrameV1) => void;
   readonly onComplete: () => void;
 }
 
@@ -39,6 +40,7 @@ export function PixelWorldScene({
   running,
   restartToken,
   onFrame,
+  onVisualFrame,
   onComplete,
 }: PixelWorldSceneProps) {
   const worldRef = useRef<PixelContainerPort>(null);
@@ -55,11 +57,12 @@ export function PixelWorldScene({
     if (world === null || graphics === null) return;
     applyWorldCamera(world, frame.camera, options.viewportWidth, options.viewportHeight);
     drawDynamicFrame(graphics, frame, projection);
+    onVisualFrame(frame);
     if (lastSceneIdRef.current !== frame.sceneId) {
       lastSceneIdRef.current = frame.sceneId;
       onFrame(frame);
     }
-  }, [onFrame, options.viewportHeight, options.viewportWidth, projection]);
+  }, [onFrame, onVisualFrame, options.viewportHeight, options.viewportWidth, projection]);
 
   useLayoutEffect(() => {
     lastSceneIdRef.current = null;

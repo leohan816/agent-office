@@ -12,6 +12,7 @@ import {
   totalGeneratedRgbaBytes,
 } from '../../src/ui/pixel/assets/atlas-manifest.js';
 import { sha256Hex } from '../../src/ui/pixel/assets/atlas-builder.js';
+import { LIVING_OFFICE_PALETTE, PROJECT_PIXEL_COLORS } from '../../src/ui/pixel/assets/palette.js';
 
 describe('original code-native living-office atlas contract', () => {
   it('builds exactly four bounded deterministic texture sources with SHA-256 truth', () => {
@@ -39,6 +40,11 @@ describe('original code-native living-office atlas contract', () => {
     expect(requirePixelAtlas('channy.v1').built.width).toBeLessThanOrEqual(512);
     expect(requirePixelAtlas('channy.v1').built.height).toBeLessThanOrEqual(512);
     expect(totalGeneratedRgbaBytes()).toBeLessThanOrEqual(32 * 1024 * 1024);
+    console.info(`PIXEL_ATLAS_HASHES ${JSON.stringify(PIXEL_ATLAS_MANIFESTS.map((manifest) => ({
+      atlasId: manifest.atlasId,
+      sourceSha256: manifest.sourceSha256,
+      generatedRgbaSha256: manifest.generatedRgbaSha256,
+    })))}`);
     const rgba = Buffer.concat(PIXEL_ATLAS_BUNDLES.map((bundle) => Buffer.from(bundle.built.rgba)));
     expect(gzipSync(rgba, { level: 9 }).byteLength).toBeLessThanOrEqual(256 * 1024);
   });
@@ -76,6 +82,7 @@ describe('original code-native living-office atlas contract', () => {
       expect(matches.every((animation) => animation.frameIds.length >= minimum)).toBe(true);
     }
     for (const [animationId, minimum] of [
+      ['channy.walk', 6], ['channy.stop', 1], ['channy.sniff', 3],
       ['channy.roam', 6], ['channy.sit', 3], ['channy.eat', 4], ['channy.drink', 4],
       ['channy.sleep', 4], ['channy.play', 6], ['channy.react-waiting-leo', 3],
       ['channy.react-blocked', 3], ['channy.react-complete', 4],
@@ -85,6 +92,17 @@ describe('original code-native living-office atlas contract', () => {
       expect(matches.length, animationId).toBeGreaterThan(0);
       expect(matches.every((animation) => animation.frameIds.length >= minimum)).toBe(true);
     }
+  });
+
+  it('uses the reviewed modern light-office palette with project colors as accents', () => {
+    expect(LIVING_OFFICE_PALETTE.wall).toEqual([247, 244, 236, 255]);
+    expect(LIVING_OFFICE_PALETTE.floor).toEqual([215, 188, 151, 255]);
+    expect(LIVING_OFFICE_PALETTE.floorLight).toEqual([235, 216, 187, 255]);
+    expect(LIVING_OFFICE_PALETTE.glass).toEqual([157, 205, 220, 190]);
+    expect(LIVING_OFFICE_PALETTE.ink).toEqual([55, 58, 61, 255]);
+    expect(Object.keys(PROJECT_PIXEL_COLORS).sort()).toEqual([
+      'agent-office', 'control', 'cosmile', 'foundation', 'siasiu', 'vibenews',
+    ]);
   });
 
   it('documents ownership, replacement gates and no external/protected source', async () => {

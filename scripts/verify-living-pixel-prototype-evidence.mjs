@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 const artifactRoot = path.join(repositoryRoot, 'artifacts/m1-2-visual-prototype');
 const designBase = '9611d0da1479ca5e7a9677641fe767a6b39b4a38';
+const visualPatchBase = 'c535877b61ad8a1e3d74dca5c6fec0ada4cac3f8';
 const requiredFiles = [
   'agent-office-living-office-prototype.webm',
   'agent-office-living-office-prototype.mp4',
@@ -67,14 +68,14 @@ const recordingCommand = 'npx playwright test tests/e2e/living-pixel-prototype.r
 const mp4Command = `/usr/bin/ffmpeg -nostdin -hide_banner -loglevel error -y -i ${webmPath} -an -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -movflags +faststart ${mp4Path}`;
 const gifCommand = `/usr/bin/ffmpeg -nostdin -hide_banner -loglevel error -y -ss 00:00:06.000 -t 00:00:07.000 -i ${webmPath} -vf "fps=12,scale=720:-2:flags=neighbor,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=diff[p];[s1][p]paletteuse=dither=none" -loop 0 ${gifPath}`;
 const descriptions = {
-  'agent-office-living-office-prototype.webm': 'Continuous actual Playwright loopback run of the deterministic 26-second synthetic office timeline',
+  'agent-office-living-office-prototype.webm': 'Continuous actual Playwright loopback run with camera-tracked actor labels, slow paused Channy sequence and Advisor handoff',
   'agent-office-living-office-prototype.mp4': 'H.264 yuv420p conversion of the exact captured WebM',
-  'agent-office-living-office-prototype.gif': 'Continuous 6.0-13.0 second WebM segment with Worker walk, Channy roam and Advisor handoff',
-  'full-office.png': 'PIXEL-V01 full shared office at 0ms, 1440x900',
-  'team-activity.png': 'PIXEL-V02 Foundation accepted synthetic WORKING frame at 4500ms, 1440x900',
+  'agent-office-living-office-prototype.gif': 'Continuous 6.0-13.0 second WebM segment with Worker walk, slow Channy walk-stop-sniff presentation and Advisor handoff',
+  'full-office.png': 'PIXEL-V01 modern light shared office with all camera-tracked actor labels at 0ms, 1440x900',
+  'team-activity.png': 'PIXEL-V02 Foundation accepted synthetic WORKING frame with role/model/session/state label at 4500ms, 1440x900',
   'lounge.png': 'PIXEL-V06 verified-idle coffee lounge at 16000ms, 1440x900',
-  'channy.png': 'PIXEL-V07 Channy neutral roam at 18000ms, 1440x900',
-  'mobile.png': 'PIXEL-V12 focused Foundation Pod at 4500ms, 390x844',
+  'channy.png': 'PIXEL-V07 focused close-up of original Bedlington Terrier slow eased walk at 18000ms, 1440x900',
+  'mobile.png': 'PIXEL-V12 focused Foundation Pod with actor identity label at 4500ms, 390x844',
 };
 
 const rootStatus = await stat(artifactRoot);
@@ -90,6 +91,7 @@ assert(tracked.status === 0 && tracked.stdout.trim() === '', 'artifact root cont
 
 const baselineRoots = ['tests/e2e/baselines', 'tests/e2e-composed/baselines'];
 const acceptedBaselineSet = new Set(acceptedBaselinePaths);
+const livingPrototypeBaselineSet = new Set(livingPrototypeBaselinePaths);
 assert(acceptedBaselineSet.size === 39, 'accepted baseline contract must contain exactly 39 unique paths');
 assert(livingPrototypeBaselinePaths.length === 13, 'living-prototype baseline contract must contain exactly 13 paths');
 assert(reconciledBaselinePaths.length === 26, 'reconciled baseline contract must contain exactly 26 paths');
@@ -113,6 +115,10 @@ const changedFromDesignBase = checkedGitPaths(
   ['diff', '--name-only', designBase, '--', ...baselineRoots],
   'design-base baseline diff failed',
 );
+const changedFromVisualPatchBase = checkedGitPaths(
+  ['diff', '--name-only', visualPatchBase, '--', ...baselineRoots],
+  'visual-patch-base baseline diff failed',
+);
 const changedInWorkingTree = checkedGitPaths(
   ['diff', '--name-only', '--', ...baselineRoots],
   'working-tree baseline diff failed',
@@ -125,21 +131,31 @@ const untrackedBaselinePaths = checkedGitPaths(
   ['ls-files', '--others', '--exclude-standard', '--', ...baselineRoots],
   'untracked baseline inspection failed',
 );
-const observedBaselinePaths = new Set([
-  ...changedFromDesignBase,
+const observedVisualPatchBaselinePaths = new Set([
+  ...changedFromVisualPatchBase,
   ...changedInWorkingTree,
   ...stagedBaselinePaths,
   ...untrackedBaselinePaths,
 ]);
-for (const baselinePath of observedBaselinePaths) {
-  assert(acceptedBaselineSet.has(baselinePath), `baseline outside exact 39-path contract: ${baselinePath}`);
+for (const baselinePath of observedVisualPatchBaselinePaths) {
+  assert(livingPrototypeBaselineSet.has(baselinePath), `baseline outside exact 13-path visual patch contract: ${baselinePath}`);
 }
 assert(
-  setsEqual(observedBaselinePaths, acceptedBaselineSet),
-  'changed, staged, and untracked baseline evidence does not equal the exact 39-path contract',
+  setsEqual(changedFromDesignBase, acceptedBaselineSet),
+  'design-lineage baseline evidence does not equal the exact 39-path contract',
+);
+assert(
+  setsEqual(changedFromVisualPatchBase, livingPrototypeBaselineSet),
+  'visual patch must change exactly all 13 living-prototype baselines from c535877',
+);
+assert(
+  setsEqual(observedVisualPatchBaselinePaths, livingPrototypeBaselineSet),
+  'changed, staged, and untracked visual-patch baseline evidence does not equal the exact 13-path contract',
 );
 for (const baselinePath of reconciledBaselinePaths) {
   assert(changedFromDesignBase.has(baselinePath), `reconciled baseline unchanged from design base: ${baselinePath}`);
+  const unchanged = run('git', ['diff', '--quiet', visualPatchBase, '--', baselinePath]);
+  assert(unchanged.status === 0, `historical reconciled baseline changed from c535877: ${baselinePath}`);
 }
 
 const webmDuration = probeDuration(webmPath);
@@ -159,6 +175,39 @@ for (const png of requiredFiles.slice(3)) {
   const height = bytes.readUInt32BE(20);
   const expected = png === 'mobile.png' ? [390, 844] : [1440, 900];
   assert(width === expected[0] && height === expected[1], `${png}: unexpected dimensions ${width}x${height}`);
+}
+
+const deliveryBaselinePaths = {
+  'full-office.png': livingPrototypeBaselinePaths[0],
+  'team-activity.png': livingPrototypeBaselinePaths[1],
+  'lounge.png': livingPrototypeBaselinePaths[5],
+  'channy.png': livingPrototypeBaselinePaths[6],
+  'mobile.png': livingPrototypeBaselinePaths[11],
+};
+for (const [fileName, baselinePath] of Object.entries(deliveryBaselinePaths)) {
+  assert(baselinePath !== undefined, `delivery baseline mapping missing: ${fileName}`);
+  const mediaBytes = await readFile(path.join(artifactRoot, fileName));
+  const baselineBytes = await readFile(path.join(repositoryRoot, baselinePath));
+  assert(sha256(mediaBytes) === sha256(baselineBytes), `${fileName}: media bytes do not equal the exact current baseline`);
+}
+
+const actorOverlaySource = await readFile(path.join(repositoryRoot, 'src/ui/pixel/living-office-actor-overlay.tsx'), 'utf8');
+for (const requiredField of [
+  'Role', 'Project', 'Advisor Team', 'Reports-to Advisor', 'Session name',
+  'Model', 'State', 'Mission', 'WorkUnit', 'Evidence freshness',
+]) {
+  assert(actorOverlaySource.includes(`label="${requiredField}"`), `actor detail field missing: ${requiredField}`);
+}
+const frameProjectorSource = await readFile(path.join(repositoryRoot, 'src/ui/pixel/frame-projector.ts'), 'utf8');
+assert(frameProjectorSource.includes('PIXEL_ACTOR_UNKNOWN'), 'literal UNKNOWN fail-closed actor field gate missing');
+assert(frameProjectorSource.includes("zoom: sceneId.startsWith('channy-') ? 3"), 'focused Channy evidence camera gate missing');
+const timelineSource = await readFile(path.join(repositoryRoot, 'src/ui/pixel/fixtures/prototype-timeline.ts'), 'utf8');
+for (const state of ['WALK', 'STOP', 'SNIFF', 'SIT', 'EAT', 'DRINK', 'SLEEP', 'PLAY']) {
+  assert(timelineSource.includes(`'${state}'`), `Channy natural sequence state missing: ${state}`);
+}
+const paletteSource = await readFile(path.join(repositoryRoot, 'src/ui/pixel/assets/palette.ts'), 'utf8');
+for (const token of ['wall: [247, 244, 236, 255]', 'floor: [215, 188, 151, 255]', 'glass: [157, 205, 220, 190]']) {
+  assert(paletteSource.includes(token), `modern light-office palette token missing: ${token}`);
 }
 
 const packageDocument = JSON.parse(await readFile(path.join(repositoryRoot, 'package.json'), 'utf8'));
@@ -217,14 +266,15 @@ for (const fileName of requiredFiles) {
 }
 
 process.stdout.write(`PIXEL_PROTOTYPE_EVIDENCE ${JSON.stringify({
-  schemaVersion: 'agent-office.living-pixel-prototype-evidence.v1',
+  schemaVersion: 'agent-office.living-pixel-prototype-visual-patch-evidence.v2',
   fixtureSha256,
   configuredRuntime: {
     browser: 'Playwright Chromium 1.61.1 configured local runtime',
     locale: 'ko-KR',
     processLocale: 'ko_KR.UTF-8',
     timezone: 'UTC',
-    theme: 'dark',
+    mediaColorScheme: 'dark',
+    officeSurfaceTheme: 'light',
     deviceScaleFactor: 1,
   },
   artifactRoot,
@@ -232,14 +282,17 @@ process.stdout.write(`PIXEL_PROTOTYPE_EVIDENCE ${JSON.stringify({
   ignored: true,
   trackedPaths: 0,
   baselineContract: {
-    schemaVersion: 'agent-office.living-pixel-prototype-baseline-contract.v1',
+    schemaVersion: 'agent-office.living-pixel-prototype-visual-patch-baseline-contract.v2',
     designBase,
+    visualPatchBase,
     acceptedPathCount: acceptedBaselinePaths.length,
     livingPrototypePathCount: livingPrototypeBaselinePaths.length,
     reconciledPathCount: reconciledBaselinePaths.length,
     livingPrototypePaths: livingPrototypeBaselinePaths,
     reconciledPaths: reconciledBaselinePaths,
     changedFromDesignBasePaths: [...changedFromDesignBase].sort(),
+    changedFromVisualPatchBasePaths: [...changedFromVisualPatchBase].sort(),
+    historicalReconciledByteIdenticalToVisualPatchBase: true,
     changedWorkingTreePaths: [...changedInWorkingTree].sort(),
     stagedPaths: [...stagedBaselinePaths].sort(),
     untrackedPaths: [...untrackedBaselinePaths].sort(),

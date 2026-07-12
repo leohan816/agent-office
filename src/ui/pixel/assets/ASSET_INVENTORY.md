@@ -16,10 +16,10 @@ as production-approved.
 
 | Atlas | Source | Maximum contract | Prototype use | Source SHA-256 | Generated RGBA SHA-256 |
 |---|---|---:|---|---|---|
-| `office-world.v1` | `office-world-atlas.source.ts` | `1024x1024` | floor, walls, glass, desks, monitors, plants, boards, lounge and facilities | `787981eb759cbf64764df8ece72bb41511f6e6937a2881a8217cc35960378c46` | `582001f72de2aedd00c6137a942366fb8dfaf14a3f02b387a92a9a3f6577cce9` |
-| `actor-base.v1` | `actor-base-atlas.source.ts` | `512x1024` | role silhouettes and all actor animation/static IDs | `97c7a3fb98792809a1ad22a53e8c1e7dc685725b987ba4c87d86ae8f8e718f4d` | `b51a7d493c943e9c99d7828be2241e97fb835ac044eb79666a7a7d83ff2686f7` |
-| `actor-identity.v1` | `actor-identity-atlas.source.ts` | `512x512` | six project clothing, pattern and glyph overlays | `04ae29eb016f0722709845a5cc2019d58da633db07dc7275067f09c37315fe6d` | `cbaf76f326e26071232f3cbdfad28d638c426a96da85a922f2cf48eb3862e291` |
-| `channy.v1` | `channy-atlas.source.ts` | `512x512` | one Bedlington Terrier and bounded neutral/status poses | `fa55d42768fef3b3934c592a50aa5d1ef1bedfbbd0d6f5419d184242e4f8a20e` | `665f057d8b551f409452e7291d2042672ba208d12139c93db45f795c806a4456` |
+| `office-world.v1` | `office-world-atlas.source.ts` | `1024x1024` | modern light-oak floor, ivory walls, glass, desks, monitors, plants, boards, lounge and facilities | `fead07fe6e89342adfe7e0833c46d873351cf5f271fc368008fec411adf1e17c` | `cd567c0dfc82b1eff529c52dc99cf43e6794d4ca2af0f8f838f4400b6f89a626` |
+| `actor-base.v1` | `actor-base-atlas.source.ts` | `512x1024` | role silhouettes and all actor animation/static IDs | `b3d86c754a9c68f8bc42906d5cbb78921ca9fbaf0775bb7e82182642d45d6238` | `890596544b987d750e0939b076be33e5a6342c09f8112fe7bbe565f7bdcac71d` |
+| `actor-identity.v1` | `actor-identity-atlas.source.ts` | `512x512` | six project clothing, pattern and glyph accent overlays | `2acfe6b17c8cd29b50a736ded34fc296b67cf8d239923e97174b0fbe520ce00e` | `a7d2182c3e9add389d8f3eeb6af7fbd75574b92515b26bc04df72b344b55d162` |
+| `channy.v1` | `channy-atlas.source.ts` | `512x512` | one original Bedlington Terrier with slow walk, stop, sniff, sit, eat, drink, sleep, play and bounded status poses | `94cf2cf1e3fabfccbc82213448b3495ce205474780ef25c9eafb5199bf24fdd2` | `81d6a34cd543d8d20a0f5c228846645fd1d7dcddb79a48095363006d26d9c934` |
 
 Builder: `src/ui/pixel/assets/atlas-builder.ts`, generator version `1`.
 

@@ -30,7 +30,7 @@ for (const scenario of PIXEL_PROTOTYPE_SCENARIOS) {
     await openScenario(page, scenario.scenarioId, scenario.logicalTimeMs, '', !scenario.reducedMotion);
     await expect(page.locator('#living-pixel-prototype')).toHaveAttribute('data-synthetic-prototype', 'true');
     await expect(page.locator('#living-pixel-prototype')).toHaveAttribute('data-prototype-scene', scenario.scenarioId);
-    await expect(page.getByText('SYNTHETIC PROTOTYPE / AO12-PWU-07..09')).toBeVisible();
+    await expect(page.getByText('SYNTHETIC PROTOTYPE / AO12-PWU-11-P1 VISUAL PATCH')).toBeVisible();
     await expect(page.locator('.pixel-world-viewport')).toHaveAttribute(
       'data-pixi-bridge-contract',
       'agent-office.pixi-public-export-bridge.v1',
@@ -56,6 +56,12 @@ for (const scenario of PIXEL_PROTOTYPE_SCENARIOS) {
     if (scenario.matrixId === 'PIXEL-V01') {
       await expect(page.getByRole('navigation', { name: 'Advisor Team Pod navigation' }).getByRole('button')).toHaveCount(8);
       await expect(page.getByText('Every visible pixel has complete text meaning')).toBeAttached();
+      await expect(page.locator('[data-actor-label]:visible')).toHaveCount(10);
+      await expect(page.getByRole('button', { name: /Agent Office Worker.*Role Worker.*Model Codex 5.6 SOL.*Session agent-office.*State WORKING/u })).toBeVisible();
+      await assertNoActorLabelCollisions(page);
+    }
+    if (scenario.matrixId === 'PIXEL-V03') {
+      await expect(page.getByRole('button', { name: /VibeNews Designer.*Model UNKNOWN.*Session UNKNOWN/u })).toBeVisible();
     }
     if (scenario.matrixId === 'PIXEL-V04') {
       await expect(page.getByRole('log')).toContainText('DELIVERY');
@@ -68,7 +74,7 @@ for (const scenario of PIXEL_PROTOTYPE_SCENARIOS) {
       await expect(page.locator('.living-office-hud__status')).toContainText('VERIFIED_IDLE presentation');
     }
     if (scenario.matrixId === 'PIXEL-V07') {
-      await expect(page.locator('.living-office-hud__status')).toContainText('Neutral Channy roam');
+      await expect(page.locator('.living-office-hud__status')).toContainText('Slow eased Bedlington walk');
       await expect(page.locator('.living-office-semantic__channy')).toContainText('authorityRole none');
     }
     if (scenario.matrixId === 'PIXEL-V10') {
@@ -83,6 +89,10 @@ for (const scenario of PIXEL_PROTOTYPE_SCENARIOS) {
       await expect(page.getByRole('button', { name: 'Next Team' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Full office' })).toBeVisible();
       await assertMinimumTouchTargets(page);
+    }
+    if (scenario.matrixId === 'PIXEL-V13') {
+      await expect(page.locator('[data-presentation-tier="DOM_STATIC"]')).toHaveCount(1);
+      await expect(page.locator('[data-actor-label]:visible')).toHaveCount(10);
     }
 
     const screenshot = await page.screenshot({
@@ -143,6 +153,22 @@ test('handles context loss, one bounded retry, camera controls and detail focus 
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(detail).toBeFocused();
+
+  const actorLabel = page.getByRole('button', { name: /Foundation Worker.*Role Worker/u });
+  await page.getByRole('button', { name: 'Focus selected Team' }).click();
+  const actorAnchorBefore = await actorLabel.getAttribute('data-anchor-x');
+  await page.getByRole('button', { name: 'Pan right' }).click();
+  await expect.poll(async () => actorLabel.getAttribute('data-anchor-x')).not.toBe(actorAnchorBefore);
+  await actorLabel.focus();
+  await actorLabel.click();
+  const actorDialog = page.getByRole('dialog', { name: 'Foundation Worker' });
+  await expect(actorDialog.locator('[data-actor-fact]')).toHaveCount(10);
+  await expect(actorDialog).toContainText('foundation-worker');
+  await expect(actorDialog).toContainText('Codex 5.6 SOL');
+  await expect(page.getByRole('button', { name: 'Close actor detail' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(actorDialog).toHaveCount(0);
+  await expect(actorLabel).toBeFocused();
 });
 
 test('proves 320px, short landscape, tablet and 200-percent text containment', async ({ page }) => {
@@ -358,6 +384,32 @@ async function assertMinimumTouchTargets(page: Page): Promise<void> {
     })
     .filter((target) => target.width < 44 || target.height < 44));
   expect(undersized).toEqual([]);
+}
+
+async function assertNoActorLabelCollisions(page: Page): Promise<void> {
+  const overlaps = await page.locator('[data-actor-label]:visible').evaluateAll((elements) => {
+    const rectangles = elements.map((element) => ({
+      id: element.getAttribute('data-actor-label'),
+      rectangle: element.getBoundingClientRect(),
+    }));
+    return rectangles.flatMap((left, index) => rectangles.slice(0, index)
+      .filter((right) => left.rectangle.left < right.rectangle.right
+        && left.rectangle.right > right.rectangle.left
+        && left.rectangle.top < right.rectangle.bottom
+        && left.rectangle.bottom > right.rectangle.top)
+      .map((right) => ({
+        pair: `${left.id}/${right.id}`,
+        left: {
+          x: Math.round(left.rectangle.x), y: Math.round(left.rectangle.y),
+          width: Math.round(left.rectangle.width), height: Math.round(left.rectangle.height),
+        },
+        right: {
+          x: Math.round(right.rectangle.x), y: Math.round(right.rectangle.y),
+          width: Math.round(right.rectangle.width), height: Math.round(right.rectangle.height),
+        },
+      })));
+  });
+  expect(overlaps).toEqual([]);
 }
 
 async function measureCameraCycles(page: Page, count: number): Promise<readonly number[]> {

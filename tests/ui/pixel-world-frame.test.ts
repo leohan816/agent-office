@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import type { PixelCueInput, PixelPrototypeProjection, PixelPrototypeViewOptions } from '../../src/ui/pixel/contracts.js';
+import {
+  PIXEL_ACTOR_UNKNOWN,
+  type PixelActorFactsInput,
+  type PixelCueInput,
+  type PixelPrototypeProjection,
+  type PixelPrototypeViewOptions,
+} from '../../src/ui/pixel/contracts.js';
 import { LIVING_PIXEL_PROTOTYPE_PROJECTION } from '../../src/ui/pixel/fixtures/prototype-projection.js';
 import {
   assertFrameSemanticParity,
+  normalizePixelActorFacts,
   projectPixelWorldFrame,
   reduceAcceptedPixelCues,
 } from '../../src/ui/pixel/frame-projector.js';
@@ -24,6 +31,37 @@ describe('living pixel-office pure frame projection and cue truth', () => {
     expect(actorIds.filter((actorId) => actorId.startsWith('advisor.'))).toHaveLength(2);
     expect(first.channy.entityId).toBe('channy.global');
     expect(first.channy.authorityRole).toBe('none');
+    expect(Object.keys(first.actorFrames[0]?.facts ?? {}).sort()).toEqual([
+      'advisorTeam', 'evidenceFreshness', 'mission', 'model', 'project', 'reportsToAdvisor',
+      'role', 'sessionName', 'state', 'workUnit',
+    ]);
+  });
+
+  it('fails closed to literal UNKNOWN for every absent or unverified actor fact', () => {
+    const emptyFacts: PixelActorFactsInput = {
+      role: null,
+      project: null,
+      advisorTeam: null,
+      reportsToAdvisor: null,
+      sessionName: null,
+      model: null,
+      state: null,
+      mission: null,
+      workUnit: null,
+      evidenceFreshness: null,
+    };
+    expect(Object.values(normalizePixelActorFacts(emptyFacts))).toEqual(
+      Array.from({ length: 10 }, () => PIXEL_ACTOR_UNKNOWN),
+    );
+    const frame = projectPixelWorldFrame(
+      LIVING_PIXEL_PROTOTYPE_PROJECTION,
+      layout,
+      view('vibenews-active', 7500, 'pod:vibenews'),
+    );
+    const designer = frame.actorFrames.find((actor) => actor.roleInstanceId === 'designer.vibenews.primary');
+    expect(designer?.facts.model).toBe(PIXEL_ACTOR_UNKNOWN);
+    expect(designer?.facts.sessionName).toBe(PIXEL_ACTOR_UNKNOWN);
+    expect(designer?.facts.workUnit).toBe(PIXEL_ACTOR_UNKNOWN);
   });
 
   it('maps named acceptance scenes without inventing operational state', () => {

@@ -34,6 +34,7 @@ export interface PixelRendererBoundaryProps {
   readonly forceStatic: boolean;
   readonly onBackend: (backend: PixelRendererBackend) => void;
   readonly onFrame: (frame: PixelWorldFrameV1) => void;
+  readonly onVisualFrame: (frame: PixelWorldFrameV1) => void;
   readonly onComplete: () => void;
   readonly onViewport: (width: number, height: number) => void;
 }
@@ -48,6 +49,7 @@ export function PixelRendererBoundary({
   forceStatic,
   onBackend,
   onFrame,
+  onVisualFrame,
   onComplete,
   onViewport,
 }: PixelRendererBoundaryProps) {
@@ -198,7 +200,7 @@ export function PixelRendererBoundary({
             antialias={false}
             autoDensity
             autoStart={running}
-            backgroundColor={0x1b2032}
+            backgroundColor={0xe8e4dc}
             className="pixel-world-canvas"
             onInit={onInit}
             preference={preference}
@@ -211,6 +213,7 @@ export function PixelRendererBoundary({
               layout={layout}
               onComplete={onComplete}
               onFrame={onFrame}
+              onVisualFrame={onVisualFrame}
               options={options}
               projection={projection}
               restartToken={restartToken}

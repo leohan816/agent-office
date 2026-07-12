@@ -28,6 +28,7 @@ const PIXEL_RUNTIME_SOURCES = [
   'src/ui/pixel/facility-sprites.tsx',
   'src/ui/pixel/actor-sprite.tsx',
   'src/ui/pixel/channy-sprite.tsx',
+  'src/ui/pixel/living-office-actor-overlay.tsx',
   'src/ui/pixel/living-office.css',
 ] as const;
 
@@ -140,6 +141,18 @@ function createDesignLoadProjection(): PixelPrototypeProjection {
       projectId: `load-${podIndex.toString().padStart(2, '0')}`,
       assignmentVerified: true,
       presentationPodId: `pod:load-${podIndex.toString().padStart(2, '0')}`,
+      facts: {
+        role: index === 0 || index === 6 ? 'Advisor' : 'Synthetic load actor',
+        project: `Load Project ${podIndex + 1}`,
+        advisorTeam: `LOAD_ADVISOR_TEAM_${teamIndex}`,
+        reportsToAdvisor: teamIndex === 0 ? 'Load Advisor 1' : 'Load Advisor 7',
+        sessionName: `load-session-${index + 1}`,
+        model: 'SYNTHETIC LOAD MODEL',
+        state: 'WORKING',
+        mission: `Synthetic load mission ${podIndex + 1}`,
+        workUnit: `LOAD-IWU-${index + 1}`,
+        evidenceFreshness: 'CURRENT / SYNTHETIC LOAD',
+      },
     };
   });
   const pods: readonly PixelPodInput[] = Array.from({ length: 12 }, (_, index) => {

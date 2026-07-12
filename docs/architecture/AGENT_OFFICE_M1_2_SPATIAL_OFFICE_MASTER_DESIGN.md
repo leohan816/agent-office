@@ -1,12 +1,12 @@
 # Agent Office M1.2 Spatial Advisor-Team Office Master Design
 
-Status: `AO12_D_A1_TECHNICAL_FOUNDATION_PRESERVED__LIVING_PIXEL_OFFICE_DESIGN_CANDIDATE_PENDING_FABLE5_LEVEL3_PASS__PROTOTYPE_NOT_AUTHORIZED`
+Status: `AO12_D_A1_TECHNICAL_FOUNDATION_PRESERVED__IMPLEMENTED_BOUNDED_FOUNDER_VISUAL_PATCH_AO12_PWU_11_P1__PENDING_FABLE5_AO12_PWU_11_R1__FULL_INTEGRATION_BLOCKED`
 
 Canonical owner: Agent Office repository
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-Target implementation status: `AO12_IWU_01_THROUGH_14_IMPLEMENTED__AO12_PWU_01_THROUGH_05_DESIGNED_ONLY__AO12_PWU_06_REVIEW_PENDING`
+Target implementation status: `AO12_IWU_01_THROUGH_14_IMPLEMENTED__AO12_PWU_07_THROUGH_10_TECHNICALLY_REVIEWED__AO12_PWU_11_P1_IMPLEMENTED_PENDING_NARROW_REVIEW`
 
 This document is the frozen additive design over the closed M1 base
 `2f663304a88c432f19fe56055641b66e57f18ef2`. It defines a spatial,
@@ -860,3 +860,23 @@ The serial gate is exact:
 No design status, test result, Fable5 `PASS`, Advisor validation, or successful
 prototype authorizes the next gate by itself. The exact implementation plan is
 binding for file, dependency, media, cleanup, rollback, and STOP boundaries.
+
+## 18. Founder-requested prototype visual patch boundary
+
+The clean technical prototype review did not grant Founder visual acceptance.
+Leo/GPT selected `REQUEST_VISUAL_PATCH` for exact base `c535877` and authorized
+only `AO12-PWU-11-P1`: structured actor role/model/session/state labels and a
+ten-field accessible drawer, literal `UNKNOWN` handling, slower deterministic
+Channy motion and original Bedlington appearance, and a modern light-office
+palette. These are presentation-only additions to the isolated synthetic
+prototype.
+
+The Single Advisor Team Principle, actor and Advisor uniqueness, structured
+event truth, no replay, Channy non-authority, DOM-static/M1 fallback,
+authentication, exact Advisor delivery, transport, security, and production
+bundle boundaries remain unchanged. Exactly 13 living prototype baselines may
+change; all 26 reconciled historical baselines are immutable against `c535877`.
+
+The patch must return to independent narrow review and then to Leo/GPT. Full
+integration, visual acceptance, production/live use, and another mission remain
+unauthorized.

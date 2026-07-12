@@ -1,6 +1,9 @@
 # Agent Office M1.2 Pixel-World Sprite and Animation System
 
-Status: `DESIGNED_PIXEL_WORLD_SPRITE_SYSTEM__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__NO_ASSET_OR_RUNTIME_IMPLEMENTATION_AUTHORIZED`
+Original design status: `DESIGNED_PIXEL_WORLD_SPRITE_SYSTEM__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__NO_ASSET_OR_RUNTIME_IMPLEMENTATION_AUTHORIZED`
+
+Current as-built visual-patch status:
+`IMPLEMENTED_BOUNDED_FOUNDER_VISUAL_PATCH_AO12_PWU_11_P1__PENDING_FABLE5_AO12_PWU_11_R1__FULL_INTEGRATION_BLOCKED`
 
 Design base: `48c8dbd9f2c5ecea68c28e85137d75db595ef5f9`
 
@@ -541,3 +544,36 @@ This sprite system is a reviewed-design candidate only. A clean Fable5
 synthetic prototype and its evidence/review. Prototype visual review then routes
 to Leo/GPT `AO12-PWU-11`. Full authenticated integration remains blocked until
 explicit Leo/GPT visual-direction approval and a new exact Worker handoff.
+
+## 18. AO12-PWU-11-P1 visual identity and Channy patch as built
+
+The bounded Founder patch adds explicit structured actor facts to the synthetic
+projection and immutable frame. Rendering never derives a model, session,
+mission, WorkUnit, reporting line, or freshness value from project identity,
+position, color, timestamps, or prose. Null, empty, or otherwise unverified
+input becomes `UNKNOWN`. Actor pixel clothing continues to carry project accent
+only; the camera-tracked DOM label and full DOM drawer carry readable identity.
+
+Channy's deterministic 26-second presentation schedule now contains this exact
+neutral order:
+
+```text
+sit -> walk -> stop -> sniff -> walk -> stop -> sit -> play
+    -> walk -> stop -> eat -> stop -> drink -> sleep -> sit -> play
+```
+
+Walk segments last 1.8 to 2.7 seconds and use a bounded cubic ease-in/out.
+Explicit stop segments last at least 1.2 seconds; animation frames also slow to
+240ms walk, 450ms sniff, 500ms sit, 320ms eat/drink, 650ms sleep, and 280ms play.
+Structured `WAITING_LEO` and `BLOCKED` reactions retain precedence. Every state
+remains browser-local presentation with `authorityRole: none`.
+
+The original code-native `channy.v1` atlas and runtime drawing now use a rounded
+wool cap, narrow muzzle, arched cream/light-gray body, slim gray legs, dark ear
+and nose accents, and bounded eating/drinking/sleeping poses. No external asset,
+font, fetch, protected reference, model, or runtime generation service was
+introduced. Atlas hashes and the internal inventory update atomically, while
+the four-texture and payload caps remain unchanged.
+
+This patch is prototype evidence only. It awaits the separate narrow review and
+Founder decision and does not authorize authenticated/full integration.

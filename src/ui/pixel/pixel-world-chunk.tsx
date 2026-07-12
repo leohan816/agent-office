@@ -17,6 +17,7 @@ export interface PixelWorldChunkProps {
   readonly forceStatic: boolean;
   readonly onBackend: (backend: PixelRendererBackend) => void;
   readonly onFrame: (frame: PixelWorldFrameV1) => void;
+  readonly onVisualFrame: (frame: PixelWorldFrameV1) => void;
   readonly onComplete: () => void;
   readonly onViewport: (width: number, height: number) => void;
 }

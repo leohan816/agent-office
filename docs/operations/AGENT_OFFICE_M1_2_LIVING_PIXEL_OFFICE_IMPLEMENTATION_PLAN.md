@@ -2,8 +2,11 @@
 
 Original plan status: `DESIGNED_TWO_STAGE_LIVING_PIXEL_OFFICE_PLAN__PROTOTYPE_CONDITIONAL_ON_CLEAN_FABLE5_PASS__FULL_INTEGRATION_BLOCKED_ON_LEO_GPT_VISUAL_APPROVAL`
 
-Current compatibility-delta status:
+Historical compatibility-delta status:
 `CANDIDATE_PROTOTYPE_ONLY_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__IMPLEMENTATION_PAUSED_NOT_AUTHORIZED__FULL_INTEGRATION_DEFERRED_WITH_GATE`
+
+Current as-built visual-patch status:
+`IMPLEMENTED_BOUNDED_FOUNDER_VISUAL_PATCH_AO12_PWU_11_P1__PENDING_FABLE5_AO12_PWU_11_R1__FULL_INTEGRATION_BLOCKED`
 
 Plan base: `48c8dbd9f2c5ecea68c28e85137d75db595ef5f9`
 
@@ -820,3 +823,43 @@ Level-3 `PASS` for that exact delta. The prepared prototype remains uncommitted
 and implementation remains paused. Full authenticated integration remains
 `DEFERRED_WITH_GATE`. After publishing the design result and pointer, the Worker
 returns to Advisor and stops.
+
+## 11. AO12-PWU-11-P1 bounded visual patch execution
+
+After the reviewed prototype reached `c535877`, Leo/GPT chose
+`REQUEST_VISUAL_PATCH` and authorized exactly `AO12-PWU-11-P1`. The as-built
+patch is limited to the existing synthetic test-demo graph, its canonical
+documents, focused/unit/browser/performance tests, evidence verifier, exact 13
+living baselines, and the ignored eight-file media package.
+
+Required and implemented gates are:
+
+1. normalize all ten explicit actor facts fail closed to `UNKNOWN`;
+2. render collision-bounded camera-aware DOM labels with role/model/session/state,
+   glyph, ring, keyboard activation, ten-field drawer, Escape close, and focus
+   return in pixel and static modes;
+3. run Channy's slow deterministic walk/stop/sniff/sit/eat/drink/sleep/play
+   schedule with bounded easing and unchanged non-authority precedence;
+4. use original Bedlington-specific code-native atlas/runtime drawing and the
+   light-oak/ivory/sand/glass-blue/muted-charcoal palette;
+5. update only all exact 13 living prototype baselines and prove the exact 26
+   reconciled historical baselines byte-identical to `c535877`;
+6. regenerate the exact WebM, MP4, GIF, and five PNGs from the running loopback
+   prototype and directly inspect stills and representative changing frames;
+7. pass focused bridge, lint, strict typecheck, full tests/builds/audit/naming,
+   default/composed no-update trains, dedicated 20-case prototype train,
+   accessibility/performance/lifecycle/security gates, and the exact verifier
+   before stage, after stage, and after commit; and
+8. leave media ignored, the runtime stopped, the branch upstream-equal, and all
+   M1/authentication/authority/delivery/transport/DB/network boundaries intact.
+
+The serial exit remains:
+
+```text
+AO12-PWU-11-P1 Worker patch
+  -> AO12-PWU-11-R1 same-session Fable5 narrow visual/accessibility review
+  -> AO12-PWU-11-D2 Leo/GPT decision on the exact patched candidate
+```
+
+Neither this patch nor its local gates grant visual acceptance, full integration,
+production/live use, risk acceptance, closure, or another mission.

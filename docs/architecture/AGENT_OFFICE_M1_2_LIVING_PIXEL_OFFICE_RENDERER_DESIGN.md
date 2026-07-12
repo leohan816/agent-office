@@ -2,8 +2,11 @@
 
 Original renderer-design status: `DESIGNED_LIVING_PIXEL_OFFICE_PRIMARY_RENDERER_CANDIDATE__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__NO_PROTOTYPE_OR_RUNTIME_IMPLEMENTATION_AUTHORIZED`
 
-Current compatibility-delta status:
+Historical compatibility-delta status:
 `CANDIDATE_PROTOTYPE_ONLY_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__IMPLEMENTATION_PAUSED_NOT_AUTHORIZED__FULL_INTEGRATION_DEFERRED_WITH_GATE`
+
+Current as-built visual-patch status:
+`IMPLEMENTED_BOUNDED_FOUNDER_VISUAL_PATCH_AO12_PWU_11_P1__PENDING_FABLE5_AO12_PWU_11_R1__FULL_INTEGRATION_BLOCKED`
 
 Decision date: `2026-07-12`
 
@@ -614,3 +617,43 @@ also requires its own clean Level-3 `PASS` and a later exact Advisor handoff.
 - Product and authority inheritance:
   [`AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md).
 - Discoverability and current status: [`../FEATURE_INDEX.md`](../FEATURE_INDEX.md).
+
+## 17. AO12-PWU-11-P1 Founder visual patch as built
+
+Leo/GPT requested a bounded visual patch after the clean technical prototype
+review of `c535877b61ad8a1e3d74dca5c6fec0ada4cac3f8`. The patch remains isolated
+behind `surface=living-pixel-prototype`; it does not promote the renderer into
+authenticated or production composition and does not grant visual acceptance.
+
+The as-built frame contract now carries ten explicit actor facts: role, project,
+Advisor Team, reports-to Advisor, session name, model, state, mission, WorkUnit,
+and evidence freshness. Missing or unverified input normalizes only to literal
+`UNKNOWN`. A camera-aware DOM overlay projects each visible actor anchor through
+the same camera transform as the canvas, resolves labels through deterministic
+collision lanes, and always exposes role, model, session, state, a role glyph,
+and a state ring. Its buttons open a modal DOM actor-detail drawer containing
+all ten fields, trap focus on the bounded close control, close on Escape, and
+restore the exact label invoker. The overlay stays mounted over WebGL, accepted
+Canvas, and `DOM_STATIC`; imperative position updates avoid a per-frame React
+state loop while the frame model remains the only truth source.
+
+The office presentation now uses ivory, light oak, sand, warm gray, glass-blue,
+and muted charcoal as dominant colors. Project colors remain redundant accents
+on clothing, signs, boards, rugs, and desk details. The surrounding HUD,
+navigation, controls, drawer, semantic mirror, and static surface use a light
+system-UI treatment with WCAG A/AA contrast and retain all structured facts.
+
+Patch evidence is exact and fail closed:
+
+- all 13 living-prototype PNG baselines must differ from `c535877`;
+- all 26 reconciled historical baselines must remain byte-identical to
+  `c535877`;
+- no other baseline path may change;
+- the five delivery PNGs must byte-equal their named current baselines; and
+- the 20-to-30-second WebM, its MP4 conversion, and the 7-second GIF must show
+  the current running source, actor labels, bounded Channy sequence, and Advisor
+  handoff.
+
+Independent narrow review `AO12-PWU-11-R1` and a new Leo/GPT decision
+`AO12-PWU-11-D2` remain required. Full authenticated integration stays
+`DEFERRED_WITH_GATE`.

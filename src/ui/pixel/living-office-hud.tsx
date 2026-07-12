@@ -13,7 +13,7 @@ export function LivingOfficeHud({ frame, backend, running, complete }: LivingOff
       <div className="living-office-hud__brand">
         <span aria-hidden="true" className="living-office-hud__logo">AO</span>
         <div>
-          <p className="living-office-hud__eyebrow">SYNTHETIC PROTOTYPE / AO12-PWU-07..09</p>
+          <p className="living-office-hud__eyebrow">SYNTHETIC PROTOTYPE / AO12-PWU-11-P1 VISUAL PATCH</p>
           <h1>Agent Office: Living Pixel Office</h1>
         </div>
       </div>

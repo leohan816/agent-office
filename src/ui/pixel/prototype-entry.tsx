@@ -17,6 +17,10 @@ import { LIVING_PIXEL_PROTOTYPE_PROJECTION } from './fixtures/prototype-projecti
 import { PIXEL_PROTOTYPE_SCENARIOS } from './fixtures/prototype-scenarios.js';
 import { projectPixelWorldFrame } from './frame-projector.js';
 import { LivingOfficeDetailDrawer } from './living-office-detail-drawer.js';
+import {
+  LivingOfficeActorOverlay,
+  type LivingOfficeActorOverlayHandle,
+} from './living-office-actor-overlay.js';
 import { LivingOfficeHud } from './living-office-hud.js';
 import { LivingOfficeSemanticMirror } from './living-office-semantic-mirror.js';
 import { PixelWorldChunk } from './pixel-world-chunk.js';
@@ -64,6 +68,7 @@ export function LivingPixelPrototype({ search }: { readonly search: string }) {
     scenario?.reducedMotion === true || window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
   const detailInvokerRef = useRef<HTMLButtonElement>(null);
+  const actorOverlayRef = useRef<LivingOfficeActorOverlayHandle>(null);
   const requestedBackend = parameters.get('backend') === 'canvas'
     ? 'CANVAS'
     : parameters.get('renderer') === 'fail'
@@ -108,6 +113,9 @@ export function LivingPixelPrototype({ search }: { readonly search: string }) {
     setViewport((current) => current.width === width && current.height === height
       ? current
       : { width, height });
+  }, []);
+  const onVisualFrame = useCallback((nextFrame: PixelWorldFrameV1) => {
+    actorOverlayRef.current?.updatePositions(nextFrame);
   }, []);
   const replay = () => {
     setComplete(false);
@@ -193,12 +201,20 @@ export function LivingPixelPrototype({ search }: { readonly search: string }) {
             setRunning(false);
           }}
           onFrame={onFrame}
+          onVisualFrame={onVisualFrame}
           onViewport={onViewport}
           options={options}
           projection={LIVING_PIXEL_PROTOTYPE_PROJECTION}
           requestedBackend={requestedBackend}
           restartToken={restartToken}
           running={running}
+        />
+        <LivingOfficeActorOverlay
+          frame={frame}
+          projection={LIVING_PIXEL_PROTOTYPE_PROJECTION}
+          ref={actorOverlayRef}
+          viewportHeight={viewport.height}
+          viewportWidth={viewport.width}
         />
         <div
           aria-label="Office camera controls"

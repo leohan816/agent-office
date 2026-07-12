@@ -1,11 +1,13 @@
 export const PIXEL_WORLD_FRAME_SCHEMA_VERSION = 'agent-office.pixel-world-frame.v1' as const;
 export const PIXEL_ATLAS_SCHEMA_VERSION = 'agent-office.pixel-atlas.v1' as const;
 export const PIXEL_PROTOTYPE_FIXTURE_ID = 'agent-office.living-pixel-prototype.synthetic.v1' as const;
+export const PIXEL_ACTOR_UNKNOWN = 'UNKNOWN' as const;
 
 export type PixelPresentationTier = 'PIXEL_FULL' | 'PIXEL_RESTRAINED' | 'DOM_STATIC';
 export type PixelRendererBackend = 'WEBGL' | 'CANVAS' | 'DOM_STATIC';
 export type PixelDirection = 'NORTH' | 'SOUTH' | 'EAST' | 'WEST';
 export type PixelOperationalState =
+  | 'UNKNOWN'
   | 'IDLE'
   | 'WORKING'
   | 'TESTING'
@@ -53,6 +55,9 @@ export type PixelActorAnimation =
   | 'BLOCKED';
 
 export type ChannyAnimation =
+  | 'WALK'
+  | 'STOP'
+  | 'SNIFF'
   | 'ROAM'
   | 'SIT'
   | 'EAT'
@@ -117,6 +122,33 @@ export interface PixelActorInput {
   readonly projectId: string;
   readonly assignmentVerified: boolean;
   readonly presentationPodId: string;
+  readonly facts: PixelActorFactsInput;
+}
+
+export interface PixelActorFactsInput {
+  readonly role: string | null;
+  readonly project: string | null;
+  readonly advisorTeam: string | null;
+  readonly reportsToAdvisor: string | null;
+  readonly sessionName: string | null;
+  readonly model: string | null;
+  readonly state: string | null;
+  readonly mission: string | null;
+  readonly workUnit: string | null;
+  readonly evidenceFreshness: string | null;
+}
+
+export interface PixelActorFacts {
+  readonly role: string;
+  readonly project: string;
+  readonly advisorTeam: string;
+  readonly reportsToAdvisor: string;
+  readonly sessionName: string;
+  readonly model: string;
+  readonly state: string;
+  readonly mission: string;
+  readonly workUnit: string;
+  readonly evidenceFreshness: string;
 }
 
 export interface PixelCueInput {
@@ -204,6 +236,7 @@ export interface PixelActorFrame extends PixelPoint {
   readonly operationalState: PixelOperationalState;
   readonly carryingDocument: boolean;
   readonly visible: boolean;
+  readonly facts: PixelActorFacts;
 }
 
 export interface ChannyFrame extends PixelPoint {

@@ -69,6 +69,16 @@ export function LivingOfficeSemanticMirror({
           </li>
         ))}
       </ul>
+      <ul className="sr-only" data-semantic-actor-facts>
+        {frame.actorFrames.filter((actor) => actor.visible).map((actor) => (
+          <li key={actor.roleInstanceId}>
+            {actor.displayName}; role {actor.facts.role}; project {actor.facts.project}; Advisor Team {actor.facts.advisorTeam};
+            reports-to Advisor {actor.facts.reportsToAdvisor}; session name {actor.facts.sessionName}; model {actor.facts.model};
+            state {actor.facts.state}; mission {actor.facts.mission}; WorkUnit {actor.facts.workUnit};
+            evidence freshness {actor.facts.evidenceFreshness}.
+          </li>
+        ))}
+      </ul>
       <p aria-atomic="true" aria-live="polite" className="sr-only">
         {frame.hud.projectName} selected. {frame.hud.operationalState}. {frame.hud.statusLine}
       </p>

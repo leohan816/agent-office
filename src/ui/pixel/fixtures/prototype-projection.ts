@@ -1,5 +1,6 @@
 import type {
   PixelActorInput,
+  PixelActorFactsInput,
   PixelCueInput,
   PixelPodInput,
   PixelProjectIdentity,
@@ -39,16 +40,56 @@ const pods: readonly PixelPodInput[] = [
 ];
 
 const actors: readonly PixelActorInput[] = [
-  actor('advisor.foundation.primary', 'Foundation Advisor', 'ADVISOR_ROUTING', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'foundation', 'pod:agent-office'),
-  actor('advisor.vibenews.primary', 'VibeNews Advisor', 'ADVISOR_ROUTING', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews'),
-  actor('control.foundation.primary', 'Control', 'CONTROL_RECOVERY', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'control', 'pod:control'),
-  actor('reviewer.fable5.primary', 'Fable5 Reviewer', 'INDEPENDENT_REVIEW', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'agent-office', 'pod:agent-office'),
-  actor('worker.agent-office.primary', 'Agent Office Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'agent-office', 'pod:agent-office'),
-  actor('worker.cosmile.primary', 'Cosmile Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'cosmile', 'pod:cosmile'),
-  actor('worker.foundation.primary', 'Foundation Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'foundation', 'pod:foundation'),
-  actor('worker.siasiu.primary', 'SIASIU Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'siasiu', 'pod:siasiu'),
-  actor('worker.vibenews.primary', 'VibeNews Worker', 'WORKER_BUILD', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews'),
-  actor('designer.vibenews.primary', 'VibeNews Designer', 'GENERIC_REGISTERED', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews'),
+  actor('advisor.foundation.primary', 'Foundation Advisor', 'ADVISOR_ROUTING', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'foundation', 'pod:agent-office', {
+    role: 'Advisor', project: 'Foundation', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Leo/GPT',
+    sessionName: 'foundation-advisor', model: 'GPT-5.6 SOL', state: 'ROUTING / DISPATCH',
+    mission: 'Foundation operations', workUnit: 'ADVISOR-ROUTING', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('advisor.vibenews.primary', 'VibeNews Advisor', 'ADVISOR_ROUTING', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews', {
+    role: 'Advisor', project: 'VibeNews', advisorTeam: 'VIBENEWS_ADVISOR_TEAM', reportsToAdvisor: 'Leo/GPT',
+    sessionName: 'vibenews-advisor', model: 'GPT-5.6 SOL', state: 'ROUTING / DISPATCH',
+    mission: 'VibeNews private mission', workUnit: 'ADVISOR-ROUTING', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('control.foundation.primary', 'Control', 'CONTROL_RECOVERY', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'control', 'pod:control', {
+    role: 'Control', project: 'Control', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
+    sessionName: 'control', model: 'Codex 5.6 SOL', state: 'TESTING',
+    mission: 'Recovery guardrails', workUnit: 'AO12-CTRL-04', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('reviewer.fable5.primary', 'Fable5 Reviewer', 'INDEPENDENT_REVIEW', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'agent-office', 'pod:agent-office', {
+    role: 'Independent Reviewer', project: 'Agent Office', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
+    sessionName: 'reviewer-fable5', model: 'Fable5', state: 'REVIEWING',
+    mission: 'Living pixel-office', workUnit: 'AO12-PWU-10', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('worker.agent-office.primary', 'Agent Office Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'agent-office', 'pod:agent-office', {
+    role: 'Worker', project: 'Agent Office', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
+    sessionName: 'agent-office', model: 'Codex 5.6 SOL', state: 'WORKING',
+    mission: 'Living pixel-office visual patch', workUnit: 'AO12-PWU-11-P1', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('worker.cosmile.primary', 'Cosmile Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'cosmile', 'pod:cosmile', {
+    role: 'Worker', project: 'Cosmile', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
+    sessionName: 'cosmile-worker', model: 'Codex 5.6 SOL', state: 'IDLE',
+    mission: 'Cosmile private mission', workUnit: 'COS-IWU-05', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('worker.foundation.primary', 'Foundation Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'foundation', 'pod:foundation', {
+    role: 'Worker', project: 'Foundation', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
+    sessionName: 'foundation-worker', model: 'Codex 5.6 SOL', state: 'WORKING',
+    mission: 'Foundation operations', workUnit: 'FND-IWU-12', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('worker.siasiu.primary', 'SIASIU Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'siasiu', 'pod:siasiu', {
+    role: 'Worker', project: 'SIASIU', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
+    sessionName: 'siasiu-worker', model: 'Codex 5.6 SOL', state: 'WAITING_DEPENDENCY',
+    mission: 'SIASIU private mission', workUnit: 'SIA-IWU-03', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('worker.vibenews.primary', 'VibeNews Worker', 'WORKER_BUILD', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews', {
+    role: 'Worker', project: 'VibeNews', advisorTeam: 'VIBENEWS_ADVISOR_TEAM', reportsToAdvisor: 'VibeNews Advisor',
+    sessionName: 'vibenews-worker', model: 'Codex 5.6 SOL', state: 'WORKING',
+    mission: 'VibeNews private mission', workUnit: 'VIBE-IWU-07', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
+  actor('designer.vibenews.primary', 'VibeNews Designer', 'GENERIC_REGISTERED', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews', {
+    role: 'Designer', project: 'VibeNews', advisorTeam: 'VIBENEWS_ADVISOR_TEAM', reportsToAdvisor: 'VibeNews Advisor',
+    sessionName: null, model: null, state: 'IDLE', mission: 'VibeNews private mission', workUnit: null,
+    evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+  }),
 ];
 
 const cues: readonly PixelCueInput[] = [
@@ -134,6 +175,7 @@ function actor(
   responsibleAdvisorRoleInstanceId: string,
   projectId: string,
   presentationPodId: string,
+  facts: PixelActorFactsInput,
 ): PixelActorInput {
   return {
     roleInstanceId,
@@ -144,6 +186,7 @@ function actor(
     projectId,
     assignmentVerified: true,
     presentationPodId,
+    facts,
   };
 }
 

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { LIVING_PIXEL_PROTOTYPE_PROJECTION } from '../../src/ui/pixel/fixtures/prototype-projection.js';
+import {
+  CHANNY_NATURAL_SEQUENCE,
+  channyNaturalSequenceAt,
+} from '../../src/ui/pixel/fixtures/prototype-timeline.js';
 import { projectPixelWorldFrame } from '../../src/ui/pixel/frame-projector.js';
 import {
   advancePixelClock,
@@ -39,9 +43,35 @@ describe('living pixel-office deterministic presentation clock and motion', () =
     const actorB = workerB.actorFrames.find((actor) => actor.roleInstanceId === 'worker.foundation.primary');
     expect(actorA?.animation).toBe('TYPE');
     expect(actorB?.animationFrame).not.toBe(actorA?.animationFrame);
-    expect(frame('channy-roam', 18_000).channy.animation).toBe('ROAM');
+    expect(frame('channy-roam', 18_000).channy.animation).toBe('WALK');
     expect(frame('channy-eat', 20_000).channy.animation).toBe('EAT');
     expect(frame('channy-sleep', 22_000).channy.animation).toBe('SLEEP');
+  });
+
+  it('runs the deterministic slow Bedlington sequence with long stops and cubic easing', () => {
+    expect(CHANNY_NATURAL_SEQUENCE.map((segment) => segment.animation)).toEqual([
+      'SIT', 'WALK', 'STOP', 'SNIFF', 'WALK', 'STOP', 'SIT', 'PLAY',
+      'WALK', 'STOP', 'EAT', 'STOP', 'DRINK', 'SLEEP', 'SIT', 'PLAY',
+    ]);
+    expect(CHANNY_NATURAL_SEQUENCE.filter((segment) => segment.animation === 'STOP')
+      .every((segment) => segment.endMs - segment.startMs >= 1200)).toBe(true);
+    expect(CHANNY_NATURAL_SEQUENCE.filter((segment) => segment.moving)
+      .every((segment) => segment.endMs - segment.startMs >= 1800)).toBe(true);
+    const walking = channyNaturalSequenceAt(2500 + 2700 * 0.25);
+    expect(walking.segment.animation).toBe('WALK');
+    expect(walking.easedProgress).toBeLessThan(walking.linearProgress);
+    const walkingLate = channyNaturalSequenceAt(2500 + 2700 * 0.75);
+    expect(walkingLate.easedProgress).toBeGreaterThan(walkingLate.linearProgress);
+
+    expect(naturalFrame(1000).channy.animation).toBe('SIT');
+    expect(naturalFrame(3000).channy.animation).toBe('WALK');
+    expect(naturalFrame(5600).channy.animation).toBe('STOP');
+    expect(naturalFrame(7000).channy.animation).toBe('SNIFF');
+    expect(naturalFrame(13_000).channy.animation).toBe('PLAY');
+    expect(naturalFrame(18_000).channy.animation).toBe('EAT');
+    expect(naturalFrame(20_700).channy.animation).toBe('DRINK');
+    expect(naturalFrame(21_500).channy.animation).toBe('SLEEP');
+    expect(naturalFrame(21_500).channy.authorityRole).toBe('none');
   });
 
   it('keeps every moving frame inside the bounded world', () => {
@@ -74,6 +104,18 @@ describe('living pixel-office deterministic presentation clock and motion', () =
       logicalTimeMs,
       presentationTier: 'PIXEL_FULL',
       scenarioId: sceneId,
+      cameraOverride: null,
+      viewportWidth: 1200,
+      viewportHeight: 620,
+    });
+  }
+
+  function naturalFrame(logicalTimeMs: number) {
+    return projectPixelWorldFrame(LIVING_PIXEL_PROTOTYPE_PROJECTION, layout, {
+      selectedPodId: 'pod:foundation',
+      logicalTimeMs,
+      presentationTier: 'PIXEL_FULL',
+      scenarioId: null,
       cameraOverride: null,
       viewportWidth: 1200,
       viewportHeight: 620,

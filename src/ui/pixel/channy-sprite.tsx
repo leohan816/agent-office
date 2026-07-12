@@ -1,36 +1,53 @@
 import type { ChannyFrame, PixelGraphicsPort } from './contracts.js';
 
 export function drawChannySprite(graphics: PixelGraphicsPort, frame: ChannyFrame): void {
-  const motion = frame.animation === 'ROAM' || frame.animation === 'PLAY'
-    ? frame.animationFrame % 2 === 0 ? -2 : 1
+  const walking = frame.animation === 'WALK' || frame.animation === 'ROAM' || frame.animation === 'PLAY';
+  const motion = walking
+    ? frame.animationFrame % 2 === 0 ? -1 : 1
     : 0;
   const sleeping = frame.animation === 'SLEEP';
   const eating = frame.animation === 'EAT' || frame.animation === 'DRINK';
+  const sniffing = frame.animation === 'SNIFF';
+  const sitting = frame.animation === 'SIT';
   const x = Math.round(frame.x - 24);
-  const y = Math.round(frame.y - (sleeping ? 22 : 36) + motion);
+  const y = Math.round(frame.y - (sleeping ? 22 : 37) + motion);
   graphics.ellipse(frame.x, frame.y + 1, sleeping ? 23 : 19, 6)
-    .fill({ color: 0x171925, alpha: 0.35 });
+    .fill({ color: 0x5c5b58, alpha: 0.2 });
   if (sleeping) {
-    graphics.roundRect(x + 5, y + 8, 38, 16, 7).fill(0xd5cdbe);
-    pixelRect(graphics, x + 7, y + 5, 13, 13, 0xd5cdbe);
-    pixelRect(graphics, x + 4, y + 5, 6, 11, 0x746a68);
-    pixelRect(graphics, x + 10, y + 11, 5, 1, 0x252536);
-    pixelRect(graphics, x + 34, y + 5 + frame.animationFrame, 8, 3, 0xebe3d2);
+    graphics.ellipse(x + 27, y + 15, 18, 10).fill(0xd7d4cf);
+    graphics.circle(x + 13, y + 13, 10).fill(0xf2eee6);
+    graphics.circle(x + 9, y + 10, 5).fill(0xf7f3eb);
+    graphics.roundRect(x + 2, y + 14, 14, 6, 3).fill(0xc8c5c0);
+    pixelRect(graphics, x + 2, y + 9, 5, 11, 0x686665);
+    pixelRect(graphics, x + 3, y + 16, 2, 2, 0x343638);
+    pixelRect(graphics, x + 10, y + 13, 4, 1, 0x4d4f50);
+    pixelRect(graphics, x + 36, y + 7 + frame.animationFrame, 8, 3, 0xe7e2d9);
     return;
   }
-  graphics.roundRect(x + 10, y + 15, 31, 16, 6).fill(0xd5cdbe);
-  graphics.roundRect(x + (eating ? 3 : 5), y + (eating ? 18 : 9), 19, 18, 7).fill(0xebe3d2);
-  pixelRect(graphics, x + 4, y + (eating ? 17 : 7), 6, 14, 0x746a68);
-  pixelRect(graphics, x + 11, y + (eating ? 25 : 17), 3, 3, 0x252536);
-  pixelRect(graphics, x + 17, y + (eating ? 23 : 15), 2, 2, 0x252536);
-  pixelRect(graphics, x + 13, y + 29, 5, 7 + motion, 0x746a68);
-  pixelRect(graphics, x + 34, y + 28, 5, 8 - motion, 0x746a68);
-  pixelRect(graphics, x + 39, y + 17 + motion, 7, 4, 0xd5cdbe);
+
+  const headY = y + (eating ? 19 : sniffing ? 14 : sitting ? 9 : 8);
+  const bodyY = y + (sitting ? 18 : 15);
+  // Bedlington silhouette: wool cap, narrow muzzle, arched back and slim legs.
+  graphics.ellipse(x + 30, bodyY + 7, sitting ? 13 : 18, sitting ? 12 : 11).fill(0xd7d4cf);
+  graphics.circle(x + 23, bodyY + 2, 10).fill(0xe6e2da);
+  graphics.circle(x + 34, bodyY + 1, 10).fill(0xe0ddd7);
+  graphics.circle(x + 15, headY + 4, 10).fill(0xf2eee6);
+  graphics.circle(x + 10, headY + 1, 6).fill(0xf7f3eb);
+  graphics.circle(x + 18, headY, 6).fill(0xeeeae2);
+  graphics.roundRect(x + 1, headY + 5, 15, 7, 3).fill(0xc8c5c0);
+  pixelRect(graphics, x + 4, headY - 1, 5, 13, 0x686665);
+  pixelRect(graphics, x + 1, headY + 8, 3, 3, 0x343638);
+  pixelRect(graphics, x + 12, headY + 5, 2, 2, 0x343638);
+  pixelRect(graphics, x + 18, bodyY + 12, 3, sitting ? 10 : 15 + motion, 0x9b9894);
+  pixelRect(graphics, x + 37, bodyY + 11, 3, sitting ? 8 : 16 - motion, 0x9b9894);
+  pixelRect(graphics, x + 17, frame.y - 2, 7, 3, 0x686665);
+  pixelRect(graphics, x + 36, frame.y - 2, 7, 3, 0x686665);
+  pixelRect(graphics, x + 42, bodyY + 1 + motion, 6, 3, 0xd7d4cf);
   if (frame.animation === 'REACT_WAITING_LEO') drawReaction(graphics, x + 35, y + 1, 0xf09f42, false);
   if (frame.animation === 'REACT_BLOCKED') drawReaction(graphics, x + 35, y + 1, 0xf3505b, true);
   if (eating) {
-    graphics.ellipse(x + 11, frame.y + 2, 10, 4).fill(frame.animation === 'DRINK' ? 0x73c9d2 : 0xef9f42);
-    pixelRect(graphics, x + 3, frame.y, 16, 3, 0x4a536b);
+    graphics.ellipse(x + 10, frame.y + 2, 10, 4).fill(frame.animation === 'DRINK' ? 0x9bd5e3 : 0xd9aa6f);
+    pixelRect(graphics, x + 2, frame.y, 16, 3, 0x6f7070);
   }
 }
 

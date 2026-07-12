@@ -6,6 +6,8 @@ import {
 import type {
   ChannyAnimation,
   ChannyFrame,
+  PixelActorFacts,
+  PixelActorFactsInput,
   PixelActorFrame,
   PixelActorInput,
   PixelCameraState,
@@ -20,8 +22,9 @@ import type {
   PixelWorldFrameV1,
   PixelWorldLayout,
 } from './contracts.js';
-import { PIXEL_WORLD_FRAME_SCHEMA_VERSION } from './contracts.js';
+import { PIXEL_ACTOR_UNKNOWN, PIXEL_WORLD_FRAME_SCHEMA_VERSION } from './contracts.js';
 import {
+  channyNaturalSequenceAt,
   segmentProgress,
   timelineSegmentAt,
   type PixelPrototypeTimelineSegment,
@@ -208,7 +211,9 @@ function projectActorFrame(
   };
   let point = defaultPoint;
   let animation: PixelActorFrame['animation'] = 'IDLE';
-  let operationalState: PixelOperationalState = pod.operationalState;
+  let operationalState: PixelOperationalState = actor.roleInstanceId === pod.currentActorRoleInstanceId
+    ? pod.operationalState
+    : structuredActorState(actor.facts.state);
   let carryingDocument = false;
   if (actor.roleCategory === 'ADVISOR_ROUTING') {
     const advisorHub = requireAnchor(layout, 'facility:advisor-hub');
@@ -255,6 +260,7 @@ function projectActorFrame(
     animation = 'BLOCKED';
     operationalState = 'BLOCKED';
   }
+  const facts = normalizePixelActorFacts(actor.facts, operationalState);
   return {
     roleInstanceId: actor.roleInstanceId,
     displayName: actor.displayName,
@@ -268,6 +274,25 @@ function projectActorFrame(
     operationalState,
     carryingDocument,
     visible: actor.assignmentVerified,
+    facts,
+  };
+}
+
+export function normalizePixelActorFacts(
+  input: PixelActorFactsInput,
+  structuredState: PixelOperationalState | null = null,
+): PixelActorFacts {
+  return {
+    role: verifiedActorFact(input.role),
+    project: verifiedActorFact(input.project),
+    advisorTeam: verifiedActorFact(input.advisorTeam),
+    reportsToAdvisor: verifiedActorFact(input.reportsToAdvisor),
+    sessionName: verifiedActorFact(input.sessionName),
+    model: verifiedActorFact(input.model),
+    state: structuredState ?? verifiedActorFact(input.state),
+    mission: verifiedActorFact(input.mission),
+    workUnit: verifiedActorFact(input.workUnit),
+    evidenceFreshness: verifiedActorFact(input.evidenceFreshness),
   };
 }
 
@@ -277,19 +302,27 @@ function projectChannyFrame(
   timeline: PixelPrototypeTimelineSegment,
   logicalTimeMs: number,
 ): ChannyFrame {
-  let animation: ChannyAnimation = 'SIT';
-  let point: PixelPoint = requireAnchor(layout, 'facility:channy-bed');
+  const natural = channyNaturalSequenceAt(logicalTimeMs);
+  let animation: ChannyAnimation = natural.segment.animation;
+  let point: PixelPoint = interpolate(
+    requireAnchor(layout, natural.segment.startAnchorId),
+    requireAnchor(layout, natural.segment.endAnchorId),
+    natural.easedProgress,
+  );
   if (sceneId === 'channy-roam') {
-    animation = 'ROAM';
+    animation = 'WALK';
     const progress = namedOrTimelineProgress(sceneId, timeline, logicalTimeMs);
     point = interpolate(
       requireAnchor(layout, 'walkway:west'),
       requireAnchor(layout, 'walkway:east'),
-      pingPong(progress),
+      smoothStep(progress),
     );
   } else if (sceneId === 'channy-eat') {
     animation = 'EAT';
     point = requireAnchor(layout, 'facility:channy-food');
+  } else if (sceneId === 'channy-drink') {
+    animation = 'DRINK';
+    point = requireAnchor(layout, 'facility:channy-water');
   } else if (sceneId === 'channy-sleep') {
     animation = 'SLEEP';
     point = requireAnchor(layout, 'facility:channy-bed');
@@ -307,7 +340,7 @@ function projectChannyFrame(
     entityId: 'channy.global',
     animation,
     animationFrame: channyAnimationFrame(animation, logicalTimeMs),
-    direction: 'EAST',
+    direction: animation === 'SLEEP' ? 'WEST' : 'EAST',
     authorityRole: 'none',
     x: point.x,
     y: point.y,
@@ -391,15 +424,23 @@ function sceneCamera(
     return interpolateCamera(focused, full, progress, 'SCRIPTED');
   }
   if (sceneId.startsWith('channy-') || sceneId === 'lounge-idle') {
-    const target = sceneId === 'channy-eat'
+    const target = sceneId === 'channy-roam'
+      ? interpolate(
+        requireAnchor(layout, 'walkway:west'),
+        requireAnchor(layout, 'walkway:east'),
+        smoothStep(0.55),
+      )
+      : sceneId === 'channy-eat'
       ? requireAnchor(layout, 'facility:channy-food')
+      : sceneId === 'channy-drink'
+        ? requireAnchor(layout, 'facility:channy-water')
       : sceneId === 'channy-sleep'
         ? requireAnchor(layout, 'facility:channy-bed')
         : requireAnchor(layout, 'facility:lounge');
     return clampPixelCamera(layout, {
       centerX: target.x,
       centerY: target.y,
-      zoom: options.viewportWidth < 768 ? 1 : 1.5,
+      zoom: sceneId.startsWith('channy-') ? 3 : options.viewportWidth < 768 ? 1 : 1.5,
       mode: 'SCRIPTED',
       selectedPodId: selectedPod.podId,
     }, options.viewportWidth, options.viewportHeight);
@@ -442,9 +483,10 @@ function statusLine(sceneId: string, timeline: PixelPrototypeTimelineSegment): s
     'advisor-handoff': 'One Advisor and one document follow one accepted synthetic route',
     'reviewer-active': 'Independent review presentation; no verdict or approval claim',
     'lounge-idle': 'VERIFIED_IDLE presentation; no availability or collaboration implication',
-    'channy-roam': 'Neutral Channy roam; authorityRole none',
-    'channy-eat': 'Neutral Channy eat cycle; no mission implication',
-    'channy-sleep': 'Neutral Channy sleep cycle; no system-idle implication',
+    'channy-roam': 'Slow eased Bedlington walk with long neutral pauses; authorityRole none',
+    'channy-eat': 'Neutral Bedlington eat cycle; no mission implication',
+    'channy-drink': 'Neutral Bedlington drink cycle; no mission implication',
+    'channy-sleep': 'Neutral Bedlington sleep cycle; no system-idle implication',
     'waiting-leo': 'Persistent decision request; no decision claim',
     blocked: 'Immediate blocker presentation; task and ambient routes suppressed',
     'mobile-foundation': 'Focused mobile Pod with complete semantic navigation',
@@ -465,8 +507,9 @@ function actorAnimationFrame(animation: PixelActorFrame['animation'], logicalTim
 
 function channyAnimationFrame(animation: ChannyAnimation, logicalTimeMs: number): number {
   const counts: Readonly<Record<ChannyAnimation, readonly [number, number]>> = {
-    ROAM: [6, 120], SIT: [3, 300], EAT: [4, 180], DRINK: [4, 180], SLEEP: [4, 500],
-    PLAY: [6, 140], REACT_WAITING_LEO: [3, 250], REACT_BLOCKED: [3, 250],
+    WALK: [6, 240], STOP: [1, 1300], SNIFF: [3, 450], ROAM: [6, 240],
+    SIT: [3, 500], EAT: [4, 320], DRINK: [4, 320], SLEEP: [4, 650],
+    PLAY: [6, 280], REACT_WAITING_LEO: [3, 350], REACT_BLOCKED: [3, 350],
     REACT_COMPLETE: [4, 200], REACT_STALE_OFFLINE: [1, 1000],
   };
   const [count, duration] = counts[animation];
@@ -493,15 +536,25 @@ function namedOrTimelineProgress(
   return sceneId === timeline.segmentId ? segmentProgress(timeline, logicalTimeMs) : 0.55;
 }
 
-function pingPong(progress: number): number {
-  return progress <= 0.5 ? progress * 2 : (1 - progress) * 2;
-}
-
 function interpolate(from: PixelPoint, to: PixelPoint, progress: number): PixelPoint {
   return {
     x: Math.round(from.x + (to.x - from.x) * progress),
     y: Math.round(from.y + (to.y - from.y) * progress),
   };
+}
+
+function verifiedActorFact(value: string | null): string {
+  const normalized = value?.trim() ?? '';
+  return normalized.length === 0 ? PIXEL_ACTOR_UNKNOWN : normalized;
+}
+
+function structuredActorState(value: string | null): PixelOperationalState {
+  const states: readonly PixelOperationalState[] = [
+    'UNKNOWN', 'IDLE', 'WORKING', 'TESTING', 'ROUTING / DISPATCH', 'REVIEWING',
+    'RETURNING_RESULT', 'NEEDS_PATCH', 'WAITING_DEPENDENCY', 'WAITING_LEO',
+    'BLOCKED', 'COMPLETED', 'FAILED', 'CANCELLED',
+  ];
+  return states.includes(value as PixelOperationalState) ? value as PixelOperationalState : 'UNKNOWN';
 }
 
 function smoothStep(progress: number): number {
