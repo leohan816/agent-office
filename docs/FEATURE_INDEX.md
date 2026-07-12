@@ -52,6 +52,13 @@ prototype baselines, and refreshed ignored local media. Production selection,
 authenticated integration, external assets, and full implementation remain
 absent and unauthorized.
 
+Binding Advisor clarification 98A narrows actor fact provenance without changing
+scope. The ten exact registry session names are explicit verified facts. Only
+Agent Office Worker `Codex 5.6 SOL` and Fable5 Reviewer `Fable5` are proven
+models; every other model is `UNKNOWN`. State, mission, WorkUnit, and freshness
+carry visible `SYNTHETIC FIXTURE` provenance, and null, absent, malformed, or
+`UNVERIFIED` input cannot be promoted by the frame projector or either renderer.
+
 ## 1. Current Implemented Scope
 
 The LocalBootstrap private-run gate passed against Agent Office base
@@ -328,6 +335,9 @@ adds an immutable ten-field actor fact model, collision-bounded camera-aware DOM
 labels with role/model/session/state plus glyph/ring, a keyboard/focus-managed
 drawer, literal `UNKNOWN`, a slow eased Channy walk/stop/sniff/sit/eat/drink/
 sleep/play sequence, original Bedlington drawing, and the modern light palette.
+Fact inputs now carry an explicit source discriminator. Labels and the drawer
+show synthetic operational provenance, verified sessions use the exact active
+registry names, and only the two mission-proven models render non-`UNKNOWN`.
 The configured Chromium run passes all thirteen visual rows plus WebGL,
 Canvas-to-static fail-closed behavior, context-loss/single-retry lifecycle,
 semantic/static parity, WCAG A/AA, responsive behavior, and teardown checks.

@@ -554,6 +554,15 @@ position, color, timestamps, or prose. Null, empty, or otherwise unverified
 input becomes `UNKNOWN`. Actor pixel clothing continues to carry project accent
 only; the camera-tracked DOM label and full DOM drawer carry readable identity.
 
+Under binding clarification 98A, each fact input also carries an explicit source
+kind. All ten session values come only from the verified active registry. The
+only non-`UNKNOWN` models are Agent Office Worker `Codex 5.6 SOL` and Fable5
+Reviewer `Fable5`. Role/project/Advisor Team/reporting facts are canonical
+fixture values; state/mission/WorkUnit/freshness are synthetic fixture values
+with visible `SYNTHETIC FIXTURE - NOT LIVE OPERATIONS` labels. Null, absent,
+malformed, and `UNVERIFIED` fields fail closed before sprite/DOM rendering, and
+neither renderer has a model or session fallback.
+
 Channy's deterministic 26-second presentation schedule now contains this exact
 neutral order:
 

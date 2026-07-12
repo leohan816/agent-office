@@ -1,4 +1,6 @@
 import type {
+  PixelActorFactInput,
+  PixelActorFactSource,
   PixelActorInput,
   PixelActorFactsInput,
   PixelCueInput,
@@ -41,54 +43,54 @@ const pods: readonly PixelPodInput[] = [
 
 const actors: readonly PixelActorInput[] = [
   actor('advisor.foundation.primary', 'Foundation Advisor', 'ADVISOR_ROUTING', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'foundation', 'pod:agent-office', {
-    role: 'Advisor', project: 'Foundation', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Leo/GPT',
-    sessionName: 'foundation-advisor', model: 'GPT-5.6 SOL', state: 'ROUTING / DISPATCH',
-    mission: 'Foundation operations', workUnit: 'ADVISOR-ROUTING', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Advisor'), project: canonicalFact('Foundation'), advisorTeam: canonicalFact('FOUNDATION_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Leo/GPT'),
+    sessionName: verifiedRegistryFact('foundation-advisor'), model: unverifiedFact(), state: syntheticFixtureFact('ROUTING / DISPATCH'),
+    mission: syntheticFixtureFact('Foundation operations'), workUnit: syntheticFixtureFact('ADVISOR-ROUTING'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('advisor.vibenews.primary', 'VibeNews Advisor', 'ADVISOR_ROUTING', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews', {
-    role: 'Advisor', project: 'VibeNews', advisorTeam: 'VIBENEWS_ADVISOR_TEAM', reportsToAdvisor: 'Leo/GPT',
-    sessionName: 'vibenews-advisor', model: 'GPT-5.6 SOL', state: 'ROUTING / DISPATCH',
-    mission: 'VibeNews private mission', workUnit: 'ADVISOR-ROUTING', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Advisor'), project: canonicalFact('VibeNews'), advisorTeam: canonicalFact('VIBENEWS_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Leo/GPT'),
+    sessionName: verifiedRegistryFact('VibeNews-advisor'), model: unverifiedFact(), state: syntheticFixtureFact('ROUTING / DISPATCH'),
+    mission: syntheticFixtureFact('VibeNews private mission'), workUnit: syntheticFixtureFact('ADVISOR-ROUTING'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('control.foundation.primary', 'Control', 'CONTROL_RECOVERY', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'control', 'pod:control', {
-    role: 'Control', project: 'Control', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
-    sessionName: 'control', model: 'Codex 5.6 SOL', state: 'TESTING',
-    mission: 'Recovery guardrails', workUnit: 'AO12-CTRL-04', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Control'), project: canonicalFact('Control'), advisorTeam: canonicalFact('FOUNDATION_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Foundation Advisor'),
+    sessionName: verifiedRegistryFact('foundation-control'), model: unverifiedFact(), state: syntheticFixtureFact('TESTING'),
+    mission: syntheticFixtureFact('Recovery guardrails'), workUnit: syntheticFixtureFact('AO12-CTRL-04'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('reviewer.fable5.primary', 'Fable5 Reviewer', 'INDEPENDENT_REVIEW', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'agent-office', 'pod:agent-office', {
-    role: 'Independent Reviewer', project: 'Agent Office', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
-    sessionName: 'reviewer-fable5', model: 'Fable5', state: 'REVIEWING',
-    mission: 'Living pixel-office', workUnit: 'AO12-PWU-10', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Independent Reviewer'), project: canonicalFact('Agent Office'), advisorTeam: canonicalFact('FOUNDATION_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Foundation Advisor'),
+    sessionName: verifiedRegistryFact('reviewer-fable5'), model: verifiedMissionArtifactFact('Fable5'), state: syntheticFixtureFact('REVIEWING'),
+    mission: syntheticFixtureFact('Living pixel-office'), workUnit: syntheticFixtureFact('AO12-PWU-10'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('worker.agent-office.primary', 'Agent Office Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'agent-office', 'pod:agent-office', {
-    role: 'Worker', project: 'Agent Office', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
-    sessionName: 'agent-office', model: 'Codex 5.6 SOL', state: 'WORKING',
-    mission: 'Living pixel-office visual patch', workUnit: 'AO12-PWU-11-P1', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Worker'), project: canonicalFact('Agent Office'), advisorTeam: canonicalFact('FOUNDATION_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Foundation Advisor'),
+    sessionName: verifiedRegistryFact('agent-office'), model: verifiedMissionArtifactFact('Codex 5.6 SOL'), state: syntheticFixtureFact('WORKING'),
+    mission: syntheticFixtureFact('Living pixel-office visual patch'), workUnit: syntheticFixtureFact('AO12-PWU-11-P1'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('worker.cosmile.primary', 'Cosmile Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'cosmile', 'pod:cosmile', {
-    role: 'Worker', project: 'Cosmile', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
-    sessionName: 'cosmile-worker', model: 'Codex 5.6 SOL', state: 'IDLE',
-    mission: 'Cosmile private mission', workUnit: 'COS-IWU-05', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Worker'), project: canonicalFact('Cosmile'), advisorTeam: canonicalFact('FOUNDATION_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Foundation Advisor'),
+    sessionName: verifiedRegistryFact('cosmile'), model: unverifiedFact(), state: syntheticFixtureFact('IDLE'),
+    mission: syntheticFixtureFact('Cosmile private mission'), workUnit: syntheticFixtureFact('COS-IWU-05'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('worker.foundation.primary', 'Foundation Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'foundation', 'pod:foundation', {
-    role: 'Worker', project: 'Foundation', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
-    sessionName: 'foundation-worker', model: 'Codex 5.6 SOL', state: 'WORKING',
-    mission: 'Foundation operations', workUnit: 'FND-IWU-12', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Worker'), project: canonicalFact('Foundation'), advisorTeam: canonicalFact('FOUNDATION_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Foundation Advisor'),
+    sessionName: verifiedRegistryFact('foundation'), model: unverifiedFact(), state: syntheticFixtureFact('WORKING'),
+    mission: syntheticFixtureFact('Foundation operations'), workUnit: syntheticFixtureFact('FND-IWU-12'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('worker.siasiu.primary', 'SIASIU Worker', 'WORKER_BUILD', 'FOUNDATION_ADVISOR_TEAM', 'advisor.foundation.primary', 'siasiu', 'pod:siasiu', {
-    role: 'Worker', project: 'SIASIU', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', reportsToAdvisor: 'Foundation Advisor',
-    sessionName: 'siasiu-worker', model: 'Codex 5.6 SOL', state: 'WAITING_DEPENDENCY',
-    mission: 'SIASIU private mission', workUnit: 'SIA-IWU-03', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Worker'), project: canonicalFact('SIASIU'), advisorTeam: canonicalFact('FOUNDATION_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('Foundation Advisor'),
+    sessionName: verifiedRegistryFact('siasiu'), model: unverifiedFact(), state: syntheticFixtureFact('WAITING_DEPENDENCY'),
+    mission: syntheticFixtureFact('SIASIU private mission'), workUnit: syntheticFixtureFact('SIA-IWU-03'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('worker.vibenews.primary', 'VibeNews Worker', 'WORKER_BUILD', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews', {
-    role: 'Worker', project: 'VibeNews', advisorTeam: 'VIBENEWS_ADVISOR_TEAM', reportsToAdvisor: 'VibeNews Advisor',
-    sessionName: 'vibenews-worker', model: 'Codex 5.6 SOL', state: 'WORKING',
-    mission: 'VibeNews private mission', workUnit: 'VIBE-IWU-07', evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Worker'), project: canonicalFact('VibeNews'), advisorTeam: canonicalFact('VIBENEWS_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('VibeNews Advisor'),
+    sessionName: verifiedRegistryFact('VibeNews'), model: unverifiedFact(), state: syntheticFixtureFact('WORKING'),
+    mission: syntheticFixtureFact('VibeNews private mission'), workUnit: syntheticFixtureFact('VIBE-IWU-07'), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
   actor('designer.vibenews.primary', 'VibeNews Designer', 'GENERIC_REGISTERED', 'VIBENEWS_ADVISOR_TEAM', 'advisor.vibenews.primary', 'vibenews', 'pod:vibenews', {
-    role: 'Designer', project: 'VibeNews', advisorTeam: 'VIBENEWS_ADVISOR_TEAM', reportsToAdvisor: 'VibeNews Advisor',
-    sessionName: null, model: null, state: 'IDLE', mission: 'VibeNews private mission', workUnit: null,
-    evidenceFreshness: 'CURRENT / SYNTHETIC FIXTURE',
+    role: canonicalFact('Designer'), project: canonicalFact('VibeNews'), advisorTeam: canonicalFact('VIBENEWS_ADVISOR_TEAM'), reportsToAdvisor: canonicalFact('VibeNews Advisor'),
+    sessionName: verifiedRegistryFact('VibeNews-designer'), model: unverifiedFact(), state: syntheticFixtureFact('IDLE'),
+    mission: syntheticFixtureFact('VibeNews private mission'), workUnit: unverifiedFact(), evidenceFreshness: syntheticFixtureFact('CURRENT'),
   }),
 ];
 
@@ -188,6 +190,30 @@ function actor(
     presentationPodId,
     facts,
   };
+}
+
+function actorFact(value: string | null, source: PixelActorFactSource): PixelActorFactInput {
+  return { value, source };
+}
+
+function canonicalFact(value: string): PixelActorFactInput {
+  return actorFact(value, 'CANONICAL_FIXTURE');
+}
+
+function verifiedRegistryFact(value: string): PixelActorFactInput {
+  return actorFact(value, 'VERIFIED_REGISTRY');
+}
+
+function verifiedMissionArtifactFact(value: string): PixelActorFactInput {
+  return actorFact(value, 'VERIFIED_MISSION_ARTIFACT');
+}
+
+function syntheticFixtureFact(value: string): PixelActorFactInput {
+  return actorFact(value, 'SYNTHETIC_FIXTURE');
+}
+
+function unverifiedFact(): PixelActorFactInput {
+  return actorFact(null, 'UNVERIFIED');
 }
 
 function cue(

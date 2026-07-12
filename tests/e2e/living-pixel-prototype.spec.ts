@@ -7,6 +7,18 @@ import { expect, test, type Page } from '@playwright/test';
 import { PIXEL_PROTOTYPE_SCENARIOS } from '../../src/ui/pixel/fixtures/prototype-scenarios.js';
 
 const ARTIFACT_ROOT = '/home/leo/Project/agent-office/artifacts/m1-2-visual-prototype';
+const VERIFIED_ACTOR_FACTS = [
+  ['advisor.foundation.primary', 'foundation-advisor', 'UNKNOWN'],
+  ['control.foundation.primary', 'foundation-control', 'UNKNOWN'],
+  ['worker.foundation.primary', 'foundation', 'UNKNOWN'],
+  ['worker.cosmile.primary', 'cosmile', 'UNKNOWN'],
+  ['worker.siasiu.primary', 'siasiu', 'UNKNOWN'],
+  ['worker.agent-office.primary', 'agent-office', 'Codex 5.6 SOL'],
+  ['reviewer.fable5.primary', 'reviewer-fable5', 'Fable5'],
+  ['advisor.vibenews.primary', 'VibeNews-advisor', 'UNKNOWN'],
+  ['worker.vibenews.primary', 'VibeNews', 'UNKNOWN'],
+  ['designer.vibenews.primary', 'VibeNews-designer', 'UNKNOWN'],
+] as const;
 const enabled = process.env.AGENT_OFFICE_PIXEL_PROTOTYPE === '1';
 type PixelPrototypeConfigModule = typeof import('../../playwright.pixel-prototype.config.js');
 const pixelPrototypeConfigTypecheck: PixelPrototypeConfigModule | null = null;
@@ -57,11 +69,18 @@ for (const scenario of PIXEL_PROTOTYPE_SCENARIOS) {
       await expect(page.getByRole('navigation', { name: 'Advisor Team Pod navigation' }).getByRole('button')).toHaveCount(8);
       await expect(page.getByText('Every visible pixel has complete text meaning')).toBeAttached();
       await expect(page.locator('[data-actor-label]:visible')).toHaveCount(10);
-      await expect(page.getByRole('button', { name: /Agent Office Worker.*Role Worker.*Model Codex 5.6 SOL.*Session agent-office.*State WORKING/u })).toBeVisible();
+      await expect(page.getByRole('button', { name: /Agent Office Worker.*Role Worker.*Model Codex 5.6 SOL.*Session agent-office.*State WORKING.*SYNTHETIC FIXTURE/u })).toBeVisible();
+      for (const [actorId, sessionName, model] of VERIFIED_ACTOR_FACTS) {
+        const label = page.locator(`[data-actor-label="${actorId}"]`);
+        const facts = label.locator('.living-office-actor-label__facts');
+        await expect(facts.locator('span').nth(0), `${actorId} model`).toHaveText(model);
+        await expect(facts.locator('span').nth(1), `${actorId} session`).toHaveText(sessionName);
+        await expect(facts.locator('small'), `${actorId} state provenance`).toHaveText('SYNTHETIC FIXTURE');
+      }
       await assertNoActorLabelCollisions(page);
     }
     if (scenario.matrixId === 'PIXEL-V03') {
-      await expect(page.getByRole('button', { name: /VibeNews Designer.*Model UNKNOWN.*Session UNKNOWN/u })).toBeVisible();
+      await expect(page.getByRole('button', { name: /VibeNews Designer.*Model UNKNOWN.*Session VibeNews-designer/u })).toBeVisible();
     }
     if (scenario.matrixId === 'PIXEL-V04') {
       await expect(page.getByRole('log')).toContainText('DELIVERY');
@@ -163,8 +182,17 @@ test('handles context loss, one bounded retry, camera controls and detail focus 
   await actorLabel.click();
   const actorDialog = page.getByRole('dialog', { name: 'Foundation Worker' });
   await expect(actorDialog.locator('[data-actor-fact]')).toHaveCount(10);
-  await expect(actorDialog).toContainText('foundation-worker');
-  await expect(actorDialog).toContainText('Codex 5.6 SOL');
+  await expect(actorDialog.locator('[data-actor-fact="Session name"]')).toContainText('foundation');
+  await expect(actorDialog.locator('[data-actor-fact="Session name"]')).toHaveAttribute('data-actor-fact-source', 'VERIFIED_REGISTRY');
+  await expect(actorDialog.locator('[data-actor-fact="Model"]')).toContainText('UNKNOWN');
+  await expect(actorDialog.locator('[data-actor-fact="Model"]')).toHaveAttribute('data-actor-fact-source', 'UNVERIFIED');
+  await expect(actorDialog.locator('[data-actor-fact="State"]')).toHaveAttribute('data-actor-fact-source', 'SYNTHETIC_FIXTURE');
+  await expect(actorDialog.locator('[data-actor-fact="Mission"]')).toContainText('SYNTHETIC FIXTURE - NOT LIVE OPERATIONS');
+  const actorAccessibility = await new AxeBuilder({ page })
+    .include('[data-actor-detail]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(actorAccessibility.violations).toEqual([]);
   await expect(page.getByRole('button', { name: 'Close actor detail' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(actorDialog).toHaveCount(0);

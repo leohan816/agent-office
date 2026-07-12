@@ -3,6 +3,21 @@ export const PIXEL_ATLAS_SCHEMA_VERSION = 'agent-office.pixel-atlas.v1' as const
 export const PIXEL_PROTOTYPE_FIXTURE_ID = 'agent-office.living-pixel-prototype.synthetic.v1' as const;
 export const PIXEL_ACTOR_UNKNOWN = 'UNKNOWN' as const;
 
+export type PixelActorFactSource =
+  | 'VERIFIED_REGISTRY'
+  | 'VERIFIED_MISSION_ARTIFACT'
+  | 'CANONICAL_FIXTURE'
+  | 'SYNTHETIC_FIXTURE'
+  | 'UNVERIFIED';
+
+export const PIXEL_ACTOR_FACT_SOURCE_LABELS: Readonly<Record<PixelActorFactSource, string>> = {
+  VERIFIED_REGISTRY: 'VERIFIED REGISTRY',
+  VERIFIED_MISSION_ARTIFACT: 'VERIFIED MISSION ARTIFACT',
+  CANONICAL_FIXTURE: 'CANONICAL FIXTURE',
+  SYNTHETIC_FIXTURE: 'SYNTHETIC FIXTURE - NOT LIVE OPERATIONS',
+  UNVERIFIED: 'UNVERIFIED',
+};
+
 export type PixelPresentationTier = 'PIXEL_FULL' | 'PIXEL_RESTRAINED' | 'DOM_STATIC';
 export type PixelRendererBackend = 'WEBGL' | 'CANVAS' | 'DOM_STATIC';
 export type PixelDirection = 'NORTH' | 'SOUTH' | 'EAST' | 'WEST';
@@ -125,17 +140,22 @@ export interface PixelActorInput {
   readonly facts: PixelActorFactsInput;
 }
 
+export interface PixelActorFactInput {
+  readonly value?: string | null;
+  readonly source: PixelActorFactSource;
+}
+
 export interface PixelActorFactsInput {
-  readonly role: string | null;
-  readonly project: string | null;
-  readonly advisorTeam: string | null;
-  readonly reportsToAdvisor: string | null;
-  readonly sessionName: string | null;
-  readonly model: string | null;
-  readonly state: string | null;
-  readonly mission: string | null;
-  readonly workUnit: string | null;
-  readonly evidenceFreshness: string | null;
+  readonly role?: PixelActorFactInput | null;
+  readonly project?: PixelActorFactInput | null;
+  readonly advisorTeam?: PixelActorFactInput | null;
+  readonly reportsToAdvisor?: PixelActorFactInput | null;
+  readonly sessionName?: PixelActorFactInput | null;
+  readonly model?: PixelActorFactInput | null;
+  readonly state?: PixelActorFactInput | null;
+  readonly mission?: PixelActorFactInput | null;
+  readonly workUnit?: PixelActorFactInput | null;
+  readonly evidenceFreshness?: PixelActorFactInput | null;
 }
 
 export interface PixelActorFacts {
@@ -150,6 +170,8 @@ export interface PixelActorFacts {
   readonly workUnit: string;
   readonly evidenceFreshness: string;
 }
+
+export type PixelActorFactSources = Readonly<Record<keyof PixelActorFacts, PixelActorFactSource>>;
 
 export interface PixelCueInput {
   readonly cueId: string;
@@ -237,6 +259,7 @@ export interface PixelActorFrame extends PixelPoint {
   readonly carryingDocument: boolean;
   readonly visible: boolean;
   readonly facts: PixelActorFacts;
+  readonly factSources: PixelActorFactSources;
 }
 
 export interface ChannyFrame extends PixelPoint {

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { PIXEL_ATLAS_BUNDLES, totalGeneratedRgbaBytes } from '../../src/ui/pixel/assets/atlas-manifest.js';
 import {
   PIXEL_PROTOTYPE_FIXTURE_ID,
+  type PixelActorFactInput,
   type PixelActorInput,
   type PixelPodInput,
   type PixelPrototypeProjection,
@@ -142,16 +143,16 @@ function createDesignLoadProjection(): PixelPrototypeProjection {
       assignmentVerified: true,
       presentationPodId: `pod:load-${podIndex.toString().padStart(2, '0')}`,
       facts: {
-        role: index === 0 || index === 6 ? 'Advisor' : 'Synthetic load actor',
-        project: `Load Project ${podIndex + 1}`,
-        advisorTeam: `LOAD_ADVISOR_TEAM_${teamIndex}`,
-        reportsToAdvisor: teamIndex === 0 ? 'Load Advisor 1' : 'Load Advisor 7',
-        sessionName: `load-session-${index + 1}`,
-        model: 'SYNTHETIC LOAD MODEL',
-        state: 'WORKING',
-        mission: `Synthetic load mission ${podIndex + 1}`,
-        workUnit: `LOAD-IWU-${index + 1}`,
-        evidenceFreshness: 'CURRENT / SYNTHETIC LOAD',
+        role: canonicalLoadFact(index === 0 || index === 6 ? 'Advisor' : 'Synthetic load actor'),
+        project: canonicalLoadFact(`Load Project ${podIndex + 1}`),
+        advisorTeam: canonicalLoadFact(`LOAD_ADVISOR_TEAM_${teamIndex}`),
+        reportsToAdvisor: canonicalLoadFact(teamIndex === 0 ? 'Load Advisor 1' : 'Load Advisor 7'),
+        sessionName: unverifiedLoadFact(),
+        model: unverifiedLoadFact(),
+        state: syntheticLoadFact('WORKING'),
+        mission: syntheticLoadFact(`Synthetic load mission ${podIndex + 1}`),
+        workUnit: syntheticLoadFact(`LOAD-IWU-${index + 1}`),
+        evidenceFreshness: syntheticLoadFact('CURRENT'),
       },
     };
   });
@@ -199,6 +200,18 @@ function createDesignLoadProjection(): PixelPrototypeProjection {
     cues: [],
     sourceEventIds: [],
   };
+}
+
+function canonicalLoadFact(value: string): PixelActorFactInput {
+  return { value, source: 'CANONICAL_FIXTURE' };
+}
+
+function syntheticLoadFact(value: string): PixelActorFactInput {
+  return { value, source: 'SYNTHETIC_FIXTURE' };
+}
+
+function unverifiedLoadFact(): PixelActorFactInput {
+  return { value: null, source: 'UNVERIFIED' };
 }
 
 function percentile95(samples: readonly number[]): number {

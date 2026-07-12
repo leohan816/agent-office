@@ -637,6 +637,17 @@ restore the exact label invoker. The overlay stays mounted over WebGL, accepted
 Canvas, and `DOM_STATIC`; imperative position updates avoid a per-frame React
 state loop while the frame model remains the only truth source.
 
+Binding clarification 98A makes provenance part of that immutable frame. Exact
+active-registry session values are `foundation-advisor`, `foundation-control`,
+`foundation`, `cosmile`, `siasiu`, `agent-office`, `reviewer-fable5`,
+`VibeNews-advisor`, `VibeNews`, and `VibeNews-designer`. Only Agent Office Worker
+`Codex 5.6 SOL` and Fable5 Reviewer `Fable5` have mission-proven model values;
+all other models are `UNKNOWN`. Role/project/Advisor Team/reporting values may
+come from the canonical fixture, while state/mission/WorkUnit/freshness are
+visibly tagged `SYNTHETIC FIXTURE - NOT LIVE OPERATIONS`. Null, absent,
+malformed, and source-`UNVERIFIED` input normalize to `UNKNOWN`; no DOM, Canvas,
+or WebGL renderer supplies a fallback.
+
 The office presentation now uses ivory, light oak, sand, warm gray, glass-blue,
 and muted charcoal as dominant colors. Project colors remain redundant accents
 on clothing, signs, boards, rugs, and desk details. The surrounding HUD,

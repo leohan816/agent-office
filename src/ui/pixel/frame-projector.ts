@@ -6,8 +6,11 @@ import {
 import type {
   ChannyAnimation,
   ChannyFrame,
+  PixelActorFactInput,
+  PixelActorFactSource,
   PixelActorFacts,
   PixelActorFactsInput,
+  PixelActorFactSources,
   PixelActorFrame,
   PixelActorInput,
   PixelCameraState,
@@ -260,7 +263,7 @@ function projectActorFrame(
     animation = 'BLOCKED';
     operationalState = 'BLOCKED';
   }
-  const facts = normalizePixelActorFacts(actor.facts, operationalState);
+  const factSet = normalizePixelActorFactSet(actor.facts, operationalState);
   return {
     roleInstanceId: actor.roleInstanceId,
     displayName: actor.displayName,
@@ -274,25 +277,66 @@ function projectActorFrame(
     operationalState,
     carryingDocument,
     visible: actor.assignmentVerified,
-    facts,
+    facts: factSet.facts,
+    factSources: factSet.sources,
   };
+}
+
+export interface PixelActorFactSet {
+  readonly facts: PixelActorFacts;
+  readonly sources: PixelActorFactSources;
 }
 
 export function normalizePixelActorFacts(
   input: PixelActorFactsInput,
   structuredState: PixelOperationalState | null = null,
 ): PixelActorFacts {
+  return normalizePixelActorFactSet(input, structuredState).facts;
+}
+
+export function normalizePixelActorFactSet(
+  input: PixelActorFactsInput,
+  structuredState: PixelOperationalState | null = null,
+): PixelActorFactSet {
+  const role = normalizeActorFact(input.role);
+  const project = normalizeActorFact(input.project);
+  const advisorTeam = normalizeActorFact(input.advisorTeam);
+  const reportsToAdvisor = normalizeActorFact(input.reportsToAdvisor);
+  const sessionName = normalizeActorFact(input.sessionName);
+  const model = normalizeActorFact(input.model);
+  const state = structuredState === null
+    ? normalizeActorFact(input.state)
+    : structuredState === PIXEL_ACTOR_UNKNOWN
+      ? unknownActorFact()
+      : { value: structuredState, source: 'SYNTHETIC_FIXTURE' as const };
+  const mission = normalizeActorFact(input.mission);
+  const workUnit = normalizeActorFact(input.workUnit);
+  const evidenceFreshness = normalizeActorFact(input.evidenceFreshness);
   return {
-    role: verifiedActorFact(input.role),
-    project: verifiedActorFact(input.project),
-    advisorTeam: verifiedActorFact(input.advisorTeam),
-    reportsToAdvisor: verifiedActorFact(input.reportsToAdvisor),
-    sessionName: verifiedActorFact(input.sessionName),
-    model: verifiedActorFact(input.model),
-    state: structuredState ?? verifiedActorFact(input.state),
-    mission: verifiedActorFact(input.mission),
-    workUnit: verifiedActorFact(input.workUnit),
-    evidenceFreshness: verifiedActorFact(input.evidenceFreshness),
+    facts: {
+      role: role.value,
+      project: project.value,
+      advisorTeam: advisorTeam.value,
+      reportsToAdvisor: reportsToAdvisor.value,
+      sessionName: sessionName.value,
+      model: model.value,
+      state: state.value,
+      mission: mission.value,
+      workUnit: workUnit.value,
+      evidenceFreshness: evidenceFreshness.value,
+    },
+    sources: {
+      role: role.source,
+      project: project.source,
+      advisorTeam: advisorTeam.source,
+      reportsToAdvisor: reportsToAdvisor.source,
+      sessionName: sessionName.source,
+      model: model.source,
+      state: state.source,
+      mission: mission.source,
+      workUnit: workUnit.source,
+      evidenceFreshness: evidenceFreshness.source,
+    },
   };
 }
 
@@ -543,18 +587,32 @@ function interpolate(from: PixelPoint, to: PixelPoint, progress: number): PixelP
   };
 }
 
-function verifiedActorFact(value: string | null): string {
-  const normalized = value?.trim() ?? '';
-  return normalized.length === 0 ? PIXEL_ACTOR_UNKNOWN : normalized;
+function normalizeActorFact(
+  input: PixelActorFactInput | null | undefined,
+): { readonly value: string; readonly source: PixelActorFactSource } {
+  if (typeof input !== 'object' || input === null || input.source === 'UNVERIFIED') {
+    return unknownActorFact();
+  }
+  const normalized = input.value?.trim() ?? '';
+  return normalized.length === 0
+    ? unknownActorFact()
+    : { value: normalized, source: input.source };
 }
 
-function structuredActorState(value: string | null): PixelOperationalState {
+function unknownActorFact(): { readonly value: typeof PIXEL_ACTOR_UNKNOWN; readonly source: 'UNVERIFIED' } {
+  return { value: PIXEL_ACTOR_UNKNOWN, source: 'UNVERIFIED' };
+}
+
+function structuredActorState(input: PixelActorFactInput | null | undefined): PixelOperationalState {
   const states: readonly PixelOperationalState[] = [
     'UNKNOWN', 'IDLE', 'WORKING', 'TESTING', 'ROUTING / DISPATCH', 'REVIEWING',
     'RETURNING_RESULT', 'NEEDS_PATCH', 'WAITING_DEPENDENCY', 'WAITING_LEO',
     'BLOCKED', 'COMPLETED', 'FAILED', 'CANCELLED',
   ];
-  return states.includes(value as PixelOperationalState) ? value as PixelOperationalState : 'UNKNOWN';
+  const fact = normalizeActorFact(input);
+  return fact.source === 'SYNTHETIC_FIXTURE' && states.includes(fact.value as PixelOperationalState)
+    ? fact.value as PixelOperationalState
+    : 'UNKNOWN';
 }
 
 function smoothStep(progress: number): number {

@@ -1,3 +1,4 @@
+import { PIXEL_ACTOR_FACT_SOURCE_LABELS } from './contracts.js';
 import type { PixelPrototypeProjection, PixelWorldFrameV1 } from './contracts.js';
 
 export interface LivingOfficeSemanticMirrorProps {
@@ -19,7 +20,7 @@ export function LivingOfficeSemanticMirror({
     >
       <div className="living-office-semantic__heading">
         <div>
-          <p>Accessible operational mirror</p>
+          <p>Accessible synthetic fixture mirror</p>
           <h2 id="living-office-semantic-heading">Every visible pixel has complete text meaning</h2>
         </div>
         <span className="living-office-semantic__parity">FRAME PARITY / {frame.visibleEntityIds.length} ENTITIES</span>
@@ -73,9 +74,12 @@ export function LivingOfficeSemanticMirror({
         {frame.actorFrames.filter((actor) => actor.visible).map((actor) => (
           <li key={actor.roleInstanceId}>
             {actor.displayName}; role {actor.facts.role}; project {actor.facts.project}; Advisor Team {actor.facts.advisorTeam};
-            reports-to Advisor {actor.facts.reportsToAdvisor}; session name {actor.facts.sessionName}; model {actor.facts.model};
-            state {actor.facts.state}; mission {actor.facts.mission}; WorkUnit {actor.facts.workUnit};
-            evidence freshness {actor.facts.evidenceFreshness}.
+            reports-to Advisor {actor.facts.reportsToAdvisor}; session name {actor.facts.sessionName} source {PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.sessionName]};
+            model {actor.facts.model} source {PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.model]};
+            state {actor.facts.state} source {PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.state]};
+            mission {actor.facts.mission} source {PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.mission]};
+            WorkUnit {actor.facts.workUnit} source {PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.workUnit]};
+            evidence freshness {actor.facts.evidenceFreshness} source {PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.evidenceFreshness]}.
           </li>
         ))}
       </ul>

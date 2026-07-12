@@ -63,11 +63,12 @@ describe('camera-tracked living-office actor identity labels', () => {
         viewportWidth={1400}
       />,
     );
-    const label = screen.getByRole('button', { name: /Foundation Worker.*Role Worker.*Model Codex 5.6 SOL.*Session foundation-worker.*State WORKING/u });
+    const label = screen.getByRole('button', { name: /Foundation Worker.*Role Worker.*Model UNKNOWN.*source UNVERIFIED.*Session foundation.*source VERIFIED REGISTRY.*State WORKING.*source SYNTHETIC FIXTURE/u });
     expect(label.textContent).toContain('Worker');
-    expect(label.textContent).toContain('Codex 5.6 SOL');
-    expect(label.textContent).toContain('foundation-worker');
+    expect(label.textContent).toContain('UNKNOWN');
+    expect(label.textContent).toContain('foundation');
     expect(label.textContent).toContain('WORKING');
+    expect(label.textContent).toContain('SYNTHETIC FIXTURE');
     expect(label.querySelector('.living-office-actor-label__glyph')?.textContent).toBe('W');
     expect(label.querySelector('.living-office-actor-label__ring')?.getAttribute('data-state')).toBe('WORKING');
     expect(container.querySelector('[data-presentation-tier="PIXEL_FULL"]')).not.toBeNull();
@@ -83,13 +84,20 @@ describe('camera-tracked living-office actor identity labels', () => {
         viewportWidth={1400}
       />,
     );
-    const designerLabel = screen.getByRole('button', { name: /VibeNews Designer.*Model UNKNOWN.*Session UNKNOWN/u });
+    const designerLabel = screen.getByRole('button', { name: /VibeNews Designer.*Model UNKNOWN.*source UNVERIFIED.*Session VibeNews-designer.*source VERIFIED REGISTRY/u });
     designerLabel.focus();
     fireEvent.click(designerLabel);
     const dialog = screen.getByRole('dialog', { name: 'VibeNews Designer' });
     expect(dialog.querySelectorAll('[data-actor-fact]')).toHaveLength(10);
     expect(dialog.textContent).toContain('UNKNOWN');
     expect(dialog.textContent).toContain('VIBENEWS_ADVISOR_TEAM');
+    expect(dialog.querySelector('[data-actor-fact="Session name"]')?.getAttribute('data-actor-fact-source')).toBe('VERIFIED_REGISTRY');
+    expect(dialog.querySelector('[data-actor-fact="Model"]')?.getAttribute('data-actor-fact-source')).toBe('UNVERIFIED');
+    expect(dialog.querySelector('[data-actor-fact="State"]')?.getAttribute('data-actor-fact-source')).toBe('SYNTHETIC_FIXTURE');
+    expect(dialog.querySelector('[data-actor-fact="Mission"]')?.getAttribute('data-actor-fact-source')).toBe('SYNTHETIC_FIXTURE');
+    expect(dialog.querySelector('[data-actor-fact="WorkUnit"]')?.getAttribute('data-actor-fact-source')).toBe('UNVERIFIED');
+    expect(dialog.querySelector('[data-actor-fact="Evidence freshness"]')?.getAttribute('data-actor-fact-source')).toBe('SYNTHETIC_FIXTURE');
+    expect(dialog.textContent).toContain('SYNTHETIC FIXTURE - NOT LIVE OPERATIONS');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close actor detail' }));
     fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'VibeNews Designer' })).toBeNull();

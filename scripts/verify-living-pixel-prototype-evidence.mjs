@@ -198,9 +198,50 @@ for (const requiredField of [
 ]) {
   assert(actorOverlaySource.includes(`label="${requiredField}"`), `actor detail field missing: ${requiredField}`);
 }
+assert(actorOverlaySource.includes('data-actor-fact-source={source}'), 'actor detail provenance marker missing');
+assert(actorOverlaySource.includes('actorLabelFactSource(actor.factSources.state)'), 'always-visible actor state provenance marker missing');
 const frameProjectorSource = await readFile(path.join(repositoryRoot, 'src/ui/pixel/frame-projector.ts'), 'utf8');
 assert(frameProjectorSource.includes('PIXEL_ACTOR_UNKNOWN'), 'literal UNKNOWN fail-closed actor field gate missing');
+assert(frameProjectorSource.includes("input.source === 'UNVERIFIED'"), 'unverified actor fact rejection gate missing');
+assert(frameProjectorSource.includes("source: 'SYNTHETIC_FIXTURE' as const"), 'synthetic structured-state provenance gate missing');
 assert(frameProjectorSource.includes("zoom: sceneId.startsWith('channy-') ? 3"), 'focused Channy evidence camera gate missing');
+const fixturePath = path.join(repositoryRoot, 'src/ui/pixel/fixtures/prototype-projection.ts');
+const fixtureSource = await readFile(fixturePath, 'utf8');
+for (const sessionName of [
+  'foundation-advisor', 'foundation-control', 'foundation', 'cosmile', 'siasiu',
+  'agent-office', 'reviewer-fable5', 'VibeNews-advisor', 'VibeNews', 'VibeNews-designer',
+]) {
+  assert(
+    fixtureSource.includes(`verifiedRegistryFact('${sessionName}')`),
+    `verified actor session fact missing: ${sessionName}`,
+  );
+}
+assert(
+  (fixtureSource.match(/verifiedRegistryFact\('/gu) ?? []).length === 10,
+  'prototype fixture must contain exactly ten verified registry session facts',
+);
+assert(
+  (fixtureSource.match(/verifiedMissionArtifactFact\('/gu) ?? []).length === 2,
+  'prototype fixture must contain exactly two mission-proven model facts',
+);
+for (const model of ['Codex 5.6 SOL', 'Fable5']) {
+  assert(
+    fixtureSource.includes(`verifiedMissionArtifactFact('${model}')`),
+    `mission-proven model fact missing: ${model}`,
+  );
+}
+for (const forbiddenSession of ['control', 'foundation-worker', 'cosmile-worker', 'siasiu-worker', 'vibenews-worker']) {
+  assert(
+    !fixtureSource.includes(`verifiedRegistryFact('${forbiddenSession}')`),
+    `invented actor session fact present: ${forbiddenSession}`,
+  );
+}
+for (const syntheticField of ['state:', 'mission:', 'workUnit:', 'evidenceFreshness:']) {
+  assert(
+    fixtureSource.includes(`${syntheticField} syntheticFixtureFact(`),
+    `synthetic actor fact provenance missing: ${syntheticField}`,
+  );
+}
 const timelineSource = await readFile(path.join(repositoryRoot, 'src/ui/pixel/fixtures/prototype-timeline.ts'), 'utf8');
 for (const state of ['WALK', 'STOP', 'SNIFF', 'SIT', 'EAT', 'DRINK', 'SLEEP', 'PLAY']) {
   assert(timelineSource.includes(`'${state}'`), `Channy natural sequence state missing: ${state}`);
@@ -235,7 +276,6 @@ const listeners = run('ss', ['-ltn']);
 assert(listeners.status === 0, 'listener inspection failed');
 assert(!lines(listeners.stdout).some((line) => /127\.0\.0\.1:4173\s/u.test(line)), 'IPv4 prototype preview remains listening');
 
-const fixturePath = path.join(repositoryRoot, 'src/ui/pixel/fixtures/prototype-projection.ts');
 const fixtureSha256 = sha256(await readFile(fixturePath));
 const targetCommit = run('git', ['rev-parse', 'HEAD']);
 assert(targetCommit.status === 0, 'cannot resolve target commit');
@@ -266,7 +306,7 @@ for (const fileName of requiredFiles) {
 }
 
 process.stdout.write(`PIXEL_PROTOTYPE_EVIDENCE ${JSON.stringify({
-  schemaVersion: 'agent-office.living-pixel-prototype-visual-patch-evidence.v2',
+  schemaVersion: 'agent-office.living-pixel-prototype-visual-patch-evidence.v3',
   fixtureSha256,
   configuredRuntime: {
     browser: 'Playwright Chromium 1.61.1 configured local runtime',

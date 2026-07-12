@@ -877,6 +877,15 @@ authentication, exact Advisor delivery, transport, security, and production
 bundle boundaries remain unchanged. Exactly 13 living prototype baselines may
 change; all 26 reconciled historical baselines are immutable against `c535877`.
 
+Advisor clarification 98A is binding inside this same patch. Actor fact input
+must declare verified-registry, verified-mission-artifact, canonical-fixture,
+synthetic-fixture, or unverified provenance. The exact ten registry sessions are
+used without aliases; only Agent Office Worker and Fable5 Reviewer have proven
+models. Every other model and every missing/null/malformed/unverified value is
+`UNKNOWN`. Synthetic state, mission, WorkUnit, and freshness are explicitly
+marked in the label/detail/semantic UI and are never presented as current live
+operations.
+
 The patch must return to independent narrow review and then to Leo/GPT. Full
 integration, visual acceptance, production/live use, and another mission remain
 unauthorized.

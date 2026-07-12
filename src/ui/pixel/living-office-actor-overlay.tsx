@@ -11,14 +11,16 @@ import {
 } from 'react';
 
 import { cameraTransform } from './camera.js';
+import { PIXEL_ACTOR_FACT_SOURCE_LABELS } from './contracts.js';
 import type {
+  PixelActorFactSource,
   PixelActorFrame,
   PixelPrototypeProjection,
   PixelWorldFrameV1,
 } from './contracts.js';
 
 const LABEL_WIDTH = 172;
-const LABEL_HEIGHT = 70;
+const LABEL_HEIGHT = 78;
 const VIEWPORT_PADDING = 8;
 
 export interface PixelActorLabelPlacement {
@@ -120,7 +122,7 @@ export const LivingOfficeActorOverlay = forwardRef<
               aria-label={actorLabelAccessibleName(actor)}
               className="living-office-actor-label"
               data-actor-label={actor.roleInstanceId}
-              data-actor-state={actor.facts.state}
+              data-actor-state={actor.operationalState}
               data-anchor-x={placement?.anchorX}
               data-anchor-y={placement?.anchorY}
               hidden={placement?.inViewport === false}
@@ -136,12 +138,13 @@ export const LivingOfficeActorOverlay = forwardRef<
               <span aria-hidden="true" className="living-office-actor-label__glyph">
                 {roleGlyph(actor)}
               </span>
-              <span aria-hidden="true" className="living-office-actor-label__ring" data-state={actor.facts.state} />
+              <span aria-hidden="true" className="living-office-actor-label__ring" data-state={actor.operationalState} />
               <span className="living-office-actor-label__facts">
                 <strong>{actor.facts.role}</strong>
                 <span>{actor.facts.model}</span>
                 <span>{actor.facts.sessionName}</span>
                 <span>{actor.facts.state}</span>
+                <small>{actorLabelFactSource(actor.factSources.state)}</small>
               </span>
             </button>
           );
@@ -164,16 +167,16 @@ export const LivingOfficeActorOverlay = forwardRef<
             <button onClick={close} ref={closeRef} type="button">Close actor detail</button>
           </div>
           <dl>
-            <ActorFact label="Role" value={selectedActor.facts.role} />
-            <ActorFact label="Project" value={selectedActor.facts.project} />
-            <ActorFact label="Advisor Team" value={selectedActor.facts.advisorTeam} />
-            <ActorFact label="Reports-to Advisor" value={selectedActor.facts.reportsToAdvisor} />
-            <ActorFact label="Session name" value={selectedActor.facts.sessionName} />
-            <ActorFact label="Model" value={selectedActor.facts.model} />
-            <ActorFact label="State" value={selectedActor.facts.state} />
-            <ActorFact label="Mission" value={selectedActor.facts.mission} />
-            <ActorFact label="WorkUnit" value={selectedActor.facts.workUnit} />
-            <ActorFact label="Evidence freshness" value={selectedActor.facts.evidenceFreshness} />
+            <ActorFact label="Role" source={selectedActor.factSources.role} value={selectedActor.facts.role} />
+            <ActorFact label="Project" source={selectedActor.factSources.project} value={selectedActor.facts.project} />
+            <ActorFact label="Advisor Team" source={selectedActor.factSources.advisorTeam} value={selectedActor.facts.advisorTeam} />
+            <ActorFact label="Reports-to Advisor" source={selectedActor.factSources.reportsToAdvisor} value={selectedActor.facts.reportsToAdvisor} />
+            <ActorFact label="Session name" source={selectedActor.factSources.sessionName} value={selectedActor.facts.sessionName} />
+            <ActorFact label="Model" source={selectedActor.factSources.model} value={selectedActor.facts.model} />
+            <ActorFact label="State" source={selectedActor.factSources.state} value={selectedActor.facts.state} />
+            <ActorFact label="Mission" source={selectedActor.factSources.mission} value={selectedActor.facts.mission} />
+            <ActorFact label="WorkUnit" source={selectedActor.factSources.workUnit} value={selectedActor.facts.workUnit} />
+            <ActorFact label="Evidence freshness" source={selectedActor.factSources.evidenceFreshness} value={selectedActor.facts.evidenceFreshness} />
           </dl>
           <p className="living-office-actor-detail__boundary">
             Explicit synthetic fixture facts only. Pixel position and proximity create no authority,
@@ -307,7 +310,7 @@ function rectanglesOverlap(left: Rect, right: Rect): boolean {
 }
 
 function actorLabelAccessibleName(actor: PixelActorFrame): string {
-  return `${actor.displayName}. Role ${actor.facts.role}. Model ${actor.facts.model}. Session ${actor.facts.sessionName}. State ${actor.facts.state}. Open actor detail.`;
+  return `${actor.displayName}. Role ${actor.facts.role}. Model ${actor.facts.model}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.model]}. Session ${actor.facts.sessionName}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.sessionName]}. State ${actor.facts.state}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.state]}. Open actor detail.`;
 }
 
 function roleGlyph(actor: PixelActorFrame): string {
@@ -319,6 +322,28 @@ function roleGlyph(actor: PixelActorFrame): string {
   return '?';
 }
 
-function ActorFact({ label, value }: { readonly label: string; readonly value: string }) {
-  return <div data-actor-fact={label}><dt>{label}</dt><dd>{value}</dd></div>;
+function actorLabelFactSource(source: PixelActorFactSource): string {
+  return source === 'SYNTHETIC_FIXTURE'
+    ? 'SYNTHETIC FIXTURE'
+    : PIXEL_ACTOR_FACT_SOURCE_LABELS[source];
+}
+
+function ActorFact({
+  label,
+  source,
+  value,
+}: {
+  readonly label: string;
+  readonly source: PixelActorFactSource;
+  readonly value: string;
+}) {
+  return (
+    <div data-actor-fact={label} data-actor-fact-source={source}>
+      <dt>{label}</dt>
+      <dd>
+        {value}
+        <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[source]}</small>
+      </dd>
+    </div>
+  );
 }

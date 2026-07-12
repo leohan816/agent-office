@@ -853,6 +853,14 @@ Required and implemented gates are:
 8. leave media ignored, the runtime stopped, the branch upstream-equal, and all
    M1/authentication/authority/delivery/transport/DB/network boundaries intact.
 
+Artifact 98A adds one evidence-source gate inside item 1. The fixture must use
+the exact ten verified registry session names, must expose only the two directly
+proven model values, and must mark state/mission/WorkUnit/freshness as synthetic
+fixture data. The input contract rejects null, absent, malformed, and
+`UNVERIFIED` facts to literal `UNKNOWN`; frame and renderer tests must prove no
+model or session fallback. This is a correction within `AO12-PWU-11-P1`, not a
+new work unit or integration authority.
+
 The serial exit remains:
 
 ```text

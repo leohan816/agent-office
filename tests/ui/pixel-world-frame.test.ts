@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PIXEL_ACTOR_UNKNOWN,
+  type PixelActorFactInput,
   type PixelActorFactsInput,
   type PixelCueInput,
   type PixelPrototypeProjection,
@@ -10,6 +11,7 @@ import {
 import { LIVING_PIXEL_PROTOTYPE_PROJECTION } from '../../src/ui/pixel/fixtures/prototype-projection.js';
 import {
   assertFrameSemanticParity,
+  normalizePixelActorFactSet,
   normalizePixelActorFacts,
   projectPixelWorldFrame,
   reduceAcceptedPixelCues,
@@ -37,22 +39,31 @@ describe('living pixel-office pure frame projection and cue truth', () => {
     ]);
   });
 
-  it('fails closed to literal UNKNOWN for every absent or unverified actor fact', () => {
-    const emptyFacts: PixelActorFactsInput = {
-      role: null,
-      project: null,
-      advisorTeam: null,
-      reportsToAdvisor: null,
-      sessionName: null,
-      model: null,
-      state: null,
-      mission: null,
-      workUnit: null,
-      evidenceFreshness: null,
-    };
-    expect(Object.values(normalizePixelActorFacts(emptyFacts))).toEqual(
-      Array.from({ length: 10 }, () => PIXEL_ACTOR_UNKNOWN),
-    );
+  it('fails closed to literal UNKNOWN for null, absent, malformed and unverified actor facts', () => {
+    const factKeys = [
+      'role', 'project', 'advisorTeam', 'reportsToAdvisor', 'sessionName',
+      'model', 'state', 'mission', 'workUnit', 'evidenceFreshness',
+    ] as const;
+    const nullFacts = Object.fromEntries(factKeys.map((key) => [key, null])) as PixelActorFactsInput;
+    const unverifiedFacts = Object.fromEntries(factKeys.map((key) => [
+      key,
+      fact(`invented-${key}`, 'UNVERIFIED'),
+    ])) as unknown as PixelActorFactsInput;
+    const malformedFacts = Object.fromEntries(factKeys.map((key) => [
+      key,
+      `renderer-fallback-${key}`,
+    ])) as unknown as PixelActorFactsInput;
+    for (const input of [{}, nullFacts, unverifiedFacts, malformedFacts]) {
+      const normalized = normalizePixelActorFactSet(input);
+      expect(Object.values(normalized.facts)).toEqual(
+        Array.from({ length: 10 }, () => PIXEL_ACTOR_UNKNOWN),
+      );
+      expect(Object.values(normalized.sources)).toEqual(
+        Array.from({ length: 10 }, () => 'UNVERIFIED'),
+      );
+      expect(normalizePixelActorFacts(input)).toEqual(normalized.facts);
+    }
+
     const frame = projectPixelWorldFrame(
       LIVING_PIXEL_PROTOTYPE_PROJECTION,
       layout,
@@ -60,8 +71,81 @@ describe('living pixel-office pure frame projection and cue truth', () => {
     );
     const designer = frame.actorFrames.find((actor) => actor.roleInstanceId === 'designer.vibenews.primary');
     expect(designer?.facts.model).toBe(PIXEL_ACTOR_UNKNOWN);
-    expect(designer?.facts.sessionName).toBe(PIXEL_ACTOR_UNKNOWN);
+    expect(designer?.facts.sessionName).toBe('VibeNews-designer');
     expect(designer?.facts.workUnit).toBe(PIXEL_ACTOR_UNKNOWN);
+    expect(designer?.factSources.model).toBe('UNVERIFIED');
+    expect(designer?.factSources.sessionName).toBe('VERIFIED_REGISTRY');
+  });
+
+  it('uses only the exact verified registry sessions and two mission-proven models', () => {
+    const expectedSessions = new Map([
+      ['advisor.foundation.primary', 'foundation-advisor'],
+      ['control.foundation.primary', 'foundation-control'],
+      ['worker.foundation.primary', 'foundation'],
+      ['worker.cosmile.primary', 'cosmile'],
+      ['worker.siasiu.primary', 'siasiu'],
+      ['worker.agent-office.primary', 'agent-office'],
+      ['reviewer.fable5.primary', 'reviewer-fable5'],
+      ['advisor.vibenews.primary', 'VibeNews-advisor'],
+      ['worker.vibenews.primary', 'VibeNews'],
+      ['designer.vibenews.primary', 'VibeNews-designer'],
+    ]);
+    const expectedModels = new Map([
+      ['worker.agent-office.primary', 'Codex 5.6 SOL'],
+      ['reviewer.fable5.primary', 'Fable5'],
+    ]);
+    const frame = projectPixelWorldFrame(
+      LIVING_PIXEL_PROTOTYPE_PROJECTION,
+      layout,
+      view('full-office', 0, 'pod:foundation'),
+    );
+    for (const actor of frame.actorFrames) {
+      expect(actor.facts.sessionName, actor.roleInstanceId).toBe(expectedSessions.get(actor.roleInstanceId));
+      expect(actor.factSources.sessionName, actor.roleInstanceId).toBe('VERIFIED_REGISTRY');
+      expect(actor.facts.model, actor.roleInstanceId).toBe(
+        expectedModels.get(actor.roleInstanceId) ?? PIXEL_ACTOR_UNKNOWN,
+      );
+      expect(actor.factSources.model, actor.roleInstanceId).toBe(
+        expectedModels.has(actor.roleInstanceId) ? 'VERIFIED_MISSION_ARTIFACT' : 'UNVERIFIED',
+      );
+      for (const key of ['state', 'mission', 'evidenceFreshness'] as const) {
+        expect(actor.factSources[key], `${actor.roleInstanceId}/${key}`).toBe('SYNTHETIC_FIXTURE');
+      }
+      expect(actor.factSources.workUnit, `${actor.roleInstanceId}/workUnit`).toBe(
+        actor.roleInstanceId === 'designer.vibenews.primary' ? 'UNVERIFIED' : 'SYNTHETIC_FIXTURE',
+      );
+    }
+  });
+
+  it('does not manufacture a model or session in the frame projector', () => {
+    const foundationWorker = LIVING_PIXEL_PROTOTYPE_PROJECTION.actors
+      .find((actor) => actor.roleInstanceId === 'worker.foundation.primary');
+    if (foundationWorker === undefined) throw new TypeError('Foundation Worker fixture missing');
+    const { sessionName, ...factsWithoutSession } = foundationWorker.facts;
+    expect(sessionName).toBeDefined();
+    const projection: PixelPrototypeProjection = {
+      ...LIVING_PIXEL_PROTOTYPE_PROJECTION,
+      actors: LIVING_PIXEL_PROTOTYPE_PROJECTION.actors.map((actor) =>
+        actor.roleInstanceId === foundationWorker.roleInstanceId
+          ? {
+              ...actor,
+              facts: {
+                ...factsWithoutSession,
+                model: fact('Codex 5.6 SOL', 'UNVERIFIED'),
+              },
+            }
+          : actor),
+    };
+    const frame = projectPixelWorldFrame(
+      projection,
+      createPixelWorldLayout(projection.pods),
+      view('foundation-active', 4500, 'pod:foundation'),
+    );
+    const actor = frame.actorFrames.find((candidate) => candidate.roleInstanceId === foundationWorker.roleInstanceId);
+    expect(actor?.facts.sessionName).toBe(PIXEL_ACTOR_UNKNOWN);
+    expect(actor?.facts.model).toBe(PIXEL_ACTOR_UNKNOWN);
+    expect(actor?.factSources.sessionName).toBe('UNVERIFIED');
+    expect(actor?.factSources.model).toBe('UNVERIFIED');
   });
 
   it('maps named acceptance scenes without inventing operational state', () => {
@@ -166,4 +250,11 @@ function view(
     viewportWidth: 1200,
     viewportHeight: 620,
   };
+}
+
+function fact(
+  value: string | null,
+  source: PixelActorFactInput['source'],
+): PixelActorFactInput {
+  return { value, source };
 }
