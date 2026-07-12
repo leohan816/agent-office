@@ -242,8 +242,8 @@ governance, review evidence, results, and pointers but no competing canonical co
 
 ### 2.0 Batch A modern-office-identity design pointer
 
-Status: `BATCH_A_CONTROL_MASTER_DESIGN_DELTA_PUBLISHED__PENDING_ADVISOR_VALIDATION_AND_FABLE5_DESIGN_REVIEW`.
-The bounded Batch A application-integration design (three documents above) integrates the reviewed living pixel office at base `ac8ba75` into the authenticated private/loopback shell as the primary experience with preserved secondary surfaces. It is design only: no source/test/package/config/media change, no live discovery, no Batch B–E, and no authority/security expansion. Advisor validation, Fable5 `DESIGN_REVIEW`, and a Leo/GPT decision remain pending before Worker implementation.
+Status: `BATCH_A_CONTROL_MASTER_DESIGN_DELTA_REWORKED_CD_1_TO_CD_8__PENDING_ADVISOR_VALIDATION_AND_INDEPENDENT_SENTINEL_DESIGN_REVIEW`.
+The bounded Batch A application-integration design (three documents above) integrates the reviewed living pixel office at base `ac8ba75` into the authenticated private/loopback shell as the **default** primary experience (Founder-decided) with preserved secondary surfaces. Reworked per Advisor validation CD-1..CD-8: independent-Sentinel review authority (model names are evidence, not authority); Office-first-by-default with no `surface=` in the real app; eager-shell isolation with a lazy Office chunk (not whole-`dist` zero-Pixi); separated AI-runtime vs operational-work-state vocabularies; complete actor detail field contract; `roleInstanceId`-stable identity vs mutable session binding; and a committed local/static organization registry under `src/application/organization/`. It is design only: no source/test/package/config/media change, no live discovery, no Batch B–E, and no authority/security expansion. Advisor validation, an independent-Sentinel `DESIGN_REVIEW`, and a Leo/GPT decision remain pending before Worker implementation.
 
 ### 2.1 M1.2 product-intent and living pixel-office pointer
 
