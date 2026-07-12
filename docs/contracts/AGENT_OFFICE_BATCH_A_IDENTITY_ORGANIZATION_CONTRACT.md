@@ -1,6 +1,6 @@
 # Agent Office Batch A — Identity and Organization Contract
 
-Status: `CONTROL_MASTER_DESIGN_CONTRACT__PLUS_SENTINEL_PRC1_PRC5_CORRECTION__PENDING_ADVISOR_EXACT_DIFF_VALIDATION_THEN_SAME_SENTINEL_REREVIEW` (U1/U2 on T1 schema; §2.7 landing-site: actor labels + 17-field dialog in `living-office-actor-overlay.tsx`, detail-drawer = separate frame/evidence panel; §3 PR-1/PRC-1: RT `OrganizationFrame` supplies only actors+diagnostics and `advisorTeam` is (A)-registry-owned carried in the RT envelope; §3.1 PRC-5: complete `CommittedOfficeLayoutConfigV1` interface + deterministic pod construction, closed maps, fail-closed counts; composed `LivingOfficeProductionRenderInputV1` validated at `client.ts:parseProjection` then `parseLivingOfficeProductionRenderInput`, PRC-6)
+Status: `CONTROL_MASTER_DESIGN_CONTRACT__PLUS_SENTINEL_PRC_FINAL_FIVE_CORRECTIONS__PENDING_ADVISOR_DIFF_VALIDATION_THEN_SAME_SENTINEL_REREVIEW` (§2.7 landing-site unchanged; §3 `advisorTeam`=(A)-registry-owned, §2.3.2 `aiRuntimeState`=projector RT+(B) arbitration; §3.1 PRC-5 total layout — sole `projectKey`, complete 14-state current-actor priority, ADVISOR-role/Team/membership responsible-Advisor with pod-omit/`M1_FIXED_STATIONS` fallback, literal `DEFAULT_VIEWPORT`/`DEFAULT_LOGICAL_TIME_MS`/`DEFAULT_CAMERA`/selection defaults; §3.1.1 PRC-6 full `LivingOfficeProductionRenderInputV1` wrapper interface distinct from the raw 4-key `LivingOfficePresentationV1` parser)
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to `AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`. Independent reviewer: the authorized **independent Sentinel** (`foundation-reviewer-sol`, currently GPT-5.6 SOL xhigh); Fable5 is a possible secondary/fallback runtime only.
 
@@ -190,14 +190,34 @@ interface CommittedPodConfig {
 
 **Deterministic construction of `PixelPodInput[]` (config + RT; no inference):**
 
-- **Ordering / selection**: pods sorted ascending by `podId`; `selectedDefaultPodId` MUST resolve to the first pod, else selection → `UNASSIGNED` / fail-closed.
-- **`advisorTeamId`** from `CommittedPodConfig`. **`responsibleAdvisorRoleInstanceId`**: exactly one non-empty value → use it; null / empty / multiple → `UNASSIGNED` and the pod **cannot receive work** (never inferred from visual proximity).
-- **`projectIdentity`** = `projectIdentityByProject[registryRow.project]` for the pod's project, else `defaultProjectIdentity` (all eight fields — `identityId`/`projectId`/`displayName`/`shortLabel`/`primaryColor`/`secondaryColor`/`glyph`/`pattern` — always present).
+- **Ordering / selection**: pods sorted ascending by `podId`; a user selection resolving to no valid pod falls to `selectedDefaultPodId`; if `selectedDefaultPodId` is not a valid pod id **or no valid pod remains** → the surface falls back to `M1_FIXED_STATIONS` (selection never becomes `UNASSIGNED`, which is not a pod id).
+- **`projectIdentity`** = `projectIdentityByProject[pod.projectKey]` — **`CommittedPodConfig.projectKey` is the sole key** (never `registryRow.project`; a pod may contain actors of several projects, so the pod's identity is config-declared), else `defaultProjectIdentity` (all eight fields — `identityId`/`projectId`/`displayName`/`shortLabel`/`primaryColor`/`secondaryColor`/`glyph`/`pattern` — always present).
+- **`responsibleAdvisorRoleInstanceId`** is **valid only if** it resolves to **exactly one** resolved registry actor whose `role === 'ADVISOR'`, whose `advisorTeam` matches the pod's `advisorTeamId`, and who is a valid pod member; otherwise the pod is **omitted with a diagnostic** — the literal `'UNASSIGNED'` is **never** written into `PixelPodInput.responsibleAdvisorRoleInstanceId` (that field is an unrestricted required string, `contracts.ts:110-124`; an authority-looking sentinel there is forbidden). If **no valid pod remains** after omission → the surface falls back to `M1_FIXED_STATIONS`.
+- **`advisorTeamId`** from `CommittedPodConfig`.
 - **`roleCategory`** per actor = `roleCategoryByRole[registryRow.role]`, else `defaultRoleCategory` (`GENERIC_REGISTERED`).
-- **Membership / `actorRoleInstanceIds`** = `memberRoleInstanceIds` ∩ the resolved registry actors; a member absent from the resolved registry is dropped with a diagnostic; an actor listed in **more than one** pod is dropped from **all** pods with a diagnostic (no cloned membership); a pod with zero resolved members is not rendered (diagnostic).
-- **`currentActorRoleInstanceId`** = deterministic: the member whose RT `operationalState` ranks highest by a fixed priority order, tie-broken by ascending `roleInstanceId`; if none is active, the first member by ascending `roleInstanceId`; empty pod → `''` + diagnostic. **`missionShortLabel`/`currentWorkUnitShortId`** = truncated RT `mission`/`workUnit` of that current actor (RT-owned); **`operationalState`** = that actor's RT operational state.
+- **Membership / `actorRoleInstanceIds`** = `memberRoleInstanceIds` ∩ the resolved registry actors; a member absent from the resolved registry is dropped with a diagnostic; an actor listed in **more than one** pod is dropped from **all** pods with a diagnostic (no cloned membership); a pod with zero resolved members is omitted (diagnostic).
+- **`currentActorRoleInstanceId`** = deterministic: the member whose RT `operationalState` ranks highest by the **complete literal priority order below**, tie-broken by ascending `roleInstanceId`; empty pod → omitted (diagnostic). The total priority over all 14 `PixelOperationalState` values (highest first — a conservative order surfacing in-progress work, then attention/waiting, then terminal, then idle/unknown): **`WORKING` > `TESTING` > `REVIEWING` > `ROUTING / DISPATCH` > `RETURNING_RESULT` > `NEEDS_PATCH` > `BLOCKED` > `WAITING_DEPENDENCY` > `WAITING_LEO` > `FAILED` > `CANCELLED` > `COMPLETED` > `IDLE` > `UNKNOWN`**. **`missionShortLabel`/`currentWorkUnitShortId`** = truncated RT `mission`/`workUnit` of that current actor (RT-owned); **`operationalState`** = that actor's RT operational state.
 - **Counts** `completedWorkUnits`/`totalWorkUnits`/`completedGates`/`totalGates` = literal **`0`** (PRC-2 fail-closed; display-only, not operational truth; no pod shown "complete"); **`blockerSummary`** = `null`.
-- **Config validation (PRC-6 boundary 2)**: duplicate `podId` → deterministic hard-fail; every `advisorTeamId ∈ AdvisorTeamValue`; `projectKey` resolvable (else default); `roleCategoryByRole` total over `OrganizationRole`. Missing/multiple assignments fail to `UNASSIGNED`/fallback, never to an inferred value.
+- **Literal committed defaults (PRC-5/PRC-6)**: `DEFAULT_VIEWPORT = { width: 1280, height: 720 }` (used when a wrapper `viewport.width`/`height` is not a finite `> 0`); `DEFAULT_LOGICAL_TIME_MS = 0` (monotonic zero is valid; used when `logicalTimeMs` is not a finite `>= 0`); `DEFAULT_CAMERA = { mode: 'FIT_ALL', override: null }` (production `cameraOverride` is always `null`). These are explicit values, not "undefined".
+- **Config validation**: duplicate `podId` → deterministic hard-fail; every `advisorTeamId ∈ AdvisorTeamValue`; `projectKey` resolvable (else `defaultProjectIdentity`); `roleCategoryByRole` total over `OrganizationRole`. A pod failing the responsible-Advisor rule is omitted (diagnostic); no valid pods → `M1_FIXED_STATIONS`.
+
+### 3.1.1 Production render input wrapper — `LivingOfficeProductionRenderInputV1` (PRC-6)
+
+The composed render input validated before the lazy renderer (delta §2.3 PR-3 boundary 2). Distinct from the **raw** `LivingOfficePresentationV1` (`{ schemaVersion, projectionRevision, evaluatedAt, frame }`, validated first at `client.ts:parseProjection`). Every field declared and validated/consumed exactly once:
+
+```ts
+interface LivingOfficeProductionRenderInputV1 {
+  readonly schemaVersion: 'agent-office.living-office-production-render-input.v1';
+  readonly operational: LivingOfficePresentationV1;         // the already-raw-validated RT view
+  readonly committedLayout: CommittedOfficeLayoutConfigV1;   // §3.1
+  readonly viewport: { readonly width: number; readonly height: number };  // finite > 0 else DEFAULT_VIEWPORT
+  readonly logicalTimeMs: number;                           // finite >= 0 (zero valid) else DEFAULT_LOGICAL_TIME_MS
+  readonly selection: { readonly selectedPodId: string };   // invalid → selectedDefaultPodId → M1
+  readonly cues: readonly [];                               // always-empty (PRC-3); non-empty rejected
+}
+```
+
+Camera is not an input field (production `cameraOverride` is always `null`, `DEFAULT_CAMERA`).
 
 ## 4. Organization model (Founder items 6, 9)
 
