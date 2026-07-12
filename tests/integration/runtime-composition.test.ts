@@ -340,6 +340,14 @@ describe('executable loopback composition and production runtime client', () => 
       subject: { capabilities: ['viewer', 'leo_input', 'advisor_operator'] },
     });
     expect(client.snapshot().projection?.sceneRoles).toHaveLength(8);
+    // Batch A additive Living Office derived view reaches the browser client (design §2.2).
+    const livingOffice = client.snapshot().projection?.livingOffice;
+    expect(livingOffice).toMatchObject({ schemaVersion: 'agent-office.living-office-presentation.v1' });
+    expect(livingOffice?.frame.actors).toHaveLength(8);
+    const agentOfficeActor = livingOffice?.frame.actors.find((actor) => actor.roleInstanceId === 'agent-office-worker');
+    expect(agentOfficeActor?.stableDisplayName.value).toBe('Agent Office Worker');
+    expect(agentOfficeActor?.advisorTeam.value).toBe('FOUNDATION_ADVISOR_TEAM');
+    expect(agentOfficeActor?.stableDisplayName.source).toBe('VERIFIED_REGISTRY');
     expect(client.snapshot().projection?.spatialOffice).toMatchObject({
       schemaVersion: 'agent-office.authenticated-spatial-presentation.v1',
       projection: {

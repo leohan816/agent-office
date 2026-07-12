@@ -4,6 +4,7 @@ import type {
   AuthenticatedProjectionSnapshot,
   LocalRuntimeStatus,
 } from '../../server/application.js';
+import type { LivingOfficePresentationV1 } from '../../runtime/projection.js';
 import type { BrowserCapability } from '../../server/auth/index.js';
 import type { AuthenticatedSpatialPresentationV1 } from '../../application/spatial-office/authenticated-projection.js';
 import type { CommunicationCenterActionPort } from '../communication/types.js';
@@ -33,11 +34,16 @@ export type RuntimeClientPhase =
 
 export type RuntimeSseState = 'DISCONNECTED' | 'CONNECTING' | 'READY' | 'DEGRADED';
 
+/** The authenticated projection plus the Batch A additive Living Office derived view (design §2.2). */
+export interface RuntimeProjectionSnapshot extends AuthenticatedProjectionSnapshot {
+  readonly livingOffice?: LivingOfficePresentationV1;
+}
+
 export interface RuntimeClientState {
   readonly phase: RuntimeClientPhase;
   readonly sseState: RuntimeSseState;
   readonly status?: LocalRuntimeStatus;
-  readonly projection?: AuthenticatedProjectionSnapshot;
+  readonly projection?: RuntimeProjectionSnapshot;
   readonly subject?: {
     readonly subjectId: string;
     readonly capabilities: readonly BrowserCapability[];
@@ -510,7 +516,7 @@ function parseRuntimeStatus(value: unknown): LocalRuntimeStatus {
   return value as unknown as LocalRuntimeStatus;
 }
 
-function parseProjection(value: unknown): AuthenticatedProjectionSnapshot {
+function parseProjection(value: unknown): RuntimeProjectionSnapshot {
   if (
     !isRecord(value) ||
     value.schemaVersion !== 'agent-office.redacted-projection.v1' ||
@@ -540,7 +546,7 @@ function parseProjection(value: unknown): AuthenticatedProjectionSnapshot {
   ) {
     throw new RuntimeClientError('INVALID_PROJECTION_RESPONSE');
   }
-  return value as unknown as AuthenticatedProjectionSnapshot;
+  return value as unknown as RuntimeProjectionSnapshot;
 }
 
 function parsePersistenceReceipt(value: unknown): AdvisorMessagePersistenceReceipt {

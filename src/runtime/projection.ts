@@ -1,6 +1,14 @@
 import type { AdvisorInboxService } from '../application/advisor-inbox/service.js';
 import type { DurableAlertCenter } from '../application/alerts/index.js';
 import {
+  projectOrganizationFrame,
+  type OrganizationFrame,
+  type RuntimeWorkInput,
+} from '../application/organization/index.js';
+import { projectRequiredObservable } from '../domain/activity/index.js';
+import { ORGANIZATION_EVIDENCE, ORGANIZATION_REGISTRY } from '../../fixtures/organization-registry.js';
+import type { OfficeStationId } from '../ui/scene/types.js';
+import {
   buildAuthenticatedSpatialPresentation,
   type AuthenticatedSpatialPresentationV1,
 } from '../application/spatial-office/authenticated-projection.js';
@@ -36,9 +44,74 @@ export interface RuntimeProjectionServices {
   readonly gatewayHealth: AdvisorGatewayHealth;
 }
 
+/**
+ * Batch A additive derived view (design delta §2.2): the Living Office presentation is a derived
+ * view of the SAME runtime projection. It never re-sources mission/workUnit/activity/operationalState
+ * — those are read from the existing (RT) `sceneRoles` via `projectRequiredObservable`, joined with
+ * the committed local/static organization registry (A) + accepted evidence (B). `sceneRoles` and
+ * `spatialOffice` are preserved unchanged.
+ */
+export interface LivingOfficePresentationV1 {
+  readonly schemaVersion: 'agent-office.living-office-presentation.v1';
+  readonly projectionRevision: number;
+  readonly evaluatedAt: string;
+  readonly frame: OrganizationFrame;
+}
+
+export interface RuntimeProjectionSnapshot extends RedactedProjectionSnapshot {
+  readonly livingOffice?: LivingOfficePresentationV1;
+}
+
+/** Deterministic committed map from RT station → committed organization registry roleInstanceId. */
+const STATION_TO_ORGANIZATION_ROLE_INSTANCE_ID: Partial<Record<OfficeStationId, string>> = {
+  advisor: 'foundation-advisor',
+  control: 'foundation-control',
+  fable5: 'foundation-reviewer',
+  'agent-office': 'agent-office-worker',
+  cosmile: 'cosmile-worker',
+  siasiu: 'siasiu-worker',
+};
+
+function livingOfficeRuntimeRows(
+  sceneRoles: readonly RoleSceneProjection[],
+): readonly RuntimeWorkInput[] {
+  const rows: RuntimeWorkInput[] = [];
+  for (const role of sceneRoles) {
+    const roleInstanceId = STATION_TO_ORGANIZATION_ROLE_INSTANCE_ID[role.stationId];
+    if (roleInstanceId === undefined || role.workUnitState === undefined) continue;
+    const observable = projectRequiredObservable(role.workUnitState, role.activity, role.evaluatedAt);
+    rows.push({
+      roleInstanceId,
+      mission: role.missionId ?? null,
+      workUnit: role.workUnitId ?? null,
+      observableName: observable.requiredObservableName,
+      staleOrInvalid: role.connectionState !== 'CONNECTED',
+    });
+  }
+  return rows;
+}
+
+function buildLivingOfficePresentation(
+  sceneRoles: readonly RoleSceneProjection[],
+  projectionRevision: number,
+  evaluatedAt: string,
+): LivingOfficePresentationV1 {
+  return {
+    schemaVersion: 'agent-office.living-office-presentation.v1',
+    projectionRevision,
+    evaluatedAt,
+    frame: projectOrganizationFrame({
+      registry: ORGANIZATION_REGISTRY,
+      evidence: ORGANIZATION_EVIDENCE,
+      runtime: livingOfficeRuntimeRows(sceneRoles),
+      evaluatedAt,
+    }),
+  };
+}
+
 export async function buildRuntimeProjection(
   services: RuntimeProjectionServices,
-): Promise<RedactedProjectionSnapshot> {
+): Promise<RuntimeProjectionSnapshot> {
   const mission = foldMissionProjection(services.manifest, services.store);
   const inbox = services.inbox.project();
   const alerts = services.alerts.project();
@@ -140,6 +213,7 @@ export async function buildRuntimeProjection(
     communication,
     sceneRoles,
     ...(spatialOffice === undefined ? {} : { spatialOffice }),
+    livingOffice: buildLivingOfficePresentation(sceneRoles, services.projectionRevision, now),
   };
 }
 
