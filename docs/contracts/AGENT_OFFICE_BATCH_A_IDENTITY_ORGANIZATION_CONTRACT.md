@@ -1,6 +1,6 @@
 # Agent Office Batch A — Identity and Organization Contract
 
-Status: `CONTROL_MASTER_DESIGN_CONTRACT__REWORKED_CD_4_5_6_7_AND_SENTINEL_P1_P2_P3_R1_R2_R3__PENDING_INDEPENDENT_SENTINEL_DELTA_REREVIEW`
+Status: `CONTROL_MASTER_DESIGN_CONTRACT__REWORKED_CD_4_5_6_7_SENTINEL_P1_P2_P3_R1_R2_R3_AND_S1_S3__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW`
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to `AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`. Independent reviewer: the authorized **independent Sentinel** (`foundation-reviewer-sol`, currently GPT-5.6 SOL xhigh); Fable5 is a possible secondary/fallback runtime only.
 
@@ -36,25 +36,50 @@ Every field is a **fact envelope** (§2.5). The compact summary renders a subset
 
 The registry also stores **allowed-token metadata** (immutable per reviewed commit): `allowedAiIdentities`, `allowedModels`, `allowedEfforts`. These are the closed value sets against which §2.3 projection-time facts are validated; they are metadata, not live values.
 
-### 2.3 Projection-time process & AI-runtime facts — one sentinel each, each tied to an exact named accepted structured evidence kind (P1, R1). These are **not** stored in the registry; they are computed at projection time from committed accepted-evidence records (§2.5), because `RuntimeActorObservation`/`AuthenticatedSpatialActorObservationInput` carry no such field.
-| Field | Closed vocabulary | Fail-closed sentinel | Exact accepted evidence for each non-sentinel value |
+### 2.3 Projection-time process & AI-runtime facts (from committed local attestation evidence input **(B)** only) — S1/S3
+These facts are **absent from the runtime projection** (`RuntimeActorObservation`/`AuthenticatedSpatialActorObservationInput` carry no such field), so **(B)** supplies them. ★`mission`, `workUnit`, activity, and `operationalState` are **not** here — they are owned solely by the existing runtime projection/cue reducer (§2.4/§2.5), never by (B).
+
+| Field | Closed vocabulary | Fail-closed sentinel | Exact accepted evidence (record `kind` — §2.3.1) |
 |---|---|---|---|
-| `sessionProcess` | `SESSION_PROCESS_UNKNOWN` \| `SESSION_OFFLINE` \| `NO_AI_PROCESS` \| `AI_PROCESS_DETECTED` | `SESSION_PROCESS_UNKNOWN` | each of `SESSION_OFFLINE`/`NO_AI_PROCESS`/`AI_PROCESS_DETECTED` requires a committed accepted structured process-fact of that **exact kind** (`process_offline`/`process_absent`/`process_detected`); missing/malformed/unverified/no-evidence → `SESSION_PROCESS_UNKNOWN` (a missing observation never asserts offline or no-process) |
-| `aiIdentity` | `AI_IDENTITY_UNKNOWN` \| a value in `allowedAiIdentities` | `AI_IDENTITY_UNKNOWN` | an accepted `ai_identity_attestation` fact whose value ∈ `allowedAiIdentities`; never inferred from names |
-| `model` | `MODEL_UNKNOWN` \| a value in `allowedModels` | `MODEL_UNKNOWN` | an accepted `model_attestation` fact whose value ∈ `allowedModels` (mission-proven) |
-| `effort` | `EFFORT_UNKNOWN` \| a value in `allowedEfforts` | `EFFORT_UNKNOWN` | an accepted `effort_attestation` fact whose value ∈ `allowedEfforts` (mission-proven); not a work state |
-| `aiRuntimeState` | `AI_RUNTIME_UNKNOWN` \| `AI_READY` \| `AI_WORKING` \| `AI_WAITING` \| `AI_ERROR` | `AI_RUNTIME_UNKNOWN` | see rules below |
-| `mission` | `AI_RUNTIME_UNKNOWN`-independent id from accepted work evidence | literal `UNKNOWN` | current mission id from an accepted work-context fact |
-| `workUnit` | current WorkUnit id from accepted work evidence | literal `UNKNOWN` | current WorkUnit id from an accepted work-context fact |
+| `sessionProcess` | `SESSION_PROCESS_UNKNOWN` \| `SESSION_OFFLINE` \| `NO_AI_PROCESS` \| `AI_PROCESS_DETECTED` | `SESSION_PROCESS_UNKNOWN` | `process_offline`/`process_absent`/`process_detected` respectively; missing/malformed/unverified/no-evidence/`STALE` → `SESSION_PROCESS_UNKNOWN` (a missing observation never asserts offline or no-process) |
+| `aiIdentity` | `AI_IDENTITY_UNKNOWN` \| a value in `allowedAiIdentities` | `AI_IDENTITY_UNKNOWN` | `ai_identity_attestation` whose `value ∈ allowedAiIdentities`; never inferred from names |
+| `model` | `MODEL_UNKNOWN` \| a value in `allowedModels` | `MODEL_UNKNOWN` | `model_attestation` whose `value ∈ allowedModels` (mission-proven) |
+| `effort` | `EFFORT_UNKNOWN` \| a value in `allowedEfforts` | `EFFORT_UNKNOWN` | `effort_attestation` whose `value ∈ allowedEfforts` (mission-proven); not a work state |
+| `aiRuntimeState` | `AI_RUNTIME_UNKNOWN` \| `AI_READY` \| `AI_WORKING` \| `AI_WAITING` \| `AI_ERROR` | `AI_RUNTIME_UNKNOWN` | computed by the §2.3.2 total arbitration from the runtime work/wait/error signal + `ai_ready`/`ai_error` records |
 
-`aiRuntimeState` evidence rules (fail-closed; each requires a **named accepted structured fact/cue** — attached metadata, timestamps, names, positions, proximity, and terminal prose are **never** proof):
-- `AI_READY`: `sessionProcess = AI_PROCESS_DETECTED` **and** an accepted `ai_ready` structured fact (a defined accepted fact kind, not attached-metadata inference) **and** no accepted work/wait/error fact.
-- `AI_WORKING`: an accepted structured activity/cue that the §2.4 projector resolves to an active-work observable (`DISPATCHING`\|`READING`\|`WORKING`\|`TESTING`\|`WRITING_RESULT`\|`RETURNING_RESULT`\|`REVIEWING`).
-- `AI_WAITING`: an accepted structured cue resolving to `WAITING_DEPENDENCY`\|`WAITING_LEO`.
-- `AI_ERROR`: an accepted structured cue resolving to `FAILED`, or a defined accepted `ai_error` fact.
-- If `sessionProcess ∈ {SESSION_PROCESS_UNKNOWN, SESSION_OFFLINE, NO_AI_PROCESS}`, or evidence is missing/expired/conflicting → `AI_RUNTIME_UNKNOWN`.
+#### 2.3.1 Accepted-evidence input record (exact schema; the only shape (B) may hold)
+A committed `AcceptedEvidenceRecord` (one exact type, modeled on the existing `CurrentActivity` discipline in `src/domain/activity/index.ts:43-49`):
+```ts
+type AcceptedEvidenceKind =
+  | 'process_offline' | 'process_absent' | 'process_detected'
+  | 'ai_identity_attestation' | 'model_attestation' | 'effort_attestation'
+  | 'ai_ready' | 'ai_error';
+interface AcceptedEvidenceRecord {
+  readonly kind: AcceptedEvidenceKind;
+  readonly roleInstanceId: string;          // join key
+  readonly missionId?: string;              // correlation only; never the source of mission/workUnit display
+  readonly workUnitId?: string;
+  readonly value?: string;                  // required for identity/model/effort attestations; validated against the (A) allowed-token set
+  readonly provenance: PixelActorFactSource; // UPPER_SNAKE
+  readonly acceptanceStatus: 'ACCEPTED' | 'REJECTED';
+  readonly sourceEventIds: readonly string[]; // non-empty; UUIDv7
+  readonly effectiveFrom: string;           // ISO-8601
+  readonly optionalExpiresAt?: string;      // if <= evaluatedAt or <= effectiveFrom → invalid/expired
+}
+```
+Acceptance/validation rule (fail-closed): a record contributes only if `acceptanceStatus === 'ACCEPTED'`, `provenance !== 'UNVERIFIED'`, `sourceEventIds.length >= 1`, `effectiveFrom` is valid, it is not expired at `evaluatedAt`, and (for attestations) `value` is in the corresponding (A) allowed-token set. Any other record is dropped and its field falls to the field sentinel. Records are never inferred from names/positions/timestamps/proximity/prose.
 
-★`aiRuntimeState` is not the operational work state (§2.4). The literal `UNKNOWN` (`PIXEL_ACTOR_UNKNOWN`) is used **only** for the free-text fields in §2.1/§2.2 and `mission`/`workUnit`; every enum field uses exactly its own sentinel.
+#### 2.3.2 `aiRuntimeState` total arbitration (deterministic; every combination decided)
+Let `P = sessionProcess`; let `W`/`WA`/`E` be true iff the runtime projector output resolves to an active-work observable / a `WAITING_DEPENDENCY`|`WAITING_LEO` observable / `FAILED` (or a valid `ai_error` record); let `R` be true iff a valid `ai_ready` record is current.
+1. if `P ≠ AI_PROCESS_DETECTED` → `AI_RUNTIME_UNKNOWN`;
+2. else if `E` → `AI_ERROR` (an error always surfaces; a co-present ready/work never hides it);
+3. else if `W && WA` → `AI_RUNTIME_UNKNOWN` (mutually-exclusive conflict);
+4. else if `W` → `AI_WORKING`;
+5. else if `WA` → `AI_WAITING`;
+6. else if `R` → `AI_READY`;
+7. else → `AI_RUNTIME_UNKNOWN`.
+
+★`aiRuntimeState` is not the operational work state (§2.4). Literal `UNKNOWN` (`PIXEL_ACTOR_UNKNOWN`) is used only for the free-text fields in §2.1/§2.2; `mission`/`workUnit`/`operationalState` are runtime-owned (§2.4/§2.5).
 
 ### 2.4 Operational work state — owned display vocabulary as a total function of the current projector output (P2, R2)
 - **Owned display vocabulary** = `PixelOperationalState` (`src/ui/pixel/contracts.ts:24-38`), exactly 14 values: `UNKNOWN`, `IDLE`, `WORKING`, `TESTING`, `ROUTING / DISPATCH`, `REVIEWING`, `RETURNING_RESULT`, `NEEDS_PATCH`, `WAITING_DEPENDENCY`, `WAITING_LEO`, `BLOCKED`, `COMPLETED`, `FAILED`, `CANCELLED`.
@@ -84,21 +109,23 @@ The registry also stores **allowed-token metadata** (immutable per reviewed comm
 
 ★Because the source is the projector output (not the raw state), a bare `RUNNING`/`HOLD`/`WAITING_ADVISOR` without a compatible accepted activity displays `UNKNOWN`, never `WORKING`/`BLOCKED` — the UI never asserts operational meaning the projector withholds. `READING`/`WRITING_RESULT` map to `WORKING` (both are evidence-backed active work; neither elevates to a completion/return claim).
 
-### 2.5 Fact envelope, provenance, ownership, and the exact join (P3, R3)
+### 2.5 Fact envelope, three sources, the exact join, and STALE behavior (P3, R3, S3)
 - **Fact envelope** (per field): `{ value, source, status, evidenceTimestamp }`.
   - `source` = the exact inherited discriminators (`src/ui/pixel/contracts.ts:6-11`): `VERIFIED_REGISTRY` | `VERIFIED_MISSION_ARTIFACT` | `CANONICAL_FIXTURE` | `SYNTHETIC_FIXTURE` | `UNVERIFIED` (UPPER_SNAKE).
   - `status`: `VERIFIED` | `UNVERIFIED` | `STALE` | `INVALID` | `MISSING`.
   - `evidenceTimestamp`: ISO-8601 or `null`; recorded evidence only — **no time-only freshness inference**.
-- **Two committed inputs, one projected output — exact ownership**:
-  - **(A) Committed identity/organization registry** (immutable per reviewed commit) owns the **stable** facts: §2.1 identity attributes, §2.2 organizational bindings, and the allowed-token metadata (`allowedAiIdentities`/`allowedModels`/`allowedEfforts`). It stores **no** changing process/runtime/work fact.
-  - **(B) Committed accepted-structured-evidence records** (provenance-tagged; the Batch A local/static stand-in for live observation) are the inputs from which the **changing** facts are computed: §2.3 (`sessionProcess`, `aiIdentity`, `model`, `effort`, `aiRuntimeState`, `mission`, `workUnit`) and §2.4 (`operationalState`).
-- **Projection-time owner of changing facts**: the projector, not the registry. Each changing fact is computed per projection from (B), validated against (A)'s allowed-token metadata and its §2.3/§2.4 rules; invalid/missing/conflicting → the field's fail-closed sentinel. A changing fact is **never written back into (A)**.
-- **Exact flow**: `load (A) and (B) → compute changing facts from (B) validated vs (A) → FULL OUTER JOIN (union) on roleInstanceId between (A)'s rows and the computed changing-fact rows → project one final frame (no second store)`.
-- **Join is a full outer join (union) on `roleInstanceId`** (not registry-left):
-  - **both present**: identity/org from (A); changing facts from the projector.
-  - **registry-only** (`roleInstanceId` in (A), no evidence): identity/org from (A); every changing fact = its §2.3/§2.4 sentinel (`SESSION_PROCESS_UNKNOWN`/`AI_IDENTITY_UNKNOWN`/`MODEL_UNKNOWN`/`EFFORT_UNKNOWN`/`AI_RUNTIME_UNKNOWN`/`UNKNOWN`).
-  - **evidence-only** (`roleInstanceId` in (B), no registry row): changing facts from the projector; all §2.1/§2.2 identity/org fields = literal `UNKNOWN` and `advisorTeam` = `UNASSIGNED` (cannot receive work); the actor is rendered but marked unassigned/unknown-identity.
-- **Merge precedence / separation**: each field has exactly one owner (stable→(A); changing→projector). Conflicting non-sentinel values for the same owned field → that field's sentinel + a reported diagnostic (never a silent lower-precedence pick). This removes any reversed "registry derived from runtime" direction: (A) and (B) are inputs mint-first, joined into one projected frame.
+- **Exactly three sources; one final frame; no duplicated truth (S3)**:
+  - **(A) committed identity/organization registry** (immutable per reviewed commit) owns the **stable** facts: §2.1 identity attributes, §2.2 organizational bindings, and allowed-token metadata (`allowedAiIdentities`/`allowedModels`/`allowedEfforts`). It stores no changing fact.
+  - **(RT) the existing authenticated runtime projection / cue reducer** is the **sole truth** for `mission`, `workUnit`, activity, and `operationalState` (`src/runtime/observation-coordinator.ts:269-320`, `authenticated-projection.ts`). Batch A **does not** re-source these; `livingOffice` is a derived view of that same runtime projection.
+  - **(B) committed local attestation evidence** (§2.3.1) is limited to facts **genuinely absent** from (RT): `sessionProcess`, `aiIdentity`, `model`, `effort`, and the `ai_ready`/`ai_error` inputs. (B) never carries `mission`/`workUnit`/activity/`operationalState`; there is no second work-state store.
+- **Projection-time computation (owner = the projector, never a committed store)**: `operationalState` = the §2.4 total map of the (RT) projector output; `sessionProcess`/`aiIdentity`/`model`/`effort` = validated (B) attestations vs (A) allowed-tokens; `aiRuntimeState` = the §2.3.2 arbitration over the (RT) work/wait/error signal + (B) `ai_ready`/`ai_error`. No changing fact is written back into (A) or (B).
+- **Exact flow**: `load (A), (RT), (B) → validate/compute changing facts → FULL OUTER JOIN (union) on roleInstanceId across (A) and the (RT)+(B)-derived fact rows → one final frame`.
+- **Full outer join (union) on `roleInstanceId`**:
+  - **both present**: identity/org from (A); mission/workUnit/operationalState from (RT); process/AI-runtime from (B)-derived.
+  - **registry-only** (`roleInstanceId` in (A), no (RT)/(B)): identity/org from (A); every changing fact = its field sentinel.
+  - **runtime/evidence-only** (`roleInstanceId` in (RT)/(B), no (A) row): changing facts as computed; all §2.1/§2.2 fields = literal `UNKNOWN` and `advisorTeam` = `UNASSIGNED` (cannot receive work).
+- **STALE normalization per field (S3)**: a fact whose `status = STALE` (or `INVALID`/`MISSING`/`UNVERIFIED`) yields **exactly its field sentinel** — `sessionProcess`→`SESSION_PROCESS_UNKNOWN`, `aiIdentity`→`AI_IDENTITY_UNKNOWN`, `model`→`MODEL_UNKNOWN`, `effort`→`EFFORT_UNKNOWN`, `aiRuntimeState`→`AI_RUNTIME_UNKNOWN`, `operationalState`→`UNKNOWN`, `advisorTeam`→`UNASSIGNED`, and every free-text field (incl. `mission`/`workUnit` when (RT) reports stale) → literal `UNKNOWN`. A `STALE` value is never displayed as if current.
+- **Conflict**: conflicting non-sentinel values for the same owned field → that field's sentinel + a reported diagnostic (never a silent pick). If (RT) and any (B)/(A) content ever disagree about a (RT)-owned field, **(RT) wins** and (B)/(A) may not override it (no second truth).
 
 ### 2.6 Fail-closed normalization (inherited, must not weaken)
 - Free-text identity/binding fields → literal `UNKNOWN` (`PIXEL_ACTOR_UNKNOWN`) on any null/undefined/non-object/blank-after-trim/`UNVERIFIED`-source value.
@@ -113,13 +140,14 @@ The registry also stores **allowed-token metadata** (immutable per reviewed comm
 
 ## 3. Local/static organization registry (CD-7, P3, Founder item 7)
 
-Batch A holds **two committed local/static inputs** under a new exact module `src/application/organization/` (no live tmux/process/model discovery), consumed by one projector into one final frame (§2.5):
+Batch A adds **two committed local/static inputs** under a new exact module `src/application/organization/` (no live tmux/process/model discovery); together with the existing runtime projection **(RT)** they feed one projector into one final frame (§2.5):
 
-- **(A) identity/organization registry** — stable identity attributes (§2.1), organizational bindings (§2.2), and allowed-token metadata; immutable per reviewed commit; stores **no** changing process/runtime/work fact.
-- **(B) accepted-structured-evidence records** — the committed, provenance-tagged inputs from which the changing §2.3/§2.4 facts are computed at projection time.
-- **Mint order (not reversed)**: (A) and (B) are inputs; the projector computes changing facts from (B) validated against (A), then a **full outer join (union) on `roleInstanceId`** yields one frame. There is no "registry derived from runtime"; there is one projected frame and no second store.
-- **Envelope on every field** (per-field `{ value, source, status, evidenceTimestamp }`, not one row-level stamp); unverified → the field's fail-closed sentinel; an actor not resolvable to exactly one responsible Advisor Team → `UNASSIGNED` and cannot receive work; changing facts are never written back into (A).
-- **Change control**: both inputs change only by a normal reviewed commit (no runtime mutation, no live edit path, no automatic refresh, no time-only freshness inference).
+- **(A) identity/organization registry** — stable identity attributes (§2.1), organizational bindings (§2.2), and allowed-token metadata; immutable per reviewed commit; stores **no** changing fact.
+- **(B) local attestation evidence** — `AcceptedEvidenceRecord`s (§2.3.1) **limited to facts absent from (RT)**: process detection, identity/model/effort attestations, and `ai_ready`/`ai_error`. (B) never carries `mission`/`workUnit`/activity/`operationalState`.
+- **(RT) is the sole truth** for `mission`/`workUnit`/activity/`operationalState`; Batch A does not re-source these into a committed store.
+- **Mint order (not reversed)**: (A), (RT), (B) are inputs; the projector computes changing facts (§2.5) and a **full outer join (union) on `roleInstanceId`** yields one frame — no "registry derived from runtime", no second work-state truth store.
+- **Envelope on every field** (per-field `{ value, source, status, evidenceTimestamp }`); `STALE`/`INVALID`/`MISSING`/`UNVERIFIED` → the field sentinel (§2.5); an actor not resolvable to exactly one responsible Advisor Team → `UNASSIGNED` and cannot receive work; changing facts are never written back into (A)/(B).
+- **Change control**: (A) and (B) change only by a normal reviewed commit (no runtime mutation, no live edit path, no automatic refresh, no time-only freshness inference).
 
 ## 4. Organization model (Founder items 6, 9)
 
@@ -148,5 +176,7 @@ M1 authentication/session, exact Advisor delivery, communication, transport/tmux
 - each field normalizes to exactly its §2.1–§2.4 sentinel (incl. `SESSION_PROCESS_UNKNOWN` for missing/unverified process evidence — never `SESSION_OFFLINE`/`NO_AI_PROCESS`); literal `UNKNOWN` only for free-text identity fields and `mission`/`workUnit`;
 - the §2.4 display is the total map of `projectRequiredObservable(...).requiredObservableName` (not raw `WorkUnitState`); a bare `RUNNING`/`HOLD`/`WAITING_ADVISOR` without a compatible accepted activity displays `UNKNOWN`, never `WORKING`/`BLOCKED`; every `ObservableProjectionName` (16 + `UNKNOWN_OR_STALE`) has an exact row; every `ROLE_ACTIVITY` routes through `isActivityCompatible`/`deriveObservable`;
 - each §2.3 non-sentinel value requires its exact named accepted structured fact/cue kind; `SESSION_OFFLINE`/`NO_AI_PROCESS`/`AI_PROCESS_DETECTED` each need their own accepted process-fact; `AI_READY` needs an accepted `ai_ready` fact (never attached-metadata); offline/no-process/unknown forces `AI_RUNTIME_UNKNOWN`;
-- ownership: (A) committed identity/organization registry (stable + allowed-token metadata) vs (B) accepted-evidence records → projector computes changing facts → **full outer join (union) on `roleInstanceId`**; registry-only → changing sentinels; evidence-only → `UNKNOWN` identity + `UNASSIGNED`; changing facts never stored in (A); no time-only freshness inference; every field renders `value`+`source`(UPPER_SNAKE)+`status`;
+- `AcceptedEvidenceRecord` (§2.3.1) validates by `acceptanceStatus`/`provenance`/`sourceEventIds`/`effectiveFrom`/expiry/allowed-token; `aiRuntimeState` follows the §2.3.2 total arbitration (error surfaces; work+wait → `AI_RUNTIME_UNKNOWN`); `ai_ready+ai_error` → `AI_ERROR`;
+- three sources: (A) identity/org registry + allowed-tokens, **(RT) existing runtime projection = sole truth for `mission`/`workUnit`/activity/`operationalState`**, (B) attestation evidence limited to facts absent from (RT); **full outer join (union) on `roleInstanceId`**; registry-only → changing sentinels; runtime/evidence-only → `UNKNOWN` identity + `UNASSIGNED`; (RT) wins any conflict over a (RT)-owned field; changing facts never stored; every field renders `value`+`source`(UPPER_SNAKE)+`status`;
+- `STALE`/`INVALID`/`MISSING`/`UNVERIFIED` on any field → exactly that field's sentinel (never displayed as current); no time-only freshness inference;
 - `UNASSIGNED` cannot receive work; symbolic surfaces contain no terminal/source/private content; one character per active `roleInstanceId`; no name/position/timestamp/proximity/prose inference.

@@ -1,6 +1,6 @@
 # Agent Office Batch A — Implementation WorkUnit Plan
 
-Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_CD_1_TO_CD_7_AND_SENTINEL_P2_P4_R2_R4__PENDING_INDEPENDENT_SENTINEL_DELTA_REREVIEW`
+Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_CD_1_TO_CD_7_SENTINEL_P2_P4_R2_R4_AND_S4__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW`
 
 ★Source paths are a **closed enumeration** (no globs). Any path not named per WorkUnit returns to Advisor for a handoff amendment before editing.
 
@@ -31,7 +31,7 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 ### BA-WU-01 — Application shell, Office-first-by-default navigation, eager-shell isolation
 - Intent: new Application Shell in the authenticated runtime client; Office surface **default primary** (no `surface=` in the real app; CD-2); Dashboard/comm/control/evidence secondary behind keyboard-reachable navigation; degradation chain wired; **eager-shell isolation** so the eager shell + fallback graph never import/execute Pixi (CD-3). (items 1, 2, 3)
 - Source (exact; no broad `src/ui/*`): `src/ui/runtime/runtime-app.tsx`, `src/ui/runtime/client.ts`, `src/ui/dashboard.tsx`, `src/ui/spatial/compatibility.ts` (selector `PIXEL_FULL`/`PIXEL_RESTRAINED`/`DOM_STATIC`/`M1_FIXED_STATIONS`), additive `livingOffice` field in `src/runtime/projection.ts`, `vite.config.ts` (lazy Office chunk only), and the conditional `src/pwa/cache-policy.ts`/`public/sw.js`/`src/server/http/static-shell.ts` **only if** emitted renderer files require them (same-origin hashed chunk + atomic cache-version bump; impl plan §6.2). Any file beyond this list requires an exact Advisor handoff amendment.
-- Tests: shell/nav unit + ui; secondary-view reachability; composition test; **bundle chunk-separation acceptance** (`tests/acceptance/production-*-boundary.test.ts`) proving no eager Pixi + fixture-marker rejection.
+- Tests: shell/nav unit + ui; secondary-view reachability; composition test; **bundle chunk-separation acceptance** (`tests/acceptance/production-spatial-bundle-boundary.test.ts`, `tests/acceptance/production-pixel-prototype-boundary.test.ts`) proving no eager Pixi + fixture-marker rejection.
 - Gate: lint/type clean; Office-first default; secondary views reachable; no deletion; eager-shell isolation verified.
 - Rollback: remove shell + additive projection field; in-app rollback is a presentation selection to static/M1.
 
@@ -58,7 +58,7 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 
 ### BA-WU-05 — Role-specific symbolic surfaces
 - Intent: symbolic facility/work surfaces; no terminal/source/private content. (item 9)
-- Source (exact): `src/ui/pixel/facility-sprites.tsx` and the exact original code-native placeholder files under `src/ui/pixel/assets/` named by the handoff (no new external asset).
+- Source (exact): `src/ui/pixel/facility-sprites.tsx` and the exact existing placeholder assets `src/ui/pixel/assets/office-world-atlas.source.ts`, `atlas-builder.ts`, `atlas-manifest.ts`, `palette.ts`, `ASSET_INVENTORY.md` (no new external asset; delta §9 asset list).
 - Tests: content-safety (no terminal/source/path/credential); no authority/live-state; scene-source boundary.
 - Gate: security/content-safety tests green.
 - Rollback: revert surface integration.
@@ -79,14 +79,14 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 
 ### BA-WU-08 — Local run tooling, current visual evidence, documentation
 - Intent: one documented start/open/verify/stop procedure rehearsed on loopback; current visual evidence; docs. (items 1, 11, 15)
-- Source (exact): `scripts/runtime-smoke.mjs` (reuse) and, only if named by the handoff, a new `scripts/local-office-rehearsal.mjs`; plus the four Batch A documentation paths. No config change beyond the lazy Office chunk isolation (no eager Pixi; fixture markers stay rejected).
+- Source (exact): `scripts/runtime-smoke.mjs` (reuse) and one new script at the exact path `scripts/local-office-rehearsal.mjs`; plus the four Batch A documentation paths. No config change beyond the lazy Office chunk isolation (no eager Pixi; fixture markers stay rejected). Any path not on this list returns to Advisor before edit.
 - Tests/checks: `npm run dev`/`preview`/`start:loopback` + `smoke:runtime`; `npm run check`; direct visual inspection.
 - Gate: local rehearsal succeeds on `127.0.0.1`; `check` green.
 - Rollback: revert tooling/doc additions.
 
 ### BA-WU-09 — Worker result and exact Git evidence
 - Intent: durable evidence-bearing Worker result + exact Git evidence; return to Advisor. (item 17)
-- Source: `../foundation-docs/runs/agent-office/20260712_.../WORKER_RESULT.md` + pointer `12_WORKER_RESULT_POINTER.md` (Worker pass).
+- Source (exact): `/home/leo/Project/foundation-docs/runs/agent-office/20260712_agent_office_batch_a_modern_office_identity_completion_001/WORKER_RESULT.md` and pointer `/home/leo/Project/foundation-docs/advisor/jobs/20260712_agent_office_batch_a_modern_office_identity_completion_001/12_WORKER_RESULT_POINTER.md` (Worker pass).
 - Gate: evidence-bearing completion package per V2 §5 / repo `RESULT_REPORTING_PROTOCOL.md`; exact-path staging; non-force push.
 - Rollback: n/a (evidence only).
 
@@ -95,7 +95,7 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 - **Static**: `npm run lint`, `npm run typecheck` clean; no file-wide suppression; strict rules unchanged.
 - **Unit/contract/snapshot/property**: `npm test` (+ focused) green with accurate totals.
 - **Integration/security/authority/composition/recovery/pwa**: green; zero authority expansion; LOOPBACK_PRIVATE + protected-cue clearing proven.
-- **Bundle isolation (CD-3)**: `tests/acceptance/production-*-boundary.test.ts` prove eager-shell/fallback graph imports/executes no Pixi; Pixi only in a separately emitted lazy Office chunk; prototype fixture markers rejected; no eager renderer startup.
+- **Bundle isolation (CD-3)**: `tests/acceptance/production-spatial-bundle-boundary.test.ts` + `tests/acceptance/production-pixel-prototype-boundary.test.ts` prove eager-shell/fallback graph imports/executes no Pixi; Pixi only in a separately emitted lazy Office chunk; prototype fixture markers rejected; no eager renderer startup.
 - **Full-integration failure & PWA matrix (P4, impl plan §6.4/§6.5)**: production PWA first-online/cached-reload/offline-after-cache/offline-before-pixel-cache DOM fallback; both-backend failure, lazy chunk/import/init failure, atlas/hash failure, semantic divergence, context loss/restore, performance fallback, user-static; invalid/stale/conflict/critical/logout/expiry/revocation/restart/source-mismatch → exact rollback checkpoint (`DOM_STATIC`/`M1_FIXED_STATIONS`), no retry/replay, cues/camera/textures cleared; complete teardown + memory evidence; historical baseline hashes unchanged. A generic "pwa green" label is insufficient.
 - **UI/accessibility**: `test:ui` + browser specs; keyboard/focus/Escape/Tab; 200%/contrast/reduced-motion/static parity; mobile nav.
 - **Visual**: living-office baselines captured + directly inspected; historical baselines byte-identical unless authorized delta.
