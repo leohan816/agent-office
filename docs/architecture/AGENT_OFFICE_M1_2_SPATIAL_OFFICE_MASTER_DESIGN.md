@@ -1,12 +1,12 @@
 # Agent Office M1.2 Spatial Advisor-Team Office Master Design
 
-Status: `AO12_D_A1_PRODUCTION_BUNDLE_BOUNDARY_CORRECTED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `AO12_D_A1_TECHNICAL_FOUNDATION_PRESERVED__LIVING_PIXEL_OFFICE_DESIGN_CANDIDATE_PENDING_FABLE5_LEVEL3_PASS__PROTOTYPE_NOT_AUTHORIZED`
 
 Canonical owner: Agent Office repository
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-Target implementation status: `AO12_IWU_01_THROUGH_14_IMPLEMENTED__AO12_D_NOT_REVIEWED_OR_ACCEPTED`
+Target implementation status: `AO12_IWU_01_THROUGH_14_IMPLEMENTED__AO12_PWU_01_THROUGH_05_DESIGNED_ONLY__AO12_PWU_06_REVIEW_PENDING`
 
 This document is the frozen additive design over the closed M1 base
 `2f663304a88c432f19fe56055641b66e57f18ef2`. It defines a spatial,
@@ -27,6 +27,15 @@ application and retains the unchanged M1 view as the fail-closed compatibility
 path. This is implementation evidence pending independent review and Advisor
 acceptance; it does not authorize remote/public/production/live operation,
 authority or transport changes, a database, a secret, or another mission.
+
+Leo/GPT subsequently accepted that technical foundation but withdrew final
+visual-product acceptance. The current DOM/SVG/CSS spatial dashboard is now
+superseded as the intended primary M1.2 experience by the living pixel-office
+candidate. It remains binding accessibility/static/detail evidence, and the M1
+fixed-station scene remains the final compatibility fallback. The new renderer,
+sprite, and implementation-plan documents are design candidates only: no Pixi
+dependency, prototype, runtime selection, atlas, or production integration is
+authorized before the exact serial gates in Section 17.
 
 ## 1. Purpose and binding inheritance
 
@@ -73,8 +82,11 @@ M1.2 does not design or authorize:
   exposure, deployment, production/live operation, or remote collector;
 - inference from terminal prose, pane contents, process names, CPU activity,
   elapsed silence, CSS state, or character position;
-- purchase, import, download, generation, or selection of production artwork;
-- a Canvas, WebGL, Three.js, game-engine, physics, or 3D dependency; or
+- purchase, import, download, external generation, or selection of production
+  artwork;
+- an unreviewed renderer, WebGPU, Three.js, game engine, physics, or 3D
+  dependency; the bounded React/PixiJS 8 candidate is defined only by the
+  living pixel-office documents and remains uninstalled in this design pass; or
 - implementation, launch, review verdict, risk acceptance, final approval, or
   automatic next-mission selection.
 
@@ -140,7 +152,7 @@ accessibility review and Advisor acceptance.
 | `AO12-U06` Lounge Semantics | Verified-idle actors may use bounded office/lounging presentations that never imply availability, assignment, shared context, collaboration, communication, or approval. | `IMPLEMENTED_THROUGH_AO12_D__PENDING_AO12_D_REVIEW` |
 | `AO12-U07` Truthful Animation | Only new accepted structured source IDs create bounded operational cues. Selection controls detail, not truth; non-selected Team areas retain exact visible state without full choreography. | `IMPLEMENTED_AO12_D_LIVE_DELTA_ONLY__PENDING_REVIEW` |
 | `AO12-U08` Mission Board | Every Team area exposes the required summary fields; the selected board exposes the complete exact field set in Section 9.1. | `IMPLEMENTED_STATIC_AO12_B__FOCUSED_REVIEW_PASS_ADVISOR_ACCEPTED` |
-| `AO12-U09` Rendering Architecture | Accessible DOM for semantics and layout plus original local SVG placeholders; no AO12-B motion layer, Canvas/WebGL/3D engine, or new dependency. | `IMPLEMENTED_STATIC_AO12_B__NO_ENGINE_OR_DEPENDENCY` |
+| `AO12-U09` Rendering Architecture | The implemented AO12-D DOM/SVG/CSS surface remains the semantic/static/detail and M1 fallback foundation. Leo/GPT superseded it as the intended primary experience; the selected design candidate is lazy React 19 + `@pixi/react` 8 + PixiJS 8 with WebGL preferred, tested Canvas fallback, and an always-present DOM semantic mirror. | `LIVING_PIXEL_OFFICE_DESIGNED_ONLY__PENDING_CLEAN_FABLE5_LEVEL3_PASS__NO_DEPENDENCY_INSTALLED` |
 | `AO12-U10` Responsive Navigation | Desktop spatial floor; tablet simplified floor; mobile semantic pod/list/detail. No miniature unreadable floor. | `IMPLEMENTED_AO12_D_COMPOSED_PATH__PENDING_REVIEW` |
 | `AO12-U11` Reduced Motion/Performance | Static semantic equivalence, fixed cue/visible-actor caps, and separately measured benchmark targets with fallbacks. | `MEASURED_AO12_D_FULL_ON_CONFIGURED_RUNTIME__LOWER_TIERS_EXPLICIT` |
 | `AO12-U12` Multi-Project Identity/Host Boundaries | One canonical actor identity may have assignment views, never duplicated live actors. Conflicting active assignments or sources render `CONFLICT`. | `IMPLEMENTED_FAIL_CLOSED_AO12_D__NO_TRUST_EXPANSION` |
@@ -515,9 +527,11 @@ always overrides ambient behavior.
 - only the selected Team area mounts full operational choreography; other Team
   areas retain recognizable static or bounded ambient office presentation.
 
-The floor uses CSS grid semantic zones. Local SVG route overlays use named zone
-anchors, never hardcoded station-array coordinates. The DOM reading order
-follows the information order in Section 5.1, not visual x/y position.
+The implemented AO12-D fallback floor uses CSS grid semantic zones and local SVG
+route overlays with named zone anchors. The living pixel-office candidate uses
+a deterministic tile world and Pixi scene for primary visuals while preserving
+the same named zones. Its always-mounted DOM semantic mirror follows the
+information order in Section 5.1, never visual x/y position.
 
 ### 10.2 Tablet (`768px-1199px`)
 
@@ -580,28 +594,51 @@ Target conformance remains WCAG 2.2 AA for implemented surfaces.
 
 ## 11. Rendering and performance architecture
 
-M1.2 selects accessible DOM/SVG/CSS 2D/2.5D rendering because it directly extends
-the current stack, retains semantic DOM/focus/zoom behavior, supports deterministic
-component and Playwright tests, and satisfies the required zones/routes without
-a new engine. Canvas/WebGL/3D would duplicate accessibility semantics and add
-asset/rendering complexity without an evidenced requirement.
+The original AO12-B through AO12-D implementation selected accessible
+DOM/SVG/CSS 2D/2.5D rendering. That decision remains correct for semantics,
+focus, detailed evidence, deterministic static tests, reduced motion, high
+contrast, unsupported-renderer behavior, and M1 rollback. Leo/GPT's later visual
+product decision supersedes it only as the intended **primary visual viewport**.
+
+The selected living-office candidate is React `19.2.7` plus lazy
+`@pixi/react` `8.0.5` and PixiJS `8.19.0`. WebGL is preferred; Canvas is a
+tested core-subset fallback; DOM static and `M1_FIXED_STATIONS` remain
+deterministic fail-closed choices. A pure immutable frame model drives both the
+Pixi world and the separate DOM semantic mirror. Pixi accessibility overlays
+are not selected because they would duplicate camera-aligned semantics and
+focus. Direct imperative PixiJS under React was evaluated but rejected as the
+primary candidate because it would add a custom reconciliation/lifecycle layer.
+
+The authoritative lifecycle, coordinate, world, camera, backend, context-loss,
+SSR/PWA, bundle, accessibility, performance, visual-matrix, and teardown design
+is
+[`AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_RENDERER_DESIGN.md`](AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_RENDERER_DESIGN.md).
+The atlas and animation contract is
+[`../ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md`](../ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md).
 
 Hard design limits:
 
-- one shared wide floor and one expanded Team area;
-- at most eight full actor tiles on desktop/tablet and two on mobile;
+- one shared floor containing every registered Team and one selected detail
+  target;
+- at most eight fully animated actors on desktop/tablet and a focused bounded
+  Pod presentation on mobile;
 - additional actors use a semantic paged/virtualized list, never tiny avatars;
 - at most three pending transient cues across the selected Team area;
 - at most one route actor/document cue at a time;
 - non-selected Team areas have no full task-signifying choreography;
-- every cue is 150-1200ms and transform/opacity only;
-- no layout, width, height, top, left, scroll, camera, or focus animation; and
-- reduced-motion/static mode mounts no route animation layer.
+- every operational cue retains the existing 150-1200ms cap;
+- camera movement changes presentation only and never scrolls or moves DOM
+  focus to complete a cue;
+- one private fixed-step ticker owns pixel animation; no global/shared ticker or
+  per-frame React state loop is allowed; and
+- reduced-motion/static mode stops and tears down the pixel motion layer while
+  exposing the complete DOM equivalent immediately.
 
-Measurable target budgets, which implementation must benchmark rather than claim
-in advance, are canonical in the spatial animation contract. A benchmark miss
-selects a reviewed lower presentation tier or blocks release; it does not weaken
-source validation or hide stale/conflict/critical evidence.
+The current AO12-D measurements remain historical DOM-renderer evidence. New
+pixel budgets are exact design gates in the living renderer document and must be
+measured by the bounded prototype. A miss selects the reviewed lower/static tier
+or blocks production selection; it never weakens source validation or hides
+stale/conflict/critical evidence.
 
 ## 12. M1 additive compatibility and rollback
 
@@ -647,6 +684,21 @@ revocation, failed protected refresh, and SSE invalidation clear the protected
 projection, cue reducer state, and cursor without changing any ledger,
 manifest, artifact, configuration, authority, delivery, or transport state.
 
+A later approved living-office selector is strictly additive:
+
+```text
+PIXEL_FULL | PIXEL_RESTRAINED
+  -> DOM_STATIC
+  -> M1_FIXED_STATIONS
+```
+
+It lazy-loads pixel presentation only after a valid authenticated spatial
+selection. Import/init/atlas/context/parity/performance/accessibility failure,
+reduced motion, user static selection, logout, expiry, revocation, or runtime
+stop destroys pixel-only state and retains the already-present DOM static
+surface. Invalid/absent spatial schema continues to select M1. No fallback
+replays a delayed cue or changes persistent data.
+
 ## 13. Approved placeholder art direction and deferred production gate
 
 The exact product decision is
@@ -685,6 +737,14 @@ production asset proposal must provide, before an asset enters source:
 Project-authored placeholder art cannot be relabelled as approved production
 art. Replacing it later is additive, separately reviewed, inventory/hash/license
 controlled, and must preserve semantic asset IDs and stable geometry.
+
+The living pixel-office design proposes original project-authored code-native
+indexed-pixel atlas sources with exact ownership/license/source/generated hashes.
+Those sources are not created in this pass and are not production-approved by
+the design. A clean Fable5 design `PASS` may authorize only their bounded
+synthetic prototype use; full integration remains behind the separate Founder
+visual-direction gate. The no-external-acquisition and no-protected-style rules
+above remain unchanged.
 
 ## 14. Resolved Leo/GPT product decisions
 
@@ -758,6 +818,13 @@ decision remain pending; this document does not claim approval.
 ## 16. Canonical M1.2 design map
 
 - Spatial architecture and IA: this document.
+- Superseding primary visual renderer, world, camera, lifecycle, fallback,
+  accessibility, performance, and visual matrix:
+  [`AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_RENDERER_DESIGN.md`](AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_RENDERER_DESIGN.md).
+- Pixel atlas, actor, Channy, identity, and accepted-event animation contract:
+  [`../ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md`](../ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md).
+- Hard-gated prototype and full integration plan:
+  [`../operations/AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_IMPLEMENTATION_PLAN.md`](../operations/AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_IMPLEMENTATION_PLAN.md).
 - Structured spatial cue contract:
   [`../contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md`](../contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md).
 - Character/project identity and asset contract:
@@ -765,3 +832,31 @@ decision remain pending; this document does not claim approval.
 - Future batches, acceptance, rollback, and unknown traceability:
   [`../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md).
 - Discoverability/status pointer: [`../FEATURE_INDEX.md`](../FEATURE_INDEX.md).
+
+## 17. Living pixel-office supersession and serial gates
+
+The governing product classification is
+`CUTE_LIVING_GAME_STYLE_ANIMATED_AI_OFFICE`. The AO12-D DOM/SVG/CSS result is
+preserved as accepted technical foundation and fallback evidence but is
+classified as `EVIDENCE_BACKED_SPATIAL_DASHBOARD`, not the accepted final
+primary visual experience.
+
+The serial gate is exact:
+
+1. this documentation-only package completes candidate design WorkUnits
+   `AO12-PWU-01..05`;
+2. the same Fable5 Reviewer performs Level-3 design review `AO12-PWU-06`;
+3. only a clean `PASS` permits a new exact handoff for the bounded loopback-only
+   synthetic prototype `AO12-PWU-07..09` and its independent prototype review
+   `AO12-PWU-10`;
+4. Advisor returns the exact prototype commit, WebM, MP4, GIF, five PNGs,
+   paths/sizes/SHA-256 values, scenario, capture/conversion commands, performance,
+   accessibility, and review evidence to Leo/GPT;
+5. only explicit Leo/GPT prototype visual-direction approval in
+   `AO12-PWU-11` may unblock full integration `AO12-PWU-12`; and
+6. Fable5 and Advisor perform `AO12-PWU-13`; Leo/GPT alone retains risk
+   acceptance, final approval, closure, and next-mission authority.
+
+No design status, test result, Fable5 `PASS`, Advisor validation, or successful
+prototype authorizes the next gate by itself. The exact implementation plan is
+binding for file, dependency, media, cleanup, rollback, and STOP boundaries.

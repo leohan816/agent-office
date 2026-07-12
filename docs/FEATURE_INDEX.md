@@ -37,6 +37,15 @@ inputs, keeps fixture injection in test-demo/tests, and adds a fresh-build
 zero-marker acceptance gate. AO12-D awaits independent review and Advisor
 acceptance.
 
+Leo/GPT later accepted the M1.2 technical foundation but withdrew final visual
+product acceptance. The current DOM/SVG/CSS spatial dashboard is classified as
+`EVIDENCE_BACKED_SPATIAL_DASHBOARD`: it remains the accessibility/static/detail
+surface and M1 fallback evidence, but it is visibly superseded as the intended
+primary product experience. The living pixel-office candidate is now at
+`DESIGNED_LIVING_PIXEL_OFFICE_AO12_PWU_01_THROUGH_05__PENDING_FABLE5_LEVEL3_DESIGN_PASS__PROTOTYPE_NOT_AUTHORIZED`.
+No Pixi package, prototype, atlas, media, runtime integration, production
+selection, or full implementation exists at this design status.
+
 ## 1. Current Implemented Scope
 
 The LocalBootstrap private-run gate passed against Agent Office base
@@ -196,7 +205,10 @@ baselines. No real credential or private run was created.
 
 | Document | Canonical subject |
 |---|---|
-| [`architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md) | Shared wide open-office floor, exact Advisor Team ownership/assignments, selected-detail/non-selected spatial visibility, complete mission boards, resolved Channy and placeholder direction, responsive/accessibility architecture, and M1 adapter |
+| [`architecture/AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_RENDERER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_RENDERER_DESIGN.md) | Superseding primary React/PixiJS living-office candidate, official-library evaluation, world/camera/lifecycle/backend/failure design, DOM semantic mirror, PWA/bundle/performance/rollback contract, and exact 13-scene visual matrix |
+| [`ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md`](ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md) | Original code-native atlas contract, actor and Channy states, project/role identity, structured-event mapping, deterministic clock/path/frame rules, no-replay/no-clone/static equivalence, and license/hash gates |
+| [`operations/AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_IMPLEMENTATION_PLAN.md`](operations/AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_IMPLEMENTATION_PLAN.md) | Hard-gated `AO12-PWU-07..10` prototype and `AO12-PWU-12..13` full integration plan, exact proposed files/dependencies/tests/media/commands/performance/cleanup/rollback, with PWU-12 blocked on explicit Leo/GPT prototype approval |
+| [`architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md`](architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md) | Shared floor and exact Advisor Team/assignment/projection invariants; living pixel world supersedes the DOM dashboard as intended primary visual, while DOM static/detail and M1 adapter remain binding fallbacks |
 | [`contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md`](contracts/AGENT_OFFICE_M1_2_SPATIAL_EVENT_ANIMATION_CONTRACT.md) | Accepted structured handoff/dispatch/work/test/review/result/patch/decision/completion cues, Channy status reflection, provenance, precedence, deduplication, stale/reload suppression, budgets, and static equivalence |
 | [`ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md`](ui/AGENT_OFFICE_M1_2_CHARACTER_PROJECT_IDENTITY_SYSTEM.md) | Advisor Team-first identity, fixed approved project palette, SIASIU naming rule, current/future Advisor-character uniqueness, Channy Bedlington Terrier boundary, and project-authored placeholder inventory/hash contract |
 | [`operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md) | Frozen `AO12-IWU-01` through `AO12-IWU-14`, serial reversible batches, exact tests/rollback/acceptance, AO12-U01-U14 traceability, and AO12-A through AO12-D as-built status; AO12-D review/acceptance remains pending |
@@ -212,7 +224,23 @@ baselines. No real credential or private run was created.
 Agent Office is the sole canonical design owner. Foundation-docs may hold mission
 governance, review evidence, results, and pointers but no competing canonical copy.
 
-### 2.1 M1.2 patched product-intent pointer
+### 2.1 M1.2 product-intent and living pixel-office pointer
+
+- Leo/GPT accepted the reviewed M1.2 projection, evidence truth, Single Advisor
+  Team rule, mission-board data, security, accessibility foundation, and
+  rollback, but rejected the current dashboard as the final visual product.
+- The intended primary viewport is one original warm-retro living pixel office
+  with all Advisor Teams spatially coexisting, visible facilities, stateful
+  actors and Channy, bounded camera pan/zoom/focus/full return, mobile Pod
+  navigation, concise HUD, and DOM technical detail.
+- The selected design candidate is lazy React `19.2.7` plus `@pixi/react`
+  `8.0.5` and PixiJS `8.19.0`, with WebGL preferred, tested Canvas fallback,
+  and the existing DOM/M1 surfaces always available. The packages are not
+  installed and no prototype/runtime selection is authorized by design.
+- A clean Fable5 Level-3 design `PASS` may authorize only the isolated synthetic
+  `AO12-PWU-07..10` prototype. Full authenticated integration
+  `AO12-PWU-12..13` stays blocked until explicit Leo/GPT visual-direction
+  approval of the exact reviewed prototype in `AO12-PWU-11`.
 
 - One shared American-style open-office floor keeps every registered Advisor
   Team spatially visible on wide desktop. Selection expands detail and full
@@ -287,6 +315,8 @@ deployment, or an authority/transport expansion.
 
 | Status | Meaning |
 |---|---|
+| `DESIGNED_LIVING_PIXEL_OFFICE_AO12_PWU_01_THROUGH_05__PENDING_FABLE5_LEVEL3_DESIGN_PASS__PROTOTYPE_NOT_AUTHORIZED` | Canonical renderer/world/camera/sprite/HUD/accessibility/fallback/media/implementation design exists only; no Pixi dependency, source, test, asset, prototype, media, or runtime change exists; only clean Fable5 design `PASS` can permit the bounded synthetic prototype |
+| `LIVING_PIXEL_OFFICE_PROTOTYPE_CONDITIONAL_ON_CLEAN_FABLE5_PASS__FULL_INTEGRATION_BLOCKED` | `AO12-PWU-07..10` may begin only from a later exact handoff after clean PWU-06 `PASS`; `AO12-PWU-12` remains blocked until explicit durable Leo/GPT approval of the reviewed visual prototype |
 | `DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS` | Historical pre-implementation state for the five-document narrow patch; superseded for `AO12-IWU-01..08` only by the clean delta `PASS`, manifest freeze, serial reviews/acceptance, and exact AO12-A/AO12-B handoffs |
 | `IMPLEMENTED_M1_2_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED` | Historical pre-acceptance state: `AO12-IWU-01..04` were locally implemented but not yet accepted; superseded by corrected focused `PASS`, Advisor acceptance, and the exact AO12-B handoff |
 | `IMPLEMENTED_M1_2_AO12_B_STATIC_FIXTURE__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_C_NOT_AUTHORIZED` | Historical AO12-B pre-acceptance state; superseded by corrected focused `PASS`, Advisor acceptance, and the exact AO12-C handoff |
@@ -499,6 +529,9 @@ tests, evidence, commits, and limitations. `CURRENT_EVIDENCE` changes from
 
 | Capability | Current status | Required gate |
 |---|---|---|
+| Living pixel-office bounded prototype | Design candidate only; Pixi packages absent; no prototype/atlas/media/server exists; required MP4/GIF converter is currently unavailable on PATH | Clean Fable5 PWU-06 Level-3 design `PASS`, Advisor validation, exact PWU-07 handoff, and successful capture/conversion/ignore preflight |
+| Living pixel-office full authenticated integration | Blocked; existing DOM/SVG/CSS dashboard remains current production visual and required fallback | Completed PWU-07..10 evidence plus explicit durable Leo/GPT `AO12-PWU-11` visual-direction approval and a new exact PWU-12 handoff |
+| Living pixel-office external/production artwork | Prohibited; only original code-native atlas sources are proposed for the bounded prototype | Separate Leo/GPT source/replacement decision, ownership/license/hash/security/visual/performance evidence, and both reviews |
 | Real LocalBootstrap credential/proof use | Provider implemented; no real value created or accessed | Fable5 code/security PASS plus explicit Advisor private-run authority and local-only handling |
 | Tailscale/private network | Disabled | Leo/GPT host/user/network approval, threat review, identity/TLS/ACL evidence, Fable5 review |
 | Remote Linux collector | Interface only | Remote-host and key-provisioning mission |
