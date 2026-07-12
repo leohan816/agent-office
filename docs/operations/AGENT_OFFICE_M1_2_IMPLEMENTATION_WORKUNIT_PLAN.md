@@ -1,6 +1,6 @@
 # Agent Office M1.2 Implementation WorkUnit Plan
 
-Status: `AO12_D_IWU_12_THROUGH_14_IMPLEMENTED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `AO12_D_A1_PRODUCTION_BUNDLE_BOUNDARY_CORRECTED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
@@ -639,7 +639,7 @@ Acceptance criteria:
 
 ### AO12-D local as-built evidence
 
-- the complete sequential Vitest train passes 76 files/450 tests; focused
+- the complete sequential Vitest train passes 77 files/452 tests; focused
   projection/client/compatibility/rollback/security/UI/performance/runtime
   coverage is included in that total;
 - default-demo Chromium passes 43/43 and composed Chromium passes 3/3, including
@@ -655,12 +655,17 @@ Acceptance criteria:
   p95 is 16.9ms; zero long tasks over 50ms, 377 DOM nodes, 84 SVG elements,
   zero pending cues, and 305608 bytes retained heap pass on the configured
   runtime;
-- production gzip growth from the AO12-C base is 32668 bytes JavaScript and
+- production gzip growth from the AO12-C base is 27102 bytes JavaScript and
   4268 bytes CSS; package and lockfile bytes are unchanged; and
 - logout, actual expiry, revocation, failed protected refresh, client stop, and
   cursor reset clear protected spatial/cue state. Presentation rollback changes
   no ledger, manifest, evidence, artifact, config, authority, authentication,
   Advisor delivery, transport, DB, network, or process state.
+- `AO12-D-A1` removes the implicit fixture default/import from the production
+  `SpatialOffice` graph. Static/motion demo and test composition now injects
+  projection, surface kind, and fixture kind explicitly. The deterministic
+  production-bundle acceptance test creates a fresh production build and finds
+  zero required or equivalent AO12-B/C fixture markers.
 
 Known limits: the operational composition retains the current fixed actor and
 project registration; the measurement and PNG claims apply only to the
@@ -688,7 +693,7 @@ final decision remain deferred gates.
 |---|---|---|---|---|---|
 | `AO12-IWU-12` / `AO12-REQ-013` authenticated read model | `authenticated-projection.ts`, runtime/server projection, runtime client/app/dashboard | authenticated projection contract, runtime composition, redaction, composed E2E | Optional versioned wrapper is built only from verified accepted inputs; `sceneRoles` remains; malformed UTC/source/identity/schema rejects or omits; protected state clears on logout/expiry/revocation/stop | `IMPLEMENTED_AO12_D__PENDING_REVIEW` | Fable5 implementation/security/accessibility review and Advisor acceptance |
 | `AO12-IWU-13` / `AO12-REQ-012` selector and rollback | `compatibility.ts`, runtime client, spatial presentation | compatibility UI, rollback recovery, authenticated surface, performance, composed E2E | Deterministic `FULL`/`RESTRAINED`/`STATIC`/`M1_FIXED_STATIONS`; stale/offline/conflict/critical is static; unknown/invalid/absent is M1; no process or durable mutation | `IMPLEMENTED_AO12_D__PENDING_REVIEW` | Same review/acceptance; cross-runtime portability remains operations-gated |
-| `AO12-IWU-14` as-built closure | four M1.2 canonical documents, Feature Index, Worker result/pointer | full gates, hash/diff/source/bundle audits | 76/450 Vitest, 43/43 default demo, 3/3 composed, seven inspected PNGs, 19 prior hashes unchanged, measured budget pass | `DOCUMENTED_AO12_D__PENDING_REVIEW` | Foundation result commit, Fable5 review, Advisor audit/acceptance, Leo/GPT decision |
+| `AO12-IWU-14` as-built closure | four M1.2 canonical documents, Feature Index, Worker result/pointer | full gates, hash/diff/source/bundle audits including `production-spatial-bundle-boundary.test.ts` | 77/452 Vitest, 43/43 default demo, 3/3 composed, zero production fixture markers, seven inspected PNGs, 19 prior hashes unchanged, measured budget pass | `DOCUMENTED_AO12_D_A1_REWORK__PENDING_REVIEW` | Foundation rework result commit, Fable5 review, Advisor audit/acceptance, Leo/GPT decision |
 | `AO12-REQ-014` no authority/transport expansion | additive projection/UI-only source delta | security/redaction/runtime/source and bundle scans; full regressions | Auth, authority, exact delivery, transport, DB/network, package/lockfile, and existing baseline bytes unchanged | `PRESERVED_AO12_D__PENDING_REVIEW` | Fixed prohibition; any expansion requires a separate mission |
 
 ## 8. Cross-cutting acceptance invariants

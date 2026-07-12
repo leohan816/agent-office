@@ -109,9 +109,11 @@ describe('AO12-IWU-10 semantic routes and presentation cleanup', () => {
     const mounted = render(
       <SpatialOffice
         cueState={MOTION_SPATIAL_OFFICE_FIXTURE.cueState}
+        fixtureKind={MOTION_SPATIAL_OFFICE_FIXTURE.fixtureKind}
         frozenMotionProgress={0.5}
         projection={MOTION_SPATIAL_OFFICE_FIXTURE.projection}
         requestedTier="FULL"
+        surfaceKind="SYNTHETIC"
         verifiedIdle={MOTION_SPATIAL_OFFICE_FIXTURE.verifiedIdle}
       />,
     );
@@ -136,9 +138,11 @@ describe('AO12-IWU-10 semantic routes and presentation cleanup', () => {
           ...MOTION_SPATIAL_OFFICE_FIXTURE.cueState,
           pendingCues: [{ ...route, sourceZoneId: 'work:actor.not-present' }],
         }}
+        fixtureKind={MOTION_SPATIAL_OFFICE_FIXTURE.fixtureKind}
         frozenMotionProgress={0.5}
         projection={MOTION_SPATIAL_OFFICE_FIXTURE.projection}
         requestedTier="FULL"
+        surfaceKind="SYNTHETIC"
       />,
     );
     expect(missingEndpoint.container.querySelector('[data-motion-cue]')).toBeNull();
@@ -180,8 +184,10 @@ describe('AO12-IWU-10 semantic routes and presentation cleanup', () => {
     const { unmount } = render(
       <SpatialOffice
         cueState={MOTION_SPATIAL_OFFICE_FIXTURE.cueState}
+        fixtureKind={MOTION_SPATIAL_OFFICE_FIXTURE.fixtureKind}
         projection={MOTION_SPATIAL_OFFICE_FIXTURE.projection}
         requestedTier="FULL"
+        surfaceKind="SYNTHETIC"
         verifiedIdle={MOTION_SPATIAL_OFFICE_FIXTURE.verifiedIdle}
       />,
     );

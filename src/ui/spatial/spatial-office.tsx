@@ -20,7 +20,6 @@ import { SpatialCharacter, StaticChanny } from './character.js';
 import type { SpatialCueEnvelope } from './cue-projector.js';
 import type { SpatialCueReducerState } from './cue-reducer.js';
 import type { AuthenticatedSpatialSelectionReason } from './compatibility.js';
-import { STATIC_SPATIAL_OFFICE_FIXTURE } from './fixtures.js';
 import { VerifiedIdleLounge, type VerifiedIdlePresentationInput } from './lounge.js';
 import {
   resolveProjectIdentity,
@@ -32,27 +31,44 @@ import { SpatialRoutes, type SpatialZoneEndpoint } from './spatial-routes.js';
 import './project-identity.css';
 import './spatial-office.css';
 
-export interface SpatialOfficeProps {
-  readonly projection?: SpatialOfficeProjectionV1;
+interface SpatialOfficeBaseProps {
+  readonly projection: SpatialOfficeProjectionV1;
   readonly cueState?: SpatialCueReducerState;
   readonly verifiedIdle?: readonly VerifiedIdlePresentationInput[];
   readonly requestedTier?: SpatialPresentationTier;
   readonly frozenMotionProgress?: number | null;
-  readonly surfaceKind?: 'SYNTHETIC' | 'AUTHENTICATED';
-  readonly selectionReason?: AuthenticatedSpatialSelectionReason;
 }
 
-export function SpatialOffice({
-  projection = STATIC_SPATIAL_OFFICE_FIXTURE.projection,
-  cueState,
-  verifiedIdle = [],
-  requestedTier = 'FULL',
-  frozenMotionProgress = null,
-  surfaceKind = 'SYNTHETIC',
-  selectionReason = 'SPATIAL_FULL_SELECTED',
-}: SpatialOfficeProps) {
+interface AuthenticatedSpatialOfficeProps extends SpatialOfficeBaseProps {
+  readonly surfaceKind: 'AUTHENTICATED';
+  readonly selectionReason: AuthenticatedSpatialSelectionReason;
+  readonly fixtureKind?: never;
+}
+
+interface SyntheticSpatialOfficeProps extends SpatialOfficeBaseProps {
+  readonly surfaceKind: 'SYNTHETIC';
+  readonly fixtureKind: string;
+  readonly selectionReason?: never;
+}
+
+export type SpatialOfficeProps = AuthenticatedSpatialOfficeProps | SyntheticSpatialOfficeProps;
+
+export function SpatialOffice(props: SpatialOfficeProps) {
+  const {
+    projection,
+    cueState,
+    verifiedIdle = [],
+    requestedTier = 'FULL',
+    frozenMotionProgress = null,
+  } = props;
   const motionFixture = cueState !== undefined;
-  const authenticated = surfaceKind === 'AUTHENTICATED';
+  const authenticated = props.surfaceKind === 'AUTHENTICATED';
+  const fixtureKind = authenticated
+    ? 'AUTHENTICATED_APPLICATION_PROJECTION'
+    : props.fixtureKind;
+  const selectionReason = authenticated
+    ? props.selectionReason
+    : 'SPATIAL_FULL_SELECTED';
   const initialPodId = projection.selectedPodId ?? projection.pods[0]?.podId ?? null;
   const [selectedPodId, setSelectedPodId] = useState(initialPodId);
   const [podFocusIndex, setPodFocusIndex] = useState(() =>
@@ -228,11 +244,7 @@ export function SpatialOffice({
   return (
     <div
       className="spatial-office-shell"
-      data-fixture-kind={authenticated
-        ? 'AUTHENTICATED_APPLICATION_PROJECTION'
-        : motionFixture
-          ? 'SYNTHETIC_STRUCTURED_EVENT_MOTION'
-          : 'SYNTHETIC_NON_OPERATIONAL_STATIC'}
+      data-fixture-kind={fixtureKind}
       data-motion-tier={effectiveTier}
       data-selection-reason={selectionReason}
       id="spatial-office"

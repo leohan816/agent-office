@@ -1,6 +1,6 @@
 # Agent Office M1.2 Spatial Advisor-Team Office Master Design
 
-Status: `AO12_D_AUTHENTICATED_SPATIAL_INTEGRATION_IMPLEMENTED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `AO12_D_A1_PRODUCTION_BUNDLE_BOUNDARY_CORRECTED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Canonical owner: Agent Office repository
 
@@ -724,7 +724,17 @@ AO12-D implements `AO12-IWU-12..14` from exact accepted base
   rejection, degradation, rollback, logout/expiry/revocation/restart clearing,
   accessibility, redaction, and no retained cue.
 
-The complete local gate passes 76 Vitest files/450 tests, 43/43 default-demo
+Advisor direct validation classified `AO12-D-A1` as a code defect because the
+shared `SpatialOffice` module's implicit static-fixture projection retained the
+AO12-B/C fixture graph in the production bundle. The scoped correction makes
+projection and surface classification required inputs, injects fixture identity
+only from explicit test-demo/test code, and adds
+`tests/acceptance/production-spatial-bundle-boundary.test.ts`, which builds a
+fresh production dashboard and rejects every named fixture marker. The original
+Worker result remains immutable history; the exact correction commit is recorded
+in the rework result.
+
+The complete local gate passes 77 Vitest files/452 tests, 43/43 default-demo
 Chromium cases, and 3/3 composed Chromium cases. Seven new authenticated PNGs
 cover desktop, tablet, mobile, 320px, 200% text, forced colors, and reduced
 motion and were directly inspected. Existing 19 M1/AO12-B/AO12-C PNG bytes are
@@ -732,7 +742,7 @@ unchanged. On the configured runtime the authenticated reducer p95 is 1.949ms;
 browser pod-selection p95 is 16.9ms; the 10-second observation records zero
 long tasks over 50ms, 377 DOM nodes, 84 SVG elements, zero pending cues, and
 305608 bytes retained heap. Production gzip growth from the AO12-C base is
-32668 bytes JavaScript plus 4268 bytes CSS, each within the applicable budget.
+27102 bytes JavaScript plus 4268 bytes CSS, each within the applicable budget.
 
 This evidence selects `FULL` only on the configured reference runtime.
 `RESTRAINED`, `STATIC`, and unchanged `M1_FIXED_STATIONS` remain immediate

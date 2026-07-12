@@ -4,13 +4,14 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { isStaticSpatialDemoRequest } from '../../src/ui/demo-entry.js';
+import { STATIC_SPATIAL_OFFICE_FIXTURE } from '../../src/ui/spatial/fixtures.js';
 import { SpatialOffice } from '../../src/ui/spatial/spatial-office.js';
 
 afterEach(cleanup);
 
 describe('AO12-B static shared office component', () => {
   it('renders one shared floor with every registered Team Pod spatially visible', () => {
-    const { container } = render(<SpatialOffice />);
+    const { container } = render(<StaticSpatialOffice />);
     expect(screen.getByRole('heading', { name: 'Every registered Team remains visible' })).not.toBeNull();
     const pods = container.querySelectorAll('.spatial-team-pod');
     expect(pods).toHaveLength(2);
@@ -24,7 +25,7 @@ describe('AO12-B static shared office component', () => {
   });
 
   it('keeps a non-selected office recognizable with every required summary fact', () => {
-    const { container } = render(<SpatialOffice />);
+    const { container } = render(<StaticSpatialOffice />);
     const nonSelected = container.querySelector('.spatial-team-pod[data-selected="false"]');
     expect(nonSelected).not.toBeNull();
     const text = nonSelected?.textContent ?? '';
@@ -43,7 +44,7 @@ describe('AO12-B static shared office component', () => {
   });
 
   it('shows every frozen selected mission-board field and explicit unknown facts', () => {
-    render(<SpatialOffice />);
+    render(<StaticSpatialOffice />);
     const board = screen.getByRole('heading', { name: 'Agent Office M1.2' }).closest('.spatial-mission-board');
     if (!(board instanceof HTMLElement)) throw new TypeError('selected mission board missing');
     const boardScope = within(board);
@@ -71,7 +72,7 @@ describe('AO12-B static shared office component', () => {
   });
 
   it('renders labelled static semantic zones, a separate Reviewer booth, and no route or cue layer', () => {
-    const { container } = render(<SpatialOffice />);
+    const { container } = render(<StaticSpatialOffice />);
     for (const zone of [
       'work',
       'testing-bench',
@@ -91,7 +92,7 @@ describe('AO12-B static shared office component', () => {
   });
 
   it('renders each canonical character once and keeps Advisor references non-authoritative', () => {
-    const { container } = render(<SpatialOffice />);
+    const { container } = render(<StaticSpatialOffice />);
     const actorIds = [...container.querySelectorAll('[data-spatial-actor]')]
       .map((element) => element.getAttribute('data-spatial-actor'));
     expect(actorIds).toHaveLength(new Set(actorIds).size);
@@ -101,7 +102,7 @@ describe('AO12-B static shared office component', () => {
   });
 
   it('selects another Pod locally while retaining the other office and source facts', () => {
-    const { container } = render(<SpatialOffice />);
+    const { container } = render(<StaticSpatialOffice />);
     fireEvent.click(screen.getByRole('button', { name: /VIBENEWS_ADVISOR_TEAM, VibeNews/u }));
     const selected = container.querySelector('.spatial-team-pod[data-selected="true"]');
     expect(selected?.getAttribute('data-project-id')).toBe('vibenews');
@@ -119,8 +120,18 @@ describe('AO12-B static shared office component', () => {
   });
 
   it('contains no private locator, credential, host, or terminal-derived value', () => {
-    const { container } = render(<SpatialOffice />);
+    const { container } = render(<StaticSpatialOffice />);
     const text = container.textContent;
     expect(text).not.toMatch(/\/home\/|\$9|%9|127\.0\.0\.1|BEGIN PRIVATE KEY|Bearer\s|tmux capture-pane|paneId/iu);
   });
 });
+
+function StaticSpatialOffice() {
+  return (
+    <SpatialOffice
+      fixtureKind={STATIC_SPATIAL_OFFICE_FIXTURE.fixtureKind}
+      projection={STATIC_SPATIAL_OFFICE_FIXTURE.projection}
+      surfaceKind="SYNTHETIC"
+    />
+  );
+}

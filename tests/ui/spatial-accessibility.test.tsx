@@ -6,13 +6,14 @@ import path from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { STATIC_SPATIAL_OFFICE_FIXTURE } from '../../src/ui/spatial/fixtures.js';
 import { SpatialOffice } from '../../src/ui/spatial/spatial-office.js';
 
 afterEach(cleanup);
 
 describe('AO12-B static accessibility architecture', () => {
   it('provides skip destinations, semantic lists, scoped live regions, and complete text identity', () => {
-    const { container } = render(<SpatialOffice />);
+    const { container } = render(<StaticSpatialOffice />);
     for (const name of [
       'Global status',
       'Advisor Team selector',
@@ -33,7 +34,7 @@ describe('AO12-B static accessibility architecture', () => {
   });
 
   it('uses one roving Pod tab stop with arrows, Home/End, and explicit selection', () => {
-    render(<SpatialOffice />);
+    render(<StaticSpatialOffice />);
     const agentOffice = screen.getByRole('button', { name: /FOUNDATION_ADVISOR_TEAM, Agent Office/u });
     const vibeNews = screen.getByRole('button', { name: /VIBENEWS_ADVISOR_TEAM, VibeNews/u });
     expect(agentOffice.tabIndex).toBe(0);
@@ -52,7 +53,7 @@ describe('AO12-B static accessibility architecture', () => {
   });
 
   it('uses one selected actor roving tab stop and deterministic linear keys', async () => {
-    render(<SpatialOffice />);
+    render(<StaticSpatialOffice />);
     const advisor = screen.getByRole('button', { name: /Foundation Advisor.+role instance advisor\.foundation\.primary/u });
     const worker = screen.getByRole('button', { name: /Agent Office Worker.+role instance worker\.agent-office\.primary/u });
     await waitFor(() => expect(advisor.tabIndex).toBe(0));
@@ -66,7 +67,7 @@ describe('AO12-B static accessibility architecture', () => {
   });
 
   it('traps the optional modal inspector, closes with Escape, and restores invoker focus', async () => {
-    render(<SpatialOffice />);
+    render(<StaticSpatialOffice />);
     const worker = screen.getByRole('button', { name: /Agent Office Worker.+role instance worker\.agent-office\.primary/u });
     worker.focus();
     fireEvent.click(worker);
@@ -94,3 +95,13 @@ describe('AO12-B static accessibility architecture', () => {
     expect(css).not.toMatch(/@keyframes|\banimation\s*:|\btransition\s*:/iu);
   });
 });
+
+function StaticSpatialOffice() {
+  return (
+    <SpatialOffice
+      fixtureKind={STATIC_SPATIAL_OFFICE_FIXTURE.fixtureKind}
+      projection={STATIC_SPATIAL_OFFICE_FIXTURE.projection}
+      surfaceKind="SYNTHETIC"
+    />
+  );
+}

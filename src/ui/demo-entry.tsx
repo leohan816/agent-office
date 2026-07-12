@@ -5,7 +5,10 @@ import { COMMUNICATION_CENTER_FIXTURE } from './communication/fixtures.js';
 import { Dashboard } from './dashboard.js';
 import { CURRENT_DASHBOARD_VIEW_MODEL } from './fixtures/dashboard.js';
 import { SpatialOffice } from './spatial/spatial-office.js';
-import { MOTION_SPATIAL_OFFICE_FIXTURE } from './spatial/fixtures.js';
+import {
+  MOTION_SPATIAL_OFFICE_FIXTURE,
+  STATIC_SPATIAL_OFFICE_FIXTURE,
+} from './spatial/fixtures.js';
 import type { SpatialPresentationTier } from './spatial/actor-zone.js';
 
 export const STATIC_SPATIAL_DEMO_PARAMETER = 'surface=spatial-static' as const;
@@ -18,13 +21,19 @@ export function mountSyntheticTestDemo(root: Element): void {
       {isMotionSpatialDemoRequest(search) ? (
         <SpatialOffice
           cueState={MOTION_SPATIAL_OFFICE_FIXTURE.cueState}
+          fixtureKind={MOTION_SPATIAL_OFFICE_FIXTURE.fixtureKind}
           frozenMotionProgress={motionFreezeProgress(search)}
           projection={MOTION_SPATIAL_OFFICE_FIXTURE.projection}
           requestedTier={motionTier(search)}
+          surfaceKind="SYNTHETIC"
           verifiedIdle={MOTION_SPATIAL_OFFICE_FIXTURE.verifiedIdle}
         />
       ) : isStaticSpatialDemoRequest(search) ? (
-        <SpatialOffice />
+        <SpatialOffice
+          fixtureKind={STATIC_SPATIAL_OFFICE_FIXTURE.fixtureKind}
+          projection={STATIC_SPATIAL_OFFICE_FIXTURE.projection}
+          surfaceKind="SYNTHETIC"
+        />
       ) : (
         <Dashboard
           model={CURRENT_DASHBOARD_VIEW_MODEL}

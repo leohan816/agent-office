@@ -1,6 +1,6 @@
 # Agent Office M1.2 Spatial Event and Animation Contract
 
-Status: `AO12_D_AUTHENTICATED_CUE_INTEGRATION_IMPLEMENTED__FULL_TIER_MEASURED_ON_CONFIGURED_RUNTIME__PENDING_INDEPENDENT_REVIEW_AND_ADVISOR_ACCEPTANCE`
+Status: `AO12_D_A1_PRODUCTION_FIXTURE_BOUNDARY_CORRECTED__FULL_TIER_MEASURED_ON_CONFIGURED_RUNTIME__PENDING_INDEPENDENT_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Contract candidate: `agent-office.spatial-cue.v1`
 
@@ -25,6 +25,12 @@ contract from an additive authenticated application read model. The
 authenticated path never imports or consumes the synthetic fixtures and remains
 pending independent implementation/security/accessibility review and Advisor
 acceptance.
+
+The `AO12-D-A1` correction makes that boundary executable: the production
+component requires an explicit projection and contains no fixture import or
+implicit fixture default, while test-demo composition injects its fixture and
+marker explicitly. A fresh-production-build acceptance test rejects the exact
+AO12-B/C fixture markers and IDs.
 
 ## 1. Contract principles
 
@@ -543,7 +549,7 @@ parse/select/project/reduce samples, authenticated reducer p95 is 1.949ms.
 Configured Playwright Chromium records pod-selection p95 16.9ms, zero long
 tasks over 50ms during 10 seconds, 377 DOM nodes, 84 SVG elements, zero pending
 cues after the sequence, and 305608 bytes retained-heap growth after collection.
-The exact production build grows by 32668 gzip bytes of JavaScript and 4268
+The exact production build grows by 27102 gzip bytes of JavaScript and 4268
 gzip bytes of CSS from that base. These measurements pass the hard targets and
 select `FULL` only on the configured runtime. The selector still exposes
 `RESTRAINED`, `STATIC`, and `M1_FIXED_STATIONS`; a performance miss may lower
@@ -581,8 +587,10 @@ inspected configured-runtime PNGs covering full, restrained, reduced/static,
 tablet, mobile, forced-colors, and 200%-text presentation. AO12-D adds strict
 authenticated wrapper/UTC/source tests, live-delta/restart/logout/expiry/
 revocation runtime tests, selector/rollback/redaction/performance/UI tests, and
-seven composed authenticated PNGs. The complete local train passes 76 Vitest
-files/450 tests, 43/43 default-demo browser cases, and 3/3 composed browser
+seven composed authenticated PNGs. The AO12-D-A1 gate additionally proves the
+production source graph and freshly emitted JavaScript contain no synthetic
+spatial fixture dependency or marker. The complete local train passes 77
+Vitest files/452 tests, 43/43 default-demo browser cases, and 3/3 composed browser
 cases; all 19 prior PNG hashes remain equal to the AO12-C base. The complete
 train must continue to prove at least:
 

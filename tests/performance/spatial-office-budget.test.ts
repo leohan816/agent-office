@@ -60,7 +60,11 @@ describe('AO12-IWU-11 measured spatial performance budget', () => {
     const reducerP95Ms = percentile95(reducerSamples);
 
     const beforeHeap = process.memoryUsage().heapUsed;
-    const mounted = render(createElement(SpatialOffice, { projection: fixture }));
+    const mounted = render(createElement(SpatialOffice, {
+      projection: fixture,
+      surfaceKind: 'SYNTHETIC',
+      fixtureKind: 'AO12_C_SYNTHETIC_PERFORMANCE_FIXTURE',
+    }));
     const podControls = [...mounted.container.querySelectorAll<HTMLButtonElement>('.spatial-pod-control')];
     expect(podControls).toHaveLength(BENCHMARK_DESCRIPTOR.pods);
     const switchSamples: number[] = [];
