@@ -1,6 +1,6 @@
 # Agent Office Batch A — Implementation WorkUnit Plan
 
-Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_THROUGH_SENTINEL_U3__PENDING_INDEPENDENT_SENTINEL_FOURTH_DELTA_REREVIEW` (U3: WU-08 documentation write scope now the four literal `docs/` paths)
+Status: `CONTROL_MASTER_DESIGN_PLAN__U3_PLUS_ACTOR_OVERLAY_SCOPE_GAP_CORRECTION__PENDING_INDEPENDENT_SENTINEL_REVIEW_OF_NARROW_DELTA` (WU-03/WU-04 land in `living-office-actor-overlay.tsx`; detail-drawer preserved as frame/evidence panel; two coupled tests added)
 
 ★Source paths are a **closed enumeration** (no globs). Any path not named per WorkUnit returns to Advisor for a handoff amendment before editing.
 
@@ -44,15 +44,15 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 
 ### BA-WU-03 — Compact actor summaries and separated state vocabularies (P1/P2)
 - Intent: first-layer label card = contract §2.7 compact subset (`role` glyph+ring · `stableDisplayName` · `sessionProcess` · `aiIdentity` · `model` · `effort` · `aiRuntimeState` · `operationalState`, each with `source` tag; text+glyph+ring); separated closed vocabularies with one sentinel each (contract §2.3, incl. `SESSION_PROCESS_UNKNOWN`); `operationalState` = `PixelOperationalState` as a **total function of the projector output** `projectRequiredObservable(...)` (contract §2.4), never a raw-state shortcut. (items 4, 8; CD-4, P1, P2, R1, R2)
-- Source (exact): `src/ui/pixel/living-office-hud.tsx`, `src/ui/pixel/actor-sprite.tsx` (label overlay).
-- Tests: per-field sentinel coverage (`SESSION_PROCESS_UNKNOWN`/`SESSION_OFFLINE`/`NO_AI_PROCESS`/`AI_PROCESS_DETECTED`/`AI_IDENTITY_UNKNOWN`/`MODEL_UNKNOWN`/`EFFORT_UNKNOWN`/`AI_READY`/`AI_WORKING`/`AI_WAITING`/`AI_ERROR`/`AI_RUNTIME_UNKNOWN`/`UNASSIGNED`); each §2.3 non-sentinel value requires its exact named accepted fact/cue; missing process evidence → `SESSION_PROCESS_UNKNOWN` (never `SESSION_OFFLINE`); the `ObservableProjectionName`(16+`UNKNOWN_OR_STALE`)→`PixelOperationalState` map is exhaustive with default `UNKNOWN`; a bare `RUNNING`/`HOLD`/`WAITING_ADVISOR` with no compatible accepted activity displays `UNKNOWN`; literal `UNKNOWN` only on free-text fields; non-color-only encoding; label tracking under focus/zoom/route.
+- Source (exact): `src/ui/pixel/living-office-actor-overlay.tsx` (the **compact actor labels** land here — the camera-tracked `living-office-actor-label` glyph/ring/facts), `src/ui/pixel/actor-sprite.tsx`, `src/ui/pixel/living-office-hud.tsx` (scope-correction §14.4). Do not edit `prototype-entry.tsx`.
+- Tests: `tests/ui/pixel-actor-overlay.test.tsx` (+ `tests/ui/pixel-world-semantic-parity.test.tsx` for semantic/static parity) — per-field sentinel coverage (`SESSION_PROCESS_UNKNOWN`/`SESSION_OFFLINE`/`NO_AI_PROCESS`/`AI_PROCESS_DETECTED`/`AI_IDENTITY_UNKNOWN`/`MODEL_UNKNOWN`/`EFFORT_UNKNOWN`/`AI_READY`/`AI_WORKING`/`AI_WAITING`/`AI_ERROR`/`AI_RUNTIME_UNKNOWN`/`UNASSIGNED`); each §2.3 non-sentinel value requires its exact named accepted fact/cue; missing process evidence → `SESSION_PROCESS_UNKNOWN` (never `SESSION_OFFLINE`); the `ObservableProjectionName`(16+`UNKNOWN_OR_STALE`)→`PixelOperationalState` map is exhaustive with default `UNKNOWN`; a bare `RUNNING`/`HOLD`/`WAITING_ADVISOR` with no compatible accepted activity displays `UNKNOWN`; literal `UNKNOWN` only on free-text fields; non-color-only encoding; label tracking under focus/zoom/route.
 - Gate: ui + snapshot; no name/proximity inference; runtime-state not conflated with work state.
 - Rollback: revert label integration; drawer/summary independent.
 
 ### BA-WU-04 — Accessible actor detail drawer (complete field contract) (P3)
 - Intent: second-layer dialog implementing the **complete ordered field contract** of contract §2.7 (17 fields: `roleInstanceId`·`role`·`project`·`stableDisplayName`·`advisorTeam`·`reportsToAdvisor`·`assignedBy`·`returnsResultTo`·`sessionName`·`sessionProcess`·`aiIdentity`·`model`·`effort`·`aiRuntimeState`·`operationalState`·`mission`·`workUnit`), each rendering `value`+`source`(UPPER_SNAKE)+`status`; `role="dialog"`, Escape, Tab containment, close-button focus on open, invoker focus restore; semantic/static parity. (item 5; CD-5, P3)
-- Source: `src/ui/pixel/living-office-detail-drawer.tsx` (reuse existing drawer).
-- Tests: the contract §2.7 drawer test matrix (per field × {non-failure, sentinel, provenance rendered, status rendered}); keyboard/focus/Escape/Tab; semantic/static parity.
+- Source (exact): `src/ui/pixel/living-office-actor-overlay.tsx` — the **actor-specific complete 17-field detail dialog** lands here (the `living-office-actor-detail-heading` `role="dialog"`), reusing the existing actor overlay. ★`src/ui/pixel/living-office-detail-drawer.tsx` is preserved as the **separate frame/evidence technical panel** ("Secondary DOM technical panel"/frame contract/frame key/projection revision) — it is not the actor drawer and is not duplicated (scope-correction §14.4). Do not edit `prototype-entry.tsx`.
+- Tests: `tests/ui/pixel-actor-overlay.test.tsx` (contract §2.7 drawer test matrix — per field × {non-failure, sentinel, provenance, status}; keyboard/focus/Escape/Tab) and `tests/ui/pixel-world-semantic-parity.test.tsx` (semantic/static parity).
 - Gate: accessibility ui tests green (WCAG A/AA); complete-field + envelope coverage.
 - Rollback: revert drawer integration.
 

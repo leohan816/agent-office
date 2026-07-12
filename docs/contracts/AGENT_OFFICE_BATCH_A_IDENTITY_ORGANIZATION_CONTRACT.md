@@ -1,6 +1,6 @@
 # Agent Office Batch A — Identity and Organization Contract
 
-Status: `CONTROL_MASTER_DESIGN_CONTRACT__REWORKED_THROUGH_SENTINEL_U1_U2__PENDING_INDEPENDENT_SENTINEL_FOURTH_DELTA_REREVIEW` (U1 total cross-kind `sessionProcess` arbitration; U2 `evidenceId` replay-vs-collision; on T1 schema)
+Status: `CONTROL_MASTER_DESIGN_CONTRACT__U1_U2_PLUS_ACTOR_OVERLAY_SCOPE_GAP_CORRECTION__PENDING_INDEPENDENT_SENTINEL_REVIEW_OF_NARROW_DELTA` (U1/U2 on T1 schema; §2.7 landing-site: actor labels + 17-field dialog in `living-office-actor-overlay.tsx`, detail-drawer = separate frame/evidence panel)
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to `AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`. Independent reviewer: the authorized **independent Sentinel** (`foundation-reviewer-sol`, currently GPT-5.6 SOL xhigh); Fable5 is a possible secondary/fallback runtime only.
 
@@ -150,6 +150,7 @@ Let `P = sessionProcess`; let `W`/`WA`/`E` be true iff the runtime projector out
 - **Compact summary (first layer)**, in order: `role` (glyph+ring) · `stableDisplayName` · `sessionProcess` · `aiIdentity` · `model` · `effort` · `aiRuntimeState` · `operationalState`, each with its `source` tag; text+glyph+ring, never color alone.
 - **Detail drawer (second layer)**, complete ordered set: `roleInstanceId` · `role` · `project` · `stableDisplayName` · `advisorTeam` · `reportsToAdvisor` · `assignedBy` · `returnsResultTo` · `sessionName` · `sessionProcess` · `aiIdentity` · `model` · `effort` · `aiRuntimeState` · `operationalState` · `mission` · `workUnit` — each rendering `value` + `source` (`data-actor-fact-source`) + `status`; `role="dialog"`, Escape, Tab containment, close-button focus on open, invoker focus restore; semantic/static parity.
 - **Drawer test matrix**: one row per field × {non-failure value, fail-closed sentinel, provenance rendered, status rendered}; plus focus/keyboard cases; plus the §2.4 total-mapping cases; plus the §2.3 evidence-rule cases.
+- **Landing site (scope-correction)**: both the compact labels and the actor-specific 17-field detail dialog land in `src/ui/pixel/living-office-actor-overlay.tsx` (the actor overlay renders the `living-office-actor-label` cards and the `living-office-actor-detail-heading` `role="dialog"`). `src/ui/pixel/living-office-detail-drawer.tsx` is the **separate, non-duplicating frame/evidence technical panel** (frame contract/key/projection revision) and is **not** the actor drawer. Tests: `tests/ui/pixel-actor-overlay.test.tsx` + `tests/ui/pixel-world-semantic-parity.test.tsx`.
 
 ## 3. Local/static organization registry (CD-7, P3, Founder item 7)
 
