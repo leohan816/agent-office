@@ -119,6 +119,13 @@
   font-weight: 750;
 }
 
+.spatial-presentation-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .spatial-pod-navigation {
   display: grid;
   grid-template-columns: minmax(220px, 0.4fr) minmax(0, 1.6fr);

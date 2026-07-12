@@ -75,6 +75,16 @@ export function ProductionRuntimeApp({ client }: ProductionRuntimeAppProps) {
         runtimeBoundary={runtimeBoundary}
         showOfficeScene
         sceneRoles={projection.sceneRoles}
+        {...(state.spatial?.presentation === undefined || state.spatial.mode === 'M1_FIXED_STATIONS'
+          ? {}
+          : {
+              authenticatedSpatial: {
+                projection: state.spatial.presentation.projection,
+                cueState: state.spatial.cueState,
+                requestedTier: state.spatial.mode,
+                selectionReason: state.spatial.reasonCode,
+              },
+            })}
       />
     );
   }

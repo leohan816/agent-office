@@ -5,7 +5,22 @@ import type {
   LocalRuntimeStatus,
 } from '../../server/application.js';
 import type { BrowserCapability } from '../../server/auth/index.js';
+import type { AuthenticatedSpatialPresentationV1 } from '../../application/spatial-office/authenticated-projection.js';
 import type { CommunicationCenterActionPort } from '../communication/types.js';
+import type { SpatialPresentationTier } from '../spatial/actor-zone.js';
+import {
+  authenticatedSpatialFingerprint,
+  projectAuthenticatedSpatialCues,
+  selectAuthenticatedSpatialPresentation,
+  type AuthenticatedSpatialPresentationMode,
+  type AuthenticatedSpatialSelectionReason,
+} from '../spatial/compatibility.js';
+import {
+  createSpatialCueReducerState,
+  reduceSpatialCues,
+  type SpatialCueReducerState,
+} from '../spatial/cue-reducer.js';
+import type { SpatialCueUpdateOrigin } from '../spatial/cue-projector.js';
 
 export type RuntimeClientPhase =
   | 'STARTING'
@@ -28,6 +43,14 @@ export interface RuntimeClientState {
     readonly capabilities: readonly BrowserCapability[];
     readonly expiresAt: string;
   };
+  readonly spatial?: {
+    readonly mode: AuthenticatedSpatialPresentationMode;
+    readonly reasonCode: AuthenticatedSpatialSelectionReason;
+    readonly requestedTier: SpatialPresentationTier;
+    readonly updateOrigin: SpatialCueUpdateOrigin;
+    readonly cueState: SpatialCueReducerState;
+    readonly presentation?: AuthenticatedSpatialPresentationV1;
+  };
   readonly lastErrorCode?: string;
 }
 
@@ -41,6 +64,7 @@ export interface AgentOfficeRuntimeClientOptions {
   readonly reconnectDelayMs?: number;
   readonly now?: () => string;
   readonly nextRequestId?: () => string;
+  readonly spatialPresentationTier?: SpatialPresentationTier;
 }
 
 interface PrivateSessionContext {
@@ -70,12 +94,14 @@ export class AgentOfficeRuntimeClient {
   private readonly reconnectDelayMs: number;
   private readonly now: () => string;
   private readonly nextRequestId: () => string;
+  private readonly spatialPresentationTier: SpatialPresentationTier;
   private state: RuntimeClientState = { phase: 'STARTING', sseState: 'DISCONNECTED' };
   private session: PrivateSessionContext | undefined;
   private stopped = true;
   private runId = 0;
   private sseAbort: AbortController | undefined;
   private cursor: number | undefined;
+  private spatialCueState = createSpatialCueReducerState();
 
   public constructor(options: AgentOfficeRuntimeClientOptions = {}) {
     this.origin = options.origin ?? browserOrigin();
@@ -88,6 +114,7 @@ export class AgentOfficeRuntimeClient {
     this.reconnectDelayMs = options.reconnectDelayMs ?? 750;
     this.now = options.now ?? (() => new Date().toISOString());
     this.nextRequestId = options.nextRequestId ?? browserUuidV7;
+    this.spatialPresentationTier = options.spatialPresentationTier ?? 'FULL';
   }
 
   public snapshot(): RuntimeClientState {
@@ -107,7 +134,7 @@ export class AgentOfficeRuntimeClient {
     this.update({ phase: 'STARTING', sseState: 'DISCONNECTED' });
     await this.refreshStatus(runId);
     if (!this.isCurrentRun(runId)) return;
-    const authenticated = await this.refreshProjection(runId);
+    const authenticated = await this.refreshProjection(runId, 'INITIAL_SNAPSHOT');
     if (authenticated && this.isCurrentRun(runId)) void this.sseLoop(runId);
   }
 
@@ -118,6 +145,8 @@ export class AgentOfficeRuntimeClient {
     this.sseAbort = undefined;
     this.session = undefined;
     this.cursor = undefined;
+    this.spatialCueState = createSpatialCueReducerState();
+    this.update({ phase: 'STARTING', sseState: 'DISCONNECTED' });
   }
 
   public communicationActionPort(): CommunicationCenterActionPort | undefined {
@@ -196,7 +225,7 @@ export class AgentOfficeRuntimeClient {
       throw new RuntimeClientError(errorCode(value));
     }
     const receipt = parsePersistenceReceipt(value);
-    await this.refreshProjection();
+    await this.refreshProjection(this.runId, 'LIVE_DELTA');
     return receipt;
   }
 
@@ -219,7 +248,7 @@ export class AgentOfficeRuntimeClient {
       this.handleMutationFailure(response.status, errorCode(value));
       throw new RuntimeClientError(errorCode(value));
     }
-    await this.refreshProjection();
+    await this.refreshProjection(this.runId, 'LIVE_DELTA');
   }
 
   private requireMutationSession(capability: BrowserCapability): PrivateSessionContext {
@@ -250,7 +279,10 @@ export class AgentOfficeRuntimeClient {
     }
   }
 
-  private async refreshProjection(expectedRunId = this.runId): Promise<boolean> {
+  private async refreshProjection(
+    expectedRunId = this.runId,
+    updateOrigin: SpatialCueUpdateOrigin = 'RELOAD_SNAPSHOT',
+  ): Promise<boolean> {
     try {
       const response = await this.transport.fetch(`${this.origin}/api/v1/projection`);
       const value = await readResponse(response);
@@ -266,6 +298,7 @@ export class AgentOfficeRuntimeClient {
         return false;
       }
       const projection = parseProjection(value);
+      const spatial = this.applySpatialProjection(projection, updateOrigin);
       this.session = projection.session;
       this.cursor = projection.revision;
       this.update({
@@ -278,6 +311,7 @@ export class AgentOfficeRuntimeClient {
           capabilities: projection.session.capabilities,
           expiresAt: projection.session.expiresAt,
         },
+        spatial,
       });
       return true;
     } catch (error) {
@@ -302,7 +336,7 @@ export class AgentOfficeRuntimeClient {
       }
       if (this.isSseStopped(runId)) return;
       await wait(this.reconnectDelayMs);
-      if (!await this.refreshProjection(runId)) return;
+      if (!await this.refreshProjection(runId, 'RELOAD_SNAPSHOT')) return;
     }
   }
 
@@ -335,11 +369,11 @@ export class AgentOfficeRuntimeClient {
         const eventData = parseSseData(data);
         if (eventData.revision !== Number(eventId)) throw new RuntimeClientError('INVALID_SSE_EVENT');
         this.cursor = Number(eventId);
-        await this.refreshProjection(runId);
+        await this.refreshProjection(runId, 'LIVE_DELTA');
       } else if (eventName === 'reset_required') {
         parseSseData(data);
         this.cursor = undefined;
-        await this.refreshProjection(runId);
+        await this.refreshProjection(runId, 'CURSOR_RESET_SNAPSHOT');
       } else if (eventName === 'session_revoked') {
         parseSseData(data);
         this.clearSession('SESSION_EXPIRED', 'SESSION_REVOKED');
@@ -370,6 +404,58 @@ export class AgentOfficeRuntimeClient {
     if (isSessionFailure(status, code)) this.clearSession('SESSION_EXPIRED', code);
   }
 
+  private applySpatialProjection(
+    projection: AuthenticatedProjectionSnapshot,
+    updateOrigin: SpatialCueUpdateOrigin,
+  ): NonNullable<RuntimeClientState['spatial']> {
+    try {
+      const selection = selectAuthenticatedSpatialPresentation({
+        candidate: projection.spatialOffice,
+        sceneRoles: projection.sceneRoles ?? [],
+        requestedTier: this.spatialPresentationTier,
+      });
+      if (selection.presentation === undefined) {
+        this.spatialCueState = createSpatialCueReducerState();
+      } else {
+        const results = projectAuthenticatedSpatialCues({
+          presentation: selection.presentation,
+          previousAppliedRevision: this.spatialCueState.appliedRevision,
+          updateOrigin,
+        });
+        this.spatialCueState = reduceSpatialCues(this.spatialCueState, {
+          origin: updateOrigin,
+          projectionRevision: selection.presentation.projection.projectionRevision,
+          projectionFingerprint: authenticatedSpatialFingerprint(selection.presentation),
+          selectedPodId: selection.presentation.projection.selectedPodId,
+          fullSnapshotVerified: updateOrigin !== 'LIVE_DELTA',
+          results,
+        });
+      }
+      return {
+        mode: selection.mode,
+        reasonCode: selection.reasonCode,
+        requestedTier: selection.requestedTier,
+        updateOrigin,
+        cueState: this.spatialCueState,
+        ...(selection.presentation === undefined ? {} : { presentation: selection.presentation }),
+      };
+    } catch {
+      const fallback = selectAuthenticatedSpatialPresentation({
+        candidate: { schemaVersion: 'agent-office.authenticated-spatial-presentation.invalid' },
+        sceneRoles: projection.sceneRoles ?? [],
+        requestedTier: this.spatialPresentationTier,
+      });
+      this.spatialCueState = createSpatialCueReducerState();
+      return {
+        mode: fallback.mode,
+        reasonCode: 'SPATIAL_SCHEMA_INVALID_M1_FALLBACK',
+        requestedTier: fallback.requestedTier,
+        updateOrigin,
+        cueState: this.spatialCueState,
+      };
+    }
+  }
+
   private isSseStopped(runId: number): boolean {
     return !this.isCurrentRun(runId) || this.session === undefined;
   }
@@ -386,6 +472,8 @@ export class AgentOfficeRuntimeClient {
     code: string,
   ): void {
     this.session = undefined;
+    this.cursor = undefined;
+    this.spatialCueState = createSpatialCueReducerState();
     this.sseAbort?.abort();
     this.sseAbort = undefined;
     this.update({
@@ -443,6 +531,7 @@ function parseProjection(value: unknown): AuthenticatedProjectionSnapshot {
     typeof value.session.csrfToken !== 'string' ||
     !/^[A-Za-z0-9_-]{24,256}$/u.test(value.session.csrfToken) ||
     typeof value.session.expiresAt !== 'string' ||
+    !isCanonicalUtc(value.session.expiresAt) ||
     !isRecord(value.dashboard) ||
     value.dashboard.fixtureKind !== 'APPLICATION_PROJECTION' ||
     !isRecord(value.communication) ||
@@ -510,6 +599,12 @@ function isSessionFailure(status: number, code: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isCanonicalUtc(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)
+    && !Number.isNaN(Date.parse(value))
+    && new Date(value).toISOString() === value;
 }
 
 function wait(milliseconds: number): Promise<void> {

@@ -7,6 +7,7 @@ import type { DurableAlertCenter, DurableAlertProjection } from '../application/
 import type { SourceArtifactRef } from '../contracts/types.js';
 import type { SubmitAdvisorMessage } from '../domain/messages/index.js';
 import type { DashboardViewModel } from '../application/queries/dashboard-view-model.js';
+import type { AuthenticatedSpatialPresentationV1 } from '../application/spatial-office/authenticated-projection.js';
 import type { CommunicationCenterModel } from '../ui/communication/types.js';
 import type { RoleSceneProjection } from '../ui/scene/types.js';
 import type { BrowserCapability } from './auth/index.js';
@@ -40,6 +41,7 @@ export interface RedactedProjectionSnapshot {
   readonly dashboard?: DashboardViewModel;
   readonly communication?: CommunicationCenterModel;
   readonly sceneRoles?: readonly RoleSceneProjection[];
+  readonly spatialOffice?: AuthenticatedSpatialPresentationV1;
 }
 
 export interface AuthenticatedProjectionSnapshot extends RedactedProjectionSnapshot {

@@ -1,12 +1,12 @@
 # Agent Office M1.2 Spatial Advisor-Team Office Master Design
 
-Status: `AO12_C_EVIDENCE_BACKED_SPATIAL_MOTION_IMPLEMENTED_TEST_DEMO_ONLY__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_D_NOT_AUTHORIZED`
+Status: `AO12_D_AUTHENTICATED_SPATIAL_INTEGRATION_IMPLEMENTED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Canonical owner: Agent Office repository
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-Target implementation status: `AO12_IWU_01_THROUGH_11_IMPLEMENTED__TEST_DEMO_FIXTURE_ONLY__NOT_PRODUCTION_SELECTED`
+Target implementation status: `AO12_IWU_01_THROUGH_14_IMPLEMENTED__AO12_D_NOT_REVIEWED_OR_ACCEPTED`
 
 This document is the frozen additive design over the closed M1 base
 `2f663304a88c432f19fe56055641b66e57f18ef2`. It defines a spatial,
@@ -19,9 +19,14 @@ shared floor/boards, responsive/accessibility proof, and explicit test-demo gate
 recorded here. After corrected focused review and Advisor acceptance of AO12-B,
 the exact AO12-C handoff authorized only the pure cue projector/reducer, bounded
 spatial presentation, and test-demo accessibility/visual/performance proof now
-recorded here. AO12-D production selection, authority, transport,
-authentication, network, database, deployment, and runtime activation remain
-unauthorized.
+recorded here. Focused review and Advisor acceptance of AO12-C then authorized
+the exact AO12-D handoff from base
+`f9d0533437c0cf9efa7be76650ad79f0cb0d9353`. AO12-D now additively wires the
+validated spatial read model into the existing authenticated loopback
+application and retains the unchanged M1 view as the fail-closed compatibility
+path. This is implementation evidence pending independent review and Advisor
+acceptance; it does not authorize remote/public/production/live operation,
+authority or transport changes, a database, a secret, or another mission.
 
 ## 1. Purpose and binding inheritance
 
@@ -104,9 +109,13 @@ static browser spec, six static M1.2 baselines, and the exact
 `surface=spatial-static` test-demo gate. AO12-C adds only the pure cue modules,
 bounded route/pose/lounge/Channy presentation, 76 focused and benchmark tests,
 15 browser cases, seven AO12-C baselines, and the exact
-`surface=spatial-motion` synthetic selector. Production entry/runtime
-selection, dependencies, lockfile, all six M1 baselines, and all six AO12-B
-baselines remain unchanged.
+`surface=spatial-motion` synthetic selector. AO12-D adds
+`authenticated-projection.ts`, the explicit compatibility selector, additive
+runtime/server/client/UI wiring, focused contract/runtime/UI/recovery/security/
+performance tests, and seven dedicated authenticated composed baselines. It
+does not use either synthetic fixture in the authenticated projection. Package
+and lockfile bytes, `sceneRoles`, all six M1, six AO12-B, and seven AO12-C
+baseline bytes remain unchanged.
 
 ## 4. Resolution of the frozen unknowns
 
@@ -114,29 +123,29 @@ The frozen IDs remain stable. The technical resolutions passed the original
 Fable5 Level-3 design review. Leo/GPT then authorized the narrow product-intent
 patch recorded by the exact status
 `DESIGN_PATCH_AUTHORIZED__IMPLEMENTATION_CONDITIONAL_ON_CLEAN_FABLE5_PASS`.
-The clean Level-3 delta `PASS`, Advisor manifest freeze, AO12-A review and
-acceptance, corrected AO12-B focused review, Advisor acceptance, and the exact
-AO12-C handoff are now historical satisfied gates for `AO12-IWU-01..11`.
-AO12-C is implemented locally and awaits independent event-truth,
-accessibility, and performance review plus Advisor acceptance. AO12-D remains
-unauthorized.
+The clean Level-3 delta `PASS`, Advisor manifest freeze, AO12-A/AO12-B reviews
+and acceptance, and AO12-C focused review and Advisor acceptance are historical
+satisfied dependencies for `AO12-IWU-01..11`. The exact AO12-D handoff then
+authorized `AO12-IWU-12..14`, which are now implemented from the accepted
+AO12-C base. AO12-D remains pending independent implementation/security/
+accessibility review and Advisor acceptance.
 
 | Unknown | Candidate resolution | Status/gate |
 |---|---|---|
-| `AO12-U01` Dynamic Team Pod Model | One shared American-style open-office floor keeps every registered Advisor Team Pod spatially visible on wide desktop. Selection expands detail and choreography without turning other Team areas into cards or hiding them. | `PRODUCT_INTENT_RESOLVED__PENDING_DELTA_REVIEW` |
-| `AO12-U02` Single Advisor Team Principle | Every active actor belongs to exactly one responsible Advisor Team. Current and future Advisor-character rules are explicit below; missing or multiple assignments fail closed. | `PRODUCT_INTENT_RESOLVED__NO_AUTHORITY_CHANGE` |
+| `AO12-U01` Dynamic Team Pod Model | One shared American-style open-office floor keeps every registered Advisor Team Pod spatially visible on wide desktop. Selection expands detail and choreography without turning other Team areas into cards or hiding them. | `IMPLEMENTED_AO12_D_FROM_AUTHENTICATED_REGISTERED_INPUTS__PENDING_REVIEW` |
+| `AO12-U02` Single Advisor Team Principle | Every active actor belongs to exactly one responsible Advisor Team. Current and future Advisor-character rules are explicit below; missing or multiple assignments fail closed. | `IMPLEMENTED_FAIL_CLOSED_AO12_A_AND_AO12_D__NO_AUTHORITY_CHANGE` |
 | `AO12-U03` Project Color System | Team-first grouping and a fixed approved project palette combine clothing, desk accents, signs, text, glyphs, and patterns. Severity, freshness, focus, accessibility, alerts, and authority overrides win. | `IMPLEMENTED_AO12_B__FOCUSED_REVIEW_PASS_ADVISOR_ACCEPTED` |
 | `AO12-U04` Actor Character Identity | Code-native role silhouettes plus visible role/project labels and existing state overlays; project-authored placeholders only until the asset gate. | `IMPLEMENTED_AO12_B_PLACEHOLDER_ONLY__PRODUCTION_ASSET_DEFERRED` |
-| `AO12-U05` Channy Definition | Channy is enabled only as a non-operational ambient companion and structured-status reflector under the exact boundary in Section 9.3. | `IMPLEMENTED_AO12_C_PRESENTATION_ONLY__PENDING_FOCUSED_REVIEW` |
-| `AO12-U06` Lounge Semantics | Verified-idle actors may use bounded office/lounging presentations that never imply availability, assignment, shared context, collaboration, communication, or approval. | `IMPLEMENTED_AO12_C__PENDING_FOCUSED_REVIEW` |
-| `AO12-U07` Truthful Animation | Only new accepted structured source IDs create bounded operational cues. Selection controls detail, not truth; non-selected Team areas retain exact visible state without full choreography. | `IMPLEMENTED_AO12_C__PENDING_FOCUSED_REVIEW` |
+| `AO12-U05` Channy Definition | Channy is enabled only as a non-operational ambient companion and structured-status reflector under the exact boundary in Section 9.3. | `IMPLEMENTED_PRESENTATION_ONLY_THROUGH_AO12_D__PENDING_AO12_D_REVIEW` |
+| `AO12-U06` Lounge Semantics | Verified-idle actors may use bounded office/lounging presentations that never imply availability, assignment, shared context, collaboration, communication, or approval. | `IMPLEMENTED_THROUGH_AO12_D__PENDING_AO12_D_REVIEW` |
+| `AO12-U07` Truthful Animation | Only new accepted structured source IDs create bounded operational cues. Selection controls detail, not truth; non-selected Team areas retain exact visible state without full choreography. | `IMPLEMENTED_AO12_D_LIVE_DELTA_ONLY__PENDING_REVIEW` |
 | `AO12-U08` Mission Board | Every Team area exposes the required summary fields; the selected board exposes the complete exact field set in Section 9.1. | `IMPLEMENTED_STATIC_AO12_B__FOCUSED_REVIEW_PASS_ADVISOR_ACCEPTED` |
 | `AO12-U09` Rendering Architecture | Accessible DOM for semantics and layout plus original local SVG placeholders; no AO12-B motion layer, Canvas/WebGL/3D engine, or new dependency. | `IMPLEMENTED_STATIC_AO12_B__NO_ENGINE_OR_DEPENDENCY` |
-| `AO12-U10` Responsive Navigation | Desktop spatial floor; tablet simplified floor; mobile semantic pod/list/detail. No miniature unreadable floor. | `IMPLEMENTED_AO12_B_AND_AO12_C__AO12_C_REVIEW_PENDING` |
-| `AO12-U11` Reduced Motion/Performance | Static semantic equivalence, fixed cue/visible-actor caps, and separately measured benchmark targets with fallbacks. | `MEASURED_FULL_TIER_AO12_C__PENDING_FOCUSED_REVIEW` |
-| `AO12-U12` Multi-Project Identity/Host Boundaries | One canonical actor identity may have assignment views, never duplicated live actors. Conflicting active assignments or sources render `CONFLICT`. | `TECHNICALLY_RESOLVED__NO_TRUST_EXPANSION` |
+| `AO12-U10` Responsive Navigation | Desktop spatial floor; tablet simplified floor; mobile semantic pod/list/detail. No miniature unreadable floor. | `IMPLEMENTED_AO12_D_COMPOSED_PATH__PENDING_REVIEW` |
+| `AO12-U11` Reduced Motion/Performance | Static semantic equivalence, fixed cue/visible-actor caps, and separately measured benchmark targets with fallbacks. | `MEASURED_AO12_D_FULL_ON_CONFIGURED_RUNTIME__LOWER_TIERS_EXPLICIT` |
+| `AO12-U12` Multi-Project Identity/Host Boundaries | One canonical actor identity may have assignment views, never duplicated live actors. Conflicting active assignments or sources render `CONFLICT`. | `IMPLEMENTED_FAIL_CLOSED_AO12_D__NO_TRUST_EXPANSION` |
 | `AO12-U13` Asset Source/Style | M1.2 uses project-authored code-native placeholders in the approved warm retro pixel/pixel-inspired 2D/2.5D direction; external acquisition remains prohibited. | `IMPLEMENTED_AO12_B_PLACEHOLDER_ONLY__HASH_LICENSE_VERIFIED` |
-| `AO12-U14` Compatibility/Migration | Add a versioned spatial projection and an M1 fixed-station adapter. Existing M1 events, station IDs, mapping, tests, and baselines remain unchanged. | `TECHNICALLY_RESOLVED__ADDITIVE_ONLY` |
+| `AO12-U14` Compatibility/Migration | Add a versioned spatial projection and an M1 fixed-station adapter. Existing M1 events, station IDs, mapping, tests, and baselines remain unchanged. | `IMPLEMENTED_AO12_D_PRESENTATION_ONLY_ROLLBACK__PENDING_REVIEW` |
 
 Detailed traceability appears in
 [`../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md).
@@ -194,9 +203,13 @@ position, animation duration, or color never represents progress.
 
 ## 6. Versioned spatial projection boundary
 
-M1.2 introduces a future presentation contract named
-`agent-office.spatial-office-projection.v1`. It is a deterministic read model,
-not a domain ledger or authority schema. Its candidate shape is:
+M1.2 implements the presentation contract
+`agent-office.spatial-office-projection.v1` inside the authenticated wrapper
+`agent-office.authenticated-spatial-presentation.v1`. The wrapper contains the
+validated projection and zero or more exact
+`agent-office.authenticated-spatial-cue-slice.v1` records. It is a
+deterministic read model, not a domain ledger or authority schema. The spatial
+projection shape remains:
 
 ```text
 schemaVersion
@@ -220,7 +233,7 @@ sourceEventIds[]
 compatibilityMode: M1_FIXED_STATIONS | M1_2_TEAM_PODS
 ```
 
-The future projector may consume only:
+The AO12-D authenticated projector consumes only:
 
 - trusted `LocalProjectRegistry` summaries and reviewed extensions;
 - Git-verified `MissionManifest` instances and deterministic mission projections;
@@ -232,6 +245,11 @@ The future projector may consume only:
 It must not read terminal text, execute adapters, assign authority by proximity,
 or generate domain events. `evaluatedAt` affects only a freshness overlay. A
 change of selection does not alter the projection revision or source truth.
+The implementation also validates exact wrapper keys, identity/source
+correspondence, unique accepted UUIDv7 event IDs, projection revision, and
+canonical UTC `evaluatedAt`, activity-effective, and optional-expiry values
+before any cue projection. Unsupported, absent, or invalid wrappers select the
+M1 fixed-station compatibility view.
 
 ## 7. Dynamic Advisor Team Pod model
 
@@ -620,6 +638,15 @@ Compatibility requirements:
 Rollback is presentation-only. It must not invoke Git rollback, rewrite data,
 change runtime authority, or restart another mission automatically.
 
+AO12-D implements this boundary in `src/ui/spatial/compatibility.ts`. `FULL`,
+`RESTRAINED`, and `STATIC` are explicit presentation tiers. Reduced motion,
+requested static mode, stale/offline/conflict authority/source evidence, or a
+critical alert selects `STATIC`; absent, unknown, or invalid spatial schema
+selects `M1_FIXED_STATIONS`. Client stop, logout, actual session expiry,
+revocation, failed protected refresh, and SSE invalidation clear the protected
+projection, cue reducer state, and cursor without changing any ledger,
+manifest, artifact, configuration, authority, delivery, or transport state.
+
 ## 13. Approved placeholder art direction and deferred production gate
 
 The exact product decision is
@@ -677,37 +704,46 @@ Resolved as
 `APPROVE_PROJECT_AUTHORED_CODE_NATIVE_PLACEHOLDERS_FOR_M1_2_IMPLEMENTATION` with
 the original direction and external-acquisition prohibition in Section 13.
 
-## 15. AO12-C as-built acceptance boundary
+## 15. AO12-D as-built implementation boundary
 
-The AO12-C implementation is ready for focused Fable5 event-truth,
-accessibility, and performance review only when the four canonical documents
-and the Feature Index status/pointer:
+AO12-D implements `AO12-IWU-12..14` from exact accepted base
+`f9d0533437c0cf9efa7be76650ad79f0cb0d9353`:
 
-- resolve or gate all `AO12-U01` through `AO12-U14` without renaming them;
-- define exact source, precedence, deduplication, reload, stale/offline,
-  reduced-motion, accessibility, responsive, and performance behavior;
-- distinguish the five design-mission WorkUnits and implemented
-  `AO12-IWU-01..11` from unauthorized `AO12-IWU-12..14`;
-- provide future file/test/gate traceability and reversible batches;
-- preserve M1 authority, communication, security, event, and compatibility
-  boundaries; and
-- keep design intent distinct from as-built status and contain no production
-  asset, credential, external fetch, production selection, or runtime
-  activation claim.
+- `src/application/spatial-office/authenticated-projection.ts` builds and
+  strictly validates the authenticated wrapper from the verified manifest,
+  mission fold, dashboard/evidence projection, accepted events, exact runtime
+  actor observations, current role assignments, and alert summary;
+- `src/runtime/projection.ts` adds optional `spatialOffice` while preserving
+  `sceneRoles`; invalid construction omits the additive field and therefore
+  retains M1;
+- `src/ui/runtime/client.ts`, `runtime-app.tsx`, `dashboard.tsx`, and the spatial
+  compatibility/presentation modules validate, select, reduce, render, and
+  clear protected presentation state; and
+- focused contract, compatibility, UI, runtime, recovery, security, and
+  performance tests plus composed E2E prove live-delta-only cues, canonical UTC
+  rejection, degradation, rollback, logout/expiry/revocation/restart clearing,
+  accessibility, redaction, and no retained cue.
 
-The original Fable5 design review and clean same-context Level-3 delta review
-passed. Advisor froze `AO12-IWU-01` through `AO12-IWU-14`; AO12-A was reviewed
-and accepted; AO12-B was corrected, independently reviewed, and
-Advisor-accepted at exact base `4b751c6`; and the exact AO12-C handoff then
-authorized `AO12-IWU-09..11`. Those WorkUnits now implement a pure browser cue
-projection/reduction boundary, transform/opacity-only route presentation,
-operational/verified-idle/Channy static equivalence, 76 focused tests, 15
-browser cases, and seven directly inspected configured-runtime baselines.
-Measured evidence selects `FULL` on the configured reference runtime; the exact
-numbers and method remain in the cue contract and Worker result. Independent
-AO12-C review and Advisor acceptance remain open. No AO12-D production
-projection wiring, external asset, authority, transport, authentication,
-database, network, or later WorkUnit is claimed.
+The complete local gate passes 76 Vitest files/450 tests, 43/43 default-demo
+Chromium cases, and 3/3 composed Chromium cases. Seven new authenticated PNGs
+cover desktop, tablet, mobile, 320px, 200% text, forced colors, and reduced
+motion and were directly inspected. Existing 19 M1/AO12-B/AO12-C PNG bytes are
+unchanged. On the configured runtime the authenticated reducer p95 is 1.949ms;
+browser pod-selection p95 is 16.9ms; the 10-second observation records zero
+long tasks over 50ms, 377 DOM nodes, 84 SVG elements, zero pending cues, and
+305608 bytes retained heap. Production gzip growth from the AO12-C base is
+32668 bytes JavaScript plus 4268 bytes CSS, each within the applicable budget.
+
+This evidence selects `FULL` only on the configured reference runtime.
+`RESTRAINED`, `STATIC`, and unchanged `M1_FIXED_STATIONS` remain immediate
+presentation-only fallbacks. Current operational composition still reflects
+the existing fixed actor/project registration; production artwork, broader
+multi-project scale, and cross-host/browser/font portability remain separately
+gated. No package, lockfile, auth, authority, Advisor delivery, transport, DB,
+network, secret, external asset, production/live deployment, or automatic next
+mission behavior changed. Independent Fable5 implementation/security/
+accessibility review, Advisor evidence audit/acceptance, and any later Leo/GPT
+decision remain pending; this document does not claim approval.
 
 ## 16. Canonical M1.2 design map
 

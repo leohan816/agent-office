@@ -19,6 +19,7 @@ import { ChannyPresentation } from './channy-presentation.js';
 import { SpatialCharacter, StaticChanny } from './character.js';
 import type { SpatialCueEnvelope } from './cue-projector.js';
 import type { SpatialCueReducerState } from './cue-reducer.js';
+import type { AuthenticatedSpatialSelectionReason } from './compatibility.js';
 import { STATIC_SPATIAL_OFFICE_FIXTURE } from './fixtures.js';
 import { VerifiedIdleLounge, type VerifiedIdlePresentationInput } from './lounge.js';
 import {
@@ -37,6 +38,8 @@ export interface SpatialOfficeProps {
   readonly verifiedIdle?: readonly VerifiedIdlePresentationInput[];
   readonly requestedTier?: SpatialPresentationTier;
   readonly frozenMotionProgress?: number | null;
+  readonly surfaceKind?: 'SYNTHETIC' | 'AUTHENTICATED';
+  readonly selectionReason?: AuthenticatedSpatialSelectionReason;
 }
 
 export function SpatialOffice({
@@ -45,8 +48,11 @@ export function SpatialOffice({
   verifiedIdle = [],
   requestedTier = 'FULL',
   frozenMotionProgress = null,
+  surfaceKind = 'SYNTHETIC',
+  selectionReason = 'SPATIAL_FULL_SELECTED',
 }: SpatialOfficeProps) {
   const motionFixture = cueState !== undefined;
+  const authenticated = surfaceKind === 'AUTHENTICATED';
   const initialPodId = projection.selectedPodId ?? projection.pods[0]?.podId ?? null;
   const [selectedPodId, setSelectedPodId] = useState(initialPodId);
   const [podFocusIndex, setPodFocusIndex] = useState(() =>
@@ -56,14 +62,16 @@ export function SpatialOffice({
   const [inspectedActor, setInspectedActor] = useState<SpatialActorProjection | null>(null);
   const [activeCues, setActiveCues] = useState<readonly SpatialCueEnvelope[]>(() => cueState?.pendingCues ?? []);
   const [motionOff, setMotionOff] = useState(false);
+  const [authenticatedTierOverride, setAuthenticatedTierOverride] = useState<SpatialPresentationTier | null>(null);
   const [mediaStatic, setMediaStatic] = useState(() => mediaRequiresStaticTier());
   const podControlRefs = useRef(new Map<string, HTMLButtonElement>());
   const actorControlRefs = useRef(new Map<string, HTMLButtonElement>());
   const inspectorCloseRef = useRef<HTMLButtonElement>(null);
   const inspectorInvokerRef = useRef<HTMLElement | null>(null);
+  const selectedPresentationTier = authenticatedTierOverride ?? requestedTier;
   const effectiveTier: SpatialPresentationTier = !motionFixture || motionOff || mediaStatic
     ? 'STATIC'
-    : requestedTier;
+    : selectedPresentationTier;
   const presentedCues = effectiveTier === 'RESTRAINED' ? activeCues.slice(0, 1) : activeCues;
 
   const identities = useMemo(
@@ -132,6 +140,11 @@ export function SpatialOffice({
       document.removeEventListener('visibilitychange', cancelForHidden);
     };
   }, [frozenMotionProgress, motionFixture]);
+
+  useEffect(() => {
+    if (!motionFixture) return;
+    setActiveCues(cueState.pendingCues);
+  }, [cueState, motionFixture]);
 
   useEffect(() => {
     if (!motionFixture || frozenMotionProgress !== null || cueState.pendingCues.length === 0) return;
@@ -215,8 +228,13 @@ export function SpatialOffice({
   return (
     <div
       className="spatial-office-shell"
-      data-fixture-kind={motionFixture ? 'SYNTHETIC_STRUCTURED_EVENT_MOTION' : 'SYNTHETIC_NON_OPERATIONAL_STATIC'}
+      data-fixture-kind={authenticated
+        ? 'AUTHENTICATED_APPLICATION_PROJECTION'
+        : motionFixture
+          ? 'SYNTHETIC_STRUCTURED_EVENT_MOTION'
+          : 'SYNTHETIC_NON_OPERATIONAL_STATIC'}
       data-motion-tier={effectiveTier}
+      data-selection-reason={selectionReason}
       id="spatial-office"
     >
       <a className="skip-link spatial-skip-status" href="#spatial-status">Global status</a>
@@ -227,9 +245,15 @@ export function SpatialOffice({
 
       <header className="spatial-global-status" id="spatial-status" tabIndex={-1}>
         <div>
-          <p className="eyebrow">AGENT OFFICE / M1.2 / {motionFixture ? 'AO12-C' : 'AO12-B'}</p>
-          <h1>{motionFixture ? 'Evidence-backed spatial office' : 'Static Advisor-team shared office'}</h1>
-          <p>{motionFixture
+          <p className="eyebrow">AGENT OFFICE / M1.2 / {authenticated ? 'AO12-D' : motionFixture ? 'AO12-C' : 'AO12-B'}</p>
+          <h1>{authenticated
+            ? 'Authenticated spatial office'
+            : motionFixture
+              ? 'Evidence-backed spatial office'
+              : 'Static Advisor-team shared office'}</h1>
+          <p>{authenticated
+            ? 'Verified application projection. Presentation is read-only and carries no authority or transport effect.'
+            : motionFixture
             ? 'Synthetic test/demo only. Accepted structured cue presentation; no authority or transport effect.'
             : 'One synthetic test/demo floor. Non-operational, read-only, and motion-free.'}</p>
         </div>
@@ -239,9 +263,31 @@ export function SpatialOffice({
           <div><dt>Floor</dt><dd>{projection.floorMode}</dd></div>
           <div><dt>Catalog</dt><dd className="mono">{projection.identityCatalogVersion}</dd></div>
           <div><dt>Evaluated</dt><dd>{projection.evaluatedAt}</dd></div>
-          <div><dt>Mode</dt><dd>{effectiveTier} / FIXTURE ONLY</dd></div>
+          <div><dt>Mode</dt><dd>{effectiveTier} / {authenticated ? selectionReason : 'FIXTURE ONLY'}</dd></div>
         </dl>
-        {motionFixture ? (
+        {motionFixture ? authenticated ? (
+          <div className="spatial-presentation-controls">
+              <button
+                className="spatial-motion-control"
+                onClick={() => {
+                  setAuthenticatedTierOverride((current) => nextAuthenticatedTier(current ?? requestedTier));
+                }}
+                type="button"
+              >
+                Presentation detail: {selectedPresentationTier.toLocaleLowerCase('en-US')}
+              </button>
+            <button
+              aria-pressed={motionOff}
+              className="spatial-motion-control"
+              onClick={() => {
+                setMotionOff((current) => !current);
+              }}
+              type="button"
+            >
+              Motion {motionOff ? 'off' : 'on'} / static facts always visible
+            </button>
+          </div>
+        ) : (
           <button
             aria-pressed={motionOff}
             className="spatial-motion-control"
@@ -424,7 +470,9 @@ export function SpatialOffice({
         <section id="spatial-alerts">
           <h3>Alerts</h3>
           <p>{selectedPod?.alertSummary.severity ?? 'NONE'} / {selectedPod?.alertSummary.openCount ?? 0} open</p>
-          <p>No action, acknowledgement, dispatch, or authority control exists on this fixture surface.</p>
+          <p>{authenticated
+            ? 'No action, acknowledgement, dispatch, or authority control exists on this spatial presentation surface.'
+            : 'No action, acknowledgement, dispatch, or authority control exists on this fixture surface.'}</p>
         </section>
       </aside>
 
@@ -467,6 +515,12 @@ function mediaRequiresStaticTier(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
     || window.matchMedia('(max-width: 767px)').matches;
+}
+
+function nextAuthenticatedTier(current: SpatialPresentationTier): SpatialPresentationTier {
+  if (current === 'FULL') return 'RESTRAINED';
+  if (current === 'RESTRAINED') return 'STATIC';
+  return 'FULL';
 }
 
 function routeEndpoints(

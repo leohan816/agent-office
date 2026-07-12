@@ -20,6 +20,11 @@ import { CommunicationCenter } from './communication/communication-center.js';
 import type { CommunicationCenterActionPort, CommunicationCenterModel } from './communication/types.js';
 import { RuntimeBoundary, type RuntimeBoundaryProps } from './pwa/runtime-boundary.js';
 import type { RoleSceneProjection } from './scene/types.js';
+import type { SpatialOfficeProjectionV1 } from '../application/spatial-office/types.js';
+import type { SpatialPresentationTier } from './spatial/actor-zone.js';
+import type { AuthenticatedSpatialSelectionReason } from './spatial/compatibility.js';
+import type { SpatialCueReducerState } from './spatial/cue-reducer.js';
+import { SpatialOffice } from './spatial/spatial-office.js';
 
 type FilterValue = 'ALL' | 'ATTENTION' | 'WAITING' | 'COMPLETED';
 
@@ -30,6 +35,12 @@ export interface DashboardProps {
   readonly runtimeBoundary?: Omit<RuntimeBoundaryProps, 'controller'>;
   readonly showOfficeScene?: boolean;
   readonly sceneRoles?: readonly RoleSceneProjection[];
+  readonly authenticatedSpatial?: {
+    readonly projection: SpatialOfficeProjectionV1;
+    readonly cueState: SpatialCueReducerState;
+    readonly requestedTier: SpatialPresentationTier;
+    readonly selectionReason: AuthenticatedSpatialSelectionReason;
+  };
 }
 
 export function Dashboard({
@@ -39,6 +50,7 @@ export function Dashboard({
   runtimeBoundary,
   showOfficeScene = true,
   sceneRoles,
+  authenticatedSpatial,
 }: DashboardProps) {
   const [filter, setFilter] = useState<FilterValue>('ALL');
   const firstAttention = model.workUnits.find((workUnit) => workUnit.blocker !== undefined);
@@ -51,7 +63,7 @@ export function Dashboard({
 
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#office-scene">
+      <a className="skip-link" href={authenticatedSpatial === undefined ? '#office-scene' : '#spatial-office'}>
         오피스로 건너뛰기
       </a>
       <a className="skip-link skip-link-operations" href="#operations-table">
@@ -90,7 +102,17 @@ export function Dashboard({
         </section>
       ) : null}
 
-      {showOfficeScene ? <OfficeScene {...(sceneRoles === undefined ? {} : { roles: sceneRoles })} /> : null}
+      {authenticatedSpatial !== undefined ? (
+        <SpatialOffice
+          cueState={authenticatedSpatial.cueState}
+          projection={authenticatedSpatial.projection}
+          requestedTier={authenticatedSpatial.requestedTier}
+          selectionReason={authenticatedSpatial.selectionReason}
+          surfaceKind="AUTHENTICATED"
+        />
+      ) : showOfficeScene ? (
+        <OfficeScene {...(sceneRoles === undefined ? {} : { roles: sceneRoles })} />
+      ) : null}
 
       <div className="dashboard-grid">
         <aside className="hierarchy-panel" aria-labelledby="hierarchy-heading">

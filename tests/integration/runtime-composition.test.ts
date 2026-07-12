@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { SubmitAdvisorMessage } from '../../src/domain/messages/index.js';
+import type { JsonValue } from '../../src/contracts/types.js';
+import type { EventType } from '../../src/domain/events/index.js';
 import type { AdvisorAlertDetail } from '../../src/application/alerts/index.js';
 import type { DecisionAuthorityEvidenceVerifier } from '../../src/application/advisor-inbox/types.js';
 import type {
@@ -26,6 +28,7 @@ import type {
   PrivateDeploymentConfiguration,
 } from '../../src/server/config.js';
 import { startAgentOfficeComposition } from '../../src/runtime/composition.js';
+import type { RunningAgentOfficeComposition } from '../../src/runtime/composition-core.js';
 import type { AgentOfficeRuntimeIdentity } from '../../src/runtime/identity.js';
 import { startSyntheticTestComposition } from '../../src/runtime/test-composition.js';
 import {
@@ -224,6 +227,23 @@ describe('executable loopback composition and production runtime client', () => 
     );
     expect(replayedProof.response.status).toBe(401);
     expect(restarted.readStatus().deliveryMode).toBe('MANUAL_FALLBACK_REQUIRED');
+    const replacementLogin = await postJson(
+      `${restarted.primaryOrigin}/api/v1/auth/local-bootstrap/exchange`,
+      { proof: replacement.proof },
+      productionMutationHeaders(restarted.primaryOrigin),
+    );
+    expect(replacementLogin.response.status).toBe(200);
+    const replacementCookie = (replacementLogin.response.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const restartedProjection = await fetch(`${restarted.primaryOrigin}/api/v1/projection`, {
+      headers: { Cookie: replacementCookie },
+    });
+    expect(restartedProjection.status).toBe(200);
+    expect(await restartedProjection.json()).toMatchObject({
+      spatialOffice: {
+        schemaVersion: 'agent-office.authenticated-spatial-presentation.v1',
+        projection: { compatibilityMode: 'M1_2_TEAM_PODS' },
+      },
+    });
     await restarted.close();
     removeCloseable(restarted);
     await expect(access(proofPath)).rejects.toMatchObject({ code: 'ENOENT' });
@@ -320,17 +340,78 @@ describe('executable loopback composition and production runtime client', () => 
       subject: { capabilities: ['viewer', 'leo_input', 'advisor_operator'] },
     });
     expect(client.snapshot().projection?.sceneRoles).toHaveLength(8);
+    expect(client.snapshot().projection?.spatialOffice).toMatchObject({
+      schemaVersion: 'agent-office.authenticated-spatial-presentation.v1',
+      projection: {
+        schemaVersion: 'agent-office.spatial-office-projection.v1',
+        compatibilityMode: 'M1_2_TEAM_PODS',
+      },
+    });
+    const spatialJson = JSON.stringify(client.snapshot().projection?.spatialOffice);
+    for (const forbidden of ['paneId', 'sessionId', 'absolutePath', 'csrfToken', 'terminalOutput', 'requestBody']) {
+      expect(spatialJson).not.toContain(forbidden);
+    }
+    expect(client.snapshot().spatial).toMatchObject({
+      mode: 'FULL',
+      reasonCode: 'SPATIAL_FULL_SELECTED',
+      updateOrigin: 'INITIAL_SNAPSHOT',
+      cueState: { pendingCues: [] },
+    });
     const actionPort = client.communicationActionPort();
     expect(actionPort).toBeDefined();
+    const patchRequired = await appendRuntimeEvent(synthetic.composition, 8_501, 'WorkUnitStateTransitioned', {
+      workUnitId: 'AO-WU-06',
+      from: 'REVIEW_PENDING',
+      to: 'NEEDS_PATCH',
+    });
+    const ready = await appendRuntimeEvent(synthetic.composition, 8_502, 'WorkUnitStateTransitioned', {
+      workUnitId: 'AO-WU-06',
+      from: 'NEEDS_PATCH',
+      to: 'READY',
+    });
+    const dispatched = await appendRuntimeEvent(synthetic.composition, 8_503, 'WorkUnitStateTransitioned', {
+      workUnitId: 'AO-WU-06',
+      from: 'READY',
+      to: 'DISPATCHED',
+    });
+    const running = await appendRuntimeEvent(synthetic.composition, 8_504, 'WorkUnitStateTransitioned', {
+      workUnitId: 'AO-WU-06',
+      from: 'DISPATCHED',
+      to: 'RUNNING',
+    });
+    await appendRuntimeEvent(synthetic.composition, 8_505, 'RoleActivityChanged', {
+      workUnitId: 'AO-WU-06',
+      activity: 'WORKING',
+      reasonCode: 'STRUCTURED_TEST_ACTIVITY',
+      sourceEventIds: [running.event.eventId],
+      effectiveFrom: FIXED_TIME,
+      optionalExpiresAt: '2026-07-10T00:05:00.000Z',
+    });
+    expect([patchRequired, ready, dispatched].map((receipt) => receipt.event.sequence)).toEqual([1, 2, 3]);
     const command = messageCommand(8500);
     const first = await actionPort?.submitAdvisorMessage(command);
     expect(first).toMatchObject({ status: 'PERSISTED', replayed: false });
+    expect(client.snapshot().spatial).toMatchObject({
+      mode: 'FULL',
+      updateOrigin: 'LIVE_DELTA',
+      cueState: {
+        pendingCues: [expect.objectContaining({
+          cueKind: 'WORKING',
+          workUnitId: 'AO-WU-06',
+          createdFromOrigin: 'LIVE_DELTA',
+        })],
+      },
+    });
     await waitForState(client, (state) => (state.projection?.revision ?? 0) >= 1);
     const sequenceAfterFirst = synthetic.composition.store.sequence;
     const replay = await actionPort?.submitAdvisorMessage(command);
     expect(replay).toEqual({ ...first, replayed: true });
     expect(synthetic.composition.store.sequence).toBe(sequenceAfterFirst);
     expect(Object.keys(synthetic.composition.inbox.project().messages)).toHaveLength(1);
+    client.stop();
+    expect(client.snapshot()).toEqual({ phase: 'STARTING', sseState: 'DISCONNECTED' });
+    expect(client.communicationActionPort()).toBeUndefined();
+    removeClient(client);
   });
 
   it('publishes a deterministic observation refresh when structured actor evidence ages offline', async () => {
@@ -413,6 +494,8 @@ describe('executable loopback composition and production runtime client', () => 
       else runtime.advance(100);
       await waitForState(client, (state) => state.phase === 'SESSION_EXPIRED');
       expect(client.communicationActionPort()).toBeUndefined();
+      expect(client.snapshot().projection).toBeUndefined();
+      expect(client.snapshot().spatial).toBeUndefined();
       expect(synthetic.composition.sse.connectionCount()).toBe(0);
       client.stop();
       removeClient(client);
@@ -1046,6 +1129,28 @@ function mutableRuntime(start: number): AgentOfficeRuntimeIdentity & { advance(m
       nowMs += milliseconds;
     },
   };
+}
+
+async function appendRuntimeEvent(
+  composition: Pick<RunningAgentOfficeComposition, 'store'>,
+  seed: number,
+  eventType: EventType,
+  payload: Record<string, JsonValue>,
+) {
+  return composition.store.append({
+    eventId: uuidV7(seed),
+    eventType,
+    requestId: uuidV7(seed + 100),
+    correlationId: uuidV7(8_500),
+    causationId: uuidV7(seed + 200),
+    actor: { role: 'Advisor', subjectId: 'authenticated-spatial-test' },
+    occurredAt: FIXED_TIME,
+    receivedAt: FIXED_TIME,
+    recordedAt: FIXED_TIME,
+    expectedStreamVersion: composition.store.sequence,
+    expectedManifestVersion: 1,
+    payload,
+  });
 }
 
 async function reservePort(): Promise<number> {

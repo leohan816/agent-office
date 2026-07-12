@@ -1,6 +1,10 @@
 import type { AdvisorInboxService } from '../application/advisor-inbox/service.js';
 import type { DurableAlertCenter } from '../application/alerts/index.js';
 import {
+  buildAuthenticatedSpatialPresentation,
+  type AuthenticatedSpatialPresentationV1,
+} from '../application/spatial-office/authenticated-projection.js';
+import {
   buildDashboardViewModel,
   type DashboardViewModel,
   type RequiredGateInput,
@@ -115,6 +119,14 @@ export async function buildRuntimeProjection(
     events,
     alerts,
   );
+  const spatialOffice = authenticatedSpatialPresentation({
+    services,
+    mission,
+    dashboard,
+    sceneRoles,
+    events,
+    alerts,
+  });
   return {
     schemaVersion: 'agent-office.redacted-projection.v1',
     revision: services.projectionRevision,
@@ -127,7 +139,54 @@ export async function buildRuntimeProjection(
     dashboard,
     communication,
     sceneRoles,
+    ...(spatialOffice === undefined ? {} : { spatialOffice }),
   };
+}
+
+function authenticatedSpatialPresentation(input: {
+  readonly services: RuntimeProjectionServices;
+  readonly mission: MissionProjection;
+  readonly dashboard: DashboardViewModel;
+  readonly sceneRoles: readonly RoleSceneProjection[];
+  readonly events: ReturnType<EventStore['readAll']>;
+  readonly alerts: ReturnType<DurableAlertCenter['project']>;
+}): AuthenticatedSpatialPresentationV1 | undefined {
+  const snapshot = input.services.observations.snapshot();
+  const openAlerts = Object.values(input.alerts)
+    .filter((alert) => alert.state !== 'RESOLVED' && alert.state !== 'SUPPRESSED');
+  const ranking = { NONE: 0, INFO: 1, WARNING: 2, CRITICAL: 3 } as const;
+  const severity = openAlerts.reduce<'NONE' | 'INFO' | 'WARNING' | 'CRITICAL'>((current, alert) =>
+    ranking[alert.payload.severity] > ranking[current] ? alert.payload.severity : current, 'NONE');
+  try {
+    return buildAuthenticatedSpatialPresentation({
+      manifest: input.services.manifest,
+      mission: input.mission,
+      dashboard: input.dashboard,
+      sceneRoles: input.sceneRoles,
+      events: input.events,
+      observations: {
+        manifestStatus: snapshot.manifest.status,
+        manifestEvidenceId: snapshot.manifest.evidence.evidenceId,
+        refreshedAt: snapshot.refreshedAt,
+        actors: Object.fromEntries(Object.values(snapshot.actors).map((actor) => [
+          actor.roleInstanceId,
+          {
+            roleInstanceId: actor.roleInstanceId,
+            actorRole: actor.actorRole,
+            projectId: actor.projectId,
+            hostId: actor.hostId,
+            presentation: actor.presentation,
+            connectionState: actor.connectionState,
+            evidenceRefs: actor.evidenceRefs,
+          },
+        ])),
+      },
+      projectionRevision: input.services.projectionRevision,
+      alertSummary: { severity, openCount: openAlerts.length },
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 function activationProjection(

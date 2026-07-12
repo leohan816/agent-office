@@ -1,6 +1,6 @@
 # Agent Office M1.2 Spatial Event and Animation Contract
 
-Status: `AO12_C_SPATIAL_CUES_IMPLEMENTED_TEST_DEMO_ONLY__FULL_TIER_MEASURED__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_D_NOT_AUTHORIZED`
+Status: `AO12_D_AUTHENTICATED_CUE_INTEGRATION_IMPLEMENTED__FULL_TIER_MEASURED_ON_CONFIGURED_RUNTIME__PENDING_INDEPENDENT_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Contract candidate: `agent-office.spatial-cue.v1`
 
@@ -19,9 +19,12 @@ floor and the immediate text/icon/shape/list equivalents: it creates zero cue or
 animation object and consumes no live delta. After corrected AO12-B review and
 Advisor acceptance, AO12-C implements the pure cue projector/reducer and bounded
 route, pose, verified-idle, and Channy presentation behind the explicit
-`surface=spatial-motion` synthetic test-demo selector. No authenticated or
-production projection selects this contract; that remains AO12-D-only and
-unauthorized.
+`surface=spatial-motion` synthetic test-demo selector. After focused AO12-C
+review and Advisor acceptance, AO12-D now validates and selects the same pure
+contract from an additive authenticated application read model. The
+authenticated path never imports or consumes the synthetic fixtures and remains
+pending independent implementation/security/accessibility review and Advisor
+acceptance.
 
 ## 1. Contract principles
 
@@ -49,7 +52,8 @@ unauthorized.
 
 ### 2.1 Required source projection
 
-The spatial cue projector receives a validated slice of the future
+The spatial cue projector receives a validated
+`agent-office.authenticated-spatial-cue-slice.v1` tied to the
 `agent-office.spatial-office-projection.v1` read model:
 
 ```text
@@ -134,6 +138,21 @@ A candidate cue is eligible only when every applicable condition is true:
 - no suppression rule in Section 6 applies.
 
 Failure produces a static diagnostic state, never a best-effort cue.
+
+### 2.4 Authenticated timestamp and correspondence gate
+
+AO12-D validates the authenticated wrapper before calling the cue projector.
+Projection and slice revisions must match; pod, actor, mission, manifest, and
+source-event references must resolve inside the same projection; accepted event
+IDs must be unique UUIDv7 values; and every cue source must occur in that exact
+accepted-event set. `projection.evaluatedAt`, `slice.evaluatedAt`, optional
+`activityEffectiveFrom`, and optional `activity.optionalExpiresAt` must pass the
+canonical domain UTC timestamp validator. Slice/projection evaluation times
+must be byte-equal, and an optional expiry must be later than its activity
+effective time. An offset, local time, impossible date, non-canonical fraction,
+reversed expiry, unknown key, or cross-projection identity rejects the complete
+authenticated spatial candidate and selects the M1 compatibility view. It is
+never repaired from wall-clock time or prose.
 
 ## 3. Spatial cue envelope
 
@@ -518,6 +537,19 @@ reference runtime and remain pending independent review. A future miss blocks
 `FULL` or selects a reviewed lower tier; accessible semantics cannot be removed
 to meet a budget.
 
+AO12-D separately measures the authenticated selected path from exact AO12-C
+base `f9d0533437c0cf9efa7be76650ad79f0cb0d9353`. Across 1000 in-process
+parse/select/project/reduce samples, authenticated reducer p95 is 1.949ms.
+Configured Playwright Chromium records pod-selection p95 16.9ms, zero long
+tasks over 50ms during 10 seconds, 377 DOM nodes, 84 SVG elements, zero pending
+cues after the sequence, and 305608 bytes retained-heap growth after collection.
+The exact production build grows by 32668 gzip bytes of JavaScript and 4268
+gzip bytes of CSS from that base. These measurements pass the hard targets and
+select `FULL` only on the configured runtime. The selector still exposes
+`RESTRAINED`, `STATIC`, and `M1_FIXED_STATIONS`; a performance miss may lower
+presentation but cannot bypass validation, redaction, authority, source, or
+accessibility gates.
+
 ## 13. M1 compatibility adapter
 
 `M1FixedStationAdapter` consumes the existing eight `RoleSceneProjection`
@@ -546,8 +578,13 @@ configured-runtime static baselines were directly inspected, with desktop and
 reduced-motion bytes identical. AO12-C adds 76 focused cue/route/Channy/
 performance tests, 15 motion/accessibility browser cases, and seven directly
 inspected configured-runtime PNGs covering full, restrained, reduced/static,
-tablet, mobile, forced-colors, and 200%-text presentation. The complete train
-must continue to prove at least:
+tablet, mobile, forced-colors, and 200%-text presentation. AO12-D adds strict
+authenticated wrapper/UTC/source tests, live-delta/restart/logout/expiry/
+revocation runtime tests, selector/rollback/redaction/performance/UI tests, and
+seven composed authenticated PNGs. The complete local train passes 76 Vitest
+files/450 tests, 43/43 default-demo browser cases, and 3/3 composed browser
+cases; all 19 prior PNG hashes remain equal to the AO12-C base. The complete
+train must continue to prove at least:
 
 - every cue row has valid and invalid source/evidence cases;
 - terminal/model/process-shaped prose cannot change a cue;
@@ -577,7 +614,7 @@ must continue to prove at least:
 - source modules have no observation/process/network/write/dispatch import; and
 - every benchmark target is measured and honestly classified.
 
-Exact as-built AO12-A/AO12-B and proposed later paths/WorkUnits are in
+Exact as-built AO12-A/AO12-B/AO12-C/AO12-D paths and WorkUnits are in
 [`../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md`](../operations/AGENT_OFFICE_M1_2_IMPLEMENTATION_WORKUNIT_PLAN.md).
 
 ## 15. Authority and transport non-change

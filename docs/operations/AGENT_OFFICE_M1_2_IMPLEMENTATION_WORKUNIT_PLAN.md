@@ -1,11 +1,11 @@
 # Agent Office M1.2 Implementation WorkUnit Plan
 
-Status: `AO12_C_IMPLEMENTED_TEST_DEMO_ONLY__PENDING_FOCUSED_FABLE5_EVENT_ACCESSIBILITY_PERFORMANCE_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_D_NOT_AUTHORIZED`
+Status: `AO12_D_IWU_12_THROUGH_14_IMPLEMENTED__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
 Design mission: `AGENT_OFFICE_M1_2_SPATIAL_ANIMATED_ADVISOR_TEAM_OFFICE`
 
-This plan records the frozen reversible implementation train and AO12-A/AO12-B/AO12-C
-as-built status. It is not an implementation launcher, handoff, permission,
+This plan records the frozen reversible implementation train and AO12-A through
+AO12-D as-built status. It is not an implementation launcher, handoff, permission,
 review verdict, branch decision, asset approval, or authority change. Every
 later batch requires a new exact Advisor handoff after the preceding dependency
 and review gate are accepted.
@@ -38,9 +38,10 @@ manifest. The separate AO12-A handoff authorized `AO12-IWU-01..04`; focused
 review passed and Advisor accepted them as the AO12-B dependency. The exact
 AO12-B handoff then authorized `AO12-IWU-05..08`; corrected independent review
 passed and Advisor accepted them. The exact AO12-C handoff authorized
-`AO12-IWU-09..11`, which are now implemented pending independent focused
-event-truth/accessibility/performance review and Advisor acceptance.
-`AO12-IWU-12..14` remain waiting and unauthorized. These
+`AO12-IWU-09..11`; focused event-truth/accessibility/performance review passed
+and Advisor accepted them as the AO12-D dependency. The exact AO12-D handoff
+then authorized `AO12-IWU-12..14`, which are now implemented pending independent
+implementation/security/accessibility review and Advisor acceptance. These
 implementation IDs do not change the five-WorkUnit design-mission denominator
 and no later batch may be projected as active scope.
 
@@ -67,9 +68,9 @@ No `AO12-IWU-*` may start unless all are true:
 `NEEDS_PATCH`, any risk, or any new decision returns to Advisor. `FAIL` stops.
 Silence, a design commit, or a passing local check is not authorization.
 
-These entry conditions were satisfied for the exact AO12-A, AO12-B, and AO12-C
-handoffs only. Local AO12-C verification is not independent review or Advisor
-acceptance and does not satisfy the gate for AO12-D.
+These entry conditions were satisfied for the exact AO12-A, AO12-B, AO12-C,
+and AO12-D handoffs. Local AO12-D verification is not independent review or
+Advisor acceptance and does not authorize another mission.
 
 ## 3. Reversible batch overview
 
@@ -84,10 +85,10 @@ No batch may be combined to bypass its dependency or review. No batch may add
 an auth, network, Advisor delivery, role dispatch, DB, secret, or asset-purchase
 change.
 
-Current batch state: AO12-A and AO12-B are independently reviewed and
-Advisor-accepted. AO12-C is implemented and locally verified, pending focused
-Fable5 event-truth, accessibility, and performance review plus Advisor
-acceptance. AO12-D remains unauthorized.
+Current batch state: AO12-A, AO12-B, and AO12-C are independently reviewed and
+Advisor-accepted dependencies. AO12-D is implemented and locally verified,
+pending Fable5 implementation/security/accessibility review and Advisor
+acceptance. No later batch or mission is authorized.
 
 ## 4. Batch AO12-A - contracts, compatibility, Team/Advisor invariants, and SIASIU correction
 
@@ -425,7 +426,7 @@ Advisor acceptance, and the exact AO12-C handoff at base `4b751c6`.
 
 ### `AO12-IWU-09` Spatial cue projector and reducer
 
-State: `IMPLEMENTED_AO12_C__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_C__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_D_DEPENDENCY`
 
 As-built scope:
 
@@ -450,7 +451,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-10` Spatial routes, poses, and lounge
 
-State: `IMPLEMENTED_AO12_C__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_C__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_D_DEPENDENCY`
 
 As-built scope:
 
@@ -485,7 +486,7 @@ Acceptance criteria:
 
 ### `AO12-IWU-11` Motion, visual, accessibility, and performance proof
 
-State: `IMPLEMENTED_AO12_C__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_C__FOCUSED_REVIEW_PASS__ADVISOR_ACCEPTED_AS_AO12_D_DEPENDENCY`
 
 As-built scope:
 
@@ -516,7 +517,8 @@ Required checks include all AO12-A/B checks plus the full cue matrix, source-
 boundary scans, reduced motion, axe, layout, benchmark, composed fixture, and M1
 unchanged-baseline gates.
 
-AO12-C local as-built evidence, pending independent review:
+AO12-C local as-built evidence subsequently accepted as the exact AO12-D
+dependency:
 
 - five focused files pass 76 tests across all 16 cue kinds, canonical SHA-256
   IDs, exact source/evidence correspondence, suppression, precedence,
@@ -550,23 +552,29 @@ Rollback: remove/disable the cue layer while retaining the reviewed static M1.2
 component; if the static component is also unsafe, return to the unchanged M1
 adapter. No event or durable data is rolled back.
 
-Gate: independent event-truth, accessibility, and performance review plus
-Advisor acceptance before AO12-D.
+Gate satisfied for AO12-D entry: independent event-truth, accessibility, and
+performance review plus Advisor acceptance. That acceptance authorized only the
+exact AO12-D handoff and did not pre-approve its implementation.
 
 ## 7. Batch AO12-D - composed integration and closure
 
 ### `AO12-IWU-12` Additive authenticated application projection wiring
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_D__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope, subject to a future exact allowlist:
+As-built scope:
 
+- `src/application/spatial-office/authenticated-projection.ts`
 - `src/runtime/projection.ts`
 - `src/server/application.ts`
+- `src/ui/runtime/client.ts`
 - `src/ui/runtime/runtime-app.tsx`
-- `src/ui/spatial/` integration adapters
+- `src/ui/dashboard.tsx`
+- `src/ui/spatial/spatial-office.tsx`, `spatial-office.css`
 - `tests/integration/runtime-composition.test.ts`
-- `tests/e2e-composed/application-spatial-office.spec.ts`
+- `tests/contract/authenticated-spatial-projection.test.ts`
+- `tests/security/authenticated-spatial-redaction.test.ts`
+- `tests/e2e-composed/application-office-scene.spec.ts`
 
 Acceptance criteria:
 
@@ -583,14 +591,19 @@ Acceptance criteria:
 
 ### `AO12-IWU-13` Compatibility selection, degradation, and rollback proof
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_D__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
 - `src/ui/spatial/compatibility.ts`
-- presentation-only runtime selection named by future reviewed design;
+- presentation-only `FULL`/`RESTRAINED`/`STATIC`/`M1_FIXED_STATIONS` selection;
+- `src/ui/runtime/client.ts` protected-state and cursor clearing;
+- `tests/ui/authenticated-spatial-compatibility.test.ts`;
+- `tests/ui/authenticated-spatial-surface.test.tsx`;
 - `tests/recovery/spatial-presentation-rollback.test.ts`
-- `tests/e2e-composed/application-office-scene.spec.ts` compatibility coverage
+- `tests/performance/authenticated-spatial-budget.test.ts`; and
+- composed compatibility, degradation, accessibility, and visual coverage in
+  `tests/e2e-composed/application-office-scene.spec.ts`.
 
 Acceptance criteria:
 
@@ -605,13 +618,13 @@ Acceptance criteria:
 
 ### `AO12-IWU-14` As-built evidence and implementation result
 
-State: `NOT_STARTED_NOT_AUTHORIZED_PENDING_PRECEDING_BATCH_REVIEW_AND_ADVISOR_ACCEPTANCE`
+State: `IMPLEMENTED_AO12_D__PENDING_FABLE5_IMPLEMENTATION_SECURITY_ACCESSIBILITY_REVIEW_AND_ADVISOR_ACCEPTANCE`
 
-Candidate scope:
+As-built scope:
 
-- update the four M1.2 canonical documents and Feature Index from actual reviewed
-  implementation evidence only;
-- exact Worker result/pointer paths supplied by the later handoff; and
+- these four M1.2 canonical documents and `docs/FEATURE_INDEX.md`, updated from
+  actual implementation and local verification evidence only;
+- exact Worker result and pointer paths supplied by the AO12-D handoff; and
 - no unrelated M1 canonical rewrite.
 
 Acceptance criteria:
@@ -624,6 +637,39 @@ Acceptance criteria:
 - target and result commits pushed non-force with upstream equality; and
 - factual result only, no self-review or final approval claim.
 
+### AO12-D local as-built evidence
+
+- the complete sequential Vitest train passes 76 files/450 tests; focused
+  projection/client/compatibility/rollback/security/UI/performance/runtime
+  coverage is included in that total;
+- default-demo Chromium passes 43/43 and composed Chromium passes 3/3, including
+  authenticated wide desktop, tablet, mobile, 320px, 200% text, reduced motion,
+  forced colors, stale/offline/conflict/critical, unknown/invalid/absent schema,
+  logout, expiry/revocation, restart, WCAG 2.2 A/AA, keyboard/focus, and 44px
+  controls;
+- all 19 prior M1/AO12-B/AO12-C PNG hashes equal exact base
+  `f9d0533437c0cf9efa7be76650ad79f0cb0d9353`; seven new AO12-D PNGs live only
+  under the dedicated `ao12-d-authenticated/` baseline directory and were
+  directly inspected;
+- authenticated parse/select/project/reduce p95 is 1.949ms; browser pod switch
+  p95 is 16.9ms; zero long tasks over 50ms, 377 DOM nodes, 84 SVG elements,
+  zero pending cues, and 305608 bytes retained heap pass on the configured
+  runtime;
+- production gzip growth from the AO12-C base is 32668 bytes JavaScript and
+  4268 bytes CSS; package and lockfile bytes are unchanged; and
+- logout, actual expiry, revocation, failed protected refresh, client stop, and
+  cursor reset clear protected spatial/cue state. Presentation rollback changes
+  no ledger, manifest, evidence, artifact, config, authority, authentication,
+  Advisor delivery, transport, DB, network, or process state.
+
+Known limits: the operational composition retains the current fixed actor and
+project registration; the measurement and PNG claims apply only to the
+configured local Chromium/font runtime; no production artwork, external asset,
+remote/private/public network, DB, credential, real tmux input, or
+production/live deployment is added. Full implementation/security/
+accessibility review, Advisor evidence audit and acceptance, and any Leo/GPT
+final decision remain deferred gates.
+
 ### AO12-D final gates
 
 1. full lint/typecheck/unit/contract/integration/recovery/security/UI/E2E/build/
@@ -635,6 +681,15 @@ Acceptance criteria:
 4. Advisor evidence audit and any separately authorized private verification;
 5. Leo/GPT risk/final product decision; and
 6. no automatic activation or next mission.
+
+### AO12-D requirement-to-evidence traceability
+
+| Requirement | Implementation | Tests | Current evidence | Status | Deferred gate |
+|---|---|---|---|---|---|
+| `AO12-IWU-12` / `AO12-REQ-013` authenticated read model | `authenticated-projection.ts`, runtime/server projection, runtime client/app/dashboard | authenticated projection contract, runtime composition, redaction, composed E2E | Optional versioned wrapper is built only from verified accepted inputs; `sceneRoles` remains; malformed UTC/source/identity/schema rejects or omits; protected state clears on logout/expiry/revocation/stop | `IMPLEMENTED_AO12_D__PENDING_REVIEW` | Fable5 implementation/security/accessibility review and Advisor acceptance |
+| `AO12-IWU-13` / `AO12-REQ-012` selector and rollback | `compatibility.ts`, runtime client, spatial presentation | compatibility UI, rollback recovery, authenticated surface, performance, composed E2E | Deterministic `FULL`/`RESTRAINED`/`STATIC`/`M1_FIXED_STATIONS`; stale/offline/conflict/critical is static; unknown/invalid/absent is M1; no process or durable mutation | `IMPLEMENTED_AO12_D__PENDING_REVIEW` | Same review/acceptance; cross-runtime portability remains operations-gated |
+| `AO12-IWU-14` as-built closure | four M1.2 canonical documents, Feature Index, Worker result/pointer | full gates, hash/diff/source/bundle audits | 76/450 Vitest, 43/43 default demo, 3/3 composed, seven inspected PNGs, 19 prior hashes unchanged, measured budget pass | `DOCUMENTED_AO12_D__PENDING_REVIEW` | Foundation result commit, Fable5 review, Advisor audit/acceptance, Leo/GPT decision |
+| `AO12-REQ-014` no authority/transport expansion | additive projection/UI-only source delta | security/redaction/runtime/source and bundle scans; full regressions | Auth, authority, exact delivery, transport, DB/network, package/lockfile, and existing baseline bytes unchanged | `PRESERVED_AO12_D__PENDING_REVIEW` | Fixed prohibition; any expansion requires a separate mission |
 
 ## 8. Cross-cutting acceptance invariants
 
@@ -669,9 +724,10 @@ Every future batch must prove:
 
 ## 9. Frozen unknown traceability AO12-U01 through AO12-U14
 
-Future paths below are proposals, not current files or authorization.
+The frozen IDs remain unchanged. Paths and proofs below are now the implemented
+AO12-A through AO12-D train; a passing local proof is not final approval.
 
-| Unknown | Canonical design resolution | Proposed WorkUnit/files | Proposed proof | Blocking gate |
+| Unknown | Canonical design resolution | WorkUnit/files | Proof | Remaining gate |
 |---|---|---|---|---|
 | `AO12-U01` Dynamic Team Pod Model | Master Sections 5-7 | `AO12-IWU-01/03`; `types.ts`, `projector.ts` | shared-floor visibility, non-card Team areas, selected-detail and responsive equivalence | AO12-A handoff and review |
 | `AO12-U02` Single Advisor Team Principle | Master Section 8; Identity Sections 5.3-5.5 | `AO12-IWU-04`; `assignment-resolver.ts` | exact Team membership, `UNASSIGNED`, current/future Advisor uniqueness, no-proximity authority | No authority change; AO12-A review |
@@ -688,9 +744,9 @@ Future paths below are proposals, not current files or authorization.
 | `AO12-U13` Asset Source/License/Style | Master Section 13; Identity Sections 8-9 | `AO12-IWU-06` project-authored placeholders only | approved direction, inventory/hash/safety, protected-style and external-acquisition negatives | Clean delta PASS and AO12-B review; production replacement needs a new decision |
 | `AO12-U14` Compatibility/Migration | Master Section 12; Cue Section 13 | `AO12-IWU-02/13`; M1 adapter/compatibility | existing suites and six baseline bytes unchanged; rollback proof | AO12-A then AO12-D review |
 
-## 10. Requirement-to-future-file/test matrix
+## 10. Requirement-to-file/test matrix
 
-| Design requirement | Proposed implementation paths | Proposed test paths | Acceptance gate |
+| Design requirement | Implementation paths | Test paths | Acceptance gate |
 |---|---|---|---|
 | `AO12-REQ-001` Versioned spatial projection | `src/application/spatial-office/types.ts`, `validation.ts` | `tests/contract/spatial-office-projection.test.ts` | AO12-A review |
 | `AO12-REQ-002` Shared floor and selected Team detail | `projector.ts`, `team-pod.tsx` | `spatial-office-projector.test.ts`, static E2E | AO12-A/B reviews |
@@ -704,8 +760,8 @@ Future paths below are proposals, not current files or authorization.
 | `AO12-REQ-010` Responsive/a11y/reduced equivalence | spatial components/styles | accessibility/static/motion E2E | WCAG/layout/reduced PASS |
 | `AO12-REQ-011` Performance tiers | cue runtime/components | performance budget suite | Measured classification |
 | `AO12-REQ-012` M1 adapter/additive rollback | `m1-fixed-station-adapter.ts`, `compatibility.ts` | adapter/rollback plus all M1 suites | Existing baseline hashes equal |
-| `AO12-REQ-013` Composed authenticated read model | runtime/server/UI integration paths | runtime composition/composed E2E | AO12-D security review |
-| `AO12-REQ-014` No authority/transport expansion | module/route/config boundary | acceptance/security/source scans | Zero forbidden surface change |
+| `AO12-REQ-013` Composed authenticated read model | `authenticated-projection.ts`, runtime/server projection, runtime client/app/dashboard, compatibility selector | authenticated projection, runtime composition, UI/rollback/security/performance, composed E2E | Implemented locally; AO12-D implementation/security/accessibility review and Advisor acceptance pending |
+| `AO12-REQ-014` No authority/transport expansion | additive projection/UI paths only; auth/gateway/transport/config/package/lockfile unchanged | acceptance/security/redaction/source/bundle scans plus full regression | Zero forbidden surface change locally; independent review pending |
 
 ## 11. Resolved product decisions and conditional routing
 

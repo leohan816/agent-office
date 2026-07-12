@@ -1,6 +1,6 @@
 # Agent Office M1.2 Character and Project Identity System
 
-Status: `AO12_C_IDENTITY_OVERLAYS_AND_CHANNY_PRESENTATION_IMPLEMENTED_TEST_DEMO_ONLY__PENDING_FOCUSED_REVIEW__PRODUCTION_ASSETS_DEFERRED`
+Status: `AO12_D_AUTHENTICATED_IDENTITY_PRESENTATION_IMPLEMENTED__PENDING_INDEPENDENT_REVIEW_AND_ADVISOR_ACCEPTANCE__PRODUCTION_ASSETS_DEFERRED`
 
 Identity catalog candidate: `agent-office.project-identity.v1`
 
@@ -12,7 +12,10 @@ freshness, severity, evidence, or transport. AO12-B now implements original
 code-native inline SVG/CSS/DOM placeholders and an internal license record only.
 AO12-C reuses those exact bytes for bounded, structured-event presentation and
 adds no external image, font, asset, purchase, import, generation, or
-dependency.
+dependency. AO12-D now selects the same identity catalog and placeholder
+geometry from a strictly validated authenticated spatial projection. It adds no
+identity source, likeness, asset byte, dependency, authority, or transport
+meaning.
 
 ## 1. Current evidence and limitations
 
@@ -37,6 +40,14 @@ not change the existing M1 generic asset, production presentation, model/person
 identity, or authority. The six existing M1 baselines still prove the generic
 M1 assets only; six separate M1.2 static baselines prove the new placeholders
 under the configured local browser/font runtime.
+
+AO12-D mounts those existing spatial identity components only after the
+authenticated wrapper resolves exact actor role-instance, project, responsible
+Advisor Team, assignment, evidence freshness, and connection correspondence.
+Unknown, conflicting, stale, offline, or invalid identity/source evidence stays
+textually visible and suppresses task motion or falls back to the unchanged M1
+identity surface; color, proximity, pose, and asset selection never fill a
+missing assignment.
 
 ## 2. Identity-layer precedence
 
@@ -570,10 +581,14 @@ Four AO12-B focused files pass 24 tests and six static configured-runtime
 baselines were directly inspected. AO12-C adds the bounded verified-idle and
 Channy/status-reflector behavior above, with 76 focused/benchmark tests, 15
 browser cases, and seven directly inspected configured-runtime baselines.
-Independent AO12-C review and Advisor acceptance remain required; AO12-D
-production selection is not authorized. No personalized likeness, purchase,
-import, external generation, production-art approval, operational Channy
-behavior, authority, transport, or runtime activation is implied.
+Focused review and Advisor acceptance then authorized AO12-D. Its authenticated
+desktop/tablet/mobile/320px/200%-text/forced-color/reduced-motion cases reuse
+the same asset/catalog bytes and add seven directly inspected composed
+baselines. Existing M1, AO12-B, and AO12-C baseline bytes remain unchanged.
+Independent AO12-D implementation/security/accessibility review and Advisor
+acceptance remain required. No personalized likeness, purchase, import,
+external generation, production-art approval, operational Channy behavior,
+authority, transport, or production/live activation is implied.
 
 ## 13. Authority, security, and privacy non-change
 
