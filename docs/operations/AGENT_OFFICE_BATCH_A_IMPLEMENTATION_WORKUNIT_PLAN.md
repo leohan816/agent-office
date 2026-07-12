@@ -1,6 +1,8 @@
 # Agent Office Batch A — Implementation WorkUnit Plan
 
-Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_CD_1_TO_CD_7_AND_SENTINEL_P2_P4__PENDING_INDEPENDENT_SENTINEL_DELTA_REVIEW`
+Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_CD_1_TO_CD_7_AND_SENTINEL_P2_P4_R2_R4__PENDING_INDEPENDENT_SENTINEL_DELTA_REREVIEW`
+
+★Source paths are a **closed enumeration** (no globs). Any path not named per WorkUnit returns to Advisor for a handoff amendment before editing.
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to the integration design delta and the identity/organization contract. Base `ac8ba75`. Reworked per Advisor validation `15_ADVISOR_CONTROL_DESIGN_VALIDATION.md` (CD-1..CD-7).
 
@@ -35,15 +37,15 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 
 ### BA-WU-02 — Local/static organization registry + identity/binding separation
 - Intent: **new committed** `src/application/organization/` registry; `roleInstanceId`-stable identity vs mutable bindings; provenance + evidence timestamp/status per row; no auto refresh, no time-only freshness; fail-closed `UNASSIGNED`; single derived frame source. (items 6, 7; CD-6, CD-7)
-- Source: new module `src/application/organization/` (reuse `spatial-office/` projector/validation patterns); fixtures under `fixtures/`.
+- Source (exact): `src/application/organization/index.ts`, `types.ts`, `registry.ts`, `evidence.ts`, `projector.ts`, and the committed fixture `fixtures/organization-registry.ts` (reuse `spatial-office/` projector/validation patterns). (A) identity/org registry + allowed-token metadata; (B) accepted-evidence records; projector computes changing facts + full-outer join on `roleInstanceId` (contract §2.5/§3).
 - Tests: identity persists across binding change (incl. `sessionName` replacement, no re-key); `UNASSIGNED` cannot receive work; single-source-of-truth (no second store); provenance + evidence-status on every row; no time-only freshness inference.
 - Gate: contract tests green; no live discovery; no inference path; changes are reviewed-commit only.
 - Rollback: remove module + fixture; no consumer if WU-03+ not merged.
 
 ### BA-WU-03 — Compact actor summaries and separated state vocabularies (P1/P2)
-- Intent: first-layer label card = contract §2.7 compact subset (`role` glyph+ring · `stableDisplayName` · `sessionProcess` · `aiIdentity` · `model` · `effort` · `aiRuntimeState` · `operationalState`, each with `source` tag; text+glyph+ring); separated closed vocabularies with one sentinel each (contract §2.3); `operationalState` = `PixelOperationalState` via the total `WorkUnitState→PixelOperationalState` mapping (contract §2.4). (items 4, 8; CD-4, P1, P2)
-- Source: `src/ui/pixel/living-office-hud.tsx` + overlay label modules (reuse existing overlay).
-- Tests: per-field sentinel coverage (`SESSION_OFFLINE`/`NO_AI_PROCESS`/`AI_PROCESS_DETECTED`/`AI_IDENTITY_UNKNOWN`/`MODEL_UNKNOWN`/`EFFORT_UNKNOWN`/`AI_READY`/`AI_WORKING`/`AI_WAITING`/`AI_ERROR`/`AI_RUNTIME_UNKNOWN`/`UNASSIGNED`); each non-sentinel runtime value requires accepted structured evidence; offline→`AI_RUNTIME_UNKNOWN`; the total 16→14 mapping is exhaustive with default `UNKNOWN`; literal `UNKNOWN` only on free-text fields; non-color-only encoding; label tracking under focus/zoom/route.
+- Intent: first-layer label card = contract §2.7 compact subset (`role` glyph+ring · `stableDisplayName` · `sessionProcess` · `aiIdentity` · `model` · `effort` · `aiRuntimeState` · `operationalState`, each with `source` tag; text+glyph+ring); separated closed vocabularies with one sentinel each (contract §2.3, incl. `SESSION_PROCESS_UNKNOWN`); `operationalState` = `PixelOperationalState` as a **total function of the projector output** `projectRequiredObservable(...)` (contract §2.4), never a raw-state shortcut. (items 4, 8; CD-4, P1, P2, R1, R2)
+- Source (exact): `src/ui/pixel/living-office-hud.tsx`, `src/ui/pixel/actor-sprite.tsx` (label overlay).
+- Tests: per-field sentinel coverage (`SESSION_PROCESS_UNKNOWN`/`SESSION_OFFLINE`/`NO_AI_PROCESS`/`AI_PROCESS_DETECTED`/`AI_IDENTITY_UNKNOWN`/`MODEL_UNKNOWN`/`EFFORT_UNKNOWN`/`AI_READY`/`AI_WORKING`/`AI_WAITING`/`AI_ERROR`/`AI_RUNTIME_UNKNOWN`/`UNASSIGNED`); each §2.3 non-sentinel value requires its exact named accepted fact/cue; missing process evidence → `SESSION_PROCESS_UNKNOWN` (never `SESSION_OFFLINE`); the `ObservableProjectionName`(16+`UNKNOWN_OR_STALE`)→`PixelOperationalState` map is exhaustive with default `UNKNOWN`; a bare `RUNNING`/`HOLD`/`WAITING_ADVISOR` with no compatible accepted activity displays `UNKNOWN`; literal `UNKNOWN` only on free-text fields; non-color-only encoding; label tracking under focus/zoom/route.
 - Gate: ui + snapshot; no name/proximity inference; runtime-state not conflated with work state.
 - Rollback: revert label integration; drawer/summary independent.
 
@@ -56,28 +58,28 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 
 ### BA-WU-05 — Role-specific symbolic surfaces
 - Intent: symbolic facility/work surfaces; no terminal/source/private content. (item 9)
-- Source: `src/ui/pixel/facility-sprites.tsx` + assets (reuse existing).
+- Source (exact): `src/ui/pixel/facility-sprites.tsx` and the exact original code-native placeholder files under `src/ui/pixel/assets/` named by the handoff (no new external asset).
 - Tests: content-safety (no terminal/source/path/credential); no authority/live-state; scene-source boundary.
 - Gate: security/content-safety tests green.
 - Rollback: revert surface integration.
 
 ### BA-WU-06 — Channy and modern-office integration
 - Intent: integrate eight-state Bedlington Channy + modern light palette in the real shell; `authorityRole: none`, non-operational boundary unchanged. (item 10)
-- Source: `src/ui/pixel/channy-sprite.tsx` + palette (reuse existing timeline).
+- Source (exact): `src/ui/pixel/channy-sprite.tsx`, `src/ui/pixel/living-office.css` (reuse existing timeline + palette).
 - Tests: Channy sequence present; non-operational/no-authority assertion; palette applied.
 - Gate: visual + unit green; non-operational boundary proven.
 - Rollback: revert Channy/palette integration.
 
 ### BA-WU-07 — Responsive, accessibility, fallback, regression integration
 - Intent: 200%/contrast/keyboard/reduced-motion/static + mobile navigation; static semantic Office and M1 fixed-station fallback proven in the integrated shell; full regression. (item 11)
-- Source: `src/ui/*` responsive/fallback wiring; `tests/` integration.
+- Source (exact): `src/ui/pixel/living-office-semantic-mirror.tsx`, `src/ui/spatial/compatibility.ts`, `src/ui/runtime/runtime-app.tsx` (responsive/fallback wiring); tests `tests/ui/authenticated-spatial-compatibility.test.ts`, `tests/ui/authenticated-spatial-surface.test.tsx`, `tests/recovery/spatial-presentation-rollback.test.ts`, `tests/integration/runtime-composition.test.ts`.
 - Tests: responsive/a11y/reduced-motion/static parity; degradation chain; full vitest + e2e with accurate totals.
 - Gate: `test:ui`, `test:security`, `test:authority`, `test:composition`, e2e green; historical baselines byte-identical unless authorized delta.
 - Rollback: revert responsive/fallback wiring.
 
 ### BA-WU-08 — Local run tooling, current visual evidence, documentation
 - Intent: one documented start/open/verify/stop procedure rehearsed on loopback; current visual evidence; docs. (items 1, 11, 15)
-- Source: `scripts/` + docs; no config change beyond the lazy Office chunk isolation (no eager Pixi; fixture markers stay rejected).
+- Source (exact): `scripts/runtime-smoke.mjs` (reuse) and, only if named by the handoff, a new `scripts/local-office-rehearsal.mjs`; plus the four Batch A documentation paths. No config change beyond the lazy Office chunk isolation (no eager Pixi; fixture markers stay rejected).
 - Tests/checks: `npm run dev`/`preview`/`start:loopback` + `smoke:runtime`; `npm run check`; direct visual inspection.
 - Gate: local rehearsal succeeds on `127.0.0.1`; `check` green.
 - Rollback: revert tooling/doc additions.
