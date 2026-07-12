@@ -232,10 +232,18 @@ baselines. No real credential or private run was created.
 | [`integration/AGENT_OFFICE_GATEWAY_MULTI_HOST_DESIGN.md`](integration/AGENT_OFFICE_GATEWAY_MULTI_HOST_DESIGN.md) | Advisor gateways, read-only adapters, notifications, multi-project/host trust, clock, offline/reconnect/stale evidence |
 | [`ui/AGENT_OFFICE_UI_ANIMATION_MAPPING.md`](ui/AGENT_OFFICE_UI_ANIMATION_MAPPING.md) | Responsive UI, hierarchy, event-only animation, visual assets, accessibility, reduced motion, stable layout, PWA UX |
 | [`operations/AGENT_OFFICE_OPERATIONS_RECOVERY.md`](operations/AGENT_OFFICE_OPERATIONS_RECOVERY.md) | Durable file store, restart/crash, corruption, stale state, backup/restore, rollback/disable, proof of recovery |
+| [`architecture/AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`](architecture/AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md) | Batch A integration delta: Office-first authenticated shell, lazy renderer composition, one validated frame source, 17-item design resolution + requirement matrix, proposed source scope, acceptance gates, rollback, unknowns, and explicit Batch B–E exclusion (design only; base `ac8ba75`) |
+| [`contracts/AGENT_OFFICE_BATCH_A_IDENTITY_ORGANIZATION_CONTRACT.md`](contracts/AGENT_OFFICE_BATCH_A_IDENTITY_ORGANIZATION_CONTRACT.md) | Batch A identity/organization contract: stable identity vs mutable assignment, ten-field fact + provenance, fail-closed local/static registry + `UNASSIGNED`/`UNKNOWN`, Advisor Team model, symbolic-surface and Channy non-operational boundaries |
+| [`operations/AGENT_OFFICE_BATCH_A_IMPLEMENTATION_WORKUNIT_PLAN.md`](operations/AGENT_OFFICE_BATCH_A_IMPLEMENTATION_WORKUNIT_PLAN.md) | Batch A `BA-WU-01..09` dependency order, per-unit source/tests/gate/rollback, gate set, and exact completion criteria (design only; grants no implementation authority) |
 | `docs/FEATURE_INDEX.md` | Discoverability, critical traceability, batch/review coverage, current truth, gates |
 
 Agent Office is the sole canonical design owner. Foundation-docs may hold mission
 governance, review evidence, results, and pointers but no competing canonical copy.
+
+### 2.0 Batch A modern-office-identity design pointer
+
+Status: `BATCH_A_CONTROL_MASTER_DESIGN_DELTA_PUBLISHED__PENDING_ADVISOR_VALIDATION_AND_FABLE5_DESIGN_REVIEW`.
+The bounded Batch A application-integration design (three documents above) integrates the reviewed living pixel office at base `ac8ba75` into the authenticated private/loopback shell as the primary experience with preserved secondary surfaces. It is design only: no source/test/package/config/media change, no live discovery, no Batch B–E, and no authority/security expansion. Advisor validation, Fable5 `DESIGN_REVIEW`, and a Leo/GPT decision remain pending before Worker implementation.
 
 ### 2.1 M1.2 product-intent and living pixel-office pointer
 
