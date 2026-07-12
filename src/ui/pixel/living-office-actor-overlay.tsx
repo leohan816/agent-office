@@ -8,8 +8,10 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type RefObject,
 } from 'react';
 
+import type { OrganizationFact, OrganizationFrameActor } from '../../application/organization/index.js';
 import { cameraTransform } from './camera.js';
 import { PIXEL_ACTOR_FACT_SOURCE_LABELS } from './contracts.js';
 import type {
@@ -22,6 +24,44 @@ import type {
 const LABEL_WIDTH = 172;
 const LABEL_HEIGHT = 78;
 const VIEWPORT_PADDING = 8;
+
+// Contract §2.7 compact summary subset (after role glyph+ring and stableDisplayName), in order.
+const ORGANIZATION_COMPACT_FIELDS = [
+  ['sessionProcess', 'Process'],
+  ['aiIdentity', 'AI identity'],
+  ['model', 'Model'],
+  ['effort', 'Effort'],
+  ['aiRuntimeState', 'Runtime'],
+  ['operationalState', 'Work'],
+] as const;
+
+// Contract §2.7 complete ordered detail set (roleInstanceId is rendered first, then these 16).
+const ORGANIZATION_DETAIL_FIELDS = [
+  ['role', 'Role'],
+  ['project', 'Project'],
+  ['stableDisplayName', 'Display name'],
+  ['advisorTeam', 'Advisor Team'],
+  ['reportsToAdvisor', 'Reports-to Advisor'],
+  ['assignedBy', 'Assigned by'],
+  ['returnsResultTo', 'Returns result to'],
+  ['sessionName', 'Session name'],
+  ['sessionProcess', 'Session process'],
+  ['aiIdentity', 'AI identity'],
+  ['model', 'Model'],
+  ['effort', 'Effort'],
+  ['aiRuntimeState', 'AI runtime state'],
+  ['operationalState', 'Operational state'],
+  ['mission', 'Mission'],
+  ['workUnit', 'WorkUnit'],
+] as const;
+
+type OrganizationFactKey =
+  | (typeof ORGANIZATION_COMPACT_FIELDS)[number][0]
+  | (typeof ORGANIZATION_DETAIL_FIELDS)[number][0];
+
+function organizationFact(facts: OrganizationFrameActor, key: OrganizationFactKey): OrganizationFact {
+  return facts[key];
+}
 
 export interface PixelActorLabelPlacement {
   readonly roleInstanceId: string;
@@ -122,7 +162,7 @@ export const LivingOfficeActorOverlay = forwardRef<
               aria-label={actorLabelAccessibleName(actor)}
               className="living-office-actor-label"
               data-actor-label={actor.roleInstanceId}
-              data-actor-state={actor.operationalState}
+              data-actor-state={labelRingState(actor)}
               data-anchor-x={placement?.anchorX}
               data-anchor-y={placement?.anchorY}
               hidden={placement?.inViewport === false}
@@ -138,19 +178,23 @@ export const LivingOfficeActorOverlay = forwardRef<
               <span aria-hidden="true" className="living-office-actor-label__glyph">
                 {roleGlyph(actor)}
               </span>
-              <span aria-hidden="true" className="living-office-actor-label__ring" data-state={actor.operationalState} />
-              <span className="living-office-actor-label__facts">
-                <strong>{actor.facts.role}</strong>
-                <span>{actor.facts.model}</span>
-                <span>{actor.facts.sessionName}</span>
-                <span>{actor.facts.state}</span>
-                <small>{actorLabelFactSource(actor.factSources.state)}</small>
-              </span>
+              <span aria-hidden="true" className="living-office-actor-label__ring" data-state={labelRingState(actor)} />
+              {actor.organizationFacts === undefined ? (
+                <span className="living-office-actor-label__facts">
+                  <strong>{actor.facts.role}</strong>
+                  <span>{actor.facts.model}</span>
+                  <span>{actor.facts.sessionName}</span>
+                  <span>{actor.facts.state}</span>
+                  <small>{actorLabelFactSource(actor.factSources.state)}</small>
+                </span>
+              ) : (
+                <OrganizationCompactSummary facts={actor.organizationFacts} />
+              )}
             </button>
           );
         })}
       </div>
-      {selectedActor === null ? null : (
+      {selectedActor === null ? null : selectedActor.organizationFacts === undefined ? (
         <aside
           aria-labelledby="living-office-actor-detail-heading"
           aria-modal="true"
@@ -183,10 +227,99 @@ export const LivingOfficeActorOverlay = forwardRef<
             assignment, delivery, evidence, review, decision, approval, or completion meaning.
           </p>
         </aside>
+      ) : (
+        <OrganizationActorDetail
+          closeRef={closeRef}
+          facts={selectedActor.organizationFacts}
+          onClose={close}
+          onKeyDown={onDrawerKeyDown}
+        />
       )}
     </>
   );
 });
+
+function OrganizationCompactSummary({ facts }: { readonly facts: OrganizationFrameActor }) {
+  return (
+    <span className="living-office-actor-label__facts" data-actor-summary={facts.roleInstanceId}>
+      <strong data-actor-summary-field="role">{facts.role.value}</strong>
+      <span data-actor-summary-field="stableDisplayName">{facts.stableDisplayName.value}</span>
+      {ORGANIZATION_COMPACT_FIELDS.map(([key, label]) => {
+        const fact = organizationFact(facts, key);
+        return (
+          <span data-actor-summary-field={key} data-actor-fact-source={fact.source} key={key}>
+            <span className="living-office-actor-label__field">{label}: {fact.value}</span>
+            <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[fact.source]}</small>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function OrganizationActorDetail({
+  facts,
+  closeRef,
+  onClose,
+  onKeyDown,
+}: {
+  readonly facts: OrganizationFrameActor;
+  readonly closeRef: RefObject<HTMLButtonElement | null>;
+  readonly onClose: () => void;
+  readonly onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
+}) {
+  return (
+    <aside
+      aria-labelledby="living-office-actor-detail-heading"
+      aria-modal="true"
+      className="living-office-actor-detail"
+      data-actor-detail={facts.roleInstanceId}
+      data-actor-can-receive-work={facts.canReceiveWork}
+      onKeyDown={onKeyDown}
+      role="dialog"
+    >
+      <div className="living-office-actor-detail__bar">
+        <div>
+          <p>Committed organization evidence — every field carries source and status</p>
+          <h2 id="living-office-actor-detail-heading">{facts.stableDisplayName.value}</h2>
+        </div>
+        <button onClick={onClose} ref={closeRef} type="button">Close actor detail</button>
+      </div>
+      <dl>
+        <div data-actor-fact="Role instance" data-actor-fact-source={facts.role.source} data-actor-fact-status="VERIFIED">
+          <dt>Role instance</dt>
+          <dd>
+            {facts.roleInstanceId}
+            <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[facts.role.source]}</small>
+            <small data-actor-fact-status-note="VERIFIED">VERIFIED</small>
+          </dd>
+        </div>
+        {ORGANIZATION_DETAIL_FIELDS.map(([key, label]) => {
+          const fact = organizationFact(facts, key);
+          return <OrganizationFactRow fact={fact} key={key} label={label} />;
+        })}
+      </dl>
+      <p className="living-office-actor-detail__boundary">
+        Committed local/static organization evidence only. Pixel position and proximity create no
+        authority, assignment, delivery, evidence, review, decision, approval, or completion meaning.
+        {facts.canReceiveWork ? '' : ' This actor is UNASSIGNED and cannot receive work.'}
+      </p>
+    </aside>
+  );
+}
+
+function OrganizationFactRow({ label, fact }: { readonly label: string; readonly fact: OrganizationFact }) {
+  return (
+    <div data-actor-fact={label} data-actor-fact-source={fact.source} data-actor-fact-status={fact.status}>
+      <dt>{label}</dt>
+      <dd>
+        {fact.value}
+        <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[fact.source]}</small>
+        <small data-actor-fact-status-note={fact.status}>{fact.status}</small>
+      </dd>
+    </div>
+  );
+}
 
 export function layoutPixelActorLabels(
   frame: PixelWorldFrameV1,
@@ -309,16 +442,31 @@ function rectanglesOverlap(left: Rect, right: Rect): boolean {
     && left.y + left.height > right.y;
 }
 
+function labelRingState(actor: PixelActorFrame): string {
+  return actor.organizationFacts?.operationalState.value ?? actor.operationalState;
+}
+
 function actorLabelAccessibleName(actor: PixelActorFrame): string {
+  const organizationFacts = actor.organizationFacts;
+  if (organizationFacts !== undefined) {
+    return `${organizationFacts.stableDisplayName.value}. `
+      + `Role ${organizationFacts.role.value}. `
+      + `Session process ${organizationFacts.sessionProcess.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.sessionProcess.source]}. `
+      + `AI identity ${organizationFacts.aiIdentity.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.aiIdentity.source]}. `
+      + `Model ${organizationFacts.model.value}. Effort ${organizationFacts.effort.value}. `
+      + `AI runtime ${organizationFacts.aiRuntimeState.value}. Operational ${organizationFacts.operationalState.value}. `
+      + 'Open actor detail.';
+  }
   return `${actor.displayName}. Role ${actor.facts.role}. Model ${actor.facts.model}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.model]}. Session ${actor.facts.sessionName}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.sessionName]}. State ${actor.facts.state}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.state]}. Open actor detail.`;
 }
 
 function roleGlyph(actor: PixelActorFrame): string {
-  if (actor.facts.role.includes('Advisor')) return 'A';
-  if (actor.facts.role.includes('Reviewer')) return 'R';
-  if (actor.facts.role === 'Control') return 'C';
-  if (actor.facts.role === 'Designer') return 'D';
-  if (actor.facts.role === 'Worker') return 'W';
+  const role = actor.organizationFacts?.role.value ?? actor.facts.role;
+  if (role.includes('Advisor') || role === 'ADVISOR') return 'A';
+  if (role.includes('Reviewer') || role === 'REVIEWER') return 'R';
+  if (role === 'Control' || role === 'CONTROL') return 'C';
+  if (role === 'Designer' || role === 'DESIGNER') return 'D';
+  if (role === 'Worker' || role === 'WORKER') return 'W';
   return '?';
 }
 

@@ -1,3 +1,5 @@
+import type { OrganizationFrameActor } from '../../application/organization/index.js';
+
 export const PIXEL_WORLD_FRAME_SCHEMA_VERSION = 'agent-office.pixel-world-frame.v1' as const;
 export const PIXEL_ATLAS_SCHEMA_VERSION = 'agent-office.pixel-atlas.v1' as const;
 export const PIXEL_PROTOTYPE_FIXTURE_ID = 'agent-office.living-pixel-prototype.synthetic.v1' as const;
@@ -138,6 +140,11 @@ export interface PixelActorInput {
   readonly assignmentVerified: boolean;
   readonly presentationPodId: string;
   readonly facts: PixelActorFactsInput;
+  /**
+   * Batch A additive: the joined organization fact envelopes (contract §2.5/§2.7) for the
+   * authenticated Office surface. Absent on the synthetic prototype path (legacy labels only).
+   */
+  readonly organizationFacts?: OrganizationFrameActor;
 }
 
 export interface PixelActorFactInput {
@@ -260,6 +267,8 @@ export interface PixelActorFrame extends PixelPoint {
   readonly visible: boolean;
   readonly facts: PixelActorFacts;
   readonly factSources: PixelActorFactSources;
+  /** Batch A additive: joined organization fact envelopes for the authenticated Office surface. */
+  readonly organizationFacts?: OrganizationFrameActor;
 }
 
 export interface ChannyFrame extends PixelPoint {

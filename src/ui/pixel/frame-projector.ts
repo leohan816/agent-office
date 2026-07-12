@@ -279,6 +279,7 @@ function projectActorFrame(
     visible: actor.assignmentVerified,
     facts: factSet.facts,
     factSources: factSet.sources,
+    ...(actor.organizationFacts === undefined ? {} : { organizationFacts: actor.organizationFacts }),
   };
 }
 
