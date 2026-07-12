@@ -1,6 +1,6 @@
 # Agent Office Batch A — Identity and Organization Contract
 
-Status: `CONTROL_MASTER_DESIGN_CONTRACT__REWORKED_CD_4_5_6_7_SENTINEL_P1_P2_P3_R1_R2_R3_AND_S1_S3__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW`
+Status: `CONTROL_MASTER_DESIGN_CONTRACT__REWORKED_THROUGH_S1_S3_AND_ADVISOR_T1__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW` (T1: `AcceptedEvidenceRecord` schemaVersion/evidenceId/evidenceRef/dedup/ordering added)
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to `AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`. Independent reviewer: the authorized **independent Sentinel** (`foundation-reviewer-sol`, currently GPT-5.6 SOL xhigh); Fable5 is a possible secondary/fallback runtime only.
 
@@ -47,14 +47,17 @@ These facts are **absent from the runtime projection** (`RuntimeActorObservation
 | `effort` | `EFFORT_UNKNOWN` \| a value in `allowedEfforts` | `EFFORT_UNKNOWN` | `effort_attestation` whose `value ∈ allowedEfforts` (mission-proven); not a work state |
 | `aiRuntimeState` | `AI_RUNTIME_UNKNOWN` \| `AI_READY` \| `AI_WORKING` \| `AI_WAITING` \| `AI_ERROR` | `AI_RUNTIME_UNKNOWN` | computed by the §2.3.2 total arbitration from the runtime work/wait/error signal + `ai_ready`/`ai_error` records |
 
-#### 2.3.1 Accepted-evidence input record (exact schema; the only shape (B) may hold)
-A committed `AcceptedEvidenceRecord` (one exact type, modeled on the existing `CurrentActivity` discipline in `src/domain/activity/index.ts:43-49`):
+#### 2.3.1 Accepted-evidence input record (exact schema, identity, dedup, ordering; the only shape (B) may hold) — T1
+A committed `AcceptedEvidenceRecord` (one exact type, `schemaVersion = 'agent-office.batch-a.accepted-evidence.v1'`, modeled on the existing `CurrentActivity` discipline in `src/domain/activity/index.ts:43-49`):
 ```ts
 type AcceptedEvidenceKind =
   | 'process_offline' | 'process_absent' | 'process_detected'
   | 'ai_identity_attestation' | 'model_attestation' | 'effort_attestation'
   | 'ai_ready' | 'ai_error';
 interface AcceptedEvidenceRecord {
+  readonly schemaVersion: 'agent-office.batch-a.accepted-evidence.v1';
+  readonly evidenceId: string;              // immutable stable identity; exact format: UUIDv7
+  readonly evidenceRef: string;             // immutable artifact reference proving acceptance; exact format: `sha256:<64 lowercase hex>`
   readonly kind: AcceptedEvidenceKind;
   readonly roleInstanceId: string;          // join key
   readonly missionId?: string;              // correlation only; never the source of mission/workUnit display
@@ -62,12 +65,16 @@ interface AcceptedEvidenceRecord {
   readonly value?: string;                  // required for identity/model/effort attestations; validated against the (A) allowed-token set
   readonly provenance: PixelActorFactSource; // UPPER_SNAKE
   readonly acceptanceStatus: 'ACCEPTED' | 'REJECTED';
-  readonly sourceEventIds: readonly string[]; // non-empty; UUIDv7
-  readonly effectiveFrom: string;           // ISO-8601
-  readonly optionalExpiresAt?: string;      // if <= evaluatedAt or <= effectiveFrom → invalid/expired
+  readonly sourceEventIds: readonly string[]; // non-empty; each UUIDv7; correlation evidence, not identity
+  readonly observedAt: string;              // ISO-8601; when observed
+  readonly effectiveFrom: string;           // ISO-8601; when the fact takes effect
+  readonly optionalExpiresAt?: string;      // ISO-8601
 }
 ```
-Acceptance/validation rule (fail-closed): a record contributes only if `acceptanceStatus === 'ACCEPTED'`, `provenance !== 'UNVERIFIED'`, `sourceEventIds.length >= 1`, `effectiveFrom` is valid, it is not expired at `evaluatedAt`, and (for attestations) `value` is in the corresponding (A) allowed-token set. Any other record is dropped and its field falls to the field sentinel. Records are never inferred from names/positions/timestamps/proximity/prose.
+- **Validation (fail-closed)**: a record is *valid* only if `schemaVersion` matches, `evidenceId` is a well-formed UUIDv7, `evidenceRef` matches `sha256:<64 hex>`, `acceptanceStatus === 'ACCEPTED'`, `provenance !== 'UNVERIFIED'`, `sourceEventIds.length >= 1` (all UUIDv7), `observedAt`/`effectiveFrom` are valid ISO-8601, `optionalExpiresAt` (when present) is `> effectiveFrom`, and it is **not expired** at `evaluatedAt` (`optionalExpiresAt` absent or `> evaluatedAt`); for attestations `value` must be in the corresponding (A) allowed-token set. Any other record is dropped and its field falls to the field sentinel. Recency alone is never proof (no time-only freshness inference); an expired record does not contribute even if newest.
+- **Identity, equality, idempotency, dedup**: two records are *the same record* iff their `evidenceId` is equal; duplicates by `evidenceId` collapse to one (idempotent). Distinct `evidenceId`s are distinct records even if all other fields match.
+- **Deterministic selection among multiple valid same-`kind` records for one `roleInstanceId`**: choose the record with the greatest `effectiveFrom`; on equal `effectiveFrom`, choose the greatest `evidenceId` (lexicographic) as the deterministic tie-break — **unless** the tied records carry **conflicting `value`s** (for attestations) or contradictory kinds (e.g. `process_detected` vs `process_absent`), in which case the field yields its **fail-closed sentinel** + a reported diagnostic (never a silent pick).
+- Records are never inferred from names/positions/timestamps/proximity/prose. The §2.3.2 total arbitration then runs over the per-kind selected records.
 
 #### 2.3.2 `aiRuntimeState` total arbitration (deterministic; every combination decided)
 Let `P = sessionProcess`; let `W`/`WA`/`E` be true iff the runtime projector output resolves to an active-work observable / a `WAITING_DEPENDENCY`|`WAITING_LEO` observable / `FAILED` (or a valid `ai_error` record); let `R` be true iff a valid `ai_ready` record is current.

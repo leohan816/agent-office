@@ -1,6 +1,6 @@
 # Agent Office Batch A — Implementation WorkUnit Plan
 
-Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_CD_1_TO_CD_7_SENTINEL_P2_P4_R2_R4_AND_S4__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW`
+Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_THROUGH_S4_AND_ADVISOR_T2__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW` (T2: literal baseline dir + `scripts/local-office-rehearsal.mjs` exact, no deferral)
 
 ★Source paths are a **closed enumeration** (no globs). Any path not named per WorkUnit returns to Advisor for a handoff amendment before editing.
 
