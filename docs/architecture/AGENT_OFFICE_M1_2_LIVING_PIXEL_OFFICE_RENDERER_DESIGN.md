@@ -1,6 +1,9 @@
 # Agent Office M1.2 Living Pixel-Office Renderer Design
 
-Status: `DESIGNED_LIVING_PIXEL_OFFICE_PRIMARY_RENDERER_CANDIDATE__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__NO_PROTOTYPE_OR_RUNTIME_IMPLEMENTATION_AUTHORIZED`
+Original renderer-design status: `DESIGNED_LIVING_PIXEL_OFFICE_PRIMARY_RENDERER_CANDIDATE__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__NO_PROTOTYPE_OR_RUNTIME_IMPLEMENTATION_AUTHORIZED`
+
+Current compatibility-delta status:
+`CANDIDATE_PROTOTYPE_ONLY_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__IMPLEMENTATION_PAUSED_NOT_AUTHORIZED__FULL_INTEGRATION_DEFERRED_WITH_GATE`
 
 Decision date: `2026-07-12`
 
@@ -9,6 +12,9 @@ Design base: `48c8dbd9f2c5ecea68c28e85137d75db595ef5f9`
 Design WorkUnits: `AO12-PWU-01..05`
 
 Review gate: `AO12-PWU-06`
+
+Public-export compatibility-delta base:
+`9611d0da1479ca5e7a9677641fe767a6b39b4a38`
 
 This document supersedes the DOM/SVG/CSS dashboard as the intended primary
 M1.2 product experience. It does not remove or reinterpret the reviewed M1.2
@@ -159,6 +165,31 @@ The existing DOM surface remains valuable and binding for:
   context-loss presentation; and
 - the unchanged M1 fixed-station fallback.
 
+### 4.4 Prototype-only public-export compatibility bridge
+
+The prepared synthetic prototype exposed a declaration-graph incompatibility
+between the exact pinned Pixi packages and the repository's preserved
+TypeScript 6 strict configuration. Leo/GPT selected a narrow public-export
+compatibility bridge, not a compiler downgrade, deep-import workaround, vendor
+type override, package change, or renderer replacement.
+
+The binding delta is
+[`AGENT_OFFICE_M1_2_PIXI_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE.md`](AGENT_OFFICE_M1_2_PIXI_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE.md).
+It requires one JavaScript runtime module that imports only the public
+`@pixi/react`, `pixi.js`, and `react` package roots, plus one adjacent local
+declaration contract that exposes only the prepared prototype's exact call
+surface. Prototype TS/TSX imports the local bridge only. Deep paths, relative
+`node_modules` paths, diagnostic suppressions, broad types, ambient wildcard
+modules, global overrides, and silent compiler/strictness/package changes are
+forbidden.
+
+This compatibility delta is candidate design only. Its implementation remains
+paused until a clean Fable5 Level-3 `PASS` for the exact delta and a new exact
+Advisor handoff. It is prototype-only and cannot enter authenticated or
+production composition. Full integration remains `DEFERRED_WITH_GATE` and
+requires fresh compatibility, security, accessibility, lifecycle, rollback,
+canonical-design, Leo/GPT, and Advisor gates.
+
 ## 5. Selected renderer topology
 
 ```text
@@ -176,7 +207,10 @@ AuthenticatedSpatialPresentation / explicit synthetic prototype fixture
   -> LivingOfficeViewportBoundary (React)
        -> RendererCapabilitySelector
        -> lazy PixelWorldChunk
-            -> @pixi/react Application
+            -> prototype-only PixiPublicExportCompatibilityBridge
+                 -> public @pixi/react / pixi.js / react roots
+                 -> adjacent exact local declaration contract
+            -> bridged @pixi/react Application
             -> PixelWorldScene
             -> one private FixedStepWorldClock
        -> LivingOfficeHud (DOM, always present)
@@ -541,6 +575,13 @@ but three independently testable acceptance rows.
 
 The later prototype must prove:
 
+- all executable Pixi imports cross the exact local public-export bridge and
+  that bridge imports only public package roots;
+- no deep/package-internal/relative-`node_modules` import, `@ts-expect-error`,
+  `@ts-ignore`, wildcard module, global override, broad `any`, or vendor type
+  graph exists in the prototype boundary;
+- exact `@pixi/react@8.0.5` and `pixi.js@8.19.0` build/runtime identity while
+  TypeScript remains `6.0.3` with global `skipLibCheck: false`;
 - the world is a continuous office, not DOM cards rendered into a canvas;
 - the exact `@pixi/react` lifecycle, private ticker, resize, StrictMode cleanup,
   WebGL/Canvas capability, context-loss, and dynamic-import fallbacks;
@@ -558,9 +599,14 @@ Only a clean Fable5 Level-3 design `PASS` may authorize the bounded prototype
 `AO12-PWU-07..10`. `PASS_WITH_RISK`, `NEEDS_PATCH`, or `FAIL` does not. Even a
 clean prototype review cannot authorize full integration: `AO12-PWU-12` remains
 blocked until the explicit Leo/GPT `AO12-PWU-11` visual-direction decision.
+For the compatibility correction specifically, the earlier renderer-design
+review is not implementation authority: the exact public-export bridge delta
+also requires its own clean Level-3 `PASS` and a later exact Advisor handoff.
 
 ## 16. Companion canonical documents
 
+- Prototype-only public-export compatibility contract:
+  [`AGENT_OFFICE_M1_2_PIXI_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE.md`](AGENT_OFFICE_M1_2_PIXI_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE.md).
 - Sprite, atlas, actor, Channy, and animation contract:
   [`../ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md`](../ui/AGENT_OFFICE_M1_2_PIXEL_WORLD_SPRITE_ANIMATION_SYSTEM.md).
 - Hard-gated prototype and integration plan:

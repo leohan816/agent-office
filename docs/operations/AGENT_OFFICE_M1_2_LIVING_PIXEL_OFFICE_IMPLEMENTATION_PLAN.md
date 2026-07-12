@@ -1,8 +1,14 @@
 # Agent Office M1.2 Living Pixel-Office Implementation Plan
 
-Status: `DESIGNED_TWO_STAGE_LIVING_PIXEL_OFFICE_PLAN__PROTOTYPE_CONDITIONAL_ON_CLEAN_FABLE5_PASS__FULL_INTEGRATION_BLOCKED_ON_LEO_GPT_VISUAL_APPROVAL`
+Original plan status: `DESIGNED_TWO_STAGE_LIVING_PIXEL_OFFICE_PLAN__PROTOTYPE_CONDITIONAL_ON_CLEAN_FABLE5_PASS__FULL_INTEGRATION_BLOCKED_ON_LEO_GPT_VISUAL_APPROVAL`
+
+Current compatibility-delta status:
+`CANDIDATE_PROTOTYPE_ONLY_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE__PENDING_CLEAN_FABLE5_LEVEL3_DESIGN_PASS__IMPLEMENTATION_PAUSED_NOT_AUTHORIZED__FULL_INTEGRATION_DEFERRED_WITH_GATE`
 
 Plan base: `48c8dbd9f2c5ecea68c28e85137d75db595ef5f9`
+
+Public-export compatibility-delta base:
+`9611d0da1479ca5e7a9677641fe767a6b39b4a38`
 
 Governing patch manifest:
 `agent-office.m1.2.living-pixel-office-patch-manifest.v1`, version `2`
@@ -36,6 +42,21 @@ as production selection or Stage 2 authority. `AO12-PWU-12` remains `BLOCKED`
 until Leo/GPT records explicit prototype visual-direction approval in
 `AO12-PWU-11` and Advisor issues a new exact implementation handoff.
 
+The prepared prototype later reached a public Pixi declaration-compatibility
+blocker. The supplemental hard gate is:
+
+```text
+prepared isolated synthetic prototype (uncommitted and not publication-ready)
+  -> public-export compatibility bridge canonical design delta
+  -> clean Fable5 Level-3 PASS for that exact delta
+  -> new exact Advisor implementation handoff
+  -> bounded bridge/import/test correction only
+  -> complete prototype verification and later review gates resume
+```
+
+The earlier renderer-design `PASS`, prototype preparation, or this plan does not
+skip either new gate. No compatibility implementation is currently authorized.
+
 ## 2. WorkUnit map
 
 | WorkUnit | Actor | Exact outcome | Entry gate | Exit gate |
@@ -54,9 +75,9 @@ until Leo/GPT records explicit prototype visual-direction approval in
 | `AO12-PWU-12` | Agent Office Worker | Authenticated lazy pixel renderer, production selector, PWA/bundle/accessibility/fallback/rollback proof | Explicit PWU-11 approval plus new exact handoff | Implementation result only; no self-review or final approval |
 | `AO12-PWU-13` | Fable5 Reviewer and Advisor | Independent implementation/security/accessibility review, Advisor audit, final Founder package | PWU-12 exact result | Leo/GPT retains final approval and next-mission authority |
 
-## 3. Stage 0 - current documentation-only pass
+## 3. Stage 0 - original documentation-only pass
 
-The current authorized file set is exactly:
+The original renderer-design pass authorized exactly:
 
 ```text
 docs/architecture/AGENT_OFFICE_M1_2_LIVING_PIXEL_OFFICE_RENDERER_DESIGN.md
@@ -66,9 +87,24 @@ docs/architecture/AGENT_OFFICE_M1_2_SPATIAL_OFFICE_MASTER_DESIGN.md
 docs/FEATURE_INDEX.md
 ```
 
-Current checks are documentation and Git-boundary checks only. This pass must
-not install packages, update a lockfile, create an atlas, start a server, update
-a snapshot, generate media, or touch source/test/configuration/runtime files.
+Those checks were documentation and Git-boundary checks only. That pass did not
+install packages, update a lockfile, create an atlas, start a server, update a
+snapshot, generate media, or touch source/test/configuration/runtime files.
+
+### 3.1 Current public-export compatibility design delta
+
+The current design-only correction is governed by
+[`../architecture/AGENT_OFFICE_M1_2_PIXI_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE.md`](../architecture/AGENT_OFFICE_M1_2_PIXI_PUBLIC_EXPORT_COMPATIBILITY_BRIDGE.md).
+Its exact Agent Office mutation set is limited to that new document, this plan,
+and the companion renderer design. The prepared source, tests, package,
+lockfile, media, configuration, baselines, `docs/FEATURE_INDEX.md`, and ignore
+changes remain preserved, uncommitted prototype work. This delta grants no
+implementation or staging authority for them.
+
+Only Markdown/link/path/Git-scope checks apply to the current design delta. It
+must not install a package, run or modify the prototype, update snapshots,
+start a server/browser, regenerate media, or reinterpret prepared evidence as
+an accepted final implementation.
 
 ## 4. Stage 1 - bounded prototype `AO12-PWU-07..10`
 
@@ -116,6 +152,21 @@ physics library, camera library, state manager, font, asset generator, remote
 loader, video package, or second animation dependency. Any peer-dependency,
 license, audit, type, or build failure stops for a design/implementation
 classification; versions are not changed opportunistically.
+
+#### 4.2.1 Public-export compatibility gate
+
+The exact pinned packages remain TypeScript `6.0.3`, `@pixi/react@8.0.5`,
+`pixi.js@8.19.0`, React/React DOM `19.2.7`, and global
+`skipLibCheck: false`. The selected prototype-only correction is one JavaScript
+runtime bridge importing public package roots plus one adjacent exact local
+declaration contract. Prototype TypeScript imports that local bridge only.
+
+The bridge design, bounded values/calls, fail-closed behavior, regressions, and
+promotion gate are binding in the compatibility document. No deep path,
+relative `node_modules` path, suppression, broad type, wildcard/ambient module,
+global override, dependency/compiler/strictness change, or production/auth
+promotion is an alternate implementation. The correction remains paused until
+its clean Fable5 Level-3 design `PASS` and a new exact Advisor handoff.
 
 ### 4.3 Proposed prototype file surfaces
 
@@ -179,6 +230,23 @@ src/ui/pixel/living-office.css
 The Pixi catalogue is explicitly extended only with the classes needed by the
 approved scene. DOM components receive the same immutable frame model and never
 read pixels or run a second source projector.
+
+Before the prepared renderer can be publication-ready, a later exact bridge
+handoff must add only these new compatibility files:
+
+```text
+src/ui/pixel/pixi-public-export-bridge.js
+src/ui/pixel/pixi-public-export-bridge.d.ts
+tests/ui/pixi-public-export-bridge.test.ts
+```
+
+It must clean the imports/suppressions only in
+`facility-sprites.tsx`, `pixel-world-scene.tsx`,
+`renderer-boundary.tsx`, and `world-clock.tsx`. The only newly proposed legacy
+path is `tests/acceptance/batch-gates.test.ts`, whose dependency expectation may
+change only from the exact original three runtime dependencies to the exact
+approved five. This proposed future allowlist is not current implementation
+authority.
 
 **New original code-native atlas sources**
 
@@ -430,6 +498,7 @@ contexts close.
 The exact later handoff may add checks but must not omit:
 
 ```text
+npx vitest run --maxWorkers=1 tests/ui/pixi-public-export-bridge.test.ts
 npm run lint
 npm run typecheck
 npm test
@@ -445,6 +514,15 @@ git diff --check
 
 Additional required assertions:
 
+- only the compatibility bridge imports `@pixi/react` or `pixi.js`, and it uses
+  their public roots only;
+- no prototype source contains a Pixi deep/package-internal/relative
+  `node_modules` import, `@ts-expect-error`, or `@ts-ignore`;
+- the adjacent declaration equals the exact bounded surface, imports no Pixi
+  vendor type, and contains no broad `any`, wildcard module, or global override;
+- installed/locked/runtime identity remains exactly `@pixi/react@8.0.5` and
+  `pixi.js@8.19.0`, TypeScript remains `6.0.3`, and `skipLibCheck` remains
+  `false`;
 - every historical baseline hash equals the design base;
 - only the new living-office baseline directory is added;
 - a fresh production bundle contains no synthetic projection, scenario,
@@ -707,7 +785,11 @@ Stop and return to Advisor if:
   fails;
 - implementation would require a new dependency, asset source, server,
   capability, authority, transport, auth, DB, network, or runtime permission;
-- prototype work is attempted without clean design `PASS`; or
+- prototype work is attempted without clean design `PASS`;
+- the public-export bridge correction is attempted without its own clean
+  Fable5 Level-3 design `PASS` and a new exact Advisor handoff;
+- the bridge would require a deep import, diagnostic suppression, broad/global
+  declaration, compiler/strictness/package change, or unlisted file; or
 - full integration is attempted without explicit Leo/GPT prototype approval and
   a new exact Advisor handoff.
 
@@ -728,9 +810,13 @@ Stop and return to Advisor if:
 | Exact 13-scene matrix | Renderer design Section 14 | Thirteen configured-runtime captures and recording segments |
 | Exact media contract | This plan Section 4.7 | Eight files, hashes/sizes/duration/commands/ignored proof |
 | Prototype/full integration hard gates | This plan Sections 1, 4-6 | PWU-06 clean PASS then PWU-11 explicit approval |
+| Pixi public-export compatibility and prototype-only promotion boundary | Compatibility bridge design; this plan Sections 3.1, 4.2.1, 4.8 | Clean delta PASS, exact later handoff, contract/browser/build/full regressions |
 
 ## 10. Final boundary
 
-This plan grants no implementation by itself. The current outcome is a canonical
-candidate for Fable5 `AO12-PWU-06` review. After publishing the design result and
-pointer, the Worker returns to Advisor and stops.
+This plan grants no implementation by itself. The current outcome is the
+prototype-only public-export compatibility design delta, pending a clean Fable5
+Level-3 `PASS` for that exact delta. The prepared prototype remains uncommitted
+and implementation remains paused. Full authenticated integration remains
+`DEFERRED_WITH_GATE`. After publishing the design result and pointer, the Worker
+returns to Advisor and stops.
