@@ -1,6 +1,6 @@
 # Agent Office Batch A — Implementation WorkUnit Plan
 
-Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_THROUGH_S4_AND_ADVISOR_T2__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW` (T2: literal baseline dir + `scripts/local-office-rehearsal.mjs` exact, no deferral)
+Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_THROUGH_SENTINEL_U3__PENDING_INDEPENDENT_SENTINEL_FOURTH_DELTA_REREVIEW` (U3: WU-08 documentation write scope now the four literal `docs/` paths)
 
 ★Source paths are a **closed enumeration** (no globs). Any path not named per WorkUnit returns to Advisor for a handoff amendment before editing.
 
@@ -79,7 +79,7 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 
 ### BA-WU-08 — Local run tooling, current visual evidence, documentation
 - Intent: one documented start/open/verify/stop procedure rehearsed on loopback; current visual evidence; docs. (items 1, 11, 15)
-- Source (exact): `scripts/runtime-smoke.mjs` (reuse) and one new script at the exact path `scripts/local-office-rehearsal.mjs`; plus the four Batch A documentation paths. No config change beyond the lazy Office chunk isolation (no eager Pixi; fixture markers stay rejected). Any path not on this list returns to Advisor before edit.
+- Source (exact literal paths): `scripts/runtime-smoke.mjs` (reuse), one new script at the exact path `scripts/local-office-rehearsal.mjs`, and only these four documentation write paths: `docs/architecture/AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`, `docs/contracts/AGENT_OFFICE_BATCH_A_IDENTITY_ORGANIZATION_CONTRACT.md`, `docs/operations/AGENT_OFFICE_BATCH_A_IMPLEMENTATION_WORKUNIT_PLAN.md`, `docs/FEATURE_INDEX.md`. No config change beyond the lazy Office chunk isolation (no eager Pixi; fixture markers stay rejected). Any path not on this list returns to Advisor before edit.
 - Tests/checks: `npm run dev`/`preview`/`start:loopback` + `smoke:runtime`; `npm run check`; direct visual inspection.
 - Gate: local rehearsal succeeds on `127.0.0.1`; `check` green.
 - Rollback: revert tooling/doc additions.

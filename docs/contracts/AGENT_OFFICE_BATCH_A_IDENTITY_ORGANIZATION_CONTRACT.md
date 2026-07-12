@@ -1,6 +1,6 @@
 # Agent Office Batch A — Identity and Organization Contract
 
-Status: `CONTROL_MASTER_DESIGN_CONTRACT__REWORKED_THROUGH_S1_S3_AND_ADVISOR_T1__PENDING_INDEPENDENT_SENTINEL_THIRD_DELTA_REREVIEW` (T1: `AcceptedEvidenceRecord` schemaVersion/evidenceId/evidenceRef/dedup/ordering added)
+Status: `CONTROL_MASTER_DESIGN_CONTRACT__REWORKED_THROUGH_SENTINEL_U1_U2__PENDING_INDEPENDENT_SENTINEL_FOURTH_DELTA_REREVIEW` (U1 total cross-kind `sessionProcess` arbitration; U2 `evidenceId` replay-vs-collision; on T1 schema)
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to `AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`. Independent reviewer: the authorized **independent Sentinel** (`foundation-reviewer-sol`, currently GPT-5.6 SOL xhigh); Fable5 is a possible secondary/fallback runtime only.
 
@@ -72,9 +72,15 @@ interface AcceptedEvidenceRecord {
 }
 ```
 - **Validation (fail-closed)**: a record is *valid* only if `schemaVersion` matches, `evidenceId` is a well-formed UUIDv7, `evidenceRef` matches `sha256:<64 hex>`, `acceptanceStatus === 'ACCEPTED'`, `provenance !== 'UNVERIFIED'`, `sourceEventIds.length >= 1` (all UUIDv7), `observedAt`/`effectiveFrom` are valid ISO-8601, `optionalExpiresAt` (when present) is `> effectiveFrom`, and it is **not expired** at `evaluatedAt` (`optionalExpiresAt` absent or `> evaluatedAt`); for attestations `value` must be in the corresponding (A) allowed-token set. Any other record is dropped and its field falls to the field sentinel. Recency alone is never proof (no time-only freshness inference); an expired record does not contribute even if newest.
-- **Identity, equality, idempotency, dedup**: two records are *the same record* iff their `evidenceId` is equal; duplicates by `evidenceId` collapse to one (idempotent). Distinct `evidenceId`s are distinct records even if all other fields match.
-- **Deterministic selection among multiple valid same-`kind` records for one `roleInstanceId`**: choose the record with the greatest `effectiveFrom`; on equal `effectiveFrom`, choose the greatest `evidenceId` (lexicographic) as the deterministic tie-break — **unless** the tied records carry **conflicting `value`s** (for attestations) or contradictory kinds (e.g. `process_detected` vs `process_absent`), in which case the field yields its **fail-closed sentinel** + a reported diagnostic (never a silent pick).
-- Records are never inferred from names/positions/timestamps/proximity/prose. The §2.3.2 total arbitration then runs over the per-kind selected records.
+- **Identity, replay vs collision, dedup (U2; input-order independent)**: group all records by `evidenceId`. If every record sharing an `evidenceId` is **field-identical** (all contract fields equal) it is an **idempotent replay** → collapse to one. If any two records share an `evidenceId` but differ in **any** contract field (`kind`/`evidenceRef`/`roleInstanceId`/`value`/`effectiveFrom`/`observedAt`/`optionalExpiresAt`/`provenance`/`acceptanceStatus`/`sourceEventIds`) it is an **`evidenceId` collision** → **all records bearing that `evidenceId` are dropped** (none contributes) + a reported diagnostic. This is set-based and does not depend on arrival order. Distinct `evidenceId`s are distinct records even if all other fields match.
+- **Deterministic selection among multiple valid same-`kind` records for one `roleInstanceId`**: choose the greatest `effectiveFrom`; on equal `effectiveFrom`, the greatest `evidenceId` (lexicographic) — **unless** the tied records carry **conflicting `value`s** (for attestations), in which case that field yields its **fail-closed sentinel** + a diagnostic (never a silent pick).
+- **`sessionProcess` total cross-kind arbitration (U1; conservative, input-order independent)**: after same-kind selection, consider the set of **present kinds** among `{process_detected, process_absent, process_offline}` (a kind is *present* iff it has a valid selected record).
+  1. **zero** present → `SESSION_PROCESS_UNKNOWN`;
+  2. **exactly one** present → its value (`process_detected`→`AI_PROCESS_DETECTED`, `process_absent`→`NO_AI_PROCESS`, `process_offline`→`SESSION_OFFLINE`);
+  3. **two or more** present (contradictory kinds) → `SESSION_PROCESS_UNKNOWN` + a reported diagnostic (a contradictory observation never asserts a positive process claim; the newest kind is **not** chosen).
+
+  This makes `sessionProcess` total over missing / single-kind / multi-kind-unequal-time / multi-kind-tie / expired / contradictory inputs, and produces the `P` consumed by §2.3.2.
+- Records are never inferred from names/positions/timestamps/proximity/prose. The §2.3.2 total runtime-state arbitration then runs with the arbitrated `P` and the selected `ai_ready`/`ai_error` records.
 
 #### 2.3.2 `aiRuntimeState` total arbitration (deterministic; every combination decided)
 Let `P = sessionProcess`; let `W`/`WA`/`E` be true iff the runtime projector output resolves to an active-work observable / a `WAITING_DEPENDENCY`|`WAITING_LEO` observable / `FAILED` (or a valid `ai_error` record); let `R` be true iff a valid `ai_ready` record is current.
