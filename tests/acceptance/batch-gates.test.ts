@@ -76,7 +76,9 @@ describe('Batch A-D regression and Batch E scope gates', () => {
       scripts: Record<string, string>;
     };
     expect(packageJson.dependencies).toEqual({
+      '@pixi/react': '8.0.5',
       'lucide-react': '1.24.0',
+      'pixi.js': '8.19.0',
       react: '19.2.7',
       'react-dom': '19.2.7',
     });

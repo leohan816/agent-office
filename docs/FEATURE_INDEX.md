@@ -42,9 +42,11 @@ product acceptance. The current DOM/SVG/CSS spatial dashboard is classified as
 `EVIDENCE_BACKED_SPATIAL_DASHBOARD`: it remains the accessibility/static/detail
 surface and M1 fallback evidence, but it is visibly superseded as the intended
 primary product experience. The living pixel-office candidate is now at
-`DESIGNED_LIVING_PIXEL_OFFICE_AO12_PWU_01_THROUGH_05__PENDING_FABLE5_LEVEL3_DESIGN_PASS__PROTOTYPE_NOT_AUTHORIZED`.
-No Pixi package, prototype, atlas, media, runtime integration, production
-selection, or full implementation exists at this design status.
+`IMPLEMENTED_ISOLATED_LIVING_PIXEL_OFFICE_PROTOTYPE_AO12_PWU_07_THROUGH_09__PENDING_FABLE5_AO12_PWU_10__FULL_INTEGRATION_BLOCKED`.
+The exact Pixi packages, original code-native atlas sources, synthetic
+test-demo-only renderer, thirteen visual baselines, and ignored local review
+media now exist. Production selection, authenticated integration, external
+assets, and full implementation remain absent and unauthorized.
 
 ## 1. Current Implemented Scope
 
@@ -235,10 +237,13 @@ governance, review evidence, results, and pointers but no competing canonical co
   navigation, concise HUD, and DOM technical detail.
 - The selected design candidate is lazy React `19.2.7` plus `@pixi/react`
   `8.0.5` and PixiJS `8.19.0`, with WebGL preferred, tested Canvas fallback,
-  and the existing DOM/M1 surfaces always available. The packages are not
-  installed and no prototype/runtime selection is authorized by design.
-- A clean Fable5 Level-3 design `PASS` may authorize only the isolated synthetic
-  `AO12-PWU-07..10` prototype. Full authenticated integration
+  and the existing DOM/M1 surfaces always available. The exact packages are
+  installed only for the isolated explicit test-demo prototype; a fresh
+  production bundle contains zero Pixi or prototype markers.
+- The clean Fable5 Level-3 design `PASS`, Advisor validation, and exact Worker
+  handoff authorized `AO12-PWU-07..09`, which are implemented and locally
+  verified. Independent prototype review `AO12-PWU-10` is still pending. Full
+  authenticated integration
   `AO12-PWU-12..13` stays blocked until explicit Leo/GPT visual-direction
   approval of the exact reviewed prototype in `AO12-PWU-11`.
 
@@ -311,12 +316,28 @@ gzip deltas of 27102 JavaScript plus 4268 CSS bytes pass on the configured
 runtime. This is not independent approval, a portability claim, production/live
 deployment, or an authority/transport expansion.
 
+The living pixel-office prototype is separately isolated behind exact
+`surface=living-pixel-prototype` test-demo selection. Its as-built paths are
+`src/ui/pixel/`, the dedicated Playwright config, focused unit/browser tests,
+thirteen new prototype baselines, and an owner-mode ignored local evidence
+root. The configured Chromium run passes all thirteen visual rows plus WebGL,
+Canvas-to-static fail-closed behavior, context-loss/single-retry lifecycle,
+semantic parity, responsive/accessibility, and teardown checks. Measured p95
+results are `471.1ms` cached renderer startup, `761.6ms` loopback startup under
+4x CPU throttle, `0.1ms` active-frame work, and `36.1ms` camera input; the busy
+scene has zero long tasks over `50ms`, one canvas, three display objects, four
+texture sources, `163` DOM nodes, `136544` retained bytes after twenty focus
+cycles, and zero retained bytes/canvases/prototype roots after twenty complete
+mount/unmount cycles on the configured runtime. These are prototype evidence,
+not cross-runtime determinism, review approval, or production activation.
+
 ## 3. Status and Gate Vocabulary
 
 | Status | Meaning |
 |---|---|
 | `DESIGNED_LIVING_PIXEL_OFFICE_AO12_PWU_01_THROUGH_05__PENDING_FABLE5_LEVEL3_DESIGN_PASS__PROTOTYPE_NOT_AUTHORIZED` | Canonical renderer/world/camera/sprite/HUD/accessibility/fallback/media/implementation design exists only; no Pixi dependency, source, test, asset, prototype, media, or runtime change exists; only clean Fable5 design `PASS` can permit the bounded synthetic prototype |
 | `LIVING_PIXEL_OFFICE_PROTOTYPE_CONDITIONAL_ON_CLEAN_FABLE5_PASS__FULL_INTEGRATION_BLOCKED` | `AO12-PWU-07..10` may begin only from a later exact handoff after clean PWU-06 `PASS`; `AO12-PWU-12` remains blocked until explicit durable Leo/GPT approval of the reviewed visual prototype |
+| `IMPLEMENTED_ISOLATED_LIVING_PIXEL_OFFICE_PROTOTYPE_AO12_PWU_07_THROUGH_09__PENDING_FABLE5_AO12_PWU_10__FULL_INTEGRATION_BLOCKED` | The reviewed synthetic test-demo-only React/Pixi prototype, original code-native atlas contract, deterministic frame/cue/camera model, complete DOM/static fallback, thirteen visual baselines, measured budgets, and ignored local media pass locally; it changes no production entry, authenticated projection, authority, auth, delivery, transport, DB, or network behavior and cannot authorize `AO12-PWU-12` |
 | `DESIGNED_M1_2_NARROW_PRODUCT_INTENT_PATCH__IMPLEMENTATION_NOT_STARTED_NOT_AUTHORIZED_PENDING_CLEAN_DELTA_PASS` | Historical pre-implementation state for the five-document narrow patch; superseded for `AO12-IWU-01..08` only by the clean delta `PASS`, manifest freeze, serial reviews/acceptance, and exact AO12-A/AO12-B handoffs |
 | `IMPLEMENTED_M1_2_AO12_A__PENDING_FOCUSED_FABLE5_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_B_NOT_AUTHORIZED` | Historical pre-acceptance state: `AO12-IWU-01..04` were locally implemented but not yet accepted; superseded by corrected focused `PASS`, Advisor acceptance, and the exact AO12-B handoff |
 | `IMPLEMENTED_M1_2_AO12_B_STATIC_FIXTURE__PENDING_FOCUSED_FABLE5_UI_ACCESSIBILITY_ASSET_REVIEW_AND_ADVISOR_ACCEPTANCE__AO12_C_NOT_AUTHORIZED` | Historical AO12-B pre-acceptance state; superseded by corrected focused `PASS`, Advisor acceptance, and the exact AO12-C handoff |
@@ -529,9 +550,9 @@ tests, evidence, commits, and limitations. `CURRENT_EVIDENCE` changes from
 
 | Capability | Current status | Required gate |
 |---|---|---|
-| Living pixel-office bounded prototype | Design candidate only; Pixi packages absent; no prototype/atlas/media/server exists; required MP4/GIF converter is currently unavailable on PATH | Clean Fable5 PWU-06 Level-3 design `PASS`, Advisor validation, exact PWU-07 handoff, and successful capture/conversion/ignore preflight |
-| Living pixel-office full authenticated integration | Blocked; existing DOM/SVG/CSS dashboard remains current production visual and required fallback | Completed PWU-07..10 evidence plus explicit durable Leo/GPT `AO12-PWU-11` visual-direction approval and a new exact PWU-12 handoff |
-| Living pixel-office external/production artwork | Prohibited; only original code-native atlas sources are proposed for the bounded prototype | Separate Leo/GPT source/replacement decision, ownership/license/hash/security/visual/performance evidence, and both reviews |
+| Living pixel-office bounded prototype | `AO12-PWU-07..09` implemented and verified only as explicit synthetic test-demo evidence; Fable5 `AO12-PWU-10` review is pending; ignored review media is local and not a portable artifact claim | Clean Fable5 prototype review followed by Advisor handling; no Worker self-approval |
+| Living pixel-office full authenticated integration | Blocked; existing DOM/SVG/CSS dashboard remains current production visual and required fallback | Completed PWU-10 review plus explicit durable Leo/GPT `AO12-PWU-11` visual-direction approval and a new exact PWU-12 handoff |
+| Living pixel-office external/production artwork | Prohibited; the bounded prototype contains only original code-native atlas sources with executable ownership/license/hash evidence | Separate Leo/GPT source/replacement decision, ownership/license/hash/security/visual/performance evidence, and both reviews |
 | Real LocalBootstrap credential/proof use | Provider implemented; no real value created or accessed | Fable5 code/security PASS plus explicit Advisor private-run authority and local-only handling |
 | Tailscale/private network | Disabled | Leo/GPT host/user/network approval, threat review, identity/TLS/ACL evidence, Fable5 review |
 | Remote Linux collector | Interface only | Remote-host and key-provisioning mission |

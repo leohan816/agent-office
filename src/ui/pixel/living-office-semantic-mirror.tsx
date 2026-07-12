@@ -1,0 +1,77 @@
+import type { PixelPrototypeProjection, PixelWorldFrameV1 } from './contracts.js';
+
+export interface LivingOfficeSemanticMirrorProps {
+  readonly frame: PixelWorldFrameV1;
+  readonly projection: PixelPrototypeProjection;
+}
+
+export function LivingOfficeSemanticMirror({
+  frame,
+  projection,
+}: LivingOfficeSemanticMirrorProps) {
+  return (
+    <section
+      aria-labelledby="living-office-semantic-heading"
+      className="living-office-semantic"
+      data-frame-key={frame.frameKey}
+      data-semantic-entity-count={frame.semanticEntities.length}
+      id="living-office-semantic"
+    >
+      <div className="living-office-semantic__heading">
+        <div>
+          <p>Accessible operational mirror</p>
+          <h2 id="living-office-semantic-heading">Every visible pixel has complete text meaning</h2>
+        </div>
+        <span className="living-office-semantic__parity">FRAME PARITY / {frame.visibleEntityIds.length} ENTITIES</span>
+      </div>
+      <div className="living-office-semantic__columns">
+        <div>
+          <h3>Advisor Teams and project Pods</h3>
+          <ul className="living-office-semantic__pod-list">
+            {projection.pods.map((pod) => (
+              <li key={pod.podId} data-selected={pod.podId === frame.selectedPodId}>
+                <strong>{pod.projectIdentity.displayName}</strong>
+                <span>{pod.advisorTeamId}</span>
+                <span>{pod.missionShortLabel}</span>
+                <span>{pod.currentActorRoleInstanceId}</span>
+                <span>{pod.podId === frame.selectedPodId ? frame.hud.operationalState : pod.operationalState}</span>
+                <span>{pod.completedWorkUnits}/{pod.totalWorkUnits} / gates {pod.completedGates}/{pod.totalGates}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3>Selected activity and route log</h3>
+          <div aria-live="polite" role="log">
+            <ol className="living-office-semantic__route-log">
+              {frame.route === null ? (
+                <li>No active operational route. Static state remains authoritative.</li>
+              ) : (
+                <li>
+                  <strong>{frame.route.kind}</strong>
+                  <span>{frame.route.roleInstanceId}</span>
+                  <span>{frame.route.staticEquivalent}</span>
+                  <span>Source cue {frame.route.cueId}</span>
+                </li>
+              )}
+            </ol>
+          </div>
+          <p className="living-office-semantic__channy">
+            <strong>Channy</strong>: {frame.channy.animation}; non-actor; authorityRole none;
+            no assignment, evidence, command, notification, or workflow meaning.
+          </p>
+        </div>
+      </div>
+      <ul className="sr-only" data-semantic-entity-set>
+        {frame.semanticEntities.map((entity) => (
+          <li key={entity.entityId} data-entity-id={entity.entityId}>
+            {entity.kind}: {entity.label}; {entity.state}
+          </li>
+        ))}
+      </ul>
+      <p aria-atomic="true" aria-live="polite" className="sr-only">
+        {frame.hud.projectName} selected. {frame.hud.operationalState}. {frame.hud.statusLine}
+      </p>
+    </section>
+  );
+}

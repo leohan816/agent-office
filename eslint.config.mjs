@@ -41,6 +41,10 @@ export default tseslint.config(
     },
   },
   {
+    ...tseslint.configs.disableTypeChecked,
+    files: ['src/ui/pixel/pixi-public-export-bridge.js'],
+  },
+  {
     // These guards validate untyped bytes at runtime even though their public
     // TypeScript contracts carry the narrowed literal types.
     files: [

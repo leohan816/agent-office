@@ -13,9 +13,22 @@ import type { SpatialPresentationTier } from './spatial/actor-zone.js';
 
 export const STATIC_SPATIAL_DEMO_PARAMETER = 'surface=spatial-static' as const;
 export const MOTION_SPATIAL_DEMO_PARAMETER = 'surface=spatial-motion' as const;
+export const LIVING_PIXEL_PROTOTYPE_PARAMETER = 'surface=living-pixel-prototype' as const;
 
 export function mountSyntheticTestDemo(root: Element): void {
   const search = root.ownerDocument.defaultView?.location.search ?? '';
+  if (isLivingPixelPrototypeRequest(search)) {
+    void import('./pixel/prototype-entry.js').then(
+      ({ mountLivingPixelPrototype }) => mountLivingPixelPrototype(root, search),
+      () => {
+        const fallback = root.ownerDocument.createElement('p');
+        fallback.setAttribute('role', 'alert');
+        fallback.textContent = 'Living pixel-office prototype failed to load. The static M1 surface remains available.';
+        root.replaceChildren(fallback);
+      },
+    );
+    return;
+  }
   createRoot(root).render(
     <StrictMode>
       {isMotionSpatialDemoRequest(search) ? (
@@ -50,6 +63,10 @@ export function isStaticSpatialDemoRequest(search: string): boolean {
 
 export function isMotionSpatialDemoRequest(search: string): boolean {
   return new URLSearchParams(search).get('surface') === 'spatial-motion';
+}
+
+export function isLivingPixelPrototypeRequest(search: string): boolean {
+  return new URLSearchParams(search).get('surface') === 'living-pixel-prototype';
 }
 
 function motionTier(search: string): SpatialPresentationTier {

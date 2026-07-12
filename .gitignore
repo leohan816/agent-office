@@ -26,6 +26,7 @@ dist/
 node_modules/
 playwright-report/
 test-results/
+/artifacts/m1-2-visual-prototype/
 *.tsbuildinfo
 
 # Disposable local state roots created by developers or tests
