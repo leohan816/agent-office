@@ -1,6 +1,6 @@
 # Agent Office Batch A — Application Integration Design Delta
 
-Status: `CONTROL_MASTER_DESIGN_DELTA__REWORKED_CD_1_TO_CD_8__PENDING_ADVISOR_VALIDATION_AND_INDEPENDENT_SENTINEL_DESIGN_REVIEW`
+Status: `CONTROL_MASTER_DESIGN_DELTA__REWORKED_CD_1_TO_CD_8_AND_SENTINEL_P1_P4__PENDING_INDEPENDENT_SENTINEL_DELTA_REVIEW`
 
 Mode: `CONTROL_MASTER_DESIGN_MODE` (design coordination only; no runtime implementation, no independent review, no final approval).
 
@@ -52,27 +52,28 @@ authenticated runtime client (src/ui/main.tsx -> src/ui/runtime/runtime-app.tsx,
 
 ## 3. Data contract (see companion `AGENT_OFFICE_BATCH_A_IDENTITY_ORGANIZATION_CONTRACT.md`)
 
-The companion contract is authoritative for fields. Summary of the corrected model (CD-4, CD-5, CD-6):
+The companion contract is authoritative for fields, the exact per-field normalization table (P1), the total operational-state mapping (P2), and the fact envelope / registry mint-join-merge rules (P3). Summary:
 
 - **Stable identity (does not re-key on binding change):** `roleInstanceId` (stable key), plus identity attributes `role`, `project`, `stableDisplayName`.
-- **Current bindings / separately-sourced facts (mutable):** `sessionName`, `advisorTeam`, `reportsToAdvisor`, `assignedBy`, `returnsResultTo`, `mission`, `workUnit`.
-- **Separated AI-runtime facts (CD-4), each with its own closed vocabulary:** session/process availability, AI identity, model, effort, and AI-runtime state — distinct from the operational work-state animation enum (§4).
-- **Actor detail contract (CD-5) is not frozen to the historical ten fields.** It adds `stableDisplayName`, `assignedBy`, `returnsResultTo`, AI-runtime identity, `effort`, and an explicit per-fact evidence **source** discriminator (`verifiedRegistryFact` | `verifiedMissionArtifactFact` | `canonicalFixture` | `syntheticFixture` | `unverified`).
-- **Fail-closed / no inference:** missing/null/malformed/unverified → literal `UNKNOWN`; invalid assignment → `UNASSIGNED`; nothing is inferred from names, positions, timestamps, attached state, proximity, or terminal prose.
+- **Current bindings:** `sessionName`, `advisorTeam`, `reportsToAdvisor`, `assignedBy`, `returnsResultTo`, `mission`, `workUnit`.
+- **Separated AI-runtime facts (CD-4/P1), each a closed vocabulary with exactly one fail-closed sentinel:** `sessionProcess`→`SESSION_OFFLINE`, `aiIdentity`→`AI_IDENTITY_UNKNOWN`, `model`→`MODEL_UNKNOWN`, `effort`→`EFFORT_UNKNOWN`, `aiRuntimeState`→`AI_RUNTIME_UNKNOWN` (with `AI_READY`/`AI_WORKING`/`AI_WAITING`/`AI_ERROR` each requiring accepted structured evidence). These are distinct from the operational work state (§4). Literal `UNKNOWN` is used **only** for free-text identity/binding fields; enum fields never fall back to literal `UNKNOWN`.
+- **Fact envelope (P3):** every field is `{ value, source, status, evidenceTimestamp }` with the **inherited UPPER_SNAKE** source discriminators `VERIFIED_REGISTRY` | `VERIFIED_MISSION_ARTIFACT` | `CANONICAL_FIXTURE` | `SYNTHETIC_FIXTURE` | `UNVERIFIED` (`src/ui/pixel/contracts.ts:6-11`). AI-runtime + identity + organizational bindings are owned by the committed static registry (the runtime projection has none of these — `authenticated-projection.ts:53-61`); `mission`/`workUnit`/`operationalState` are joined from the runtime projection on `roleInstanceId` and never stored in the registry. No time-only freshness inference.
+- **Actor detail contract (CD-5) is not frozen to the historical ten fields;** the exact compact-summary subset and complete drawer order/test matrix are in the contract §2.7.
+- **Fail-closed / no inference:** each field normalizes to exactly its own sentinel; invalid assignment → `UNASSIGNED`; nothing is inferred from names, positions, timestamps, attached state, proximity, or terminal prose.
 
 ## 4. State model (CD-4: separate runtime state from operational work state)
 
-Batch A defines **separate fields and closed vocabularies**; these are not the same enum.
+Batch A defines **separate fields, each a closed vocabulary with exactly one fail-closed sentinel** (contract §2.3/§2.4 is authoritative, incl. the exact per-field normalization table). These are not one enum.
 
-1. **Session / process availability** — `SESSION_OFFLINE` | `NO_AI_PROCESS` | `AI_PROCESS_DETECTED`.
-2. **AI identity** — `AI_IDENTITY_UNKNOWN` | `<verified AI identity>`.
-3. **Model** — `MODEL_UNKNOWN` | `<mission-proven model>`.
-4. **Effort** — `EFFORT_UNKNOWN` | `<mission-proven effort>`.
-5. **AI-runtime state** — `AI_READY` | `AI_WORKING` | `AI_WAITING` | `AI_ERROR`. `AI_WORKING` requires **accepted structured work evidence**; attached state, timestamps, names, positions, proximity, and terminal prose prove none of these.
-6. **Assignment** — `<responsible Advisor Team>` | `UNASSIGNED` (cannot receive work).
-7. **Operational work state** — the existing structured workflow/animation vocabulary (e.g. `WORKING`/`WRITING_RESULT`/`WAITING_DEPENDENCY`/`WAITING_LEO`/`WAITING_ADVISOR`/`BLOCKED`/`HOLD`/`REVIEW_PENDING`/`COMPLETED`/`IDLE`/`UNKNOWN_OR_STALE`), sourced only from accepted structured cues. It is **not** the AI-runtime state and never substitutes for it.
+1. **`sessionProcess`** — `SESSION_OFFLINE` | `NO_AI_PROCESS` | `AI_PROCESS_DETECTED`; sentinel `SESSION_OFFLINE`.
+2. **`aiIdentity`** — `AI_IDENTITY_UNKNOWN` | registry-allowed identity; sentinel `AI_IDENTITY_UNKNOWN`.
+3. **`model`** — `MODEL_UNKNOWN` | mission-proven model; sentinel `MODEL_UNKNOWN`.
+4. **`effort`** — `EFFORT_UNKNOWN` | mission-proven effort; sentinel `EFFORT_UNKNOWN`.
+5. **`aiRuntimeState`** — `AI_RUNTIME_UNKNOWN` | `AI_READY` | `AI_WORKING` | `AI_WAITING` | `AI_ERROR`; sentinel `AI_RUNTIME_UNKNOWN`. Each non-sentinel value requires accepted structured evidence (contract §2.3); offline/no-process forces `AI_RUNTIME_UNKNOWN`; attached state, timestamps, names, positions, proximity, and terminal prose prove none.
+6. **`advisorTeam`** — `FOUNDATION_ADVISOR_TEAM` | `VIBENEWS_ADVISOR_TEAM` | `UNASSIGNED`; sentinel `UNASSIGNED` (cannot receive work).
+7. **`operationalState`** — the exact owned display vocabulary **`PixelOperationalState`** (14 values, `src/ui/pixel/contracts.ts:24-38`): `UNKNOWN`, `IDLE`, `WORKING`, `TESTING`, `ROUTING / DISPATCH`, `REVIEWING`, `RETURNING_RESULT`, `NEEDS_PATCH`, `WAITING_DEPENDENCY`, `WAITING_LEO`, `BLOCKED`, `COMPLETED`, `FAILED`, `CANCELLED`. It is derived by the **total fail-closed mapping** from `WORK_UNIT_STATES` (16, `src/domain/state-machines/work-unit.ts:3-20`) refined by accepted activity cues (`src/domain/activity/index.ts:21-41`) in contract §2.4; default/non-member/stale → `UNKNOWN`. It is **not** the AI-runtime state and never substitutes for it.
 
-Required visible values preserved (CD-4): `NO_AI_PROCESS`, `AI_PROCESS_DETECTED`, `AI_IDENTITY_UNKNOWN`, `MODEL_UNKNOWN`, `EFFORT_UNKNOWN`, `AI_READY`, `AI_WORKING`, `AI_WAITING`, `AI_ERROR`, `SESSION_OFFLINE`, `UNASSIGNED`.
+Required visible values preserved (CD-4/P1), each on exactly one field: `SESSION_OFFLINE`, `NO_AI_PROCESS`, `AI_PROCESS_DETECTED`, `AI_IDENTITY_UNKNOWN`, `MODEL_UNKNOWN`, `EFFORT_UNKNOWN`, `AI_READY`, `AI_WORKING`, `AI_WAITING`, `AI_ERROR`, `UNASSIGNED` (plus the added `AI_RUNTIME_UNKNOWN` sentinel for `aiRuntimeState`).
 
 - **Surface capability state machine** (renderer lifecycle, inherited): `WebGL` → (context loss / unsupported) `Canvas` → (renderer failure / reduced-motion / schema-invalid / stale) `static semantic Office (DOM)` → `M1 fixed-station view`. Every downgrade is deterministic and observable; protected cues cleared on stop/logout/expiry/revocation.
 - **Channy state sequence**: the existing slow eased eight-state Bedlington sequence (`walk/stop/sniff/sit/eat/drink/sleep/play`) with `authorityRole: none`; ambient/non-operational, integrated unchanged.
@@ -146,8 +147,11 @@ Required visible values preserved (CD-4): `NO_AI_PROCESS`, `AI_PROCESS_DETECTED`
 - `src/runtime/projection.ts` — additive `livingOffice` derived-view field (mirrors additive `spatialOffice`; no removal of `sceneRoles`).
 - `src/application/organization/` — **new** committed local/static organization registry module (CD-7).
 - `vite.config.ts` — only lazy Office chunk emission for eager-shell isolation (no eager Pixi).
-- `tests/` — new/updated unit, contract, ui, security, performance, acceptance (bundle-boundary), and e2e tests.
+- **Conditional PWA / static-shell (P4)** — `src/pwa/cache-policy.ts`, `public/sw.js`, `src/server/http/static-shell.ts` **only if** the emitted renderer files require them, limited to same-origin hashed renderer chunks/assets and an atomic cache-version bump; protected API/event/evidence/message/alert content stays never-cache; if Vite embeds atlas metadata in JS and emits only already-allowed hashed extensions, `static-shell.ts` stays unchanged (impl plan §6.2).
+- `tests/` — new/updated unit, contract, ui, security, performance, and **acceptance** tests, using the exact inherited paths (impl plan §6.2): `tests/acceptance/production-spatial-bundle-boundary.test.ts`, `tests/acceptance/production-pixel-prototype-boundary.test.ts`, `tests/security/scene-source-boundary.test.ts`, `tests/performance/pixel-world-budget.test.ts`, `tests/e2e/living-pixel-office.spec.ts`, and the named integration/recovery/ui specs.
 - `scripts/` + docs — local-run rehearsal tooling and evidence (BA-WU-08).
+
+★No broad `src/ui/*` wildcard: the Worker may change only the exact files named here and in impl plan §6.2; any additional file requires an exact Advisor handoff amendment (scope cannot silently widen).
 
 **Forbidden source areas (must not change in Batch A):**
 
@@ -163,6 +167,7 @@ Required visible values preserved (CD-4): `NO_AI_PROCESS`, `AI_PROCESS_DETECTED`
 - **Unit/contract/snapshot/property**: vitest green with accurate totals; new identity/registry/organization + separated-state + shell tests added.
 - **Security/authority**: `test:security`, `test:authority`, `test:composition` green; zero authority expansion; LOOPBACK_PRIVATE preserved; protected-cue clearing on stop/logout/expiry/revocation proven; scene-source boundary (no terminal/source/private content).
 - **Bundle isolation (CD-3)**: acceptance tests prove eager-shell/fallback graph does **not** import/execute Pixi; Pixi confined to a separately emitted lazy Office chunk; prototype fixture markers rejected; no eager renderer startup. (Not a whole-`dist` zero-Pixi assertion.)
+- **Full-integration failure & PWA matrix (P4, inherited from impl plan §6.4/§6.5)** — a generic "pwa green" label is insufficient; the gate must prove: production PWA **first-online load**, **cached reload**, **offline-after-cache**, and **offline-before-pixel-cache DOM fallback**; **both-backend failure**, **lazy chunk/import/init failure**, **atlas/hash failure**, **semantic divergence**, **context loss/restore**, **performance fallback**, and **user-selected static**; **invalid/stale/conflict/critical/logout/expiry/revocation/restart/source-mismatch** projection cases → the exact rollback checkpoint (`DOM_STATIC` or `M1_FIXED_STATIONS`) with no retry/replay and cleared cues/camera/textures; and complete unmount/logout/expiry/revocation/context-loss teardown + memory evidence. Historical baseline hashes unchanged.
 - **UI/accessibility**: `test:ui` + browser specs; keyboard/focus/Escape/Tab for drawer; 200% zoom, contrast, reduced-motion, static parity; mobile navigation.
 - **Visual**: living-office baselines captured and directly inspected; historical baselines byte-identical unless an authorized delta.
 - **Performance**: renderer startup/active-frame/camera p95 within inherited local budgets; zero long tasks > 50ms; retained-heap non-growth over mount/unmount cycles.
@@ -201,3 +206,12 @@ Control does not resolve product policy, authority, or residual technical detail
 | CD-6 identity vs session | §3/§6 + contract make `roleInstanceId` the stable key; `sessionName` is a current binding, not identity. |
 | CD-7 U-1/U-4 resolvable | U-1 via §4 separated states; U-4 via new `src/application/organization/` committed registry (provenance + evidence timestamp/status, no auto-refresh, no time-only freshness, unverified→`UNKNOWN`, invalid→`UNASSIGNED`, changes via reviewed commit). |
 | CD-8 direct reads | The same Control session directly read the previously-referenced docs; exact coverage recorded in the rework Control result. |
+
+## 14. Sentinel P1–P4 closure (design made implementation-deterministic)
+
+| Finding | Change |
+|---|---|
+| P1 field vocabularies contradictory | Contract §2.3 gives an exact per-field type + normalization table with **exactly one fail-closed sentinel per field** (`sessionProcess`→`SESSION_OFFLINE`, `aiIdentity`→`AI_IDENTITY_UNKNOWN`, `model`→`MODEL_UNKNOWN`, `effort`→`EFFORT_UNKNOWN`, `aiRuntimeState`→ new `AI_RUNTIME_UNKNOWN`), accepted-evidence rules for every non-sentinel runtime value, and literal `UNKNOWN` scoped to free-text identity/binding fields only. Delta §3/§4 aligned. |
+| P2 operational-state vocabulary not owned | Contract §2.4 + delta §4 name the exact owned display vocabulary **`PixelOperationalState`** (14, `src/ui/pixel/contracts.ts:24-38`) and a **total fail-closed mapping** from `WORK_UNIT_STATES` (16, `work-unit.ts:3-20`) + activity cues (`activity/index.ts:21-41`), default `UNKNOWN`. No `e.g.`. |
+| P3 registry mint/merge/provenance | Contract §2.5/§3 give an exact per-field **fact envelope** `{value, source, status, evidenceTimestamp}` with inherited UPPER_SNAKE discriminators (`contracts.ts:6-11`), field ownership (committed registry vs joined runtime; runtime projection has no model/effort/session-process — `authenticated-projection.ts:53-61`), `mint→validate→join(on roleInstanceId)→project` flow, merge precedence, the no-store-back rule, and the exact summary subset + drawer order/test matrix. |
+| P4 PWA/failure scope + gates | Delta §9 adds the conditional exact `src/pwa/cache-policy.ts`/`public/sw.js`/`src/server/http/static-shell.ts` subset and exact test paths, removes broad `src/ui/*`; §10 + WorkUnit plan §3 add the inherited full-integration/PWA failure matrix (impl plan §6.4/§6.5). |

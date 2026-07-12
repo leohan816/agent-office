@@ -1,6 +1,6 @@
 # Agent Office Batch A — Implementation WorkUnit Plan
 
-Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_CD_1_TO_CD_7__PENDING_ADVISOR_VALIDATION_AND_INDEPENDENT_SENTINEL_DESIGN_REVIEW`
+Status: `CONTROL_MASTER_DESIGN_PLAN__REWORKED_CD_1_TO_CD_7_AND_SENTINEL_P2_P4__PENDING_INDEPENDENT_SENTINEL_DELTA_REVIEW`
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to the integration design delta and the identity/organization contract. Base `ac8ba75`. Reworked per Advisor validation `15_ADVISOR_CONTROL_DESIGN_VALIDATION.md` (CD-1..CD-7).
 
@@ -28,7 +28,7 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 
 ### BA-WU-01 — Application shell, Office-first-by-default navigation, eager-shell isolation
 - Intent: new Application Shell in the authenticated runtime client; Office surface **default primary** (no `surface=` in the real app; CD-2); Dashboard/comm/control/evidence secondary behind keyboard-reachable navigation; degradation chain wired; **eager-shell isolation** so the eager shell + fallback graph never import/execute Pixi (CD-3). (items 1, 2, 3)
-- Source: `src/ui/runtime/runtime-app.tsx`, `src/ui/runtime/client.ts`, `src/ui/dashboard.tsx`, `src/ui/spatial/compatibility.ts` (selector `PIXEL_FULL`/`PIXEL_RESTRAINED`/`DOM_STATIC`/`M1_FIXED_STATIONS`), additive `livingOffice` field in `src/runtime/projection.ts`, `vite.config.ts` (lazy Office chunk only).
+- Source (exact; no broad `src/ui/*`): `src/ui/runtime/runtime-app.tsx`, `src/ui/runtime/client.ts`, `src/ui/dashboard.tsx`, `src/ui/spatial/compatibility.ts` (selector `PIXEL_FULL`/`PIXEL_RESTRAINED`/`DOM_STATIC`/`M1_FIXED_STATIONS`), additive `livingOffice` field in `src/runtime/projection.ts`, `vite.config.ts` (lazy Office chunk only), and the conditional `src/pwa/cache-policy.ts`/`public/sw.js`/`src/server/http/static-shell.ts` **only if** emitted renderer files require them (same-origin hashed chunk + atomic cache-version bump; impl plan §6.2). Any file beyond this list requires an exact Advisor handoff amendment.
 - Tests: shell/nav unit + ui; secondary-view reachability; composition test; **bundle chunk-separation acceptance** (`tests/acceptance/production-*-boundary.test.ts`) proving no eager Pixi + fixture-marker rejection.
 - Gate: lint/type clean; Office-first default; secondary views reachable; no deletion; eager-shell isolation verified.
 - Rollback: remove shell + additive projection field; in-app rollback is a presentation selection to static/M1.
@@ -40,18 +40,18 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 - Gate: contract tests green; no live discovery; no inference path; changes are reviewed-commit only.
 - Rollback: remove module + fixture; no consumer if WU-03+ not merged.
 
-### BA-WU-03 — Compact actor summaries and separated state vocabularies
-- Intent: first-layer label card (role glyph+ring; AI-identity/model/effort/runtime-state + operational-state; source tag; text+glyph+ring); separated closed vocabularies (session/process, AI identity, model, effort, AI-runtime state vs operational work state); literal `UNKNOWN`. (items 4, 8; CD-4)
-- Source: `src/ui/pixel/*` label/overlay integration (reuse existing overlay).
-- Tests: field coverage incl. required visible values (`NO_AI_PROCESS`/`AI_PROCESS_DETECTED`/`AI_IDENTITY_UNKNOWN`/`MODEL_UNKNOWN`/`EFFORT_UNKNOWN`/`AI_READY`/`AI_WORKING`/`AI_WAITING`/`AI_ERROR`/`SESSION_OFFLINE`/`UNASSIGNED`); `AI_WORKING` requires structured evidence; `UNKNOWN` fail-closed; non-color-only encoding; label tracking under focus/zoom/route.
+### BA-WU-03 — Compact actor summaries and separated state vocabularies (P1/P2)
+- Intent: first-layer label card = contract §2.7 compact subset (`role` glyph+ring · `stableDisplayName` · `sessionProcess` · `aiIdentity` · `model` · `effort` · `aiRuntimeState` · `operationalState`, each with `source` tag; text+glyph+ring); separated closed vocabularies with one sentinel each (contract §2.3); `operationalState` = `PixelOperationalState` via the total `WorkUnitState→PixelOperationalState` mapping (contract §2.4). (items 4, 8; CD-4, P1, P2)
+- Source: `src/ui/pixel/living-office-hud.tsx` + overlay label modules (reuse existing overlay).
+- Tests: per-field sentinel coverage (`SESSION_OFFLINE`/`NO_AI_PROCESS`/`AI_PROCESS_DETECTED`/`AI_IDENTITY_UNKNOWN`/`MODEL_UNKNOWN`/`EFFORT_UNKNOWN`/`AI_READY`/`AI_WORKING`/`AI_WAITING`/`AI_ERROR`/`AI_RUNTIME_UNKNOWN`/`UNASSIGNED`); each non-sentinel runtime value requires accepted structured evidence; offline→`AI_RUNTIME_UNKNOWN`; the total 16→14 mapping is exhaustive with default `UNKNOWN`; literal `UNKNOWN` only on free-text fields; non-color-only encoding; label tracking under focus/zoom/route.
 - Gate: ui + snapshot; no name/proximity inference; runtime-state not conflated with work state.
 - Rollback: revert label integration; drawer/summary independent.
 
-### BA-WU-04 — Accessible actor detail drawer (complete field contract)
-- Intent: second-layer dialog implementing the **complete field contract** (identity attributes + current bindings + AI-runtime facts + operational state + per-field evidence source), not frozen to the historical ten fields; adds `stableDisplayName`, `assignedBy`, `returnsResultTo`, AI-runtime identity, `effort`, evidence source; `role="dialog"`, Escape, Tab containment, close-button focus on open, invoker focus restore; semantic/static parity. (item 5; CD-5)
+### BA-WU-04 — Accessible actor detail drawer (complete field contract) (P3)
+- Intent: second-layer dialog implementing the **complete ordered field contract** of contract §2.7 (17 fields: `roleInstanceId`·`role`·`project`·`stableDisplayName`·`advisorTeam`·`reportsToAdvisor`·`assignedBy`·`returnsResultTo`·`sessionName`·`sessionProcess`·`aiIdentity`·`model`·`effort`·`aiRuntimeState`·`operationalState`·`mission`·`workUnit`), each rendering `value`+`source`(UPPER_SNAKE)+`status`; `role="dialog"`, Escape, Tab containment, close-button focus on open, invoker focus restore; semantic/static parity. (item 5; CD-5, P3)
 - Source: `src/ui/pixel/living-office-detail-drawer.tsx` (reuse existing drawer).
-- Tests: keyboard/focus/Escape/Tab; complete-field coverage; per-field source attribution; semantic/static parity.
-- Gate: accessibility ui tests green (WCAG A/AA).
+- Tests: the contract §2.7 drawer test matrix (per field × {non-failure, sentinel, provenance rendered, status rendered}); keyboard/focus/Escape/Tab; semantic/static parity.
+- Gate: accessibility ui tests green (WCAG A/AA); complete-field + envelope coverage.
 - Rollback: revert drawer integration.
 
 ### BA-WU-05 — Role-specific symbolic surfaces
@@ -94,6 +94,7 @@ Each unit lists intent, primary source scope (pending exact handoff; aligned to 
 - **Unit/contract/snapshot/property**: `npm test` (+ focused) green with accurate totals.
 - **Integration/security/authority/composition/recovery/pwa**: green; zero authority expansion; LOOPBACK_PRIVATE + protected-cue clearing proven.
 - **Bundle isolation (CD-3)**: `tests/acceptance/production-*-boundary.test.ts` prove eager-shell/fallback graph imports/executes no Pixi; Pixi only in a separately emitted lazy Office chunk; prototype fixture markers rejected; no eager renderer startup.
+- **Full-integration failure & PWA matrix (P4, impl plan §6.4/§6.5)**: production PWA first-online/cached-reload/offline-after-cache/offline-before-pixel-cache DOM fallback; both-backend failure, lazy chunk/import/init failure, atlas/hash failure, semantic divergence, context loss/restore, performance fallback, user-static; invalid/stale/conflict/critical/logout/expiry/revocation/restart/source-mismatch → exact rollback checkpoint (`DOM_STATIC`/`M1_FIXED_STATIONS`), no retry/replay, cues/camera/textures cleared; complete teardown + memory evidence; historical baseline hashes unchanged. A generic "pwa green" label is insufficient.
 - **UI/accessibility**: `test:ui` + browser specs; keyboard/focus/Escape/Tab; 200%/contrast/reduced-motion/static parity; mobile nav.
 - **Visual**: living-office baselines captured + directly inspected; historical baselines byte-identical unless authorized delta.
 - **Performance**: renderer startup/active-frame/camera p95 within inherited local budgets; zero long tasks > 50ms; retained-heap non-growth.
