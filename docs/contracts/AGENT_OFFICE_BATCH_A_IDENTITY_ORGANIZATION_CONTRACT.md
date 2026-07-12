@@ -1,6 +1,6 @@
 # Agent Office Batch A — Identity and Organization Contract
 
-Status: `CONTROL_MASTER_DESIGN_CONTRACT__PLUS_PRODUCTION_RENDER_CONTRACT_CORRECTION_PR1_PR3__PENDING_ADVISOR_REVALIDATION_THEN_INDEPENDENT_SENTINEL_REVIEW` (U1/U2 on T1 schema; §2.7 landing-site: actor labels + 17-field dialog in `living-office-actor-overlay.tsx`, detail-drawer = separate frame/evidence panel; §3 PR-1: RT `OrganizationFrame` supplies only actors+diagnostics — pods/layout/cues/selection/clock are committed config composed into `LivingOfficeProductionRenderInputV1` and runtime-validated by `parseLivingOfficeProductionRenderInput`, PR-3)
+Status: `CONTROL_MASTER_DESIGN_CONTRACT__PLUS_SENTINEL_PRC1_PRC5_CORRECTION__PENDING_ADVISOR_EXACT_DIFF_VALIDATION_THEN_SAME_SENTINEL_REREVIEW` (U1/U2 on T1 schema; §2.7 landing-site: actor labels + 17-field dialog in `living-office-actor-overlay.tsx`, detail-drawer = separate frame/evidence panel; §3 PR-1/PRC-1: RT `OrganizationFrame` supplies only actors+diagnostics and `advisorTeam` is (A)-registry-owned carried in the RT envelope; §3.1 PRC-5: complete `CommittedOfficeLayoutConfigV1` interface + deterministic pod construction, closed maps, fail-closed counts; composed `LivingOfficeProductionRenderInputV1` validated at `client.ts:parseProjection` then `parseLivingOfficeProductionRenderInput`, PRC-6)
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to `AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`. Independent reviewer: the authorized **independent Sentinel** (`foundation-reviewer-sol`, currently GPT-5.6 SOL xhigh); Fable5 is a possible secondary/fallback runtime only.
 
@@ -162,6 +162,42 @@ Batch A adds **two committed local/static inputs** under a new exact module `src
 - **Mint order (not reversed)**: (A), (RT), (B) are inputs; the projector computes changing facts (§2.5) and a **full outer join (union) on `roleInstanceId`** yields one frame — no "registry derived from runtime", no second work-state truth store.
 - **Envelope on every field** (per-field `{ value, source, status, evidenceTimestamp }`); `STALE`/`INVALID`/`MISSING`/`UNVERIFIED` → the field sentinel (§2.5); an actor not resolvable to exactly one responsible Advisor Team → `UNASSIGNED` and cannot receive work; changing facts are never written back into (A)/(B).
 - **Change control**: (A) and (B) change only by a normal reviewed commit (no runtime mutation, no live edit path, no automatic refresh, no time-only freshness inference).
+
+## 3.1 Committed visual layout configuration — `CommittedOfficeLayoutConfigV1` (PRC-5; presentation only)
+
+The production pod/visual fields that are **not** literal `OrganizationRegistryRow` fields (pod identity, `roleCategory`, `presentationPodId`, `responsibleAdvisorRoleInstanceId`, the eight `PixelProjectIdentity` fields, selection, labels) come from **one committed presentation config**, not from RT and not inferred from location. Canonical source: committed constant `COMMITTED_OFFICE_LAYOUT_CONFIG_V1` in **`src/application/organization/office-layout-config.ts`**; type `CommittedOfficeLayoutConfigV1` in `src/ui/pixel/contracts.ts`. Immutable per reviewed commit (same change control as (A)/(B)). It carries **presentation configuration only** — never mission/WorkUnit/activity/operational state, and it owns no operational plan.
+
+```ts
+interface CommittedOfficeLayoutConfigV1 {
+  readonly schemaVersion: 'agent-office.committed-office-layout-config.v1';
+  readonly pods: readonly CommittedPodConfig[];   // canonical order = ascending podId (deterministic)
+  readonly selectedDefaultPodId: string;          // MUST equal the first pod by canonical order
+  readonly roleCategoryByRole: Readonly<Record<OrganizationRole,        // closed TOTAL map (all OrganizationRole keys)
+    'LEO_DECISION'|'ADVISOR_ROUTING'|'CONTROL_RECOVERY'|'INDEPENDENT_REVIEW'|'WORKER_BUILD'|'GENERIC_REGISTERED'>>;
+  readonly defaultRoleCategory: 'GENERIC_REGISTERED';                   // for OrganizationUnknown / unmapped
+  readonly projectIdentityByProject: Readonly<Record<string, PixelProjectIdentity>>;  // keyed by registry `project`
+  readonly defaultProjectIdentity: PixelProjectIdentity;               // all 8 fields; for unmapped project
+}
+interface CommittedPodConfig {
+  readonly podId: string;                            // unique across pods
+  readonly advisorTeamId: AdvisorTeamValue;          // the pod's Advisor Team lane
+  readonly responsibleAdvisorRoleInstanceId: string | null;  // exactly one; null/empty/multiple → UNASSIGNED
+  readonly projectKey: string;                       // → projectIdentityByProject
+  readonly podLabel: string;
+  readonly memberRoleInstanceIds: readonly string[]; // exact membership; an actor may appear in at most one pod
+}
+```
+
+**Deterministic construction of `PixelPodInput[]` (config + RT; no inference):**
+
+- **Ordering / selection**: pods sorted ascending by `podId`; `selectedDefaultPodId` MUST resolve to the first pod, else selection → `UNASSIGNED` / fail-closed.
+- **`advisorTeamId`** from `CommittedPodConfig`. **`responsibleAdvisorRoleInstanceId`**: exactly one non-empty value → use it; null / empty / multiple → `UNASSIGNED` and the pod **cannot receive work** (never inferred from visual proximity).
+- **`projectIdentity`** = `projectIdentityByProject[registryRow.project]` for the pod's project, else `defaultProjectIdentity` (all eight fields — `identityId`/`projectId`/`displayName`/`shortLabel`/`primaryColor`/`secondaryColor`/`glyph`/`pattern` — always present).
+- **`roleCategory`** per actor = `roleCategoryByRole[registryRow.role]`, else `defaultRoleCategory` (`GENERIC_REGISTERED`).
+- **Membership / `actorRoleInstanceIds`** = `memberRoleInstanceIds` ∩ the resolved registry actors; a member absent from the resolved registry is dropped with a diagnostic; an actor listed in **more than one** pod is dropped from **all** pods with a diagnostic (no cloned membership); a pod with zero resolved members is not rendered (diagnostic).
+- **`currentActorRoleInstanceId`** = deterministic: the member whose RT `operationalState` ranks highest by a fixed priority order, tie-broken by ascending `roleInstanceId`; if none is active, the first member by ascending `roleInstanceId`; empty pod → `''` + diagnostic. **`missionShortLabel`/`currentWorkUnitShortId`** = truncated RT `mission`/`workUnit` of that current actor (RT-owned); **`operationalState`** = that actor's RT operational state.
+- **Counts** `completedWorkUnits`/`totalWorkUnits`/`completedGates`/`totalGates` = literal **`0`** (PRC-2 fail-closed; display-only, not operational truth; no pod shown "complete"); **`blockerSummary`** = `null`.
+- **Config validation (PRC-6 boundary 2)**: duplicate `podId` → deterministic hard-fail; every `advisorTeamId ∈ AdvisorTeamValue`; `projectKey` resolvable (else default); `roleCategoryByRole` total over `OrganizationRole`. Missing/multiple assignments fail to `UNASSIGNED`/fallback, never to an inferred value.
 
 ## 4. Organization model (Founder items 6, 9)
 
