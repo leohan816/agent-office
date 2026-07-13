@@ -1,6 +1,6 @@
 # Agent Office Batch A — Identity and Organization Contract
 
-Status: `CONTROL_MASTER_DESIGN_CONTRACT__PLUS_SENTINEL_PRC_FINAL_FIVE_CORRECTIONS__PENDING_ADVISOR_DIFF_VALIDATION_THEN_SAME_SENTINEL_REREVIEW` (§2.7 landing-site unchanged; §3 `advisorTeam`=(A)-registry-owned, §2.3.2 `aiRuntimeState`=projector RT+(B) arbitration; §3.1 PRC-5 total layout — sole `projectKey`, complete 14-state current-actor priority, ADVISOR-role/Team/membership responsible-Advisor with pod-omit/`M1_FIXED_STATIONS` fallback, literal `DEFAULT_VIEWPORT`/`DEFAULT_LOGICAL_TIME_MS`/`DEFAULT_CAMERA`/selection defaults; §3.1.1 PRC-6 full `LivingOfficeProductionRenderInputV1` wrapper interface distinct from the raw 4-key `LivingOfficePresentationV1` parser)
+Status: `CONTROL_MASTER_DESIGN_CONTRACT__PLUS_SENTINEL_FINAL_SOURCE_EXACTNESS_FDR1_FDR2__PENDING_ADVISOR_DIFF_VALIDATION_THEN_SAME_SENTINEL_REREVIEW` (§2.7 unchanged; §3 `advisorTeam`=(A)-registry-owned, §2.3.2 `aiRuntimeState`=projector RT+(B); §3.1 PRC-5 total layout + FDR-1: sole `projectKey`, 14-state current-actor priority, ADVISOR-role/matching-**non-sentinel-`AdvisorTeam`**/membership responsible-Advisor with pod-omit/`M1_FIXED_STATIONS`, literal `DEFAULT_VIEWPORT`/`DEFAULT_LOGICAL_TIME_MS` + camera via `fullOfficeCamera`→`FULL_OFFICE`/`cameraOverride=null` (no `FIT_ALL`), pod `advisorTeamId: AdvisorTeam` non-sentinel; §3.1.1 PRC-6 wrapper interface; §3.1.2 FDR-2 complete raw `livingOffice` parser — revision===enclosing snapshot, canonical-UTC, 16 envelopes, diagnostic codes)
 
 Mode: `CONTROL_MASTER_DESIGN_MODE`. Companion to `AGENT_OFFICE_BATCH_A_APPLICATION_INTEGRATION_DESIGN_DELTA.md`. Independent reviewer: the authorized **independent Sentinel** (`foundation-reviewer-sol`, currently GPT-5.6 SOL xhigh); Fable5 is a possible secondary/fallback runtime only.
 
@@ -180,7 +180,7 @@ interface CommittedOfficeLayoutConfigV1 {
 }
 interface CommittedPodConfig {
   readonly podId: string;                            // unique across pods
-  readonly advisorTeamId: AdvisorTeamValue;          // the pod's Advisor Team lane
+  readonly advisorTeamId: AdvisorTeam;               // the pod's Advisor Team lane — NON-sentinel (FOUNDATION_ADVISOR_TEAM|VIBENEWS_ADVISOR_TEAM); never the actor sentinel UNASSIGNED
   readonly responsibleAdvisorRoleInstanceId: string | null;  // valid only as exactly one ADVISOR+matching-Team+member; null/empty/multiple/unresolvable → pod OMITTED with diagnostic (never a role-instance UNASSIGNED sentinel)
   readonly projectKey: string;                       // → projectIdentityByProject
   readonly podLabel: string;
@@ -198,8 +198,8 @@ interface CommittedPodConfig {
 - **Membership / `actorRoleInstanceIds`** = `memberRoleInstanceIds` ∩ the resolved registry actors; a member absent from the resolved registry is dropped with a diagnostic; an actor listed in **more than one** pod is dropped from **all** pods with a diagnostic (no cloned membership); a pod with zero resolved members is omitted (diagnostic).
 - **`currentActorRoleInstanceId`** = deterministic: the member whose RT `operationalState` ranks highest by the **complete literal priority order below**, tie-broken by ascending `roleInstanceId`; empty pod → omitted (diagnostic). The total priority over all 14 `PixelOperationalState` values (highest first — a conservative order surfacing in-progress work, then attention/waiting, then terminal, then idle/unknown): **`WORKING` > `TESTING` > `REVIEWING` > `ROUTING / DISPATCH` > `RETURNING_RESULT` > `NEEDS_PATCH` > `BLOCKED` > `WAITING_DEPENDENCY` > `WAITING_LEO` > `FAILED` > `CANCELLED` > `COMPLETED` > `IDLE` > `UNKNOWN`**. **`missionShortLabel`/`currentWorkUnitShortId`** = truncated RT `mission`/`workUnit` of that current actor (RT-owned); **`operationalState`** = that actor's RT operational state.
 - **Counts** `completedWorkUnits`/`totalWorkUnits`/`completedGates`/`totalGates` = literal **`0`** (PRC-2 fail-closed; display-only, not operational truth; no pod shown "complete"); **`blockerSummary`** = `null`.
-- **Literal committed defaults (PRC-5/PRC-6)**: `DEFAULT_VIEWPORT = { width: 1280, height: 720 }` (used when a wrapper `viewport.width`/`height` is not a finite `> 0`); `DEFAULT_LOGICAL_TIME_MS = 0` (monotonic zero is valid; used when `logicalTimeMs` is not a finite `>= 0`); `DEFAULT_CAMERA = { mode: 'FIT_ALL', override: null }` (production `cameraOverride` is always `null`). These are explicit values, not "undefined".
-- **Config validation**: duplicate `podId` → deterministic hard-fail; every `advisorTeamId ∈ AdvisorTeamValue`; `projectKey` resolvable (else `defaultProjectIdentity`); `roleCategoryByRole` total over `OrganizationRole`. A pod failing the responsible-Advisor rule is omitted (diagnostic); no valid pods → `M1_FIXED_STATIONS`.
+- **Literal committed defaults (PRC-5/PRC-6, FDR-1)**: `DEFAULT_VIEWPORT = { width: 1280, height: 720 }` (used when a wrapper `viewport.width`/`height` is not a finite `> 0`); `DEFAULT_LOGICAL_TIME_MS = 0` (monotonic zero is valid; used when `logicalTimeMs` is not a finite `>= 0`). **Camera** uses the actual source vocabulary, not a synthetic default: production `cameraOverride = null`, and the initial camera is computed by `fullOfficeCamera(layout, viewport.width, viewport.height, selectedPodId)` (`src/ui/pixel/camera.ts:9-24`) → a complete `PixelCameraState` with `mode='FULL_OFFICE'` (`PixelCameraState.mode ∈ FULL_OFFICE|FOCUSED_POD|MANUAL|SCRIPTED`, `contracts.ts:249-255`). No `FIT_ALL` and no second camera enum/mapping. These are explicit values, not "undefined".
+- **Config validation**: duplicate `podId` → deterministic hard-fail; every `advisorTeamId ∈ AdvisorTeam` (non-sentinel — a pod whose `advisorTeamId` is the actor sentinel `UNASSIGNED` is not a renderable lane and is omitted); the responsible Advisor's own `advisorTeam.value` must equal that same non-sentinel `AdvisorTeam`; `projectKey` resolvable (else `defaultProjectIdentity`); `roleCategoryByRole` total over `OrganizationRole`. A pod failing the responsible-Advisor rule is omitted (diagnostic); no valid pods → `M1_FIXED_STATIONS`. Actor-level `advisorTeam=UNASSIGNED` remains a valid fail-closed **actor** state (§2.5) but can never define a renderable pod lane.
 
 ### 3.1.1 Production render input wrapper — `LivingOfficeProductionRenderInputV1` (PRC-6)
 
@@ -217,7 +217,22 @@ interface LivingOfficeProductionRenderInputV1 {
 }
 ```
 
-Camera is not an input field (production `cameraOverride` is always `null`, `DEFAULT_CAMERA`).
+Camera is not an input field: production `cameraOverride` is always `null`; the initial camera is computed by `fullOfficeCamera(layout, viewport.width, viewport.height, selectedPodId)` → `mode='FULL_OFFICE'` (§3.1, FDR-1).
+
+### 3.1.2 Raw `livingOffice` untrusted-boundary parser (FDR-2; the first gate — distinct from the §3.1.1 wrapper)
+
+The **first** boundary (delta §2.3 PR-3) validates the raw `livingOffice` bytes inside `parseProjection` **before** they enter client state — this is a **separate, complete** nested contract from the §3.1.1 wrapper (§3.1/§3.1.1 do **not** define these keys). Any unknown/missing/invalid field fails closed (the `livingOffice` subtree is dropped; the shell falls back `DOM_STATIC`→`M1_FIXED_STATIONS`). All keys are **exact** (unknown keys reject).
+
+- **Raw helper + call site**: a new `parseRawLivingOfficePresentation(value: unknown, enclosingRevision: number): LivingOfficePresentationV1 | null` in `src/ui/runtime/client.ts`, invoked by `parseProjection` at the point it validates the enclosing `RuntimeProjectionSnapshot` (`client.ts:519-549`); a `null` result drops `livingOffice` from the returned snapshot (no cast). Focused test: `tests/contract/production-render-input.test.ts` (same single literal path).
+- **Raw top-level exact keys** `{ schemaVersion, projectionRevision, evaluatedAt, frame }` (`src/runtime/projection.ts:54-59`):
+  - `schemaVersion === 'agent-office.living-office-presentation.v1'` (directly on the raw object; no `operational`).
+  - `projectionRevision`: `Number.isSafeInteger` **and** `>= 0` **and** **exactly equal to** the enclosing `RuntimeProjectionSnapshot.revision` already validated at the same boundary (`client.ts:519-549`; the presentation is built with that same `services.projectionRevision`, `projection.ts:94-108,203-216`).
+  - `evaluatedAt`: canonical UTC per the repo's existing `isCanonicalUtc` (`client.ts:610`), exactly `YYYY-MM-DDTHH:mm:ss.sssZ`, parseable, and round-tripping through `toISOString()`.
+- **`frame` exact keys** `{ actors, diagnostics }`, both arrays.
+- **Actor exact keys**: `roleInstanceId` (non-blank string; duplicates fail closed per the already-closed drop-all rule, `registry.ts:58-80`) + the **sixteen fact envelopes** `role, project, stableDisplayName, advisorTeam, reportsToAdvisor, assignedBy, returnsResultTo, sessionName, sessionProcess, aiIdentity, model, effort, aiRuntimeState, operationalState, mission, workUnit` + `canReceiveWork` (`types.ts:164-189`).
+- **Every fact envelope exact keys** `{ value, source, status, evidenceTimestamp }`: `status ∈ OrganizationFactStatus` (`VERIFIED|UNVERIFIED|STALE|INVALID|MISSING`, `types.ts:21`); `source ∈ PixelActorFactSource` (`contracts.ts:8-13`); `evidenceTimestamp` is `null` or canonical UTC; `value` validated against that field's own vocabulary/sentinel (enum fields — `advisorTeam`/`aiRuntimeState`/`operationalState`/`sessionProcess`/`role` — against their unions incl. sentinels; free-text fields as string).
+- **`canReceiveWork`**: boolean, and **must be `false` whenever `advisorTeam.value === 'UNASSIGNED'`** (never inferred `true` from other fields).
+- **Diagnostic exact keys** `{ code, roleInstanceId, detail }` (`types.ts:149-161`): `code ∈ OrganizationDiagnosticCode` (`INVALID_REGISTRY_ROLE_INSTANCE_ID | DUPLICATE_REGISTRY_ROLE_INSTANCE_ID | EVIDENCE_ID_COLLISION | SESSION_PROCESS_CONTRADICTION | ATTESTATION_VALUE_CONFLICT | RUNTIME_OWNED_FIELD_CONFLICT`); `roleInstanceId` is `null` or a non-blank string; `detail` a non-blank string.
 
 ## 4. Organization model (Founder items 6, 9)
 
