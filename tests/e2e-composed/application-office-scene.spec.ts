@@ -1,11 +1,34 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
-test.describe('authenticated composed application office scene', () => {
-  test('renders the structured desktop projection without fixture controls or invented motion', async ({ page }, testInfo) => {
+// Batch A CD-2: the authenticated app defaults to the Living Office; the historical Dashboard/spatial
+// technical views are preserved as SECONDARY views reachable through explicit navigation. Per Advisor
+// doc 50 this spec asserts the Office-first default + secondary-view navigation and keeps the full
+// semantic coverage of the preserved views; every historical baseline is left byte-for-byte untouched
+// and every current screenshot is written ONLY under the new `batch-a-living-office/` directory (the
+// changed Office-first pages are never compared to an old Dashboard-first filename).
+const LIVING_OFFICE_EYEBROW = 'AGENT OFFICE · AUTHENTICATED LIVING OFFICE';
+// The composed test runtime registers exactly these three one-time bootstrap proofs
+// (scripts/e2e-composed-runtime-server.mjs); each test uses its own.
+const PROOF_DESKTOP = 'A'.repeat(43);
+const PROOF_MOBILE = 'B'.repeat(43);
+const PROOF_REDUCED = 'C'.repeat(43);
+
+test.describe('authenticated composed application office scene (Office-first, CD-2)', () => {
+  test('defaults to the Living Office and preserves the secondary technical desktop projection', async ({ page }, testInfo) => {
     const projectionOverride: ProjectionOverride = { mode: 'M1_ABSENT' };
     await page.setViewportSize({ width: 1440, height: 900 });
-    await login(page, 'A'.repeat(43), projectionOverride);
+    await login(page, PROOF_DESKTOP, projectionOverride);
+
+    // Office-first default surface (CD-2).
+    await assertOfficeFirstDefault(page);
+    await expect(page).toHaveScreenshot(
+      ['batch-a-living-office', 'living-office-default-desktop-1440x900.png'],
+      officeScreenshotOptions(page),
+    );
+
+    // Secondary technical view remains reachable + functional (M1 fallback projection).
+    await openTechnicalDashboard(page);
     await expect(page.locator('.scene-station:visible')).toHaveCount(8);
     await expect(page.locator('.scene-fixture-control')).toHaveCount(0);
     await expect(page.locator('#office-scene')).toContainText('APPLICATION PROJECTION');
@@ -14,14 +37,14 @@ test.describe('authenticated composed application office scene', () => {
       'UNKNOWN_OR_STALE',
     );
     await expect(page.locator('[data-motion-cue], [data-route-cue]')).toHaveCount(0);
-    await expect(page).toHaveScreenshot('application-office-desktop-1440x900.png', {
-      animations: 'allow',
-      caret: 'hide',
-      maxDiffPixelRatio: 0.005,
-    });
+    await expect(page).toHaveScreenshot(
+      ['batch-a-living-office', 'technical-office-desktop-1440x900.png'],
+      screenshotOptions(),
+    );
 
     projectionOverride.mode = 'LIVE';
     await page.reload();
+    await openTechnicalDashboard(page); // a reload restores the Office-first default; re-navigate.
     await expect(page.locator('#spatial-office')).toHaveAttribute(
       'data-fixture-kind',
       'AUTHENTICATED_APPLICATION_PROJECTION',
@@ -30,7 +53,7 @@ test.describe('authenticated composed application office scene', () => {
     await expect(page.locator('#office-scene')).toHaveCount(0);
     await expect(page.locator('[data-motion-cue], [data-route-cue]')).toHaveCount(0);
     await expect(page).toHaveScreenshot(
-      ['ao12-d-authenticated', 'application-spatial-desktop-1440x900.png'],
+      ['batch-a-living-office', 'technical-spatial-desktop-1440x900.png'],
       screenshotOptions(),
     );
 
@@ -76,13 +99,13 @@ test.describe('authenticated composed application office scene', () => {
 
     await page.setViewportSize({ width: 1024, height: 768 });
     await expect(page).toHaveScreenshot(
-      ['ao12-d-authenticated', 'application-spatial-tablet-1024x768.png'],
+      ['batch-a-living-office', 'technical-spatial-tablet-1024x768.png'],
       screenshotOptions(),
     );
     await page.setViewportSize({ width: 320, height: 720 });
     await expectNoHorizontalOverflow(page);
     await expect(page).toHaveScreenshot(
-      ['ao12-d-authenticated', 'application-spatial-320x720.png'],
+      ['batch-a-living-office', 'technical-spatial-320x720.png'],
       screenshotOptions(),
     );
     await page.setViewportSize({ width: 390, height: 844 });
@@ -91,7 +114,7 @@ test.describe('authenticated composed application office scene', () => {
     });
     await expectNoHorizontalOverflow(page);
     await expect(page).toHaveScreenshot(
-      ['ao12-d-authenticated', 'application-spatial-text-200-percent-390x844.png'],
+      ['batch-a-living-office', 'technical-spatial-text-200-percent-390x844.png'],
       screenshotOptions(),
     );
     await page.evaluate(() => {
@@ -100,7 +123,7 @@ test.describe('authenticated composed application office scene', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.emulateMedia({ forcedColors: 'active' });
     await expect(page).toHaveScreenshot(
-      ['ao12-d-authenticated', 'application-spatial-forced-colors-1440x900.png'],
+      ['batch-a-living-office', 'technical-spatial-forced-colors-1440x900.png'],
       screenshotOptions(),
     );
     await page.emulateMedia({ forcedColors: 'none' });
@@ -108,6 +131,7 @@ test.describe('authenticated composed application office scene', () => {
     for (const mode of ['STALE', 'OFFLINE', 'CONFLICT', 'CRITICAL'] as const) {
       projectionOverride.mode = mode;
       await page.reload();
+      await openTechnicalDashboard(page);
       await expect(page.locator('#spatial-office')).toHaveAttribute('data-motion-tier', 'STATIC');
       await expect(page.locator('#spatial-floor-list')).toBeVisible();
       await expect(page.locator('[data-motion-cue], [data-route-cue]')).toHaveCount(0);
@@ -115,42 +139,51 @@ test.describe('authenticated composed application office scene', () => {
     for (const mode of ['UNKNOWN_SCHEMA', 'INVALID_SCHEMA', 'M1_ABSENT'] as const) {
       projectionOverride.mode = mode;
       await page.reload();
+      await openTechnicalDashboard(page);
       await expect(page.locator('#office-scene')).toBeVisible();
       await expect(page.locator('#spatial-office')).toHaveCount(0);
     }
     projectionOverride.mode = 'LIVE';
     await page.reload();
+    await openTechnicalDashboard(page);
     await expect(page.locator('#spatial-office')).toBeVisible();
     await page.getByRole('button', { name: 'Logout' }).click();
     await expect(page.getByRole('heading', { name: 'LOGGED_OUT' })).toBeVisible();
     await expect(page.locator('#office-scene')).toHaveCount(0);
     await expect(page.locator('#spatial-office')).toHaveCount(0);
+    await expect(page.locator('[data-primary-view]')).toHaveCount(0);
   });
 
-  test('contains the authenticated application projection on mobile', async ({ page }) => {
+  test('defaults to the Living Office and preserves the secondary projection on mobile', async ({ page }) => {
     const projectionOverride: ProjectionOverride = { mode: 'M1_ABSENT' };
     await page.setViewportSize({ width: 390, height: 844 });
-    await login(page, 'B'.repeat(43), projectionOverride);
+    await login(page, PROOF_MOBILE, projectionOverride);
+
+    await assertOfficeFirstDefault(page);
+    await expectNoHorizontalOverflow(page);
+    await expect(page).toHaveScreenshot(
+      ['batch-a-living-office', 'living-office-default-mobile-390x844.png'],
+      officeScreenshotOptions(page),
+    );
+
+    await openTechnicalDashboard(page);
     await expect(page.locator('.scene-station:visible')).toHaveCount(2);
-    const widths = await page.evaluate(() => ({
-      client: document.documentElement.clientWidth,
-      scroll: document.documentElement.scrollWidth,
-    }));
-    expect(widths.scroll).toBeLessThanOrEqual(widths.client + 1);
-    await expect(page).toHaveScreenshot('application-office-mobile-390x844.png', {
-      animations: 'disabled',
-      caret: 'hide',
-      maxDiffPixelRatio: 0.005,
-    });
+    await expectNoHorizontalOverflow(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page).toHaveScreenshot(
+      ['batch-a-living-office', 'technical-office-mobile-390x844.png'],
+      screenshotOptions(),
+    );
 
     projectionOverride.mode = 'LIVE';
     await page.reload();
+    await openTechnicalDashboard(page);
     await expect(page.locator('#spatial-office')).toHaveAttribute('data-motion-tier', 'STATIC');
     await expect(page.locator('.spatial-team-pod:visible')).toHaveCount(1);
     await expectNoHorizontalOverflow(page);
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page).toHaveScreenshot(
-      ['ao12-d-authenticated', 'application-spatial-mobile-390x844.png'],
+      ['batch-a-living-office', 'technical-spatial-mobile-390x844.png'],
       screenshotOptions(),
     );
     await page.setViewportSize({ width: 844, height: 390 });
@@ -158,11 +191,21 @@ test.describe('authenticated composed application office scene', () => {
     await expectNoHorizontalOverflow(page);
   });
 
-  test('preserves reduced motion and accessibility in the composed path', async ({ page }) => {
+  test('preserves reduced motion and accessibility across the Office-first + secondary path', async ({ page }) => {
     const projectionOverride: ProjectionOverride = { mode: 'M1_ABSENT' };
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await login(page, 'C'.repeat(43), projectionOverride);
+    await login(page, PROOF_REDUCED, projectionOverride);
+
+    // Office-first default under reduced motion resolves to the static Office tier (no ticker/canvas).
+    await assertOfficeFirstDefault(page);
+    await expect(page.locator('[data-pixel-canvas]')).toHaveCount(0);
+    await expect(page).toHaveScreenshot(
+      ['batch-a-living-office', 'living-office-default-reduced-motion-1440x900.png'],
+      screenshotOptions(),
+    );
+
+    await openTechnicalDashboard(page);
     await expect(page.locator('.scene-route-layer')).toHaveCSS('display', 'none');
     await expect(page.locator('[data-motion-cue], [data-route-cue]')).toHaveCount(0);
     const accessibility = await new AxeBuilder({ page })
@@ -170,14 +213,14 @@ test.describe('authenticated composed application office scene', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
       .analyze();
     expect(accessibility.violations).toEqual([]);
-    await expect(page).toHaveScreenshot('application-office-reduced-motion-1440x900.png', {
-      animations: 'disabled',
-      caret: 'hide',
-      maxDiffPixelRatio: 0.005,
-    });
+    await expect(page).toHaveScreenshot(
+      ['batch-a-living-office', 'technical-office-reduced-motion-1440x900.png'],
+      screenshotOptions(),
+    );
 
     projectionOverride.mode = 'LIVE';
     await page.reload();
+    await openTechnicalDashboard(page);
     await expect(page.locator('#spatial-office')).toHaveAttribute('data-motion-tier', 'STATIC');
     await expect(page.locator('[data-motion-cue], [data-route-cue]')).toHaveCount(0);
     await expect(page.locator('#spatial-floor-list')).toBeVisible();
@@ -187,7 +230,7 @@ test.describe('authenticated composed application office scene', () => {
       .analyze();
     expect(spatialAccessibility.violations).toEqual([]);
     await expect(page).toHaveScreenshot(
-      ['ao12-d-authenticated', 'application-spatial-reduced-motion-1440x900.png'],
+      ['batch-a-living-office', 'technical-spatial-reduced-motion-1440x900.png'],
       screenshotOptions(),
     );
   });
@@ -205,6 +248,25 @@ type ProjectionMode =
 
 interface ProjectionOverride {
   mode: ProjectionMode;
+}
+
+/** Assert the authenticated Office-first default: the Living Office is primary; nav is preserved. */
+async function assertOfficeFirstDefault(page: Page): Promise<void> {
+  await expect(page.locator('[data-primary-view="office"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Living Office' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('button', { name: 'Technical dashboard' })).toBeVisible();
+  await expect(page.locator('#living-office-status')).toContainText(LIVING_OFFICE_EYEBROW);
+  await expect(page.locator('#office-scene')).toHaveCount(0);
+  await expect(page.locator('#spatial-office')).toHaveCount(0);
+}
+
+/** Explicitly select the preserved secondary Technical dashboard and assert its authenticated chrome. */
+async function openTechnicalDashboard(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Technical dashboard' }).click();
+  await expect(page.locator('[data-primary-view="dashboard"]')).toBeVisible();
+  await expect(page.locator('.topbar-status')).toContainText('APPLICATION PROJECTION');
+  await expect(page.locator('.runtime-boundary')).toContainText('LOCAL_BOOTSTRAP_AUTHENTICATED');
+  await expect(page.locator('.runtime-boundary')).toContainText('MANUAL_FALLBACK_REQUIRED');
 }
 
 async function login(page: Page, proof: string, projectionOverride: ProjectionOverride): Promise<void> {
@@ -227,10 +289,9 @@ async function login(page: Page, proof: string, projectionOverride: ProjectionOv
   await expect(page.getByLabel('일회용 인증 증명')).toBeVisible();
   await page.getByLabel('일회용 인증 증명').fill(proof);
   await page.getByRole('button', { name: '로그인' }).click();
-  await expect(page.locator('#office-scene')).toBeVisible();
-  await expect(page.locator('.topbar-status')).toContainText('APPLICATION PROJECTION');
-  await expect(page.locator('.runtime-boundary')).toContainText('LOCAL_BOOTSTRAP_AUTHENTICATED');
-  await expect(page.locator('.runtime-boundary')).toContainText('MANUAL_FALLBACK_REQUIRED');
+  // CD-2: after authentication the Living Office is the default primary surface (not the Dashboard).
+  await expect(page.locator('[data-primary-view="office"]')).toBeVisible();
+  await expect(page.locator('#living-office-status')).toContainText(LIVING_OFFICE_EYEBROW);
   expect(page.url()).not.toContain(proof);
   expect(requestedUrls.every((url) => !url.includes(proof))).toBe(true);
   const browserStorage = await page.evaluate(async () => {
@@ -239,7 +300,14 @@ async function login(page: Page, proof: string, projectionOverride: ProjectionOv
       const cache = await caches.open(cacheName);
       for (const request of await cache.keys()) {
         const response = await cache.match(request);
-        if (response !== undefined) cacheBodies.push(await response.text());
+        if (response === undefined) continue;
+        // Content-hashed public build assets under `/assets/` exist before any session and are
+        // byte-identical for every user; a per-session one-time proof is never written into them, so
+        // scanning them can only false-positive (e.g. a base64-zero run inside the Pixi office atlas
+        // chunk coincides with a repeated-char proof). Any protected/API response the service worker
+        // must never cache is still scanned below.
+        if (new URL(request.url).pathname.startsWith('/assets/')) continue;
+        cacheBodies.push(await response.text());
       }
     }
     return {
@@ -382,6 +450,16 @@ function screenshotOptions() {
     animations: 'disabled' as const,
     caret: 'hide' as const,
     maxDiffPixelRatio: 0.005,
+  };
+}
+
+/** Office captures mask the live Pixi canvas so the deterministic DOM shell is the compared surface. */
+function officeScreenshotOptions(page: Page) {
+  return {
+    animations: 'disabled' as const,
+    caret: 'hide' as const,
+    maxDiffPixelRatio: 0.005,
+    mask: [page.locator('canvas')],
   };
 }
 
