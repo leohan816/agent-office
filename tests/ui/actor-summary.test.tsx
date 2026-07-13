@@ -135,8 +135,25 @@ describe('BA-WU-03 compact actor summary (contract §2.7 first layer)', () => {
   it('announces the summary with sources in the accessible name', () => {
     const actor = organizationActor({ evidence: [ev('process_detected'), ev('ai_ready')] });
     renderOverlay(actor);
-    const label = screen.getByRole('button', { name: /Foundation Worker\. Role WORKER\. Team [A-Z_]+, source .+?\..*Session process AI_PROCESS_DETECTED, source VERIFIED MISSION ARTIFACT\..*AI runtime AI_READY\./u });
+    const label = screen.getByRole('button', { name: /Foundation Worker\. Role WORKER\. Team [A-Z_]+, source .+?\..*Session process AI_PROCESS_DETECTED, source VERIFIED MISSION ARTIFACT\..*AI runtime AI_READY, source .+?\./u });
     expect(label).not.toBeNull();
+  });
+
+  it('A4-3: the accessible name carries a full source name for every compact fact', () => {
+    const actor = organizationActor({
+      runtime: { roleInstanceId: TARGET, mission: 'MODERN_OFFICE', workUnit: 'BA-WU-03', observableName: 'WORKING' },
+      evidence: [ev('process_detected'), ev('ai_identity_attestation', 'CLAUDE_OPUS_4_8'), ev('model_attestation', 'claude-opus-4-8'), ev('effort_attestation', 'ULTRACODE'), ev('ai_ready')],
+    });
+    const { container } = renderOverlay(actor);
+    const name = container.querySelector(`[data-actor-label="${TARGET}"]`)?.getAttribute('aria-label') ?? '';
+    // Every compact fact (Team, process, identity, model, effort, AI runtime, operational) must state its
+    // full source — not just Team/process/identity. A missing "..., source ..." fails this assertion.
+    for (const phrase of [
+      'Team ', 'Session process ', 'AI identity ', 'Model ', 'Effort ', 'AI runtime ', 'Operational ',
+    ]) {
+      const segment = name.slice(name.indexOf(phrase));
+      expect(segment, `${phrase}has a source`).toMatch(new RegExp(`^${phrase}[^.]*, source [A-Z][^.]*\\.`, 'u'));
+    }
   });
 
   it('separates AI-runtime state from operational-work state (never conflated)', () => {

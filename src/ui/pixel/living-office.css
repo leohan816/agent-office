@@ -534,6 +534,26 @@ body:has(#living-pixel-prototype) {
   opacity: 0.75;
 }
 
+/* A4-1: a 10rem probe (160px at the default 16px root) measured by a ResizeObserver reports the real
+   root text scale. It is invisible and out of flow. */
+.living-office-actor-overlay__text-probe {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  width: 10rem;
+  height: 0;
+}
+
+/* A4-1: at the high-text roster-equivalent mode there are NO partial on-canvas labels — every actor's
+   complete first layer is the always-visible roster below, so the Office world stays primary. */
+.living-office-actor-overlay[data-office-label-mode="roster-equivalent"] .living-office-actor-label--production {
+  display: none !important;
+}
+
+.living-office-actor-overlay[data-office-label-mode="roster-equivalent"] .living-office-actor-overlay__connectors {
+  display: none;
+}
+
 @media (max-width: 640px) {
   /* Mobile: dense on-canvas facts labels would occlude the small Office. Use the accepted semantic
    * equivalent — hide the on-canvas production labels and present every actor's first layer in the

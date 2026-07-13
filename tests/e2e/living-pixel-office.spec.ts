@@ -24,8 +24,17 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
   test('renders a CSP-safe non-blank animating office + accessible 17-field drawer on desktop', async ({ page }, testInfo) => {
     const pageErrors = capturePageErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await authenticate(page, PROOF_DESKTOP);
+    // A4-1 initial high-text mount: set 200% root text before login so the office mounts already high.
+    // The overlay's useLayoutEffect must commit the roster-equivalent mode BEFORE the first paint — the
+    // 31% card wall is never presented, even for one frame — so the very first observable state is
+    // roster-equivalent with zero on-canvas labels.
+    await authenticate(page, PROOF_DESKTOP, async () => {
+      await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    });
     await expect(page.locator('.living-office-surface')).toBeVisible();
+    await assertRosterEquivalentMode(page);
+    // Return to normal text: the accepted 100% composition and its exact gates follow.
+    await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
 
     // SIR-1/SIR-3: strict-CSP init actually completed and the canvas is a non-blank office.
     await proveNonblankProductionCanvas(page, pageErrors);
@@ -47,6 +56,10 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     await assertNoProductionLabelOverlap(page);
     // A3-2: the labels must not form a wall of cards over the Office — the world stays the primary signal.
     await assertOfficeIsPrimary(page);
+    // A4-2: bind the gate to the exact visible production actor set with one shared combined predicate,
+    // and prove the negative: hiding exactly one label fails that same predicate even though the roster
+    // stays full and union coverage alone still passes.
+    await assertCompleteLabelSet(page, 'labels');
     await assertActorConnectors(page);
     // I2-2: the always-visible roster carries every actor's first layer (mobile/200%/bounded equivalent).
     await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
@@ -61,13 +74,16 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     await page.emulateMedia({ forcedColors: 'none' });
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     await expectNoHorizontalOverflow(page);
-    // I2-2 #5: at 200% text the labels stay contained/readable, non-overlapping, and the roster remains
-    // the complete equivalent.
-    await assertReadableProductionLabels(page);
-    await assertNoProductionLabelOverlap(page);
+    // A4-1: at high text the production surface switches to the explicit, complete roster-equivalent mode
+    // (production-observable, marked in the DOM) — no partial on-canvas labels — so the Office stays
+    // primary; A4-2: exactly one complete roster row (incl. Team) for every visible actor.
+    await assertRosterEquivalentMode(page);
     await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
+    await expect(page.locator('[data-actor-roster-field="advisorTeam"]')).toHaveCount(8);
     await expectFullSurfaceAxeClean(page, '200% text');
     await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+    // A4-1: the exact all-label predicate holds again when the text scale returns to normal.
+    await assertCompleteLabelSet(page, 'labels');
     // SIR-3: unmasked live production capture, directly inspectable.
     await attachUnmaskedOffice(page, testInfo, 'living-office-desktop-unmasked-1440x900');
 
@@ -143,11 +159,13 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
   });
 });
 
-async function authenticate(page: Page, proof: string): Promise<void> {
+async function authenticate(page: Page, proof: string, beforeLogin?: () => Promise<void>): Promise<void> {
   await page.goto('/');
   await expect(page.locator('.runtime-boundary')).toContainText('LOGIN_REQUIRED');
   await expect(page.getByLabel('일회용 인증 증명')).toBeVisible();
   await page.getByLabel('일회용 인증 증명').fill(proof);
+  // Optional pre-login side effect (e.g. set high text) so the office mounts in that state.
+  if (beforeLogin !== undefined) await beforeLogin();
   await page.getByRole('button', { name: '로그인' }).click();
   // CD-2: the authenticated default primary surface is the Living Office (truthful eyebrow, not the prototype).
   await expect(page.locator('[data-primary-view="office"]')).toBeVisible();
@@ -281,6 +299,119 @@ async function assertOfficeIsPrimary(page: Page): Promise<void> {
     coverage,
     `Office label coverage ${coverage.toFixed(1)}% must stay well below the pre-A3-2 wall-of-cards (~28%) so the world is primary`,
   ).toBeLessThanOrEqual(22);
+}
+
+/**
+ * A4-2: bind the desktop gate to the exact visible production actor set with one *shared, reusable*
+ * combined predicate (exact per-actor cardinality + nine fields + per-fact source + Team, AND union label
+ * coverage within the Office-primary bound). The positive gate asserts the predicate holds; the negative
+ * challenge hides exactly ONE label and asserts the SAME combined predicate becomes false even though
+ * union coverage alone stays <=22% (coverage is never sufficient by itself); then restores it and proves
+ * the predicate holds again. Hide → evaluate → restore happens in one browser evaluate to avoid races.
+ */
+async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void> {
+  await expect(page.locator(`.living-office-actor-overlay[data-office-label-mode="${mode}"]`)).toHaveCount(1);
+  const result = await page.evaluate(() => {
+    const predicate = () => {
+      const overlay = document.querySelector('.living-office-actor-overlay');
+      const expected = Number(overlay?.getAttribute('data-actor-label-count') ?? -1);
+      const labels = [...document.querySelectorAll('.living-office-actor-label--production')].filter((element) => {
+        const node = element as HTMLElement;
+        return getComputedStyle(node).display !== 'none' && node.offsetParent !== null && !node.hasAttribute('hidden');
+      });
+      const ids = new Set(labels.map((element) => element.getAttribute('data-actor-label')));
+      const cardinalityOk = expected > 0 && labels.length === expected && ids.size === expected;
+      const fieldsOk = labels.length > 0 && labels.every((element) =>
+        element.querySelectorAll('[data-actor-summary-field]').length === 9
+        && element.querySelectorAll('[data-actor-fact-source]').length >= 7
+        && element.querySelector('[data-actor-summary-field="advisorTeam"]') !== null);
+      const viewport = document.querySelector('.pixel-world-viewport');
+      let coverage = -1;
+      if (viewport !== null) {
+        const box = viewport.getBoundingClientRect();
+        const rects = labels.map((element) => element.getBoundingClientRect());
+        let covered = 0;
+        let total = 0;
+        for (let y = box.top; y < box.bottom; y += 6) {
+          for (let x = box.left; x < box.right; x += 6) {
+            total += 1;
+            if (rects.some((r) => x >= r.left && x < r.right && y >= r.top && y < r.bottom)) covered += 1;
+          }
+        }
+        coverage = total === 0 ? -1 : (covered / total) * 100;
+      }
+      const coverageOk = coverage >= 0 && coverage <= 22;
+      return { valid: cardinalityOk && fieldsOk && coverageOk, cardinalityOk, fieldsOk, coverage, expected, visible: labels.length };
+    };
+    const positive = predicate();
+    const all = [...document.querySelectorAll('.living-office-actor-label--production')].map((element) => element as HTMLElement);
+    const one = all[0];
+    // The base label carries `display: grid !important`, so an inline !important is needed to hide one.
+    if (one !== undefined) one.style.setProperty('display', 'none', 'important');
+    const hidden = predicate();
+    if (one !== undefined) one.style.removeProperty('display');
+    const restored = predicate();
+    return { positive, hidden, restored };
+  });
+  // Positive: exactly one nine-field, sourced, Team-bearing label per expected actor within the bound.
+  expect(result.positive.expected, 'data-actor-label-count contract present').toBeGreaterThan(0);
+  expect(result.positive.cardinalityOk, 'exactly one visible in-viewport label per expected actor').toBe(true);
+  expect(result.positive.fieldsOk, 'nine fields + per-fact source + Team on every label').toBe(true);
+  expect(result.positive.valid, 'the combined complete-set predicate holds').toBe(true);
+  // Negative: hiding exactly one label fails the SAME combined predicate, though coverage alone still <=22%.
+  expect(result.hidden.visible, 'exactly one label was hidden').toBe(result.positive.expected - 1);
+  expect(result.hidden.coverage, 'union coverage alone remains within the Office-primary bound').toBeLessThanOrEqual(22);
+  expect(result.hidden.valid, 'the combined predicate is false with a label hidden (coverage alone insufficient)').toBe(false);
+  // Restore: the same combined predicate holds again.
+  expect(result.restored.valid, 'the combined predicate holds again after restoring the label').toBe(true);
+}
+
+/**
+ * A4-1: at high text the production surface is in the explicit, production-observable roster-equivalent
+ * mode — the DOM marker is set, there are zero partial on-canvas labels, and the always-visible roster
+ * is the complete first layer: exact set equality with the expected actor set, one row per actor, each
+ * with role, display name, all seven mapped compact facts (incl. Team), and a non-empty source per fact.
+ */
+async function assertRosterEquivalentMode(page: Page): Promise<void> {
+  await expect(page.locator('.living-office-actor-overlay[data-office-label-mode="roster-equivalent"]')).toHaveCount(1);
+  const result = await page.evaluate(() => {
+    const overlay = document.querySelector('.living-office-actor-overlay');
+    const mode = overlay?.getAttribute('data-office-label-mode') ?? '';
+    const expectedIds = [...document.querySelectorAll('.living-office-actor-label--production')]
+      .map((element) => element.getAttribute('data-actor-label'))
+      .filter((id): id is string => id !== null);
+    const visibleLabels = [...document.querySelectorAll('.living-office-actor-label--production')].filter((element) => {
+      const node = element as HTMLElement;
+      return getComputedStyle(node).display !== 'none' && node.offsetParent !== null;
+    }).length;
+    const rows = [...document.querySelectorAll('[data-actor-roster]')];
+    const rosterIds = rows.map((row) => row.getAttribute('data-actor-roster')).filter((id): id is string => id !== null);
+    const perRow = rows.map((row) => {
+      const fields = [...row.querySelectorAll('[data-actor-roster-field]')];
+      return {
+        id: row.getAttribute('data-actor-roster'),
+        hasRole: row.querySelector('.living-office-semantic__roster-role') !== null,
+        hasName: row.querySelector('strong') !== null,
+        fieldCount: fields.length,
+        hasTeam: row.querySelector('[data-actor-roster-field="advisorTeam"]') !== null,
+        sourcedFields: fields.filter((field) => (field.getAttribute('data-actor-fact-source') ?? '') !== '').length,
+      };
+    });
+    return { mode, expectedIds, visibleLabels, rosterIds, perRow };
+  });
+  expect(result.mode, 'explicit roster-equivalent DOM marker').toBe('roster-equivalent');
+  expect(result.visibleLabels, 'zero partial on-canvas labels').toBe(0);
+  expect(result.expectedIds.length, 'expected actor set is non-empty').toBeGreaterThan(0);
+  expect([...result.rosterIds].sort(), 'roster ids exactly equal the expected visible actor ids')
+    .toEqual([...result.expectedIds].sort());
+  expect(new Set(result.rosterIds).size, 'exactly one roster row per actor').toBe(result.expectedIds.length);
+  for (const row of result.perRow) {
+    expect(row.hasRole, `roster row ${row.id} states its role`).toBe(true);
+    expect(row.hasName, `roster row ${row.id} states its stable display name`).toBe(true);
+    expect(row.fieldCount, `roster row ${row.id} has all seven mapped compact facts`).toBe(7);
+    expect(row.hasTeam, `roster row ${row.id} includes the Team fact`).toBe(true);
+    expect(row.sourcedFields, `roster row ${row.id} has a source for every mapped fact`).toBe(7);
+  }
 }
 
 /** I2-2 #2: the displaced production labels must not overlap each other (a >1px rectangle intersection). */

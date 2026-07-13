@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -33,6 +34,11 @@ const LABEL_HEIGHT = 78;
 const PRODUCTION_LABEL_WIDTH = 244;
 const PRODUCTION_LABEL_HEIGHT = 180;
 const VIEWPORT_PADDING = 8;
+// A4-1: the compact on-canvas labels stay within the <=22% Office-primary coverage bound only up to
+// ~1.3x root text (coverage scales with the text-driven card height). At or above this real high-text
+// accessibility scale the production surface switches to an explicit, complete roster-equivalent mode
+// (no partial on-canvas labels) so the Office stays primary and every actor's first layer stays readable.
+const HIGH_TEXT_EQUIVALENT_SCALE = 1.3;
 
 // A3-2: compact, non-color source codes for the dense on-canvas label (the full source labels in
 // PIXEL_ACTOR_FACT_SOURCE_LABELS do not fit a compact card and are kept, in full, in the roster/drawer
@@ -143,6 +149,31 @@ export const LivingOfficeActorOverlay = forwardRef<
     ? null
     : frame.actorFrames.find((actor) => actor.roleInstanceId === selectedActorId) ?? null;
 
+  // A4-1: observe the real root text scale from a `rem`-sized probe (a 10rem span is 160px at the
+  // browser-default 16px root; its measured width / 160 is the actual scale, reflecting both a user font
+  // preference and an author root-font change — media-query `rem` would not). Re-measured on load and on
+  // every text-scale change via a ResizeObserver, so the equivalent mode is production-observable, not a
+  // test-only class, and updates at initial load and after a text-scale change without needing animation.
+  const textScaleProbeRef = useRef<HTMLSpanElement>(null);
+  const [textScale, setTextScale] = useState(1);
+  // useLayoutEffect measures the probe and commits the scale *before paint*, so a page that mounts
+  // already under high text switches straight to the roster-equivalent mode — the 31% card wall is never
+  // painted, even for one frame. The ResizeObserver keeps it reactive to later text-scale changes.
+  useLayoutEffect(() => {
+    const probe = textScaleProbeRef.current;
+    if (probe === null) return undefined;
+    const measure = () => {
+      const width = probe.getBoundingClientRect().width;
+      if (width > 0) setTextScale(width / 160);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(probe);
+    return () => observer.disconnect();
+  }, []);
+  const rosterEquivalentMode = isProduction && textScale >= HIGH_TEXT_EQUIVALENT_SCALE;
+
   const applyPositions = useCallback((nextFrame: PixelWorldFrameV1) => {
     for (const placement of layoutPixelActorLabels(nextFrame, viewportWidth, viewportHeight)) {
       const button = buttonRefs.current.get(placement.roleInstanceId);
@@ -177,11 +208,22 @@ export const LivingOfficeActorOverlay = forwardRef<
 
   return (
     <>
+      {isProduction ? (
+        <span
+          aria-hidden="true"
+          className="living-office-actor-overlay__text-probe"
+          ref={textScaleProbeRef}
+        />
+      ) : null}
       <div
         aria-label="Camera-tracked actor identity labels"
         className="living-office-actor-overlay"
         data-actor-label-count={frame.actorFrames.filter((actor) => actor.visible).length}
         data-actor-surface={isProduction ? 'production' : 'prototype'}
+        // A4-1: explicit, production-observable DOM marker for the on-canvas-label vs complete
+        // roster-equivalent mode. `roster-equivalent` (high text scale) forbids partial on-canvas labels;
+        // the complete first-layer roster stays authoritative. Prototype/normal desktop use `labels`.
+        data-office-label-mode={isProduction ? (rosterEquivalentMode ? 'roster-equivalent' : 'labels') : undefined}
         data-presentation-tier={frame.presentationTier}
         // I2-2: a bare <div> may not carry aria-label (aria-prohibited-attr). On the production surface
         // the on-canvas labels are hidden on mobile, leaving this container with an orphan name, so give
@@ -528,10 +570,13 @@ function actorLabelAccessibleName(actor: PixelActorFrame): string {
     return `${organizationFacts.stableDisplayName.value}. `
       + `Role ${organizationFacts.role.value}. `
       + `Team ${organizationFacts.advisorTeam.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.advisorTeam.source]}. `
+      // A4-3: every compact fact announces its full source name (not just Team/process/identity).
       + `Session process ${organizationFacts.sessionProcess.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.sessionProcess.source]}. `
       + `AI identity ${organizationFacts.aiIdentity.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.aiIdentity.source]}. `
-      + `Model ${organizationFacts.model.value}. Effort ${organizationFacts.effort.value}. `
-      + `AI runtime ${organizationFacts.aiRuntimeState.value}. Operational ${organizationFacts.operationalState.value}. `
+      + `Model ${organizationFacts.model.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.model.source]}. `
+      + `Effort ${organizationFacts.effort.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.effort.source]}. `
+      + `AI runtime ${organizationFacts.aiRuntimeState.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.aiRuntimeState.source]}. `
+      + `Operational ${organizationFacts.operationalState.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.operationalState.source]}. `
       + 'Open actor detail.';
   }
   return `${actor.displayName}. Role ${actor.facts.role}. Model ${actor.facts.model}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.model]}. Session ${actor.facts.sessionName}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.sessionName]}. State ${actor.facts.state}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[actor.factSources.state]}. Open actor detail.`;
