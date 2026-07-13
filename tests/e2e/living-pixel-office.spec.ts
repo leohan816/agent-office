@@ -493,12 +493,37 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
     const challenge = (mutate: () => void, restore: () => void) => { mutate(); const value = predicate(); restore(); return value; };
     const positive = predicate();
     const firstRow = document.querySelector('[data-actor-roster]');
+    // a wrong-but-unique roster id breaks exact set equality.
+    const wrongRosterId = firstRow === null ? null : (() => {
+      const original = firstRow.getAttribute('data-actor-roster') ?? '';
+      return challenge(
+        () => firstRow.setAttribute('data-actor-roster', '__wrong_unique_roster_id__'),
+        () => firstRow.setAttribute('data-actor-roster', original),
+      );
+    })();
+    // an empty stable display name fails the non-empty-name requirement.
+    const emptyName = firstRow === null ? null : (() => {
+      const name = firstRow.querySelector('strong');
+      if (name === null) return null;
+      const original = name.textContent;
+      return challenge(() => { name.textContent = ''; }, () => { name.textContent = original; });
+    })();
     // empty role text fails the non-empty-role requirement.
     const emptyRole = firstRow === null ? null : (() => {
       const role = firstRow.querySelector('.living-office-semantic__roster-role');
       if (role === null) return null;
       const original = role.textContent;
       return challenge(() => { role.textContent = ''; }, () => { role.textContent = original; });
+    })();
+    // an emptied roster fact source fails the non-empty-source requirement.
+    const emptySource = firstRow === null ? null : (() => {
+      const cell = firstRow.querySelector('[data-actor-roster-field]');
+      if (cell === null) return null;
+      const original = cell.getAttribute('data-actor-fact-source') ?? '';
+      return challenge(
+        () => cell.setAttribute('data-actor-fact-source', ''),
+        () => cell.setAttribute('data-actor-fact-source', original),
+      );
     })();
     // a duplicated roster fact key fails the exact unique-key set.
     const duplicateFact = firstRow === null ? null : (() => {
@@ -510,7 +535,10 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
       );
     })();
     const restored = predicate();
-    return { mode: overlay?.getAttribute('data-office-label-mode') ?? '', visibleLabels, expectedCount: expectedIds.length, positive, emptyRole, duplicateFact, restored };
+    return {
+      mode: overlay?.getAttribute('data-office-label-mode') ?? '', visibleLabels, expectedCount: expectedIds.length,
+      positive, wrongRosterId, emptyName, emptyRole, emptySource, duplicateFact, restored,
+    };
   }, { factKeys: [...EXPECTED_SOURCED_KEYS] });
   expect(result.mode, 'explicit roster-equivalent DOM marker').toBe('roster-equivalent');
   expect(result.visibleLabels, 'zero partial on-canvas labels').toBe(0);
@@ -520,7 +548,10 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
   expect(result.positive.rowsOk, 'every row has role, name, the exact seven sourced facts, and a trigger').toBe(true);
   expect(result.positive.valid, 'the roster-equivalent predicate holds').toBe(true);
   // Negatives: each mutation fails the SAME roster predicate.
+  expect(result.wrongRosterId?.valid, 'a wrong-but-unique roster id fails the predicate').toBe(false);
+  expect(result.emptyName?.valid, 'an empty stable display name fails the predicate').toBe(false);
   expect(result.emptyRole?.valid, 'an empty roster role fails the predicate').toBe(false);
+  expect(result.emptySource?.valid, 'an empty roster fact source fails the predicate').toBe(false);
   expect(result.duplicateFact?.valid, 'a duplicated roster fact key fails the predicate').toBe(false);
   expect(result.restored.valid, 'the roster-equivalent predicate holds again after restoring').toBe(true);
 }
