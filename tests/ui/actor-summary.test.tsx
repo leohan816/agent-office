@@ -12,6 +12,7 @@ import {
   type OrganizationRegistryRow,
   type RuntimeWorkInput,
 } from '../../src/application/organization/index.js';
+import { PIXEL_ACTOR_FACT_SOURCE_LABELS } from '../../src/ui/pixel/contracts.js';
 import type { PixelPrototypeViewOptions, PixelWorldFrameV1 } from '../../src/ui/pixel/contracts.js';
 import { LIVING_PIXEL_PROTOTYPE_PROJECTION } from '../../src/ui/pixel/fixtures/prototype-projection.js';
 import { projectPixelWorldFrame } from '../../src/ui/pixel/frame-projector.js';
@@ -139,20 +140,29 @@ describe('BA-WU-03 compact actor summary (contract §2.7 first layer)', () => {
     expect(label).not.toBeNull();
   });
 
-  it('A4-3: the accessible name carries a full source name for every compact fact', () => {
+  it('A5-3: the accessible name states each compact fact\'s exact source phrase; abbreviating any fails', () => {
     const actor = organizationActor({
       runtime: { roleInstanceId: TARGET, mission: 'MODERN_OFFICE', workUnit: 'BA-WU-03', observableName: 'WORKING' },
       evidence: [ev('process_detected'), ev('ai_identity_attestation', 'CLAUDE_OPUS_4_8'), ev('model_attestation', 'claude-opus-4-8'), ev('effort_attestation', 'ULTRACODE'), ev('ai_ready')],
     });
     const { container } = renderOverlay(actor);
     const name = container.querySelector(`[data-actor-label="${TARGET}"]`)?.getAttribute('aria-label') ?? '';
-    // Every compact fact (Team, process, identity, model, effort, AI runtime, operational) must state its
-    // full source — not just Team/process/identity. A missing "..., source ..." fails this assertion.
-    for (const phrase of [
-      'Team ', 'Session process ', 'AI identity ', 'Model ', 'Effort ', 'AI runtime ', 'Operational ',
-    ]) {
-      const segment = name.slice(name.indexOf(phrase));
-      expect(segment, `${phrase}has a source`).toMatch(new RegExp(`^${phrase}[^.]*, source [A-Z][^.]*\\.`, 'u'));
+    // Every compact fact must state its EXACT PIXEL_ACTOR_FACT_SOURCE_LABELS[source] phrase — a generic
+    // "source <UPPERCASE>." is insufficient. Each negative abbreviates that one source and must fail.
+    const facts: readonly (readonly [string, { value: string; source: keyof typeof PIXEL_ACTOR_FACT_SOURCE_LABELS }])[] = [
+      ['Team', actor.advisorTeam],
+      ['Session process', actor.sessionProcess],
+      ['AI identity', actor.aiIdentity],
+      ['Model', actor.model],
+      ['Effort', actor.effort],
+      ['AI runtime', actor.aiRuntimeState],
+      ['Operational', actor.operationalState],
+    ];
+    for (const [label, fact] of facts) {
+      const exact = `${label} ${fact.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[fact.source]}.`;
+      expect(name, `${label} exact source phrase`).toContain(exact);
+      const abbreviated = name.replace(exact, `${label} ${fact.value}, source SRC.`);
+      expect(abbreviated, `abbreviating ${label} source must break the exact phrase`).not.toContain(exact);
     }
   });
 

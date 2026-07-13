@@ -93,6 +93,21 @@ export function organizationFact(facts: OrganizationFrameActor, key: Organizatio
   return facts[key];
 }
 
+// A5-1: an element is a valid focus target only if it is connected and neither it nor an ancestor is
+// display:none / `hidden` — e.g. an on-canvas label after switching to the high-text roster mode. (Walking
+// computed display rather than layout boxes keeps this correct in both the browser and jsdom.)
+function isElementVisible(element: HTMLElement): boolean {
+  if (!element.isConnected) return false;
+  for (let node: HTMLElement | null = element; node !== null; node = node.parentElement) {
+    if (node.hidden || getComputedStyle(node).display === 'none') return false;
+  }
+  return true;
+}
+
+function cssEscape(value: string): string {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value;
+}
+
 export interface PixelActorLabelPlacement {
   readonly roleInstanceId: string;
   readonly x: number;
@@ -106,6 +121,9 @@ export interface PixelActorLabelPlacement {
 
 export interface LivingOfficeActorOverlayHandle {
   updatePositions(frame: PixelWorldFrameV1): void;
+  // A5-1: open the same single actor drawer from an external trigger (the high-text roster row), recording
+  // that trigger as the invoker so close/Escape restores focus to it. No duplicate drawer/actor state.
+  openActorDrawer(actorId: string, invoker: HTMLElement | null): void;
 }
 
 export interface LivingOfficeActorOverlayProps {
@@ -185,16 +203,44 @@ export const LivingOfficeActorOverlay = forwardRef<
     }
   }, [viewportHeight, viewportWidth]);
 
-  useImperativeHandle(forwardedRef, () => ({ updatePositions: applyPositions }), [applyPositions]);
+  // A5-1: the element that opened the drawer (an on-canvas label at normal scale or a high-text roster
+  // trigger). Close/Escape restores focus to it, or — if it became hidden after a text-scale transition —
+  // to the same actor's other currently-visible trigger, never BODY or another actor.
+  const invokerRef = useRef<HTMLElement | null>(null);
+  const openActorDrawer = useCallback((actorId: string, invoker: HTMLElement | null) => {
+    invokerRef.current = invoker;
+    setSelectedActorId(actorId);
+  }, []);
+
+  useImperativeHandle(
+    forwardedRef,
+    () => ({ updatePositions: applyPositions, openActorDrawer }),
+    [applyPositions, openActorDrawer],
+  );
   useEffect(() => applyPositions(frame), [applyPositions, frame]);
   useEffect(() => {
     if (selectedActor !== null) closeRef.current?.focus();
   }, [selectedActor]);
 
   const close = () => {
-    const invoker = selectedActorId === null ? null : buttonRefs.current.get(selectedActorId) ?? null;
+    const actorId = selectedActorId;
+    const invoker = invokerRef.current;
+    invokerRef.current = null;
     setSelectedActorId(null);
-    invoker?.focus();
+    // Restore to the recorded invoker if it is still visible; otherwise to the same actor's other visible
+    // trigger (the on-canvas label, or the high-text roster trigger) — never BODY or a different actor.
+    if (invoker !== null && isElementVisible(invoker)) {
+      invoker.focus();
+      return;
+    }
+    if (actorId === null) return;
+    const label = buttonRefs.current.get(actorId) ?? null;
+    if (label !== null && isElementVisible(label)) {
+      label.focus();
+      return;
+    }
+    const rosterTrigger = document.querySelector(`[data-actor-roster-trigger="${cssEscape(actorId)}"]`);
+    if (rosterTrigger instanceof HTMLElement && isElementVisible(rosterTrigger)) rosterTrigger.focus();
   };
   const onDrawerKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Escape') {
@@ -270,7 +316,7 @@ export const LivingOfficeActorOverlay = forwardRef<
               data-anchor-y={placement?.anchorY}
               hidden={placement?.inViewport === false}
               key={actor.roleInstanceId}
-              onClick={() => setSelectedActorId(actor.roleInstanceId)}
+              onClick={(event) => openActorDrawer(actor.roleInstanceId, event.currentTarget)}
               ref={(element) => {
                 if (element === null) buttonRefs.current.delete(actor.roleInstanceId);
                 else buttonRefs.current.set(actor.roleInstanceId, element);

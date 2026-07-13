@@ -16,6 +16,14 @@ const LIVING_OFFICE_EYEBROW = 'AGENT OFFICE · AUTHENTICATED LIVING OFFICE';
 const PROOF_DESKTOP = 'A'.repeat(43);
 const PROOF_MOBILE = 'B'.repeat(43);
 const PROOF_REDUCED = 'C'.repeat(43);
+// A5-2: the exact contract §2.7 first-layer field keys — nine on the label, of which seven carry a source.
+const EXPECTED_FIELD_KEYS = [
+  'role', 'stableDisplayName', 'advisorTeam', 'sessionProcess', 'aiIdentity', 'model', 'effort',
+  'aiRuntimeState', 'operationalState',
+] as const;
+const EXPECTED_SOURCED_KEYS = [
+  'advisorTeam', 'sessionProcess', 'aiIdentity', 'model', 'effort', 'aiRuntimeState', 'operationalState',
+] as const;
 
 test.skip(!enabled, 'living-pixel-office renders the authenticated Office via its dedicated composed-runtime config');
 test.describe.configure({ mode: 'serial' });
@@ -80,10 +88,16 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     await assertRosterEquivalentMode(page);
     await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
     await expect(page.locator('[data-actor-roster-field="advisorTeam"]')).toHaveCount(8);
+    // A5-1: every high-text roster actor has one keyboard/pointer trigger opening the SAME actor's
+    // 17-field drawer; close (button or Escape) restores focus to that trigger, with no partial labels.
+    await assertHighTextRosterDrawer(page);
     await expectFullSurfaceAxeClean(page, '200% text');
     await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
     // A4-1: the exact all-label predicate holds again when the text scale returns to normal.
     await assertCompleteLabelSet(page, 'labels');
+    // A5-1: opening the drawer at normal scale then transitioning to high text restores focus, on close,
+    // to the actor's now-visible roster trigger — not the hidden label or BODY.
+    await assertNormalToHighTransitionFocus(page);
     // SIR-3: unmasked live production capture, directly inspectable.
     await attachUnmaskedOffice(page, testInfo, 'living-office-desktop-unmasked-1440x900');
 
@@ -311,29 +325,51 @@ async function assertOfficeIsPrimary(page: Page): Promise<void> {
  */
 async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void> {
   await expect(page.locator(`.living-office-actor-overlay[data-office-label-mode="${mode}"]`)).toHaveCount(1);
-  const result = await page.evaluate(() => {
+  const result = await page.evaluate(({ fieldKeys, sourcedKeys }) => {
+    // Authoritative expected actor-id set — from the production frame (data-office-actor-ids on the
+    // surface), NOT derived from the label elements under test, so the gate cannot be tautological.
+    const surface = document.querySelector('[data-office-actor-ids]');
+    const expectedIds = JSON.parse(surface?.getAttribute('data-office-actor-ids') ?? '[]') as string[];
+    const viewport = document.querySelector('.pixel-world-viewport')?.getBoundingClientRect() ?? null;
     const predicate = () => {
-      const overlay = document.querySelector('.living-office-actor-overlay');
-      const expected = Number(overlay?.getAttribute('data-actor-label-count') ?? -1);
       const labels = [...document.querySelectorAll('.living-office-actor-label--production')].filter((element) => {
         const node = element as HTMLElement;
-        return getComputedStyle(node).display !== 'none' && node.offsetParent !== null && !node.hasAttribute('hidden');
+        return getComputedStyle(node).display !== 'none' && !node.hasAttribute('hidden');
       });
-      const ids = new Set(labels.map((element) => element.getAttribute('data-actor-label')));
-      const cardinalityOk = expected > 0 && labels.length === expected && ids.size === expected;
-      const fieldsOk = labels.length > 0 && labels.every((element) =>
-        element.querySelectorAll('[data-actor-summary-field]').length === 9
-        && element.querySelectorAll('[data-actor-fact-source]').length >= 7
-        && element.querySelector('[data-actor-summary-field="advisorTeam"]') !== null);
-      const viewport = document.querySelector('.pixel-world-viewport');
+      const ids = labels.map((element) => element.getAttribute('data-actor-label') ?? '');
+      const idSet = new Set(ids);
+      const setEqual = expectedIds.length > 0 && ids.length === expectedIds.length
+        && idSet.size === expectedIds.length && expectedIds.every((id) => idSet.has(id));
+      const inViewport = viewport !== null && labels.length > 0 && labels.every((element) => {
+        const r = element.getBoundingClientRect();
+        return r.width > 0 && r.height > 0
+          && r.right > viewport.left && r.left < viewport.right && r.bottom > viewport.top && r.top < viewport.bottom;
+      });
+      const fieldsOk = labels.length > 0 && labels.every((element) => {
+        const cells = [...element.querySelectorAll('[data-actor-summary-field]')];
+        const keys = cells.map((cell) => cell.getAttribute('data-actor-summary-field') ?? '');
+        const unique = new Set(keys);
+        return keys.length === fieldKeys.length && unique.size === fieldKeys.length
+          && fieldKeys.every((key) => unique.has(key))
+          && cells.every((cell) => cell.textContent.trim().length > 0);
+      });
+      const sourcesOk = labels.length > 0 && labels.every((element) => {
+        const cells = [...element.querySelectorAll('[data-actor-fact-source]')];
+        const keys = cells.map((cell) => cell.getAttribute('data-actor-summary-field') ?? '');
+        const unique = new Set(keys);
+        return keys.length === sourcedKeys.length && unique.size === sourcedKeys.length
+          && sourcedKeys.every((key) => unique.has(key))
+          && cells.every((cell) => (cell.getAttribute('data-actor-fact-source') ?? '').trim().length > 0);
+      });
+      const teamOk = labels.length > 0
+        && labels.every((element) => element.querySelector('[data-actor-summary-field="advisorTeam"]') !== null);
       let coverage = -1;
       if (viewport !== null) {
-        const box = viewport.getBoundingClientRect();
         const rects = labels.map((element) => element.getBoundingClientRect());
         let covered = 0;
         let total = 0;
-        for (let y = box.top; y < box.bottom; y += 6) {
-          for (let x = box.left; x < box.right; x += 6) {
+        for (let y = viewport.top; y < viewport.bottom; y += 6) {
+          for (let x = viewport.left; x < viewport.right; x += 6) {
             total += 1;
             if (rects.some((r) => x >= r.left && x < r.right && y >= r.top && y < r.bottom)) covered += 1;
           }
@@ -341,29 +377,82 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
         coverage = total === 0 ? -1 : (covered / total) * 100;
       }
       const coverageOk = coverage >= 0 && coverage <= 22;
-      return { valid: cardinalityOk && fieldsOk && coverageOk, cardinalityOk, fieldsOk, coverage, expected, visible: labels.length };
+      return {
+        setEqual, inViewport, fieldsOk, sourcesOk, teamOk, coverage, coverageOk, visible: labels.length,
+        valid: setEqual && inViewport && fieldsOk && sourcesOk && teamOk && coverageOk,
+      };
     };
+    // Run a mutation, evaluate the SAME predicate, then restore — so every challenge exercises the exact
+    // production gate, not a parallel weaker calculation.
+    const challenge = (mutate: () => void, restore: () => void) => { mutate(); const value = predicate(); restore(); return value; };
+    const all = [...document.querySelectorAll('.living-office-actor-label--production')].map((e) => e as HTMLElement);
+    const first = all[0];
+    const firstOriginalId = first?.getAttribute('data-actor-label') ?? '';
     const positive = predicate();
-    const all = [...document.querySelectorAll('.living-office-actor-label--production')].map((element) => element as HTMLElement);
-    const one = all[0];
-    // The base label carries `display: grid !important`, so an inline !important is needed to hide one.
-    if (one !== undefined) one.style.setProperty('display', 'none', 'important');
-    const hidden = predicate();
-    if (one !== undefined) one.style.removeProperty('display');
+    // exactly one hidden (cardinality fails; coverage alone still passes).
+    const hiddenOne = first === undefined ? null : challenge(
+      () => first.style.setProperty('display', 'none', 'important'),
+      () => first.style.removeProperty('display'),
+    );
+    // a wrong-but-unique actor id breaks exact set equality.
+    const wrongId = first === undefined ? null : challenge(
+      () => first.setAttribute('data-actor-label', '__wrong_unique_actor_id__'),
+      () => first.setAttribute('data-actor-label', firstOriginalId),
+    );
+    // a required field key replaced by a duplicate of another breaks the exact unique-key set.
+    const duplicateField = first === undefined ? null : (() => {
+      const cell = first.querySelector('[data-actor-summary-field="effort"]');
+      if (cell === null) return null;
+      return challenge(
+        () => cell.setAttribute('data-actor-summary-field', 'model'),
+        () => cell.setAttribute('data-actor-summary-field', 'effort'),
+      );
+    })();
+    // an emptied source value breaks the non-empty-source requirement.
+    const emptySource = first === undefined ? null : (() => {
+      const cell = first.querySelector('[data-actor-fact-source]');
+      if (cell === null) return null;
+      const original = cell.getAttribute('data-actor-fact-source') ?? '';
+      return challenge(
+        () => cell.setAttribute('data-actor-fact-source', ''),
+        () => cell.setAttribute('data-actor-fact-source', original),
+      );
+    })();
+    // all labels translated out of the production viewport fail the actual-viewport-presence requirement.
+    const offViewport = (() => {
+      const originalTransforms = all.map((element) => element.style.getPropertyValue('transform'));
+      const originalPriorities = all.map((element) => element.style.getPropertyPriority('transform'));
+      return challenge(
+        () => all.forEach((element) => { element.style.setProperty('transform', 'translate3d(-99999px, -99999px, 0)', 'important'); }),
+        () => all.forEach((element, index) => {
+          element.style.removeProperty('transform');
+          element.style.setProperty('transform', originalTransforms[index] ?? '', originalPriorities[index] ?? '');
+        }),
+      );
+    })();
     const restored = predicate();
-    return { positive, hidden, restored };
-  });
-  // Positive: exactly one nine-field, sourced, Team-bearing label per expected actor within the bound.
-  expect(result.positive.expected, 'data-actor-label-count contract present').toBeGreaterThan(0);
-  expect(result.positive.cardinalityOk, 'exactly one visible in-viewport label per expected actor').toBe(true);
-  expect(result.positive.fieldsOk, 'nine fields + per-fact source + Team on every label').toBe(true);
+    return { positive, hiddenOne, wrongId, duplicateField, emptySource, offViewport, restored, expectedCount: expectedIds.length };
+  }, { fieldKeys: [...EXPECTED_FIELD_KEYS], sourcedKeys: [...EXPECTED_SOURCED_KEYS] });
+
+  expect(result.expectedCount, 'authoritative expected actor set is non-empty').toBeGreaterThan(0);
+  // Positive: the exact combined predicate holds.
+  expect(result.positive.setEqual, 'labels exactly equal the authoritative actor id set').toBe(true);
+  expect(result.positive.inViewport, 'every label has positive area within the production viewport').toBe(true);
+  expect(result.positive.fieldsOk, 'exactly nine unique non-empty first-layer field keys per label').toBe(true);
+  expect(result.positive.sourcesOk, 'exactly seven unique facts each with a non-empty source per label').toBe(true);
+  expect(result.positive.teamOk, 'the Team fact on every label').toBe(true);
+  expect(result.positive.coverageOk, 'label coverage within the Office-primary bound').toBe(true);
   expect(result.positive.valid, 'the combined complete-set predicate holds').toBe(true);
-  // Negative: hiding exactly one label fails the SAME combined predicate, though coverage alone still <=22%.
-  expect(result.hidden.visible, 'exactly one label was hidden').toBe(result.positive.expected - 1);
-  expect(result.hidden.coverage, 'union coverage alone remains within the Office-primary bound').toBeLessThanOrEqual(22);
-  expect(result.hidden.valid, 'the combined predicate is false with a label hidden (coverage alone insufficient)').toBe(false);
-  // Restore: the same combined predicate holds again.
-  expect(result.restored.valid, 'the combined predicate holds again after restoring the label').toBe(true);
+  // Negatives: each mutation must fail the SAME predicate.
+  expect(result.hiddenOne?.visible, 'exactly one label was hidden').toBe(result.expectedCount - 1);
+  expect(result.hiddenOne?.coverage, 'coverage alone still within the bound with a label hidden').toBeLessThanOrEqual(22);
+  expect(result.hiddenOne?.valid, 'a hidden label fails the predicate (coverage alone insufficient)').toBe(false);
+  expect(result.wrongId?.valid, 'a wrong-but-unique actor id fails the predicate').toBe(false);
+  expect(result.duplicateField?.valid, 'a duplicated field key fails the predicate').toBe(false);
+  expect(result.emptySource?.valid, 'an empty source value fails the predicate').toBe(false);
+  expect(result.offViewport.valid, 'all labels outside the production viewport fail the predicate').toBe(false);
+  // Restore: the predicate holds again.
+  expect(result.restored.valid, 'the combined predicate holds again after restoring the labels').toBe(true);
 }
 
 /**
@@ -374,44 +463,115 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
  */
 async function assertRosterEquivalentMode(page: Page): Promise<void> {
   await expect(page.locator('.living-office-actor-overlay[data-office-label-mode="roster-equivalent"]')).toHaveCount(1);
-  const result = await page.evaluate(() => {
+  const result = await page.evaluate(({ factKeys }) => {
     const overlay = document.querySelector('.living-office-actor-overlay');
-    const mode = overlay?.getAttribute('data-office-label-mode') ?? '';
-    const expectedIds = [...document.querySelectorAll('.living-office-actor-label--production')]
-      .map((element) => element.getAttribute('data-actor-label'))
-      .filter((id): id is string => id !== null);
-    const visibleLabels = [...document.querySelectorAll('.living-office-actor-label--production')].filter((element) => {
-      const node = element as HTMLElement;
-      return getComputedStyle(node).display !== 'none' && node.offsetParent !== null;
-    }).length;
-    const rows = [...document.querySelectorAll('[data-actor-roster]')];
-    const rosterIds = rows.map((row) => row.getAttribute('data-actor-roster')).filter((id): id is string => id !== null);
-    const perRow = rows.map((row) => {
-      const fields = [...row.querySelectorAll('[data-actor-roster-field]')];
-      return {
-        id: row.getAttribute('data-actor-roster'),
-        hasRole: row.querySelector('.living-office-semantic__roster-role') !== null,
-        hasName: row.querySelector('strong') !== null,
-        fieldCount: fields.length,
-        hasTeam: row.querySelector('[data-actor-roster-field="advisorTeam"]') !== null,
-        sourcedFields: fields.filter((field) => (field.getAttribute('data-actor-fact-source') ?? '') !== '').length,
-      };
-    });
-    return { mode, expectedIds, visibleLabels, rosterIds, perRow };
-  });
+    const surface = document.querySelector('[data-office-actor-ids]');
+    const expectedIds = JSON.parse(surface?.getAttribute('data-office-actor-ids') ?? '[]') as string[];
+    const visibleLabels = [...document.querySelectorAll('.living-office-actor-label--production')].filter((element) =>
+      getComputedStyle(element as HTMLElement).display !== 'none' && !(element as HTMLElement).hasAttribute('hidden')).length;
+    const predicate = () => {
+      const rows = [...document.querySelectorAll('[data-actor-roster]')];
+      const rosterIds = rows.map((row) => row.getAttribute('data-actor-roster') ?? '');
+      const idSet = new Set(rosterIds);
+      const setEqual = expectedIds.length > 0 && rosterIds.length === expectedIds.length
+        && idSet.size === expectedIds.length && expectedIds.every((id) => idSet.has(id));
+      const rowsOk = rows.length > 0 && rows.every((row) => {
+        const role = row.querySelector('.living-office-semantic__roster-role');
+        const name = row.querySelector('strong');
+        const cells = [...row.querySelectorAll('[data-actor-roster-field]')];
+        const keys = cells.map((cell) => cell.getAttribute('data-actor-roster-field') ?? '');
+        const unique = new Set(keys);
+        return (role?.textContent ?? '').trim().length > 0
+          && (name?.textContent ?? '').trim().length > 0
+          && keys.length === factKeys.length && unique.size === factKeys.length && factKeys.every((k) => unique.has(k))
+          && cells.every((cell) => cell.textContent.trim().length > 0)
+          && cells.every((cell) => (cell.getAttribute('data-actor-fact-source') ?? '').trim().length > 0)
+          && row.querySelector('[data-actor-roster-trigger]') !== null;
+      });
+      return { setEqual, rowsOk, valid: setEqual && rowsOk };
+    };
+    const challenge = (mutate: () => void, restore: () => void) => { mutate(); const value = predicate(); restore(); return value; };
+    const positive = predicate();
+    const firstRow = document.querySelector('[data-actor-roster]');
+    // empty role text fails the non-empty-role requirement.
+    const emptyRole = firstRow === null ? null : (() => {
+      const role = firstRow.querySelector('.living-office-semantic__roster-role');
+      if (role === null) return null;
+      const original = role.textContent;
+      return challenge(() => { role.textContent = ''; }, () => { role.textContent = original; });
+    })();
+    // a duplicated roster fact key fails the exact unique-key set.
+    const duplicateFact = firstRow === null ? null : (() => {
+      const cell = firstRow.querySelector('[data-actor-roster-field="effort"]');
+      if (cell === null) return null;
+      return challenge(
+        () => cell.setAttribute('data-actor-roster-field', 'model'),
+        () => cell.setAttribute('data-actor-roster-field', 'effort'),
+      );
+    })();
+    const restored = predicate();
+    return { mode: overlay?.getAttribute('data-office-label-mode') ?? '', visibleLabels, expectedCount: expectedIds.length, positive, emptyRole, duplicateFact, restored };
+  }, { factKeys: [...EXPECTED_SOURCED_KEYS] });
   expect(result.mode, 'explicit roster-equivalent DOM marker').toBe('roster-equivalent');
   expect(result.visibleLabels, 'zero partial on-canvas labels').toBe(0);
-  expect(result.expectedIds.length, 'expected actor set is non-empty').toBeGreaterThan(0);
-  expect([...result.rosterIds].sort(), 'roster ids exactly equal the expected visible actor ids')
-    .toEqual([...result.expectedIds].sort());
-  expect(new Set(result.rosterIds).size, 'exactly one roster row per actor').toBe(result.expectedIds.length);
-  for (const row of result.perRow) {
-    expect(row.hasRole, `roster row ${row.id} states its role`).toBe(true);
-    expect(row.hasName, `roster row ${row.id} states its stable display name`).toBe(true);
-    expect(row.fieldCount, `roster row ${row.id} has all seven mapped compact facts`).toBe(7);
-    expect(row.hasTeam, `roster row ${row.id} includes the Team fact`).toBe(true);
-    expect(row.sourcedFields, `roster row ${row.id} has a source for every mapped fact`).toBe(7);
-  }
+  expect(result.expectedCount, 'authoritative expected actor set is non-empty').toBeGreaterThan(0);
+  // Positive: exact set equality + one complete row per actor (role, name, seven sourced facts, trigger).
+  expect(result.positive.setEqual, 'roster ids exactly equal the authoritative visible-actor ids').toBe(true);
+  expect(result.positive.rowsOk, 'every row has role, name, the exact seven sourced facts, and a trigger').toBe(true);
+  expect(result.positive.valid, 'the roster-equivalent predicate holds').toBe(true);
+  // Negatives: each mutation fails the SAME roster predicate.
+  expect(result.emptyRole?.valid, 'an empty roster role fails the predicate').toBe(false);
+  expect(result.duplicateFact?.valid, 'a duplicated roster fact key fails the predicate').toBe(false);
+  expect(result.restored.valid, 'the roster-equivalent predicate holds again after restoring').toBe(true);
+}
+
+/**
+ * A5-1: at high text every roster actor has one native keyboard/pointer trigger that opens the same
+ * actor's 17-field drawer; closing with the button or Escape restores focus to that same trigger, and no
+ * partial on-canvas label ever appears.
+ */
+async function assertHighTextRosterDrawer(page: Page): Promise<void> {
+  const trigger = page.locator('[data-actor-roster-trigger]').first();
+  const actorId = await trigger.getAttribute('data-actor-roster-trigger');
+  expect(actorId, 'roster trigger carries its actor id').not.toBeNull();
+  const drawer = page.locator(`[data-actor-detail="${actorId}"]`);
+  // Keyboard activation opens exactly this actor's drawer.
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toHaveAttribute('role', 'dialog');
+  await expect(page.locator('.living-office-actor-label--production:visible')).toHaveCount(0);
+  // Escape closes and restores focus to the invoking roster trigger.
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  // The close button also restores focus to the trigger.
+  await trigger.press('Enter');
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole('button', { name: 'Close actor detail' }).click();
+  await expect(drawer).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+}
+
+/**
+ * A5-1: opening the drawer at normal scale via an on-canvas label, then transitioning to high text (which
+ * hides that label), and closing must restore focus to the same actor's now-visible roster trigger — never
+ * BODY or the hidden label.
+ */
+async function assertNormalToHighTransitionFocus(page: Page): Promise<void> {
+  const label = page.locator('.living-office-actor-label--production:visible').first();
+  const actorId = await label.getAttribute('data-actor-label');
+  expect(actorId, 'label carries its actor id').not.toBeNull();
+  await label.click();
+  const drawer = page.locator(`[data-actor-detail="${actorId}"]`);
+  await expect(drawer).toBeVisible();
+  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await expect(page.locator('.living-office-actor-overlay[data-office-label-mode="roster-equivalent"]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(page.locator(`[data-actor-roster-trigger="${actorId}"]`)).toBeFocused();
+  await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
 }
 
 /** I2-2 #2: the displaced production labels must not overlap each other (a >1px rectangle intersection). */

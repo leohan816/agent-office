@@ -61,8 +61,19 @@ export function ProductionPixelWorldScene({ input, forceStatic }: ProductionPixe
     setViewport((current) => current.width === width && current.height === height ? current : { width, height });
   }, []);
 
+  // A5-2: the authoritative expected visible-actor id set, published straight from the production frame
+  // (not derived from the label/roster DOM), so the exact cardinality gates cannot false-pass by sourcing
+  // their own expected set from the elements they test.
+  const visibleActorIds = frame.actorFrames
+    .filter((actor) => actor.visible && actor.organizationFacts !== undefined)
+    .map((actor) => actor.roleInstanceId);
   return (
-    <section aria-label="Living pixel-office" className="living-office-surface" data-living-office-surface="true">
+    <section
+      aria-label="Living pixel-office"
+      className="living-office-surface"
+      data-living-office-surface="true"
+      data-office-actor-ids={JSON.stringify(visibleActorIds)}
+    >
       <LivingOfficeHud
         backend={backend}
         complete={false}
@@ -94,7 +105,12 @@ export function ProductionPixelWorldScene({ input, forceStatic }: ProductionPixe
           viewportWidth={viewport.width}
         />
       </section>
-      <LivingOfficeSemanticMirror frame={frame} projection={structural} surfaceKind="PRODUCTION" />
+      <LivingOfficeSemanticMirror
+        frame={frame}
+        onOpenActor={(actorId, invoker) => overlayRef.current?.openActorDrawer(actorId, invoker)}
+        projection={structural}
+        surfaceKind="PRODUCTION"
+      />
     </section>
   );
 }

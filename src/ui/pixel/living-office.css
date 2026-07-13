@@ -853,6 +853,30 @@ body:has(#living-pixel-prototype) {
   font-weight: 700;
 }
 
+/* A5-1: the per-actor roster trigger opens the same 17-field drawer (the only actor-detail affordance at
+   high text). Full-width, native <button>, keyboard- and pointer-operable, >=44px touch target. */
+.living-office-semantic__roster-open {
+  flex-basis: 100%;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  min-height: 44px;
+  padding: 4px 10px;
+  background: #faf7f1;
+  border: 1px solid #8f887f;
+  border-radius: 8px;
+  color: #23272b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.living-office-semantic__roster-open:hover {
+  background: #f0ebe4;
+  border-color: #8a5a30;
+}
+
 .living-office-semantic__columns {
   display: grid;
   gap: 18px;

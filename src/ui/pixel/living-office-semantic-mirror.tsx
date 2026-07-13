@@ -8,12 +8,16 @@ export interface LivingOfficeSemanticMirrorProps {
   // I2-4: the authenticated production surface is a continuous fixture-free committed office; the
   // prototype demo keeps its synthetic-fixture wording. Defaults to PROTOTYPE for the frozen entry.
   readonly surfaceKind?: 'PROTOTYPE' | 'PRODUCTION';
+  // A5-1: opens the same single actor drawer (owned by the overlay) from a roster row, recording the
+  // trigger as the invoker for focus restoration. The roster creates no authority/assignment/work meaning.
+  readonly onOpenActor?: (actorId: string, invoker: HTMLElement) => void;
 }
 
 export function LivingOfficeSemanticMirror({
   frame,
   projection,
   surfaceKind = 'PROTOTYPE',
+  onOpenActor,
 }: LivingOfficeSemanticMirrorProps) {
   const production = surfaceKind === 'PRODUCTION';
   return (
@@ -88,6 +92,16 @@ export function LivingOfficeSemanticMirror({
                       </span>
                     );
                   })}
+                  {/* A5-1: one native keyboard/pointer trigger per actor opening the same 17-field drawer. */}
+                  <button
+                    aria-label={`Open ${facts.stableDisplayName.value} actor detail`}
+                    className="living-office-semantic__roster-open"
+                    data-actor-roster-trigger={actor.roleInstanceId}
+                    onClick={(event) => onOpenActor?.(actor.roleInstanceId, event.currentTarget)}
+                    type="button"
+                  >
+                    Open detail
+                  </button>
                 </li>
               );
             })}
