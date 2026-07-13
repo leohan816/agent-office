@@ -42,6 +42,28 @@ describe('AO12-D-A1 production spatial bundle boundary', () => {
     expect(demoSource.match(/surfaceKind="SYNTHETIC"/gu)).toHaveLength(2);
   });
 
+  it('requires an explicit validated Living Office render input and keeps the pixel production chain fixture-free', async () => {
+    const [chunk, scene, boundary, projector, contracts, renderInput] = await Promise.all([
+      readFile(path.join(REPOSITORY_ROOT, 'src/ui/pixel/production-pixel-office-chunk.tsx'), 'utf8'),
+      readFile(path.join(REPOSITORY_ROOT, 'src/ui/pixel/production-pixel-world-scene.tsx'), 'utf8'),
+      readFile(path.join(REPOSITORY_ROOT, 'src/ui/pixel/production-renderer-boundary.tsx'), 'utf8'),
+      readFile(path.join(REPOSITORY_ROOT, 'src/ui/pixel/production-frame-projector.ts'), 'utf8'),
+      readFile(path.join(REPOSITORY_ROOT, 'src/ui/pixel/contracts.ts'), 'utf8'),
+      readFile(path.join(REPOSITORY_ROOT, 'src/application/organization/production-render-input.ts'), 'utf8'),
+    ]);
+    // Explicit, non-optional render input validated at runtime (PR-3; a cast is not validation).
+    expect(contracts).toContain('readonly operational: LivingOfficePresentationV1;');
+    expect(contracts).not.toMatch(/LivingOfficeProductionRenderInputV1[^{]*\{[^}]*operational\?\s*:/u);
+    expect(chunk).toContain('parseLivingOfficeProductionRenderInput(renderInput)');
+    expect(renderInput).toContain('export function parseLivingOfficeProductionRenderInput');
+    // The pixel production chain imports no fixture module, no prototype projector, no Pixi package.
+    for (const source of [chunk, scene, boundary, projector]) {
+      expect(source).not.toMatch(/from\s*['"]\.\/fixtures\//u);
+      expect(source).not.toMatch(/from\s*['"]\.\/frame-projector\.js['"]/u);
+      expect(source).not.toMatch(/from\s*['"](?:@pixi\/react|pixi\.js)['"]/u);
+    }
+  });
+
   it('emits no synthetic spatial fixture marker in a fresh production build', async () => {
     const outputRoot = await mkdtemp(path.join(tmpdir(), 'agent-office-production-bundle-'));
     try {

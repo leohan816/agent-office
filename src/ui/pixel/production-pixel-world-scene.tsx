@@ -50,7 +50,13 @@ export function ProductionPixelWorldScene({ input, forceStatic }: ProductionPixe
 
   return (
     <section aria-label="Living pixel-office" className="living-office-surface" data-living-office-surface="true">
-      <LivingOfficeHud backend={backend} complete={false} frame={frame} running={!forceStatic} />
+      <LivingOfficeHud
+        backend={backend}
+        complete={false}
+        eyebrow="AGENT OFFICE · AUTHENTICATED LIVING OFFICE"
+        frame={frame}
+        running={!forceStatic}
+      />
       <section aria-label="Living pixel-office world" className="living-office-stage">
         <ProductionRendererBoundary
           forceStatic={forceStatic}

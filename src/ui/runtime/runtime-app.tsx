@@ -1,11 +1,32 @@
-import { useEffect, useMemo, useState, type SyntheticEvent } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState, type SyntheticEvent } from 'react';
 
+import {
+  COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
+  composeLivingOfficeProductionRenderInput,
+} from '../../application/organization/index.js';
 import { Dashboard } from '../dashboard.js';
 import { RuntimeBoundary } from '../pwa/runtime-boundary.js';
 import {
   AgentOfficeRuntimeClient,
   type RuntimeClientState,
 } from './client.js';
+
+// The Living Office renderer (and ALL Pixi) is reached ONLY through this dynamic import — the eager
+// shell + fallback graph stay Pixi-free (CD-3). React.lazy emits it as a separate lazy Office chunk.
+const ProductionPixelOfficeChunk = lazy(() => import('../pixel/production-pixel-office-chunk.js'));
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function officeViewport(): { readonly width: number; readonly height: number } {
+  if (typeof window === 'undefined') return { width: 1280, height: 720 };
+  return {
+    width: Math.max(1, Math.round(window.innerWidth)),
+    height: Math.max(1, Math.round(Math.min(760, window.innerHeight - 152))),
+  };
+}
 
 export interface ProductionRuntimeAppProps {
   readonly client: AgentOfficeRuntimeClient;
@@ -16,6 +37,15 @@ export function ProductionRuntimeApp({ client }: ProductionRuntimeAppProps) {
   const [proof, setProof] = useState('');
   const [loginError, setLoginError] = useState<string>();
   const [loginPending, setLoginPending] = useState(false);
+  const [primaryView, setPrimaryView] = useState<'office' | 'dashboard'>('office');
+  const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   useEffect(() => {
     const unsubscribe = client.subscribe(setState);
     void client.start();
@@ -67,7 +97,7 @@ export function ProductionRuntimeApp({ client }: ProductionRuntimeAppProps) {
     projection.communication !== undefined &&
     projection.sceneRoles !== undefined
   ) {
-    return (
+    const dashboard = (
       <Dashboard
         model={projection.dashboard}
         communicationModel={projection.communication}
@@ -86,6 +116,48 @@ export function ProductionRuntimeApp({ client }: ProductionRuntimeAppProps) {
               },
             })}
       />
+    );
+    // Batch A: the Living Office is the DEFAULT primary surface (CD-2); the technical dashboard and
+    // its secondary surfaces are preserved behind keyboard-reachable navigation, never deleted.
+    const officeRenderInput = projection.livingOffice === undefined
+      ? null
+      : composeLivingOfficeProductionRenderInput({
+          operational: projection.livingOffice,
+          committedLayout: COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
+          viewport: officeViewport(),
+          selectedPodId: COMMITTED_OFFICE_LAYOUT_CONFIG_V1.selectedDefaultPodId,
+          logicalTimeMs: 0,
+        });
+    const activeView = officeRenderInput === null ? 'dashboard' : primaryView;
+    return (
+      <div className="app-shell living-office-shell" data-primary-view={activeView}>
+        <nav aria-label="Primary application views" className="app-shell__nav">
+          <button
+            aria-current={activeView === 'office' ? 'page' : undefined}
+            className="app-shell__nav-button"
+            disabled={officeRenderInput === null}
+            onClick={() => setPrimaryView('office')}
+            type="button"
+          >
+            Living Office
+          </button>
+          <button
+            aria-current={activeView === 'dashboard' ? 'page' : undefined}
+            className="app-shell__nav-button"
+            onClick={() => setPrimaryView('dashboard')}
+            type="button"
+          >
+            Technical dashboard
+          </button>
+        </nav>
+        <main className="app-shell__surface" id="app-shell-surface">
+          {activeView === 'office' && officeRenderInput !== null ? (
+            <Suspense fallback={<p className="living-office-loading" role="status">Loading the Living Office…</p>}>
+              <ProductionPixelOfficeChunk reducedMotion={reducedMotion} renderInput={officeRenderInput} />
+            </Suspense>
+          ) : dashboard}
+        </main>
+      </div>
     );
   }
   return (
