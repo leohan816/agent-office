@@ -272,11 +272,90 @@ function finiteAbove(value: unknown, minimum: number): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum;
 }
 
+// ── SIR-4: total, no-throw runtime validation of the nested committed layout (contract §3.1). ─────
+const COMMITTED_LAYOUT_KEYS = [
+  'schemaVersion', 'pods', 'selectedDefaultPodId', 'roleCategoryByRole', 'defaultRoleCategory',
+  'projectIdentityByProject', 'defaultProjectIdentity',
+] as const;
+const COMMITTED_POD_KEYS = [
+  'podId', 'advisorTeamId', 'responsibleAdvisorRoleInstanceId', 'projectKey', 'podLabel', 'memberRoleInstanceIds',
+] as const;
+const PROJECT_IDENTITY_KEYS = [
+  'identityId', 'projectId', 'displayName', 'shortLabel', 'primaryColor', 'secondaryColor', 'glyph', 'pattern',
+] as const;
+const ROLE_CATEGORY_VALUES: ReadonlySet<string> = new Set<CommittedRoleCategory>([
+  'LEO_DECISION', 'ADVISOR_ROUTING', 'CONTROL_RECOVERY', 'INDEPENDENT_REVIEW', 'WORKER_BUILD', 'GENERIC_REGISTERED',
+]);
+const IDENTITY_PATTERN_VALUES: ReadonlySet<string> = new Set(['DOTS', 'BANDS', 'CHECKS', 'CHEVRON', 'CROSS', 'GRID']);
+// A renderable Pod lane carries a NON-sentinel AdvisorTeam (never the actor sentinel UNASSIGNED).
+const NON_SENTINEL_ADVISOR_TEAMS: ReadonlySet<string> = new Set(ADVISOR_TEAMS);
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function validateProjectIdentity(value: unknown): boolean {
+  if (!isRecord(value) || !hasExactKeys(value, PROJECT_IDENTITY_KEYS)) return false;
+  if (!isNonBlankString(value.identityId) || !isNonBlankString(value.projectId)) return false;
+  if (!isNonBlankString(value.displayName) || !isNonBlankString(value.shortLabel)) return false;
+  if (!isFiniteNumber(value.primaryColor) || !isFiniteNumber(value.secondaryColor)) return false;
+  if (typeof value.glyph !== 'string') return false;
+  return typeof value.pattern === 'string' && IDENTITY_PATTERN_VALUES.has(value.pattern);
+}
+
+function validateCommittedPod(value: unknown): boolean {
+  if (!isRecord(value) || !hasExactKeys(value, COMMITTED_POD_KEYS)) return false;
+  if (!isNonBlankString(value.podId)) return false;
+  if (typeof value.advisorTeamId !== 'string' || !NON_SENTINEL_ADVISOR_TEAMS.has(value.advisorTeamId)) return false;
+  if (value.responsibleAdvisorRoleInstanceId !== null && !isNonBlankString(value.responsibleAdvisorRoleInstanceId)) return false;
+  if (!isNonBlankString(value.projectKey) || typeof value.podLabel !== 'string') return false;
+  if (!Array.isArray(value.memberRoleInstanceIds) || value.memberRoleInstanceIds.length === 0) return false;
+  if (!value.memberRoleInstanceIds.every((id) => isNonBlankString(id))) return false;
+  // No duplicate actor id inside a pod (a cross-pod duplicate stays an assembly diagnostic).
+  return new Set(value.memberRoleInstanceIds).size === value.memberRoleInstanceIds.length;
+}
+
+/**
+ * Total runtime validation of `CommittedOfficeLayoutConfigV1` before assembly (SIR-4). Every nested
+ * field/enum/map/identity/pod is checked so `assembleOfficeLayout` never throws; a malformed shape,
+ * unknown key, duplicate/invalid pod, invalid closed enum, or incomplete role map fails closed.
+ */
+function validateCommittedLayout(value: unknown): value is CommittedOfficeLayoutConfigV1 {
+  if (!isRecord(value) || !hasExactKeys(value, COMMITTED_LAYOUT_KEYS)) return false;
+  if (value.schemaVersion !== 'agent-office.committed-office-layout-config.v1') return false;
+  if (!Array.isArray(value.pods) || value.pods.length === 0) return false;
+  if (!value.pods.every((pod) => validateCommittedPod(pod))) return false;
+  const podIds = value.pods.map((pod) => (pod as { readonly podId: string }).podId);
+  if (new Set(podIds).size !== podIds.length) return false; // unique pod ids
+  if (!isNonBlankString(value.selectedDefaultPodId)) return false;
+  // Total role-category map: exactly the closed OrganizationRole set, each a valid closed category.
+  if (!isRecord(value.roleCategoryByRole) || !hasExactKeys(value.roleCategoryByRole, ORGANIZATION_ROLES)) return false;
+  for (const role of ORGANIZATION_ROLES) {
+    const category = value.roleCategoryByRole[role];
+    if (typeof category !== 'string' || !ROLE_CATEGORY_VALUES.has(category)) return false;
+  }
+  if (value.defaultRoleCategory !== 'GENERIC_REGISTERED') return false;
+  if (!isRecord(value.projectIdentityByProject)) return false;
+  for (const identity of Object.values(value.projectIdentityByProject)) {
+    if (!validateProjectIdentity(identity)) return false;
+  }
+  return validateProjectIdentity(value.defaultProjectIdentity);
+}
+
 /**
  * Second untrusted boundary (contract §3.1.1/PR-3): validate the composed render wrapper exactly.
- * Branches on runtime typeof/enum-membership; a cast is not validation. Fails closed to a tier.
+ * Branches on runtime typeof/enum-membership; a cast is not validation. Total and no-throw (SIR-4):
+ * every nested field is validated before assembly, and any unexpected error still fails closed.
  */
 export function parseLivingOfficeProductionRenderInput(raw: unknown): ProductionRenderInputResult {
+  try {
+    return parseProductionRenderInput(raw);
+  } catch {
+    return { ok: false, reason: 'UNEXPECTED_INPUT', fallbackTier: 'DOM_STATIC' };
+  }
+}
+
+function parseProductionRenderInput(raw: unknown): ProductionRenderInputResult {
   if (!isRecord(raw) || !hasExactKeys(raw, WRAPPER_KEYS)) {
     return { ok: false, reason: 'WRAPPER_SHAPE', fallbackTier: 'DOM_STATIC' };
   }
@@ -287,13 +366,14 @@ export function parseLivingOfficeProductionRenderInput(raw: unknown): Production
     ? parseRawLivingOfficePresentation(raw.operational, raw.operational.projectionRevision)
     : null;
   if (operational === null) return { ok: false, reason: 'OPERATIONAL', fallbackTier: 'DOM_STATIC' };
-  if (!isRecord(raw.committedLayout) || raw.committedLayout.schemaVersion !== 'agent-office.committed-office-layout-config.v1') {
-    return { ok: false, reason: 'LAYOUT_SCHEMA', fallbackTier: 'DOM_STATIC' };
+  const rawLayout = raw.committedLayout;
+  if (!validateCommittedLayout(rawLayout)) {
+    return { ok: false, reason: 'LAYOUT_INVALID', fallbackTier: 'DOM_STATIC' };
   }
   if (!Array.isArray(raw.cues) || raw.cues.length !== 0) {
     return { ok: false, reason: 'CUES_NON_EMPTY', fallbackTier: 'DOM_STATIC' };
   }
-  const committedLayout = raw.committedLayout as unknown as CommittedOfficeLayoutConfigV1;
+  const committedLayout = rawLayout;
   const assembly = assembleOfficeLayout(operational, committedLayout);
   if (assembly.fallbackTier === 'M1_FIXED_STATIONS') {
     return { ok: false, reason: 'NO_VALID_PODS', fallbackTier: 'M1_FIXED_STATIONS' };

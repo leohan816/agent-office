@@ -56,4 +56,20 @@ describe('living pixel-office renderer lifecycle contract', () => {
     expect(clock.match(/usePixelTick\(/gu)).toHaveLength(1);
     expect(scene).not.toMatch(/setInterval|Date\.now|Math\.random/gu);
   });
+
+  it('publishes ready/backend only after a successful init and degrades a failed init to static (SIR-1)', async () => {
+    const [host, chunk] = await Promise.all([
+      readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/pixel-render-host.tsx'), 'utf8'),
+      readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/production-pixel-office-chunk.tsx'), 'utf8'),
+    ]);
+    // Readiness/backend are gated on a completed onInit — never advertised before initialization.
+    expect(host).toContain('setInitialized(true)');
+    expect(host).toContain("initialized ? 'PIXEL_READY' : 'PIXEL_INITIALIZING'");
+    expect(host).toMatch(/data-pixel-backend=\{effectiveStatic \? 'DOM_STATIC' : initialized \? backend : 'PENDING'\}/u);
+    // A synchronous init error (boundary) and an unresolved async init (timeout) both fail closed to static.
+    expect(host).toContain('RENDERER_INITIALIZATION_TIMEOUT');
+    expect(host).toMatch(/onError=\{\(message\) => \{[\s\S]*setFallbackReason\(message\)[\s\S]*onBackend\('DOM_STATIC'\)/u);
+    // CSP-safe Pixi is registered inside the sole production lazy chunk without weakening the CSP.
+    expect(chunk).toContain("import 'pixi.js/unsafe-eval'");
+  });
 });

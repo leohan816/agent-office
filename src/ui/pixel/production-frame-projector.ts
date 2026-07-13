@@ -21,10 +21,13 @@ import type {
 import {
   actorAnimationFrame,
   channyAnimationFrame,
+  interpolate,
   normalizePixelActorFactSet,
   requireAnchor,
   requirePodLayout,
+  smoothStep,
 } from './frame-core.js';
+import { productionChannyAmbientPose } from './presentation-clock.js';
 import { createPixelWorldLayout } from './world-layout.js';
 
 export interface LivingOfficeFrameOptions {
@@ -59,7 +62,7 @@ export function projectLivingOfficeFrame(
     const pod = pods.find((candidate) => candidate.podId === actor.presentationPodId) ?? selectedPod;
     return projectLivingOfficeActorFrame(actor, pod, layout, logicalTimeMs);
   });
-  const channy = projectStaticChannyFrame(layout, logicalTimeMs);
+  const channy = projectAmbientChannyFrame(layout, logicalTimeMs);
 
   const semanticEntities: readonly PixelSemanticEntity[] = [
     ...pods.map((pod) => ({
@@ -156,16 +159,25 @@ function projectLivingOfficeActorFrame(
   };
 }
 
-function projectStaticChannyFrame(layout: PixelWorldLayout, logicalTimeMs: number): ChannyFrame {
-  const bed = requireAnchor(layout, 'facility:channy-bed');
+// SIR-5: fixture-free ambient Channy — eight presentation states from the monotonic logical time only.
+// `authorityRole: none`; no operational/actor/mission input, no dispatch/recovery/state inference.
+function projectAmbientChannyFrame(layout: PixelWorldLayout, logicalTimeMs: number): ChannyFrame {
+  const pose = productionChannyAmbientPose(logicalTimeMs);
+  const point = pose.fromAnchorId === pose.toAnchorId
+    ? requireAnchor(layout, pose.fromAnchorId)
+    : interpolate(
+      requireAnchor(layout, pose.fromAnchorId),
+      requireAnchor(layout, pose.toAnchorId),
+      smoothStep(pose.progress),
+    );
   return {
     entityId: 'channy.global',
-    animation: 'STOP',
-    animationFrame: channyAnimationFrame('STOP', logicalTimeMs),
-    direction: 'EAST',
+    animation: pose.animation,
+    animationFrame: channyAnimationFrame(pose.animation, logicalTimeMs),
+    direction: pose.animation === 'SLEEP' ? 'WEST' : pose.toAnchorId < pose.fromAnchorId ? 'WEST' : 'EAST',
     authorityRole: 'none',
-    x: bed.x,
-    y: bed.y,
+    x: point.x,
+    y: point.y,
   };
 }
 

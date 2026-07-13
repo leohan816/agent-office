@@ -10,8 +10,14 @@ import {
   parseRawLivingOfficePresentation,
   projectOrganizationFrame,
   type OrganizationFrame,
+  type ProductionRenderInputResult,
 } from '../../src/application/organization/index.js';
 import { assertFrameSemanticParity } from '../../src/ui/pixel/frame-core.js';
+import {
+  CHANNY_AMBIENT_LOOP_MS,
+  CHANNY_AMBIENT_STATES,
+  productionChannyAmbientPose,
+} from '../../src/ui/pixel/presentation-clock.js';
 import { projectLivingOfficeFrame } from '../../src/ui/pixel/production-frame-projector.js';
 import type { CommittedOfficeLayoutConfigV1 } from '../../src/ui/pixel/contracts.js';
 import type { LivingOfficePresentationV1 } from '../../src/runtime/projection.js';
@@ -195,6 +201,61 @@ describe('§3.1.1 composed render-input wrapper validation (a cast is not valida
   });
 });
 
+describe('SIR-4 total no-throw committed-layout validation before assembly', () => {
+  const baseWrapper = () => composeLivingOfficeProductionRenderInput({
+    operational: presentation(),
+    committedLayout: COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
+    viewport: { width: 1400, height: 800 },
+    selectedPodId: 'pod:foundation',
+    logicalTimeMs: 0,
+  });
+  const withLayout = (layout: unknown): unknown => ({ ...baseWrapper(), committedLayout: layout });
+  const validLayout = (): CommittedOfficeLayoutConfigV1 => clone(COMMITTED_OFFICE_LAYOUT_CONFIG_V1);
+
+  const [firstPod, secondPod] = COMMITTED_OFFICE_LAYOUT_CONFIG_V1.pods;
+  if (firstPod === undefined || secondPod === undefined) throw new Error('committed layout fixture must have two pods');
+  const firstMember = firstPod.memberRoleInstanceIds[0];
+  if (firstMember === undefined) throw new Error('committed pod fixture must have members');
+
+  const hostileLayouts: readonly (readonly [string, unknown])[] = [
+    ['a null layout', null],
+    ['a string layout', 'agent-office.committed-office-layout-config.v1'],
+    ['an array layout', []],
+    ['a wrong layout schema', { ...validLayout(), schemaVersion: 'nope' }],
+    ['a layout with an unknown extra key', { ...validLayout(), unexpected: true }],
+    ['a layout with no pods field (SIR-4 repro: was a throw)', { schemaVersion: 'agent-office.committed-office-layout-config.v1' }],
+    ['non-array pods', { ...validLayout(), pods: 'nope' }],
+    ['empty pods', { ...validLayout(), pods: [] }],
+    ['a pod with a non-array member list', { ...validLayout(), pods: [{ ...firstPod, memberRoleInstanceIds: 'x' }] }],
+    ['a pod with an empty member list', { ...validLayout(), pods: [{ ...firstPod, memberRoleInstanceIds: [] }] }],
+    ['a pod with the UNASSIGNED sentinel Team', { ...validLayout(), pods: [{ ...firstPod, advisorTeamId: 'UNASSIGNED' }, secondPod] }],
+    ['a pod with a blank podId', { ...validLayout(), pods: [{ ...firstPod, podId: '  ' }, secondPod] }],
+    ['duplicate pod ids', { ...validLayout(), pods: [firstPod, { ...secondPod, podId: firstPod.podId }] }],
+    ['a duplicate actor id inside one pod', { ...validLayout(), pods: [{ ...firstPod, memberRoleInstanceIds: [firstMember, firstMember] }, secondPod] }],
+    ['an incomplete role-category map (SIR-4 repro: was accepted)', { ...validLayout(), roleCategoryByRole: {} }],
+    ['an invalid role category', { ...validLayout(), roleCategoryByRole: { ...validLayout().roleCategoryByRole, WORKER: 'BOGUS' } }],
+    ['an extra role-map key', { ...validLayout(), roleCategoryByRole: { ...validLayout().roleCategoryByRole, GHOST: 'WORKER_BUILD' } }],
+    ['an invalid default role category', { ...validLayout(), defaultRoleCategory: 'ADVISOR_ROUTING' }],
+    ['an invalid project-identity pattern', { ...validLayout(), defaultProjectIdentity: { ...validLayout().defaultProjectIdentity, pattern: 'ZIGZAG' } }],
+    ['a non-numeric identity color', { ...validLayout(), defaultProjectIdentity: { ...validLayout().defaultProjectIdentity, primaryColor: 'red' } }],
+    ['a blank identity id', { ...validLayout(), defaultProjectIdentity: { ...validLayout().defaultProjectIdentity, identityId: '' } }],
+  ];
+
+  it.each(hostileLayouts)('rejects %s deterministically without throwing', (_label, hostile) => {
+    let result: ProductionRenderInputResult | undefined;
+    expect(() => { result = parseLivingOfficeProductionRenderInput(withLayout(hostile)); }).not.toThrow();
+    expect(result?.ok).toBe(false);
+    if (result !== undefined && !result.ok) {
+      expect(typeof result.reason).toBe('string');
+      expect(['DOM_STATIC', 'M1_FIXED_STATIONS']).toContain(result.fallbackTier);
+    }
+  });
+
+  it('still accepts the well-formed committed layout', () => {
+    expect(parseLivingOfficeProductionRenderInput(baseWrapper()).ok).toBe(true);
+  });
+});
+
 describe('production-frame-projector builds a fixture-free PixelWorldFrameV1', () => {
   it('produces a semantic-parity-valid frame with organization facts and no cues/route', () => {
     const wrapper = composeLivingOfficeProductionRenderInput({
@@ -218,5 +279,34 @@ describe('production-frame-projector builds a fixture-free PixelWorldFrameV1', (
     expect(frame.acceptedCueIds).toEqual([]);
     expect(frame.camera.mode).toBe('FULL_OFFICE');
     expect(frame.channy.authorityRole).toBe('none');
+  });
+
+  it('cycles the fixture-free ambient Channy through all eight states with no authority (SIR-5)', () => {
+    const wrapper = composeLivingOfficeProductionRenderInput({
+      operational: presentation(),
+      committedLayout: COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
+      viewport: { width: 1400, height: 800 },
+      selectedPodId: 'pod:foundation',
+      logicalTimeMs: 0,
+    });
+    const result = parseLivingOfficeProductionRenderInput(wrapper);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const seenStates = new Set<string>();
+    const positions = new Set<string>();
+    for (let logicalTimeMs = 0; logicalTimeMs <= CHANNY_AMBIENT_LOOP_MS; logicalTimeMs += 100) {
+      const frame = projectLivingOfficeFrame({ ...result.value, logicalTimeMs }, { presentationTier: 'PIXEL_FULL' });
+      // Non-operational boundary: Channy never carries authority; it is a global ambient entity.
+      expect(frame.channy.authorityRole).toBe('none');
+      expect(frame.channy.entityId).toBe('channy.global');
+      // Channy state is derived purely from logical time — identical to the pure ambient clock.
+      expect(frame.channy.animation).toBe(productionChannyAmbientPose(logicalTimeMs).animation);
+      seenStates.add(frame.channy.animation);
+      positions.add(`${Math.round(frame.channy.x)},${Math.round(frame.channy.y)}`);
+    }
+    // All eight ambient states appear, and Channy actually moves (not a constant STOP at one anchor).
+    expect([...seenStates].sort()).toEqual([...CHANNY_AMBIENT_STATES].sort());
+    expect(positions.size).toBeGreaterThan(5);
   });
 });

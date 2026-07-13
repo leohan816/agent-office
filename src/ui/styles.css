@@ -92,6 +92,75 @@ a:focus-visible {
   min-width: 0;
 }
 
+/* SIR-2: authenticated Office-first application shell + primary-view navigation (CD-2). The nav sits
+ * on the global dark chrome above the light Living Office surface; light-on-dark text meets WCAG AA. */
+.app-shell.living-office-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-shell__nav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-shell__nav-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-shell__nav-button:hover:not(:disabled) {
+  border-color: var(--focus);
+}
+
+.app-shell__nav-button:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+.app-shell__nav-button[aria-current="page"] {
+  color: var(--current);
+  background: var(--current-bg);
+  border-color: var(--current);
+}
+
+.app-shell__nav-button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.app-shell__surface {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .app-shell__nav {
+    padding: 8px 12px;
+  }
+
+  .app-shell__nav-button {
+    flex: 1 1 auto;
+  }
+}
+
 .topbar {
   display: flex;
   min-height: 76px;

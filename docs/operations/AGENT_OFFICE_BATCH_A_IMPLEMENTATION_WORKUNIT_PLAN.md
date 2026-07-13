@@ -140,3 +140,15 @@ Delivered on branch `batch-a/modern-office-identity-001`. This records actual im
 - **Committed-data location:** the committed (A) registry / (B) evidence data are emitted from `src/application/organization/{registry,evidence}.ts` (root fixture re-exports the single authority) so `build:core` (`rootDir=src`) compiles them into `dist/core` for the loopback runtime; no data is duplicated.
 - **Gate evidence (local, accurate totals):** `npm run check` green — `lint` + `typecheck` clean, `npm test` 595/595 (93 files), `npm run build` core+dashboard. CD-3 boundary 6/6; composed E2E 3/3 and Living Office E2E 3/3 (both deterministic without `--update`); demo E2E 43 passed / 23 skipped; prototype E2E 20/20; loopback rehearsal succeeds on `127.0.0.1`.
 - **BA-WU-09** — the evidence-bearing Worker result + exact Git evidence are returned to Advisor separately.
+
+### 6.1 SIR-1–SIR-5 implementation-review rework
+
+The independent Sentinel implementation review returned `NEEDS_PATCH`; Advisor validation `54`/handoff `09K` routed an exact in-scope patch. All five findings are closed against the real strict-CSP composed runtime (this supersedes the §6 totals):
+
+- **SIR-1** production Pixi is CSP-safe (public `pixi.js/unsafe-eval` in the sole lazy chunk; CSP unchanged) and the render host publishes `PIXEL_READY`/backend only after a successful `onInit`, degrading a failed init to DOM-static→M1.
+- **SIR-2** the modern light-office theme + a readable foreground + an intentional responsive/`:focus-visible` navigation now apply to the real `.living-office-surface`/`.app-shell` (not only the prototype); the full surface passes WCAG A/AA including forced-colors and 200% text.
+- **SIR-3** the visual gate is honest — non-blank canvas, viewport-sized dimensions, continuous production motion, full-surface Axe, and unmasked desktop/mobile artifacts; no masked false positive.
+- **SIR-4** the second render-input validator is total and no-throw for the complete nested committed layout (hostile-shape tests added).
+- **SIR-5** production Channy is the fixture-free ambient eight-state sequence (`WALK,STOP,SNIFF,SIT,EAT,DRINK,SLEEP,PLAY`) with `authorityRole: none` and continuous motion — the earlier constant-`STOP` and the "eight-state Channy" as-built claim are corrected to the actual implementation.
+
+**Rework gate evidence (local, accurate totals):** `npm run check` green — lint + typecheck clean, `npm test` **619/619** (93 files), `npm run build`; CD-3 6/6; composed E2E 3/3 and Living Office E2E 3/3 (deterministic; non-blank canvas + continuous motion + full-surface Axe + unmasked artifacts); demo E2E 43 passed/23 skipped; prototype E2E 20/20 unchanged; loopback rehearsal fail-closed with clean teardown; historical baselines byte-identical to `ac8ba75`; fresh screenshots only in the two authorized new baseline directories; disposable `test-results-*/` reconciled before return.

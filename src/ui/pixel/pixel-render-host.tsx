@@ -27,6 +27,10 @@ import {
   type PixelApplicationRefPort,
 } from './pixi-public-export-bridge.js';
 
+// Upper bound for a successful renderer initialization before degrading to the static fallback (SIR-1).
+// Generous relative to real WEBGL/CANVAS init so it only fires on a genuine stall/failure.
+const RENDERER_INITIALIZATION_TIMEOUT_MS = 8000;
+
 export interface PixelRenderHostProps {
   readonly layout: PixelWorldLayout;
   readonly running: boolean;
@@ -57,6 +61,9 @@ export function PixelRenderHost({
   );
   const [paused, setPaused] = useState(false);
   const [backend, setBackend] = useState<PixelRendererBackend>(forceStatic ? 'DOM_STATIC' : 'WEBGL');
+  // SIR-1: `initialized` is set only after a successful `onInit`. Backend/`PIXEL_READY` are never
+  // advertised before the renderer actually initializes; a failed initialization degrades to static.
+  const [initialized, setInitialized] = useState(false);
   const effectiveStatic = forceStatic || fallbackReason !== null;
 
   useEffect(() => {
@@ -96,6 +103,7 @@ export function PixelRenderHost({
       event.preventDefault();
       stopApplicationTicker(application);
       setApplication(null);
+      setInitialized(false);
       setFallbackReason('RENDERER_CONTEXT_LOST');
       setBackend('DOM_STATIC');
       onBackend('DOM_STATIC');
@@ -130,6 +138,19 @@ export function PixelRenderHost({
     }
   }, [forceStatic, onBackend]);
 
+  // SIR-1: bound initialization. If `onInit` never completes (e.g. an asynchronous renderer/context
+  // failure that precedes it), degrade truthfully to DOM_STATIC instead of advertising a ready state
+  // the renderer never reached. A successful `onInit` sets `initialized` and clears this timer.
+  useEffect(() => {
+    if (forceStatic || fallbackReason !== null || initialized) return;
+    const timer = window.setTimeout(() => {
+      setFallbackReason('RENDERER_INITIALIZATION_TIMEOUT');
+      setBackend('DOM_STATIC');
+      onBackend('DOM_STATIC');
+    }, RENDERER_INITIALIZATION_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [forceStatic, fallbackReason, initialized, onBackend, rendererKey]);
+
   const preference = useMemo(
     () => requestedBackend === 'CANVAS' ? 'canvas' as const : ['webgl', 'canvas'] as const,
     [requestedBackend],
@@ -153,10 +174,12 @@ export function PixelRenderHost({
     }
     setApplication(app);
     setBackend(resolvedBackend);
+    setInitialized(true);
     onBackend(resolvedBackend);
   }, [onBackend, requestedBackend]);
   const retry = () => {
     setFallbackReason(null);
+    setInitialized(false);
     setRendererKey((current) => current + 1);
   };
   const snapshot = registryRef.current.snapshot();
@@ -169,8 +192,10 @@ export function PixelRenderHost({
       data-pixi-js-version={PIXEL_PUBLIC_EXPORT_RUNTIME.actualPixiJsVersion}
       data-pixi-react-version={PIXEL_PUBLIC_EXPORT_RUNTIME.expectedPixiReactVersion}
       data-pixi-runtime-values={PIXEL_PUBLIC_EXPORT_RUNTIME.valueNames.join(',')}
-      data-pixel-backend={effectiveStatic ? 'DOM_STATIC' : backend}
-      data-pixel-renderer-status={effectiveStatic ? fallbackReason ?? 'STATIC_REQUESTED' : 'PIXEL_READY'}
+      data-pixel-backend={effectiveStatic ? 'DOM_STATIC' : initialized ? backend : 'PENDING'}
+      data-pixel-renderer-status={effectiveStatic
+        ? fallbackReason ?? 'STATIC_REQUESTED'
+        : initialized ? 'PIXEL_READY' : 'PIXEL_INITIALIZING'}
       data-resize-observers={snapshot.resizeObservers}
       ref={viewportRef}
     >
@@ -185,6 +210,7 @@ export function PixelRenderHost({
           key={rendererKey}
           onError={(message) => {
             setApplication(null);
+            setInitialized(false);
             setFallbackReason(message);
             setBackend('DOM_STATIC');
             onBackend('DOM_STATIC');
@@ -208,7 +234,7 @@ export function PixelRenderHost({
         </PixelRendererErrorBoundary>
       )}
       <span className="pixel-renderer-badge" aria-hidden="true">
-        {effectiveStatic ? 'DOM STATIC' : backend}
+        {effectiveStatic ? 'DOM STATIC' : initialized ? backend : 'INITIALIZING'}
       </span>
     </div>
   );

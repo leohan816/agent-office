@@ -1,5 +1,5 @@
 import { AxeBuilder } from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 // Batch A CD-2: the authenticated app defaults to the Living Office; the historical Dashboard/spatial
 // technical views are preserved as SECONDARY views reachable through explicit navigation. Per Advisor
@@ -20,12 +20,11 @@ test.describe('authenticated composed application office scene (Office-first, CD
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page, PROOF_DESKTOP, projectionOverride);
 
-    // Office-first default surface (CD-2).
+    // Office-first default surface (CD-2). SIR-3: prove the live office canvas is non-blank and attach
+    // an unmasked capture, instead of a masked screenshot that would also hide the actor overlay.
     await assertOfficeFirstDefault(page);
-    await expect(page).toHaveScreenshot(
-      ['batch-a-living-office', 'living-office-default-desktop-1440x900.png'],
-      officeScreenshotOptions(page),
-    );
+    await proveNonblankOfficeCanvas(page);
+    await attachOfficeArtifact(page, testInfo, 'living-office-default-desktop-1440x900');
 
     // Secondary technical view remains reachable + functional (M1 fallback projection).
     await openTechnicalDashboard(page);
@@ -154,17 +153,15 @@ test.describe('authenticated composed application office scene (Office-first, CD
     await expect(page.locator('[data-primary-view]')).toHaveCount(0);
   });
 
-  test('defaults to the Living Office and preserves the secondary projection on mobile', async ({ page }) => {
+  test('defaults to the Living Office and preserves the secondary projection on mobile', async ({ page }, testInfo) => {
     const projectionOverride: ProjectionOverride = { mode: 'M1_ABSENT' };
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, PROOF_MOBILE, projectionOverride);
 
     await assertOfficeFirstDefault(page);
     await expectNoHorizontalOverflow(page);
-    await expect(page).toHaveScreenshot(
-      ['batch-a-living-office', 'living-office-default-mobile-390x844.png'],
-      officeScreenshotOptions(page),
-    );
+    await proveNonblankOfficeCanvas(page);
+    await attachOfficeArtifact(page, testInfo, 'living-office-default-mobile-390x844');
 
     await openTechnicalDashboard(page);
     await expect(page.locator('.scene-station:visible')).toHaveCount(2);
@@ -453,14 +450,20 @@ function screenshotOptions() {
   };
 }
 
-/** Office captures mask the live Pixi canvas so the deterministic DOM shell is the compared surface. */
-function officeScreenshotOptions(page: Page) {
-  return {
-    animations: 'disabled' as const,
-    caret: 'hide' as const,
-    maxDiffPixelRatio: 0.005,
-    mask: [page.locator('canvas')],
-  };
+/** SIR-3: prove the live office canvas actually initialized and rendered a non-blank office. */
+async function proveNonblankOfficeCanvas(page: Page): Promise<void> {
+  const canvas = page.locator('canvas[data-pixel-canvas="true"]');
+  await expect(canvas, 'onInit completed and marked the live canvas').toHaveCount(1);
+  await expect(page.locator('.pixel-world-viewport'))
+    .toHaveAttribute('data-pixel-renderer-status', 'PIXEL_READY');
+  const rendered = await canvas.screenshot({ animations: 'disabled' });
+  expect(rendered.byteLength, 'office canvas must be non-blank').toBeGreaterThan(15000);
+}
+
+/** Attach an unmasked live office capture as a directly-inspectable artifact (SIR-3). */
+async function attachOfficeArtifact(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  const shot = await page.screenshot({ animations: 'disabled', caret: 'hide' });
+  await testInfo.attach(`${name}.png`, { body: shot, contentType: 'image/png' });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -63,6 +63,52 @@ body:has(#living-pixel-prototype) {
   outline-offset: 3px;
 }
 
+/*
+ * SIR-2: the authenticated production office root is `.living-office-surface` (not
+ * `.living-office-prototype`). Apply the same modern light-office tokens + readable dark foreground so
+ * production HUD/semantic-card/route/Channy text meets WCAG AA on its light panels instead of
+ * inheriting the global dark-theme `#e8edf3` foreground onto light surfaces.
+ */
+.living-office-surface {
+  --pixel-ink: #23272b;
+  --pixel-muted: #565c60;
+  --pixel-panel: rgba(255, 252, 246, 0.97);
+  --pixel-line: #c9c2b9;
+  color: var(--pixel-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.living-office-surface *,
+.living-office-surface *::before,
+.living-office-surface *::after {
+  box-sizing: border-box;
+}
+
+.living-office-surface button {
+  align-items: center;
+  background: #faf7f1;
+  border: 1px solid #8f887f;
+  border-radius: 10px;
+  color: #23272b;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 7px 12px;
+}
+
+.living-office-surface button:hover {
+  background: #f0ebe4;
+  border-color: #8a5a30;
+}
+
+.living-office-surface :focus-visible {
+  outline: 3px solid #1f5e75;
+  outline-offset: 3px;
+}
+
 .living-office-hud {
   background:
     linear-gradient(135deg, rgba(255, 253, 248, 0.98), rgba(238, 234, 227, 0.98)),
@@ -614,7 +660,7 @@ body:has(#living-pixel-prototype) {
 }
 
 .living-office-semantic__heading p {
-  color: #427f65;
+  color: #2f6248;
   font-size: 0.7rem;
   text-transform: uppercase;
 }
@@ -1001,5 +1047,34 @@ body:has(#living-pixel-prototype) {
   .living-office-hud {
     border: 2px solid CanvasText;
     forced-color-adjust: auto;
+  }
+
+  /*
+   * SIR-2: the authenticated production office (`.living-office-surface`) must also defer to the user's
+   * forced system palette. Its light-theme author colors do not fight the forced background, so every
+   * text-bearing element resolves to CanvasText on Canvas (guaranteed system contrast), with CanvasText
+   * separators keeping actor labels and semantic cards distinguishable.
+   */
+  .living-office-surface,
+  .living-office-surface .living-office-hud,
+  .living-office-actor-label,
+  .living-office-semantic__pod-list li,
+  .living-office-semantic__route-log li,
+  .living-office-semantic__channy {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+    forced-color-adjust: auto;
+  }
+
+  /*
+   * Force every descendant's text to the system foreground on the system background. `!important` is
+   * required so the forced system palette wins over the more specific light-theme author color rules
+   * (e.g. `.living-office-semantic__heading p`) — the standard forced-colors override, not a test or
+   * lint suppression. Result: CanvasText on Canvas, which the user's system guarantees is legible.
+   */
+  .living-office-surface * {
+    color: CanvasText !important;
+    background-color: transparent !important;
   }
 }

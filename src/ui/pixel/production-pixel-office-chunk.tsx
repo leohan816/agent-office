@@ -5,6 +5,13 @@
 // projector + pixi-public-export-bridge) is where Pixi lives. Before mounting the renderer it runs
 // the second untrusted-boundary validator `parseLivingOfficeProductionRenderInput` (a cast is not
 // validation); an invalid input fails closed to a DOM_STATIC / M1_FIXED_STATIONS fallback surface.
+// CSP-safe Pixi (SIR-1): the loopback runtime serves a strict CSP (`script-src 'self'`, no
+// `unsafe-eval`). Pixi's default shader/UBO code-generation uses `Function()` (eval), which that CSP
+// blocks — leaving a blank canvas. The public `pixi.js/unsafe-eval` package-root export installs the
+// eval-free polyfills, so WEBGL initializes under the strict CSP with no header weakening. It is a
+// side-effect import placed first so it registers before any Pixi Application is constructed, and it
+// stays inside this sole production Pixi lazy chunk (CD-3), never the eager shell.
+import 'pixi.js/unsafe-eval';
 import { useMemo } from 'react';
 
 import { parseLivingOfficeProductionRenderInput } from '../../application/organization/production-render-input.js';

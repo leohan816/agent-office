@@ -587,6 +587,8 @@ Mission `AGENT_OFFICE_BATCH_A_MODERN_OFFICE_IDENTITY_COMPLETION_001` promotes th
 
 Local gate evidence: `npm run check` green (`lint`+`typecheck` clean, `npm test` 595/595 across 93 files, `npm run build`); CD-3 boundary 6/6; composed E2E 3/3 and Living Office E2E 3/3 (deterministic; every historical composed baseline byte-identical to `ac8ba75`, fresh screenshots only in the two new baseline directories); demo E2E 43 passed/23 skipped; prototype E2E 20/20; documented loopback start/open/verify/stop rehearsal succeeds on `127.0.0.1`.
 
+Implementation-review rework (Sentinel `NEEDS_PATCH` → Advisor `54`/`09K`): `CODE_DEFECT` SIR-1 (blank strict-CSP Pixi + false ready) and SIR-2 (production theme/contrast) patched; `EVIDENCE_AND_TEST_DEFECT` SIR-3 (masked false-positive gate) replaced with unmasked non-blank/motion/full-surface-Axe proof; `CODE_AND_CONTRACT` SIR-4 (nested layout validator now total + no-throw); `CODE_AND_DOCUMENTATION` SIR-5 (production Channy is now the real fixture-free eight-state ambient sequence, `authorityRole:none`; the earlier constant-`STOP` and its as-built claim corrected). No new product/authority/security/dependency. Rework totals: `npm run check` green with `npm test` **619/619**; composed 3/3, Living Office 3/3, prototype 20/20, demo 43/23; strict CSP preserved (no `unsafe-eval` added). The §7 forbidden/deferred gates remain unchanged.
+
 ## 7. Explicit Deferred and Forbidden Gates
 
 | Capability | Current status | Required gate |

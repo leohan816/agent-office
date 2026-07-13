@@ -39,11 +39,15 @@ export function ProductionPixelWorldScene({ input, forceStatic }: ProductionPixe
   const [frame, setFrame] = useState<PixelWorldFrameV1>(initialFrame);
   const [backend, setBackend] = useState<PixelRendererBackend>(forceStatic ? 'DOM_STATIC' : 'WEBGL');
   const [viewport, setViewport] = useState({ width: input.viewport.width, height: input.viewport.height });
+  // SIR-5: the Living Office is a continuous ambient surface (no 26s tour). Restart the shared clock at
+  // each completion so the fixture-free eight-state Channy routine loops. Reduced-motion stays static.
+  const [restartToken, setRestartToken] = useState(0);
   const overlayRef = useRef<LivingOfficeActorOverlayHandle>(null);
 
   const onVisualFrame = useCallback((next: PixelWorldFrameV1) => {
     overlayRef.current?.updatePositions(next);
   }, []);
+  const onLoopComplete = useCallback(() => setRestartToken((token) => token + 1), []);
   const onViewport = useCallback((width: number, height: number) => {
     setViewport((current) => current.width === width && current.height === height ? current : { width, height });
   }, []);
@@ -62,13 +66,13 @@ export function ProductionPixelWorldScene({ input, forceStatic }: ProductionPixe
           input={input}
           layout={layout}
           onBackend={setBackend}
-          onComplete={noop}
+          onComplete={onLoopComplete}
           onFrame={setFrame}
           onViewport={onViewport}
           onVisualFrame={onVisualFrame}
           pods={assembly.pods}
           requestedBackend="AUTO"
-          restartToken={0}
+          restartToken={restartToken}
           running={!forceStatic}
           selectedPodId={selectedPodId}
         />
@@ -83,8 +87,4 @@ export function ProductionPixelWorldScene({ input, forceStatic }: ProductionPixe
       <LivingOfficeSemanticMirror frame={frame} projection={structural} />
     </section>
   );
-}
-
-function noop(): void {
-  // The Living Office has no scripted completion (no 26s tour); the ambient scene never "completes".
 }
