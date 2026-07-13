@@ -104,7 +104,7 @@ Korean is the natural user-facing language; **technical IDs, SHAs, schema names,
 | 7 | Full drawer transition | §3; info-states mockup ④ |
 | 8 | Mobile bottom sheet | §3; mobile mockup + info-states ⑤ |
 | 9 | Team Mission Board | §3; desktop + pod mockups |
-| 10 | Advisor selection + Living Office chat-panel location | §3; desktop mockup (right dock, disabled) |
+| 10 | Advisor selection + Living Office chat-panel location (desktop dock **and** mobile sheet) | §3; UX contract K-3.1; desktop mockup (right dock, disabled) + mobile mockup (Advisor conversation sheet, disabled/input-locked) |
 | 11 | States ACTIVE/WAITING/BLOCKED/NEEDS_LEO/SESSION_OFFLINE/NO_AI_PROCESS/AI_ERROR/unknown | info-states mockup badge legend; UX contract §4 |
 | 12 | Channy silhouette/scale/placement/poses | §2; `mockups/a1r-channy-character-poses.svg/.png` |
 | 13 | Interaction notes (hover/focus/click/tap/outside/Escape/replace/drawer) | §3; UX contract §5; info-states mockup |

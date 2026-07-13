@@ -26,7 +26,7 @@ The prior always-visible seven/nine-field first-layer contract and the five test
 ## 3. Layered disclosure contract (desktop)
 
 - **D-1** **Hover/focus quick card** shows: current mission, WorkUnit, model, effort, blocker/Leo state, **KST last-verified**, concise evidenced runtime. It **auto-places without covering the actor or essential furniture**. It closes on focus/hover exit.
-- **D-2** **Click pins exactly one compact card**: hover facts + runtime, progress, next action, reports-to, and a `상세 보기` affordance. **At most one card is pinned at a time.**
+- **D-2** **Click pins exactly one compact card**: **all D-1 hover facts** (incl. **blocker/Leo state**) **plus** runtime, progress, next action, reports-to, and a `상세 보기` affordance. Blocker/Leo state is never dropped from the pinned card. Progress/WorkUnit that has no committed source renders **fail-closed** (§K-2). **At most one card is pinned at a time.**
 - **D-3** **Another actor selection replaces** the pinned card. **Empty-space click and Escape close** it, restoring focus.
 - **D-4** **Full drawer** preserves the **complete accepted 17-field actor facts and provenance** (unchanged from Batch A — preserved, not rewritten).
 
@@ -45,8 +45,22 @@ The prior always-visible seven/nine-field first-layer contract and the five test
   | AI_ERROR | `⚠ AI 오류` | `aiRuntimeState = AI_ERROR` |
   | operational unknown | `◦ 상태 불명` | `operationalState = UNKNOWN` (fail-closed) |
 
-- **C-2** Authority/security hold and decision-critical conflict are also directly visible. Metadata unknowns (identity/model/effort when unproven) may be **summarized compactly** and are not forced onto the label.
+- **C-2** Authority/security hold and decision-critical conflict are also directly visible — as a **read-only adjacent critical-status overlay** (SDR-06), **not** a `PixelOperationalState` value and **not** a new authority source. It grants no command/approval/routing/recovery/resolution authority. Exact source, precedence, fail-closed, tokens, and announcement in **§4.1**. Metadata unknowns (identity/model/effort when unproven) may be **summarized compactly** and are not forced onto the label.
 - **C-3** **Unknown is neutral** — never rendered as active-work animation or inferred activity.
+
+### 4.1 Read-only critical-status overlay — authority/security hold & decision-critical conflict (SDR-06)
+
+Two Founder-required critical states are rendered as an **adjacent, read-only overlay** driven **only by existing accepted, active (unresolved) structured records** — `AlertRaised` (`docs/contracts/AGENT_OFFICE_DOMAIN_EVENT_CONTRACT.md` §7.2; `src/domain/alerts/index.ts`) and `BlockerOpened` (§7.3; `src/domain/blockers/index.ts`). It is **not** a `PixelOperationalState` value (that enum has neither a HOLD nor a CONFLICT member, `src/ui/pixel/contracts.ts:27-41`), introduces **no** new enum, and grants **no** command/approval/routing/recovery/resolution authority. If no approved source can supply it without runtime-authority expansion, that decision returns through Advisor to Leo/GPT — the Worker must not decide it.
+
+| Overlay category | Exact accepted source (active, unresolved) | Canonical Korean detail (retained verbatim) | Icon + non-color token |
+|---|---|---|---|
+| **`AUTHORITY_SECURITY_HOLD`** | `BlockerKind.AUTHENTICATION_REQUIRED`, `BlockerKind.UNEXPECTED_APPROVAL_PROMPT`, `BlockerKind.WRONG_ACTOR_OR_WORKSPACE`, `BlockerKind.MANUAL_KILL_SWITCH`, or `AlertKind.AUTHENTICATION_REQUIRED` | `인증 필요` · `예상하지 못한 승인 요청` · `역할 또는 작업공간 불일치` · `수동 킬 스위치 작동` (the exact source label, per `src/ui/i18n/ko.ts`) | `▲` + text `권한/보안 홀드` |
+| **`DECISION_CRITICAL_CONFLICT`** | `BlockerKind.SCOPE_CONFLICT` **only** | `범위 충돌` | `◆` + text `범위 충돌` |
+
+- A generic `AlertKind.MANUAL_ACTION_REQUIRED` alone is **not** enough to assert a hold. `MISSING_LEO_DECISION` / `AlertKind.NEEDS_LEO_DECISION` remain the **separate** existing `Leo/GPT 결정 필요` presentation (the C-1 NEEDS_LEO path) and are **not** renamed as conflict.
+- **Precedence (deterministic):** `AUTHORITY_SECURITY_HOLD` > `DECISION_CRITICAL_CONFLICT` > the C-1 operational states. When multiple accepted critical sources coexist, the highest-precedence one is the label icon, and **all** meanings remain available in the pinned card / drawer / semantic announcement — a higher-severity or decision-required condition is **never** hidden.
+- **Fail-closed:** resolved/suppressed sources do not render; missing, stale, malformed, conflicting, or unverified source evidence → the existing **neutral unknown** presentation (`◦ 상태 불명`); it must **not** assert a hold or conflict.
+- **Non-color meaning:** every overlay carries icon + Korean text (color is never the only signal); the semantic mirror announces the exact category + source label.
 
 ## 5. Interaction contract
 
@@ -63,6 +77,14 @@ The prior always-visible seven/nine-field first-layer contract and the five test
 - **K-1** Natural user-facing UI is Korean. Technical IDs, SHAs, schema names, WorkUnit IDs, and model names remain **exact**.
 - **K-2** Each Pod exposes a compact **Team Mission Board**: Team/project, current mission, progress, state, blocker, Leo decision, next action, **KST verification time** — **without fabrication**. Unknown remains unknown. KST is converted **only from accepted verified UTC** (A1R-U08).
 - **K-3** Advisor selection and conversation belong in the Living Office: accessible Advisor selector, selected-Advisor identity, desktop chat panel / mobile sheet, Founder-facing transcript, unread state, completion/decision notifications, truthful delivery state.
+- **K-3.1 Mobile Advisor conversation sheet (SDR-05).** On mobile, the Advisor conversation is a bottom sheet, `DELIVERY_DISABLED` and **input-locked**, that shares mobile space with the actor bottom sheet under these exact rules:
+  - **Mutual exclusion / replacement:** the Advisor sheet and the actor bottom sheet **never stack** — at most one sheet is open. Opening one **replaces** the other (and closes any open quick/pinned surface).
+  - **Open trigger:** the `Advisor ▾` selector opens the Advisor sheet; tapping an actor opens the actor sheet.
+  - **Selected-Advisor identity:** the sheet shows the selected Advisor (e.g. `Foundation Advisor`) and the Advisor selector; changing the selection replaces the sheet content, not a second sheet.
+  - **Notifications / unread:** unread count and completion/decision notifications are shown as truthful state; no fabricated content.
+  - **Input lock:** the composer is visibly locked with the exact `DELIVERY_DISABLED` reason; no send; no browser→agent dispatch.
+  - **Close / focus:** back gesture, outside tap, and **Escape** close the sheet and **restore focus** to the invoking control.
+  - **Drawer transition:** the actor sheet's `상세 보기` opens the full drawer; the Advisor sheet has no drawer transition (conversation-only).
 - **K-4** The default transcript **excludes** raw tmux, full launchers, full test output, and repetitive patch chatter (safe summary only).
 - **K-5** **`DELIVERY_DISABLED` by default.** Reuse of existing delivery is permitted **only** if later direct evidence proves literally **zero change** to authority, security, routing, audit, command target, and the browser-direct Worker/Reviewer prohibition (A1R-U03). Otherwise the shell designs only truthful selection/transcript/notification with **input locked**; no browser-to-agent dispatch.
 

@@ -44,14 +44,14 @@
       <rect x="0" y="8" width="300" height="24" rx="10" fill="#dce9f7"/><text x="12" y="25" class="mbh">Team Mission Board · Foundation</text>
       <text x="12" y="52" class="mb">Team/프로젝트 · Foundation</text>
       <text x="12" y="72" class="mb">현재 미션 · A-1R Living Office 리파인먼트</text>
-      <text x="12" y="92" class="mb">진행 · 설계 게이트 3/9 · 상태 · <tspan fill="#b8791c" font-weight="700">대기 · Leo 승인</tspan></text>
+      <text x="12" y="92" class="mb">진행 · 미확정 (WU 승인 후 정의) · 상태 · <tspan fill="#b8791c" font-weight="700">대기 · Leo 승인</tspan></text>
       <text x="12" y="112" class="mb">차단 · 없음 · Leo 결정 · 정적 목업 승인 대기</text>
       <text x="12" y="132" class="mb">다음 · 독립 설계 검토 → Leo 승인</text>
-      <text x="12" y="150" class="tiny">KST 검증 07-13 22:38 · 미확인은 미확인(날조 금지)</text>
+      <text x="12" y="150" class="tiny">KST 검증 · — (검증 UTC 원천 시) · 미확인은 미확인(날조 금지)</text>
     </g>
     <g transform="translate(120,224)">
       <use href="#unit"/><use href="#figA" x="37" y="-8"/>
-      <g transform="translate(-40,52)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#8fb0d6"/><circle cx="17" cy="16" r="9" fill="#7a4b8c"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">A</text><text x="34" y="15" class="name">Foundation Advisor</text><text x="34" y="30" class="team">Advisor · 조정</text><text x="134" y="30" class="state" fill="#2f8f4e">● 진행 중</text></g>
+      <g transform="translate(-40,52)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#8fb0d6"/><circle cx="17" cy="16" r="9" fill="#7a4b8c"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">A</text><text x="34" y="15" class="name">Foundation Advisor</text><text x="34" y="30" class="team">Advisor · FND</text><text x="134" y="30" class="state" fill="#2f8f4e">● 진행 중</text></g>
     </g>
 
     <!-- ④ Reviewer independent booth/zone (bottom-left, clear of Advisor) -->
@@ -60,7 +60,7 @@
       <rect x="0" y="10" width="270" height="176" rx="12" fill="#f4f1ea" stroke="#b7ae9c" stroke-dasharray="6 4" stroke-width="1.5"/>
       <text x="14" y="30" class="tiny">경계 구획 · 근접이 승인을 의미하지 않음</text>
       <g transform="translate(112,64)"><use href="#unit"/><use href="#figR" x="37" y="-8"/></g>
-      <g transform="translate(46,124)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#4a4a4a"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">R</text><text x="34" y="15" class="name">Independent Reviewer</text><text x="34" y="30" class="team">Reviewer · 독립</text><text x="128" y="30" class="state" fill="#6b6459">◦ 대기</text></g>
+      <g transform="translate(46,124)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#4a4a4a"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">R</text><text x="34" y="15" class="name">Independent Reviewer</text><text x="34" y="30" class="team">Reviewer · FND</text><text x="128" y="30" class="state" fill="#6b6459">◦ 대기</text></g>
     </g>
 
     <!-- ===== Column B (center): Control (top) + SIASIU Worker (bottom) ===== -->
@@ -70,12 +70,12 @@
       <rect x="0" y="8" width="150" height="64" rx="8" fill="#eef1f5" stroke="#b7c4d6"/><text x="10" y="26" class="tiny">아키텍처/설계 보드</text>
       <line x1="12" y1="36" x2="140" y2="36" stroke="#c4cfe0"/><line x1="12" y1="47" x2="120" y2="47" stroke="#c4cfe0"/><rect x="12" y="53" width="58" height="11" rx="2" fill="#c9d6e8"/><rect x="78" y="53" width="40" height="11" rx="2" fill="#dbe4f0"/>
       <g transform="translate(28,92)"><use href="#unit"/><use href="#figC" x="37" y="-8"/></g>
-      <g transform="translate(-6,144)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#3d3a34"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">C</text><text x="34" y="15" class="name">Foundation Control</text><text x="34" y="30" class="team">Control · 설계</text><text x="128" y="30" class="state" fill="#6b6459">◦ 상태 불명</text></g>
+      <g transform="translate(-6,144)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#3d3a34"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">C</text><text x="34" y="15" class="name">Foundation Control</text><text x="34" y="30" class="team">Control · FND</text><text x="128" y="30" class="state" fill="#6b6459">◦ 상태 불명</text></g>
     </g>
     <!-- SIASIU Worker -->
     <g transform="translate(346,300)">
       <use href="#unit" transform="translate(40,0)"/><use href="#figW" x="77" y="-8"/>
-      <g transform="translate(0,52)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#e0b6a9"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="15" class="name">SIASIU Worker</text><text x="34" y="30" class="team">Worker · 개인 데스크</text><text x="140" y="30" class="state" fill="#c0392b">■ 차단됨</text></g>
+      <g transform="translate(0,52)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#e0b6a9"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="15" class="name">SIASIU Worker</text><text x="34" y="30" class="team">Worker · FND</text><text x="140" y="30" class="state" fill="#c0392b">■ 차단됨</text></g>
     </g>
 
     <!-- ===== Column C (right): Workers Agent Office (top) + Cosmile (mid) + idle/Channy (bottom) ===== -->
@@ -86,12 +86,12 @@
     <!-- Agent Office Worker -->
     <g transform="translate(680,96)">
       <use href="#unit"/><use href="#figW" x="37" y="-8"/>
-      <g transform="translate(-30,52)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="15" class="name">Agent Office Worker</text><text x="34" y="30" class="team">Worker · 개인 데스크</text><text x="130" y="30" class="state" fill="#2f8f4e">● 진행 중</text></g>
+      <g transform="translate(-30,52)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="15" class="name">Agent Office Worker</text><text x="34" y="30" class="team">Worker · FND</text><text x="130" y="30" class="state" fill="#2f8f4e">● 진행 중</text></g>
     </g>
     <!-- Cosmile Worker -->
     <g transform="translate(680,248)">
       <use href="#unit"/><use href="#figW" x="37" y="-8"/>
-      <g transform="translate(-30,52)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="15" class="name">Cosmile Worker</text><text x="34" y="30" class="team">Worker · 개인 데스크</text><text x="140" y="30" class="state" fill="#b8791c">◐ 대기</text></g>
+      <g transform="translate(-30,52)"><rect width="184" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="15" class="name">Cosmile Worker</text><text x="34" y="30" class="team">Worker · FND</text><text x="140" y="30" class="state" fill="#b8791c">◐ 대기</text></g>
     </g>
     <!-- idle/reference peripheral seat + Channy (bottom-right) -->
     <g transform="translate(640,420)">

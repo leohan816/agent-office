@@ -1,217 +1,116 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" font-family="'Noto Sans KR','Malgun Gothic',system-ui,sans-serif">
-  <title>A-1R Living Office — full desktop (1440×900 design canvas) + Leo wide/short reflow</title>
+  <title>A-1R Living Office — full desktop (1440×900) — per-label Team text, no role/state overlap, fail-closed boards + exact tokens</title>
   <defs>
-    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#efe7db"/><stop offset="1" stop-color="#e4dccb"/>
-    </linearGradient>
-    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#e9dcc2"/><stop offset="1" stop-color="#dcc9a6"/>
-    </linearGradient>
-    <linearGradient id="fPod" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#dfe8f2"/><stop offset="1" stop-color="#c9d8ec"/>
-    </linearGradient>
-    <linearGradient id="vPod" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f2e2ee"/><stop offset="1" stop-color="#e6cfe0"/>
-    </linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe7db"/><stop offset="1" stop-color="#e4dccb"/></linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9dcc2"/><stop offset="1" stop-color="#dcc9a6"/></linearGradient>
+    <linearGradient id="fPod" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe8f2"/><stop offset="1" stop-color="#c9d8ec"/></linearGradient>
+    <linearGradient id="vPod" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2e2ee"/><stop offset="1" stop-color="#e6cfe0"/></linearGradient>
     <style>
-      .h{font-size:22px;font-weight:700;fill:#2c2a26}
-      .sub{font-size:13px;fill:#6b6459}
-      .chip{font-size:12px;font-weight:600}
-      .name{font-size:12.5px;font-weight:700;fill:#2c2a26}
-      .role{font-size:10.5px;font-weight:700;letter-spacing:.4px}
-      .team{font-size:10px;font-weight:600;fill:#5c554a}
-      .state{font-size:11px;font-weight:700}
-      .mb{font-size:10.5px;fill:#3a352c}
-      .mbh{font-size:11px;font-weight:700;fill:#2c2a26}
-      .lbl{font-size:11px;fill:#4a443a}
-      .note{font-size:11px;fill:#7a7264}
-      .tiny{font-size:9.5px;fill:#8a8072}
+      .h{font-size:22px;font-weight:700;fill:#2c2a26}.chip{font-size:12px;font-weight:600}
+      .name{font-size:12.5px;font-weight:700;fill:#2c2a26}.team{font-size:10px;font-weight:600;fill:#5c554a}
+      .state{font-size:11px;font-weight:700}.mbh{font-size:11px;font-weight:700;fill:#2c2a26}.mb{font-size:10.5px;fill:#3a352c}
+      .lbl{font-size:11px;fill:#4a443a}.note{font-size:11px;fill:#7a7264}.tiny{font-size:9.5px;fill:#8a8072}.wm{font-size:9px;font-weight:700;fill:#a5762b}
     </style>
-    <!-- compact actor label: name + role dot + Korean state + short team text -->
-    <g id="pin"><path d="M0 0 C 6 0 10 4 10 10 C 10 17 0 26 0 26 C 0 26 -10 17 -10 10 C -10 4 -6 0 0 0 Z" fill="#3a352c" opacity="0.28"/></g>
+    <!-- compact desk+figure -->
+    <g id="dk"><polygon points="0,16 66,16 74,36 -8,36" fill="#c9a86a"/><circle cx="33" cy="1" r="9" fill="#e9c9a0"/></g>
+    <!-- actor label: 178 wide · line1 name · line2 role·TEAM (left) + state (right, own space) -->
   </defs>
-
   <rect width="1440" height="900" fill="url(#wall)"/>
 
-  <!-- ===== top app bar (Korean-first chrome) ===== -->
-  <rect x="0" y="0" width="1440" height="56" fill="#faf6ef"/>
-  <rect x="0" y="55" width="1440" height="1" fill="#d8cfbf"/>
+  <!-- top app bar -->
+  <rect x="0" y="0" width="1440" height="56" fill="#faf6ef"/><rect x="0" y="55" width="1440" height="1" fill="#d8cfbf"/>
   <text x="28" y="35" class="h">에이전트 오피스 · 리빙 오피스</text>
-  <g transform="translate(300,16)">
-    <rect x="0" y="0" width="104" height="26" rx="13" fill="#2f6db0"/><text x="52" y="17" text-anchor="middle" class="chip" fill="#fff">리빙 오피스</text>
-    <rect x="112" y="0" width="104" height="26" rx="13" fill="#eee6d8" stroke="#cdbfa6"/><text x="164" y="17" text-anchor="middle" class="chip" fill="#6b6459">기술 대시보드</text>
-  </g>
-  <!-- collapsed accessible agent list control (ordinary visual mode) -->
-  <g transform="translate(880,15)">
-    <rect x="0" y="0" width="228" height="28" rx="8" fill="#f1eadd" stroke="#cdbfa6"/>
-    <text x="14" y="19" class="lbl">▸ 접근 가능한 에이전트 목록 (8)</text>
-  </g>
-  <!-- advisor selector -->
-  <g transform="translate(1128,15)">
-    <rect x="0" y="0" width="140" height="28" rx="8" fill="#eef3fa" stroke="#b9cbe6"/>
-    <text x="12" y="19" class="lbl">Advisor ▾ Foundation</text>
-  </g>
-  <g transform="translate(1288,15)">
-    <rect x="0" y="0" width="124" height="28" rx="8" fill="#fbeae6" stroke="#e6c2b6"/>
-    <text x="62" y="19" text-anchor="middle" class="tiny" fill="#a5533f">대화 · 비활성화됨</text>
-  </g>
+  <g transform="translate(300,16)"><rect width="104" height="26" rx="13" fill="#2f6db0"/><text x="52" y="17" text-anchor="middle" class="chip" fill="#fff">리빙 오피스</text>
+  <rect x="112" width="104" height="26" rx="13" fill="#eee6d8" stroke="#cdbfa6"/><text x="164" y="17" text-anchor="middle" class="chip" fill="#6b6459">기술 대시보드</text></g>
+  <g transform="translate(880,15)"><rect width="228" height="28" rx="8" fill="#f1eadd" stroke="#cdbfa6"/><text x="14" y="19" class="lbl">▸ 접근 가능한 에이전트 목록 (8)</text></g>
+  <g transform="translate(1128,15)"><rect width="140" height="28" rx="8" fill="#eef3fa" stroke="#b9cbe6"/><text x="12" y="19" class="lbl">Advisor ▾ Foundation</text></g>
+  <g transform="translate(1288,15)"><rect width="124" height="28" rx="8" fill="#fbeae6" stroke="#e6c2b6"/><text x="62" y="19" text-anchor="middle" class="tiny" fill="#a5533f">대화 · 비활성화됨</text></g>
 
-  <!-- ===== the one shared floor (3/4 perspective, diamond tiles) ===== -->
-  <g>
-    <polygon points="40,150 1130,150 1210,858 40,858" fill="url(#floor)"/>
-    <!-- diamond tile hint -->
-    <g stroke="#d0bb95" stroke-width="1" opacity="0.5">
-      <line x1="120" y1="150" x2="120" y2="858"/><line x1="260" y1="150" x2="280" y2="858"/>
-      <line x1="400" y1="150" x2="450" y2="858"/><line x1="540" y1="150" x2="620" y2="858"/>
-      <line x1="680" y1="150" x2="790" y2="858"/><line x1="820" y1="150" x2="960" y2="858"/>
-      <line x1="960" y1="150" x2="1130" y2="858"/>
-      <line x1="40" y1="270" x2="1148" y2="270"/><line x1="40" y1="410" x2="1170" y2="410"/>
-      <line x1="40" y1="560" x2="1190" y2="560"/><line x1="40" y1="710" x2="1205" y2="710"/>
-    </g>
-  </g>
+  <!-- floor -->
+  <polygon points="40,150 1130,150 1210,858 40,858" fill="url(#floor)"/>
+  <g stroke="#d0bb95" stroke-width="1" opacity="0.45"><line x1="120" y1="150" x2="120" y2="858"/><line x1="400" y1="150" x2="450" y2="858"/><line x1="680" y1="150" x2="790" y2="858"/><line x1="960" y1="150" x2="1130" y2="858"/><line x1="40" y1="410" x2="1170" y2="410"/><line x1="40" y1="640" x2="1198" y2="640"/></g>
 
-  <!-- ============ FOUNDATION Advisor Team Pod (left / larger; 6 members incl. Agent Office) ============ -->
+  <!-- FOUNDATION Pod (left) -->
   <g transform="translate(64,168)">
     <polygon points="0,40 560,40 600,470 -30,470" fill="url(#fPod)" opacity="0.9" stroke="#8fb0d6" stroke-width="2"/>
-    <!-- restrained accent bar + short team text (color never the only signal) -->
-    <rect x="0" y="0" width="360" height="30" rx="6" fill="#2f6db0"/>
-    <text x="12" y="20" class="mbh" fill="#fff">◆ Foundation Advisor Team</text>
-    <text x="372" y="20" class="team">FND · 파운데이션</text>
-
-    <!-- Team Mission Board -->
+    <rect x="0" y="0" width="360" height="30" rx="6" fill="#2f6db0"/><text x="12" y="20" class="mbh" fill="#fff">◆ Foundation Advisor Team</text><text x="372" y="20" class="team">FND · 파운데이션</text>
+    <!-- Mission Board (fail-closed progress + no fabricated KST) -->
     <g transform="translate(0,44)">
-      <rect x="0" y="0" width="238" height="120" rx="8" fill="#f7fafd" stroke="#9db9dc"/>
-      <rect x="0" y="0" width="238" height="22" rx="8" fill="#dce9f7"/><text x="10" y="16" class="mbh">미션 보드 · Foundation</text>
-      <text x="10" y="42" class="mb">미션: A-1R Living Office 리파인먼트</text>
-      <text x="10" y="60" class="mb">진행: 설계 게이트 · 3/9 WU</text>
-      <text x="10" y="78" class="mb">상태: <tspan fill="#b8791c" font-weight="700">대기 · Leo 승인</tspan></text>
-      <text x="10" y="96" class="mb">다음: 정적 목업 검토 → 승인</text>
-      <text x="10" y="112" class="tiny">KST 검증 07-13 22:38 · 사실만</text>
+      <rect x="0" y="0" width="238" height="120" rx="8" fill="#f7fafd" stroke="#9db9dc"/><rect x="0" y="0" width="238" height="22" rx="8" fill="#dce9f7"/><text x="10" y="16" class="mbh">미션 보드 · Foundation</text>
+      <text x="10" y="42" class="mb">미션 · A-1R Living Office 리파인먼트</text>
+      <text x="10" y="60" class="mb">진행 · 미확정 (WU 승인 후 정의)</text>
+      <text x="10" y="78" class="mb">상태 · <tspan fill="#b8791c" font-weight="700">대기 · Leo 승인</tspan> · 차단 없음</text>
+      <text x="10" y="96" class="mb">다음 · 정적 목업 검토 → 승인</text>
+      <text x="10" y="112" class="tiny">KST 검증 · — (검증 UTC 원천 시) · 미확인은 미확인</text>
     </g>
+    <!-- actors: distinct desks + 178-wide labels with FND + separated state -->
+    <use href="#dk" x="300" y="72"/>
+    <g transform="translate(268,120)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#8fb0d6"/><circle cx="16" cy="14" r="8" fill="#7a4b8c"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">A</text><text x="30" y="14" class="name">Foundation Advisor</text><text x="30" y="30" class="team">Advisor · FND</text><text x="170" y="30" class="state" fill="#2f8f4e" text-anchor="end">● 진행 중</text></g>
 
-    <!-- Advisor coordination desk + Mission Board owner -->
-    <g transform="translate(276,60)">
-      <rect x="-8" y="18" width="86" height="30" rx="4" fill="#c9a86a"/><rect x="-8" y="14" width="86" height="8" rx="3" fill="#b8965a"/>
-      <circle cx="35" cy="4" r="9" fill="#e9c9a0"/><rect x="24" y="12" width="22" height="18" rx="6" fill="#2f6db0"/>
-      <g transform="translate(-12,54)"><rect width="150" height="40" rx="7" fill="#fff" stroke="#9db9dc"/><circle cx="15" cy="14" r="8" fill="#7a4b8c"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">A</text><text x="30" y="13" class="name">Foundation Advisor</text><text x="30" y="27" class="team">조정 · Advisor</text><text x="100" y="27" class="state" fill="#2f8f4e">● 진행 중</text></g>
-    </g>
+    <use href="#dk" x="60" y="196"/>
+    <g transform="translate(28,244)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="16" cy="14" r="8" fill="#3d3a34"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">C</text><text x="30" y="14" class="name">Foundation Control</text><text x="30" y="30" class="team">Control · FND</text><text x="170" y="30" class="state" fill="#6b6459" text-anchor="end">◦ 상태 불명</text></g>
 
-    <!-- Control architecture/design surface -->
-    <g transform="translate(60,196)">
-      <rect x="-6" y="16" width="78" height="26" rx="4" fill="#c9a86a"/><rect x="-6" y="10" width="78" height="8" rx="3" fill="#8fb0d6"/>
-      <circle cx="30" cy="2" r="9" fill="#e9c9a0"/><rect x="20" y="10" width="20" height="16" rx="5" fill="#3d3a34"/>
-      <g transform="translate(-10,48)"><rect width="150" height="40" rx="7" fill="#fff" stroke="#c9c2b4"/><circle cx="15" cy="14" r="8" fill="#3d3a34"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">C</text><text x="30" y="13" class="name">Foundation Control</text><text x="30" y="27" class="team">설계 데스크 · Control</text><text x="118" y="27" class="state" fill="#6b6459">◦ 상태 불명</text></g>
-    </g>
+    <use href="#dk" x="300" y="196"/>
+    <g transform="translate(268,244)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="16" cy="14" r="8" fill="#2f6db0"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">W</text><text x="30" y="14" class="name">Agent Office Worker</text><text x="30" y="30" class="team">Worker · FND</text><text x="170" y="30" class="state" fill="#2f8f4e" text-anchor="end">● 진행 중</text></g>
 
-    <!-- Worker desks: Agent Office / Cosmile / SIASIU (Agent Office is a Foundation member, no separate pod) -->
-    <g transform="translate(258,196)">
-      <rect x="-4" y="16" width="70" height="24" rx="4" fill="#c9a86a"/>
-      <circle cx="28" cy="2" r="9" fill="#e9c9a0"/><rect x="18" y="10" width="20" height="16" rx="5" fill="#2f6db0"/>
-      <g transform="translate(-8,46)"><rect width="150" height="40" rx="7" fill="#fff" stroke="#c9c2b4"/><circle cx="15" cy="14" r="8" fill="#2f6db0"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">W</text><text x="30" y="13" class="name">Agent Office Worker</text><text x="30" y="27" class="team">개인 데스크 · Worker</text><text x="112" y="27" class="state" fill="#2f8f4e">● 진행 중</text></g>
-    </g>
-    <g transform="translate(258,300)">
-      <rect x="-4" y="16" width="70" height="24" rx="4" fill="#c9a86a"/>
-      <circle cx="28" cy="2" r="9" fill="#e9c9a0"/><rect x="18" y="10" width="20" height="16" rx="5" fill="#2f6db0"/>
-      <g transform="translate(-8,46)"><rect width="150" height="40" rx="7" fill="#fff" stroke="#c9c2b4"/><circle cx="15" cy="14" r="8" fill="#2f6db0"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">W</text><text x="30" y="13" class="name">Cosmile Worker</text><text x="30" y="27" class="team">개인 데스크 · Worker</text><text x="118" y="27" class="state" fill="#b8791c">◐ 대기</text></g>
-    </g>
-    <g transform="translate(60,300)">
-      <rect x="-4" y="16" width="70" height="24" rx="4" fill="#c9a86a"/>
-      <circle cx="28" cy="2" r="9" fill="#e9c9a0"/><rect x="18" y="10" width="20" height="16" rx="5" fill="#2f6db0"/>
-      <g transform="translate(-10,46)"><rect width="150" height="40" rx="7" fill="#fff" stroke="#c9c2b4"/><circle cx="15" cy="14" r="8" fill="#2f6db0"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">W</text><text x="30" y="13" class="name">SIASIU Worker</text><text x="30" y="27" class="team">개인 데스크 · Worker</text><text x="118" y="27" class="state" fill="#c0392b">■ 차단됨</text></g>
-    </g>
+    <use href="#dk" x="60" y="320"/>
+    <g transform="translate(28,368)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#e0b6a9"/><circle cx="16" cy="14" r="8" fill="#2f6db0"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">W</text><text x="30" y="14" class="name">SIASIU Worker</text><text x="30" y="30" class="team">Worker · FND</text><text x="170" y="30" class="state" fill="#c0392b" text-anchor="end">■ 차단됨</text></g>
 
-    <!-- Reviewer independent booth/zone -->
-    <g transform="translate(430,300)">
-      <rect x="-10" y="-6" width="176" height="96" rx="10" fill="#f4f1ea" stroke="#b7ae9c" stroke-dasharray="5 4"/>
-      <text x="78" y="10" text-anchor="middle" class="tiny">독립 부스 · Reviewer</text>
-      <rect x="26" y="20" width="70" height="24" rx="4" fill="#c9a86a"/>
-      <circle cx="58" cy="8" r="9" fill="#e9c9a0"/><rect x="48" y="16" width="20" height="16" rx="5" fill="#4a4a4a"/>
-      <g transform="translate(6,50)"><rect width="150" height="40" rx="7" fill="#fff" stroke="#c9c2b4"/><circle cx="15" cy="14" r="8" fill="#4a4a4a"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">R</text><text x="30" y="13" class="name">Independent Reviewer</text><text x="30" y="27" class="team">독립 검토 · Reviewer</text><text x="120" y="27" class="state" fill="#6b6459">◦ 대기</text></g>
+    <use href="#dk" x="300" y="320"/>
+    <g transform="translate(268,368)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="16" cy="14" r="8" fill="#2f6db0"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">W</text><text x="30" y="14" class="name">Cosmile Worker</text><text x="30" y="30" class="team">Worker · FND</text><text x="170" y="30" class="state" fill="#b8791c" text-anchor="end">◐ 대기</text></g>
+
+    <!-- Reviewer booth -->
+    <g transform="translate(440,300)"><rect x="-6" y="-6" width="196" height="100" rx="10" fill="#f4f1ea" stroke="#b7ae9c" stroke-dasharray="5 4"/><text x="92" y="10" text-anchor="middle" class="tiny">독립 부스 · Reviewer</text>
+      <use href="#dk" x="58" y="14"/>
+      <g transform="translate(6,50)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="16" cy="14" r="8" fill="#4a4a4a"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">R</text><text x="30" y="14" class="name">Independent Reviewer</text><text x="30" y="30" class="team">Reviewer · FND</text><text x="170" y="30" class="state" fill="#6b6459" text-anchor="end">◦ 대기</text></g>
     </g>
   </g>
 
-  <!-- ============ VIBENEWS Advisor Team Pod (right / smaller; 2 members) ============ -->
-  <g transform="translate(690,300)">
+  <!-- VIBENEWS Pod (right) -->
+  <g transform="translate(700,300)">
     <polygon points="0,20 380,20 430,410 -30,410" fill="url(#vPod)" opacity="0.92" stroke="#cf9dc4" stroke-width="2"/>
-    <rect x="0" y="-16" width="300" height="30" rx="6" fill="#a24d92"/>
-    <text x="12" y="4" class="mbh" fill="#fff">◆ VibeNews Advisor Team</text>
-    <text x="312" y="4" class="team">VBN · 바이브뉴스</text>
-
-    <g transform="translate(0,26)">
-      <rect x="0" y="0" width="230" height="112" rx="8" fill="#fdf6fb" stroke="#d7a9cd"/>
-      <rect x="0" y="0" width="230" height="22" rx="8" fill="#f2ddec"/><text x="10" y="16" class="mbh">미션 보드 · VibeNews</text>
-      <text x="10" y="42" class="mb">미션: VibeNews 콘텐츠 파이프라인</text>
-      <text x="10" y="60" class="mb">진행: 대기 · 의존성</text>
-      <text x="10" y="78" class="mb">상태: <tspan fill="#6b6459" font-weight="700">상태 불명</tspan></text>
-      <text x="10" y="96" class="tiny">KST 검증 없음 · 미확인은 미확인</text>
-    </g>
-    <!-- Advisor -->
-    <g transform="translate(266,44)">
-      <rect x="-8" y="16" width="86" height="28" rx="4" fill="#c9a86a"/>
-      <circle cx="35" cy="2" r="9" fill="#e9c9a0"/><rect x="24" y="10" width="22" height="18" rx="6" fill="#a24d92"/>
-      <g transform="translate(-12,48)"><rect width="150" height="40" rx="7" fill="#fff" stroke="#d7a9cd"/><circle cx="15" cy="14" r="8" fill="#7a4b8c"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">A</text><text x="30" y="13" class="name">VibeNews Advisor</text><text x="30" y="27" class="team">조정 · Advisor</text><text x="110" y="27" class="state" fill="#6b6459">◦ 상태 불명</text></g>
-    </g>
-    <!-- Worker (AI_ERROR critical state directly visible) -->
-    <g transform="translate(150,214)">
-      <rect x="-4" y="16" width="70" height="24" rx="4" fill="#c9a86a"/>
-      <circle cx="28" cy="2" r="9" fill="#e9c9a0"/><rect x="18" y="10" width="20" height="16" rx="5" fill="#a24d92"/>
-      <g transform="translate(-8,46)"><rect width="152" height="40" rx="7" fill="#fff" stroke="#e0b6a9"/><circle cx="15" cy="14" r="8" fill="#a24d92"/><text x="15" y="18" text-anchor="middle" class="role" fill="#fff">W</text><text x="30" y="13" class="name">VibeNews Worker</text><text x="30" y="27" class="team">개인 데스크 · Worker</text><text x="112" y="27" class="state" fill="#c0392b">⚠ AI 오류</text></g>
-    </g>
+    <rect x="0" y="-16" width="300" height="30" rx="6" fill="#a24d92"/><text x="12" y="4" class="mbh" fill="#fff">◆ VibeNews Advisor Team</text><text x="312" y="4" class="team">VBN · 바이브뉴스</text>
+    <g transform="translate(0,26)"><rect x="0" y="0" width="230" height="104" rx="8" fill="#fdf6fb" stroke="#d7a9cd"/><rect x="0" y="0" width="230" height="22" rx="8" fill="#f2ddec"/><text x="10" y="16" class="mbh">미션 보드 · VibeNews</text>
+      <text x="10" y="42" class="mb">미션 · VibeNews 콘텐츠 파이프라인</text><text x="10" y="60" class="mb">진행 · 미확정 · 대기 · 의존성</text><text x="10" y="78" class="mb">상태 · <tspan fill="#6b6459" font-weight="700">상태 불명</tspan></text><text x="10" y="94" class="tiny">KST 검증 · — · 미확인은 미확인</text></g>
+    <use href="#dk" x="280" y="44"/>
+    <g transform="translate(248,92)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#d7a9cd"/><circle cx="16" cy="14" r="8" fill="#7a4b8c"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">A</text><text x="30" y="14" class="name">VibeNews Advisor</text><text x="30" y="30" class="team">Advisor · VBN</text><text x="170" y="30" class="state" fill="#6b6459" text-anchor="end">◦ 상태 불명</text></g>
+    <use href="#dk" x="150" y="214"/>
+    <g transform="translate(118,262)"><rect width="178" height="42" rx="8" fill="#fff" stroke="#e0b6a9"/><circle cx="16" cy="14" r="8" fill="#a24d92"/><text x="16" y="18" text-anchor="middle" class="state" fill="#fff">W</text><text x="30" y="14" class="name">VibeNews Worker</text><text x="30" y="30" class="team">Worker · VBN</text><text x="170" y="30" class="state" fill="#c0392b" text-anchor="end">⚠ AI 오류</text></g>
   </g>
 
-  <!-- ===== Channy (Bedlington terrier, ambient, peripheral, non-operational) ===== -->
-  <g transform="translate(300,720)">
-    <ellipse cx="34" cy="46" rx="34" ry="7" fill="#000" opacity="0.10"/>
-    <path d="M6 34 C 2 20 14 10 26 12 C 30 4 44 4 48 12 C 62 12 70 22 64 34 C 70 38 68 48 60 48 L 54 48 L 54 40 L 46 40 L 46 48 L 22 48 L 22 40 L 14 40 L 14 48 L 10 48 C 3 48 2 40 6 34 Z" fill="#e8e4ec" stroke="#cfc8d8" stroke-width="1.5"/>
-    <path d="M26 12 C 20 6 12 8 12 16 C 16 16 22 14 26 12 Z" fill="#ddd6e6"/>
-    <circle cx="52" cy="24" r="2" fill="#3a3540"/>
-    <text x="34" y="66" text-anchor="middle" class="tiny">Channy · 권한 없음 · 앰비언트</text>
+  <!-- Channy -->
+  <g transform="translate(300,720)"><ellipse cx="34" cy="46" rx="34" ry="7" fill="#000" opacity="0.10"/><path d="M6 34 C 2 20 14 10 26 12 C 30 4 44 4 48 12 C 62 12 70 22 64 34 C 70 38 68 48 60 48 L 54 48 L 54 40 L 46 40 L 46 48 L 22 48 L 22 40 L 14 40 L 14 48 L 10 48 C 3 48 2 40 6 34 Z" fill="#e8e4ec" stroke="#cfc8d8" stroke-width="1.5"/><path d="M26 12 C 20 6 12 8 12 16 C 16 16 22 14 26 12 Z" fill="#ddd6e6"/><circle cx="52" cy="24" r="2" fill="#3a3540"/><text x="34" y="66" text-anchor="middle" class="tiny">Channy · 권한 없음 · 앰비언트</text></g>
+
+  <!-- hover quick card (exact tokens + fail-closed + watermark) — placed on empty floor, covers no label -->
+  <g transform="translate(430,600)">
+    <rect x="0" y="0" width="236" height="164" rx="10" fill="#ffffff" stroke="#b9cbe6" stroke-width="1.5"/><rect x="0" y="0" width="236" height="26" rx="10" fill="#eef3fa"/>
+    <text x="12" y="18" class="mbh">Agent Office Worker · Worker · FND</text>
+    <text x="12" y="46" class="lbl">미션 · — (WU 승인 후 정의)</text>
+    <text x="12" y="64" class="lbl">모델 · claude-opus-4-8 · 노력 · ULTRACODE</text>
+    <text x="12" y="82" class="lbl">차단 / Leo · <tspan fill="#2f8f4e" font-weight="700">없음 / 대기 아님</tspan></text>
+    <text x="12" y="100" class="lbl">런타임 · AI_READY (근거 기반)</text>
+    <text x="12" y="118" class="lbl">진행 · 0 / 0 (미확정)</text>
+    <text x="12" y="136" class="tiny">KST 최종 검증 · — · 클릭 시 고정 (blocker/Leo 포함)</text>
+    <text x="12" y="154" class="wm">설계 예시 · 실제 운영 아님</text>
   </g>
 
-  <!-- ===== hover quick card example (auto-placed; never covers actor/furniture) ===== -->
-  <g transform="translate(470,560)">
-    <use href="#pin" x="-140" y="-8"/>
-    <rect x="0" y="0" width="238" height="150" rx="10" fill="#ffffff" stroke="#b9cbe6" stroke-width="1.5"/>
-    <rect x="0" y="0" width="238" height="26" rx="10" fill="#eef3fa"/>
-    <text x="12" y="18" class="mbh">Agent Office Worker · Worker</text>
-    <text x="12" y="46" class="lbl">미션 · A-1R Living Office</text>
-    <text x="12" y="64" class="lbl">WorkUnit · BA-WU-03</text>
-    <text x="12" y="82" class="lbl">모델 · claude-opus-4-8 · 노력 · high</text>
-    <text x="12" y="100" class="lbl">상태 · <tspan fill="#2f8f4e" font-weight="700">진행 중</tspan> · Leo 대기 아님</text>
-    <text x="12" y="118" class="lbl">런타임 · AI_WORKING (근거 기반)</text>
-    <text x="12" y="138" class="tiny">KST 최종 검증 · 07-13 22:31 · 클릭 시 고정</text>
-  </g>
-
-  <!-- ===== docked Advisor chat panel location (truthful, disabled by default) ===== -->
+  <!-- Advisor chat dock (disabled) -->
   <g transform="translate(1224,72)">
-    <rect x="0" y="0" width="196" height="812" rx="10" fill="#faf6ef" stroke="#d8cfbf"/>
-    <rect x="0" y="0" width="196" height="30" rx="10" fill="#f1eadd"/>
-    <text x="12" y="20" class="mbh">Advisor 대화</text>
-    <rect x="12" y="42" width="172" height="26" rx="6" fill="#fbeae6" stroke="#e6c2b6"/>
-    <text x="98" y="59" text-anchor="middle" class="tiny" fill="#a5533f">DELIVERY_DISABLED · 전송 비활성화</text>
-    <text x="12" y="92" class="lbl">선택된 Advisor</text>
-    <text x="12" y="110" class="name">Foundation Advisor</text>
-    <rect x="12" y="126" width="172" height="1" fill="#e6ddcc"/>
-    <text x="12" y="150" class="tiny">전사(안전 요약)만 표시:</text>
-    <text x="12" y="170" class="lbl">· 완료/결정 알림</text>
-    <text x="12" y="188" class="lbl">· 미확인 배송 상태</text>
-    <text x="12" y="206" class="tiny">원문 tmux · 런처 · 테스트 로그 제외</text>
-    <rect x="12" y="736" width="172" height="30" rx="6" fill="#efe9dd" stroke="#cdbfa6"/>
-    <text x="98" y="755" text-anchor="middle" class="tiny" fill="#8a8072">입력 잠김 · 승인·호환성 증명 후 개방</text>
+    <rect x="0" y="0" width="196" height="812" rx="10" fill="#faf6ef" stroke="#d8cfbf"/><rect x="0" y="0" width="196" height="30" rx="10" fill="#f1eadd"/><text x="12" y="20" class="mbh">Advisor 대화</text>
+    <rect x="12" y="42" width="172" height="26" rx="6" fill="#fbeae6" stroke="#e6c2b6"/><text x="98" y="59" text-anchor="middle" class="tiny" fill="#a5533f">DELIVERY_DISABLED · 전송 비활성화</text>
+    <text x="12" y="92" class="lbl">선택된 Advisor</text><text x="12" y="110" class="name">Foundation Advisor</text><rect x="12" y="126" width="172" height="1" fill="#e6ddcc"/>
+    <text x="12" y="150" class="tiny">전사(안전 요약)만 표시:</text><text x="12" y="170" class="lbl">· 완료/결정 알림</text><text x="12" y="188" class="lbl">· 미확인 배송 상태</text><text x="12" y="206" class="tiny">원문 tmux · 런처 · 테스트 로그 제외</text>
+    <rect x="12" y="736" width="172" height="30" rx="6" fill="#efe9dd" stroke="#cdbfa6"/><text x="98" y="755" text-anchor="middle" class="tiny" fill="#8a8072">입력 잠김 · 승인·호환성 증명 후 개방</text>
     <text x="12" y="786" class="tiny">브라우저→에이전트 직접 지시 금지</text>
   </g>
 
-  <!-- ===== footer notes ===== -->
-  <text x="28" y="884" class="note">기본 뷰: 관계선 숨김 · 고정 카드 0..1 · 이름/역할/Team/상태만 캔버스 노출 · 기술 팩트는 카드/서랍/시맨틱/대시보드에 보존</text>
+  <text x="28" y="884" class="note">기본 뷰: 관계선 숨김 · 고정 카드 0..1 · 이름/역할/Team(FND·VBN)/상태만 캔버스 노출 · 기술 팩트는 카드/서랍/시맨틱/대시보드에 보존</text>
 
-  <!-- ===== inset: Leo capture wide/short reflow (1512×619 shape) ===== -->
+  <!-- Leo capture wide/short reflow inset -->
   <g transform="translate(28,600)">
-    <rect x="0" y="0" width="384" height="176" rx="8" fill="#fbf8f2" stroke="#cdbfa6"/>
-    <text x="10" y="18" class="mbh">동일 계약 · Leo 캡처 와이드/숏 (1512×619)</text>
+    <rect x="0" y="0" width="384" height="176" rx="8" fill="#fbf8f2" stroke="#cdbfa6"/><text x="10" y="18" class="mbh">동일 계약 · Leo 캡처 와이드/숏 (1512×619)</text>
     <rect x="10" y="26" width="364" height="118" rx="4" fill="url(#floor)"/>
-    <!-- two separated pods reflow into a wide short band -->
-    <polygon points="20,40 180,40 190,132 14,132" fill="url(#fPod)" stroke="#8fb0d6"/>
-    <polygon points="210,44 356,44 366,132 202,132" fill="url(#vPod)" stroke="#cf9dc4"/>
+    <polygon points="20,40 180,40 190,132 14,132" fill="url(#fPod)" stroke="#8fb0d6"/><polygon points="210,44 356,44 366,132 202,132" fill="url(#vPod)" stroke="#cf9dc4"/>
     <rect x="24" y="34" width="110" height="12" rx="3" fill="#2f6db0"/><rect x="214" y="38" width="96" height="12" rx="3" fill="#a24d92"/>
     <g fill="#fff" stroke="#c9c2b4"><rect x="26" y="58" width="66" height="16" rx="3"/><rect x="100" y="58" width="66" height="16" rx="3"/><rect x="26" y="88" width="66" height="16" rx="3"/><rect x="100" y="88" width="66" height="16" rx="3"/><rect x="26" y="112" width="66" height="14" rx="3"/><rect x="216" y="60" width="66" height="16" rx="3"/><rect x="216" y="92" width="66" height="16" rx="3"/></g>
     <text x="10" y="160" class="tiny">와이드/숏에서도 Pod 분리 유지 · 카드 겹침·잘림·화면 이탈 없음 · 하단 바닥 과잉 공백 축소</text>

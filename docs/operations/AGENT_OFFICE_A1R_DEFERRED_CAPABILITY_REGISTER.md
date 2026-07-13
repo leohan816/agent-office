@@ -29,12 +29,24 @@ Legend — Current level: `NONE` (not present) · `STATIC_PRESENTATION` (neutral
 - **Prerequisites:** DCR-01 accepted; committed registry + accepted-evidence fixtures.
 - **Owner:** Agent Office Worker under Advisor handoff after mockup approval.
 - **Activation condition:** design-review `PASS` + Leo mockup approval (same A-1R implementation gate as DCR-01).
-- **Forbidden now:** any live-runtime-driven motion; celebratory/pre-verdict poses; motion in reduced mode. **Tests (later):** motion only from accepted fixture/evidence; reduced-motion stop; static/semantic equivalence. **Authority:** Leo/GPT.
+- **Forbidden now:** any **live-runtime-state-conditioned** motion (that is DCR-03/Batch B); celebratory/pre-verdict poses; motion in reduced mode. **Tests (later):** motion only from accepted fixture/evidence; reduced-motion stop; static/semantic equivalence. **Authority:** Leo/GPT.
+
+**DCR-02.1 — exact per-role A-1R basic-animation map (SDR-01).** Every A-1R basic role animation is driven **only** by an accepted committed fixture/evidence fact (registry role + accepted-evidence records + RT operational state that is already accepted); it **never** reads a live runtime feed. Start condition = the accepted fact is present and current; stop condition = focus/hover exit, reduced-motion, static/no-canvas mode, or the fact becomes unknown/absent/conflicting. Unknown/absent/conflicting input → **neutral idle** (no motion beyond a still pose). Reduced-motion and static/semantic modes → **no motion**, identical facts via the same drawer/semantic list.
+
+| Registered role | Accepted input fact (fixture/evidence, not live) | Allowed A-1R basic motion / pose | Start → stop | Unknown/absent/conflicting | Reduced / static equivalent |
+|---|---|---|---|---|---|
+| **Advisor** | accepted `operationalState` (e.g. WORKING at the coordination desk) + registry role | subtle seated presence at the Mission Board / coordination desk; no directional/handoff motion | start when the accepted fact is current → stop on exit / unknown / reduced | neutral seated idle, no motion | still seated pose; state via label + drawer text |
+| **Control** | accepted `operationalState` + registry role | subtle seated presence at the architecture/design surface | same | neutral idle | still pose; text equivalent |
+| **Worker** (Agent Office / Cosmile / SIASIU / VibeNews) | accepted `operationalState` (WORKING/WAITING/BLOCKED/…) at the individual desk | subtle seated presence at the desk; a still "waiting"/"blocked" posture matching the **accepted** state (no progress/among-actor motion) | same | neutral idle; **no** activity animation | still posture; badge + drawer text |
+| **Reviewer** | accepted `operationalState` at the independent booth | subtle seated presence in the booth; **no celebratory pose before a verified verdict** | same | neutral idle | still pose; text |
+| **(Channy — reference)** | none (non-operational) | ambient poses per the Channy sheet; expresses **no** state | ambient loop → stop on reduced-motion | n/a (never a state) | still silhouette |
+
+Live runtime-state integration (real-time WORKING/handoff/completion driven by a live feed) is **DCR-03/Batch B** and stays forbidden now.
 
 ### DCR-03 — Real runtime-state-driven animation (live integration)
 - **Current level:** `NONE`. **Deferred:** **Batch B** (A1R-U04). **Reason:** live state→motion mapping needs a verified source + safety (distinct from DCR-02's fixture/evidence animation).
 - **Early risk:** motion outrunning verified state; leaking exact activity. **Prereq:** DCR-02; accepted operational-state contract.
-- **Owner:** Worker. **Activation:** Batch B + verified state-source. **Forbidden now:** any state-conditioned animation. **Tests (later):** motion only on accepted evidence; unknown stays neutral. **Authority:** Leo/GPT.
+- **Owner:** Worker. **Activation:** Batch B + verified state-source. **Forbidden now:** any **live runtime-state-conditioned** animation (this prohibition is scoped to a live feed; it does **not** forbid DCR-02's accepted fixture/evidence poses). **Tests (later):** motion only on accepted live evidence; unknown stays neutral. **Authority:** Leo/GPT.
 
 ### DCR-04 — Dynamic Team/actor admission
 - **Current level:** `NONE`. **Deferred:** Batch C (A1R-U05). **Reason:** admission changes the org graph.
