@@ -129,3 +129,14 @@ Batch A is complete only when **all** hold:
 11. independent-Sentinel implementation review `PASS`, then Advisor audit, then Leo/GPT final approval.
 
 ★Completion is proven by actual source/diff/test output/branch/commit evidence and independent review — not by narrative. Worker does not self-approve or select the next mission.
+
+## 6. As-built implementation status (Batch A Worker)
+
+Delivered on branch `batch-a/modern-office-identity-001`. This records actual implementation and pre-claims no independent review, production/live use, or final approval.
+
+- **BA-WU-01..07** — committed: Office-first authenticated shell + lazy Pixi Office chunk with a Pixi-free eager/fallback graph (CD-3); local/static organization module + committed registry/evidence; compact actor labels + separated AI-runtime vs operational vocabularies; the accessible 17-field actor detail drawer; role-specific symbolic work surfaces; eight-state Channy + modern palette; responsive/a11y/reduced-motion/static + M1 fallback. The production render chain (`frame-core.ts`, `production-frame-projector.ts`, `pixel-frame-stage.tsx`, shared `pixel-render-host.tsx`, `production-*`) imports no prototype fixture/projector.
+- **BA-WU-08** — the documented start/open/verify/stop loopback rehearsal is `scripts/local-office-rehearsal.mjs`, rehearsed on `127.0.0.1`; current visual evidence is captured only in the two new baseline directories (`tests/e2e-composed/baselines/application-office-scene.spec.ts/batch-a-living-office/`, `tests/e2e/baselines/living-pixel-office.spec.ts/`); these four documentation paths are updated.
+- **Post-acceptance amendments applied during implementation:** `48`/`06F` render-host test scope; `49`/`06G` CD-3 frame-carried HUD eyebrow (all three prototype markers asserted absent from production, no filter); `50`/`06H` Office-first composed-E2E baseline reconciliation (historical baselines byte-identical to `ac8ba75`, new screenshots under `batch-a-living-office/` only); `51`/`06I`+`52`/`06J` Living Office E2E harness (`playwright.batch-a-living-office.config.ts` reusing the composed runtime + the exact `tsconfig.json` include registration, no lint-rule change).
+- **Committed-data location:** the committed (A) registry / (B) evidence data are emitted from `src/application/organization/{registry,evidence}.ts` (root fixture re-exports the single authority) so `build:core` (`rootDir=src`) compiles them into `dist/core` for the loopback runtime; no data is duplicated.
+- **Gate evidence (local, accurate totals):** `npm run check` green — `lint` + `typecheck` clean, `npm test` 595/595 (93 files), `npm run build` core+dashboard. CD-3 boundary 6/6; composed E2E 3/3 and Living Office E2E 3/3 (both deterministic without `--update`); demo E2E 43 passed / 23 skipped; prototype E2E 20/20; loopback rehearsal succeeds on `127.0.0.1`.
+- **BA-WU-09** — the evidence-bearing Worker result + exact Git evidence are returned to Advisor separately.

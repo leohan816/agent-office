@@ -575,6 +575,18 @@ tests, evidence, commits, and limitations. `CURRENT_EVIDENCE` changes from
 - `NEEDS_LEO_GPT_DECISION`: none newly introduced; Leo/GPT already authorized
   this code/test/documentation gate. Final mission approval remains external.
 
+### 6.4 Batch A modern-office-identity as-built classification
+
+Mission `AGENT_OFFICE_BATCH_A_MODERN_OFFICE_IDENTITY_COMPLETION_001` promotes the reviewed living pixel office into the authenticated application shell as the CD-2 default primary surface, on branch `batch-a/modern-office-identity-001`. This is Worker as-built status only; it does not clear the §7 "Living pixel-office full authenticated integration" gate, which stays pending independent Sentinel implementation review, Advisor audit, and Leo/GPT approval.
+
+- `CODE_DEFECT`: none reproduced. Two implementation corrections were made during the pass — the CD-3 prototype-marker weakening (a filtered marker) was replaced by a frame-carried `PixelWorldFrameV1.hud.eyebrow` so production output excludes all three markers with no exemption (Advisor `49`/`06G`); and the committed organization data is emitted from `src/application/organization/{registry,evidence}.ts` (root fixture re-exports the single authority) so `build:core` (`rootDir=src`) resolves it (commits `5fe6df8`, `68df4da`).
+- `DOCUMENTATION_STALE`: the Batch A design delta, identity/organization contract, and implementation WorkUnit plan gain as-built sections recording the implementation, the applied amendments `48`–`52`, and the local gate evidence.
+- `DEFERRED_WITH_GATE`: real private-run visual audit, real LocalBootstrap credentials, live Advisor delivery, and every M01 §7 forbidden/deferred capability remain unchanged and gated; Batch A adds no capability, authority, credential, network, or deployment.
+- `DESIGN_DEFECT`: none silently worked around — five design/scope gaps found during implementation (render-host test scope, CD-3 marker weakening, composed-baseline byte-identity vs Office-first, Living Office E2E serving, and its typed-config registration) were returned to Advisor and resolved by committed amendments `48`–`52` before implementation.
+- `NEEDS_LEO_GPT_DECISION`: none newly introduced; final Batch A acceptance and the next mission remain external (Worker does not self-approve).
+
+Local gate evidence: `npm run check` green (`lint`+`typecheck` clean, `npm test` 595/595 across 93 files, `npm run build`); CD-3 boundary 6/6; composed E2E 3/3 and Living Office E2E 3/3 (deterministic; every historical composed baseline byte-identical to `ac8ba75`, fresh screenshots only in the two new baseline directories); demo E2E 43 passed/23 skipped; prototype E2E 20/20; documented loopback start/open/verify/stop rehearsal succeeds on `127.0.0.1`.
+
 ## 7. Explicit Deferred and Forbidden Gates
 
 | Capability | Current status | Required gate |
