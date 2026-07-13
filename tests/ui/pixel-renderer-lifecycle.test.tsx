@@ -34,20 +34,25 @@ describe('living pixel-office renderer lifecycle contract', () => {
     expect(registry.snapshot().canvases).toBe(0);
   });
 
-  it('uses one private ticker and explicit context/resize/visibility cleanup', async () => {
-    const [boundary, clock, scene] = await Promise.all([
+  it('uses one private ticker and explicit context/resize/visibility cleanup in the shared host', async () => {
+    const [boundary, host, clock, scene] = await Promise.all([
       readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/renderer-boundary.tsx'), 'utf8'),
+      readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/pixel-render-host.tsx'), 'utf8'),
       readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/world-clock.tsx'), 'utf8'),
       readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/pixel-world-scene.tsx'), 'utf8'),
     ]);
-    expect(boundary).toContain('sharedTicker={false}');
-    expect(boundary).toContain('new ResizeObserver');
-    expect(boundary).toContain('observer.disconnect()');
-    expect(boundary).toContain("removeEventListener('webglcontextlost'");
-    expect(boundary).toContain("removeEventListener('visibilitychange'");
-    expect(boundary).toContain('stopApplicationTicker(app)');
-    expect(boundary).toContain('setApplication(null)');
-    expect(boundary).toContain("setFallbackReason('RENDERER_CONTEXT_LOST')");
+    // Design §2.3 PR-2: ticker/context/resize/visibility lifecycle now lives in the shared host.
+    expect(host).toContain('sharedTicker={false}');
+    expect(host).toContain('new ResizeObserver');
+    expect(host).toContain('observer.disconnect()');
+    expect(host).toContain("removeEventListener('webglcontextlost'");
+    expect(host).toContain("removeEventListener('visibilitychange'");
+    expect(host).toContain('stopApplicationTicker(app)');
+    expect(host).toContain('setApplication(null)');
+    expect(host).toContain("setFallbackReason('RENDERER_CONTEXT_LOST')");
+    // The prototype boundary delegates to the shared host (no duplicate lifecycle).
+    expect(boundary).toContain("from './pixel-render-host.js'");
+    expect(boundary).toContain('<PixelRenderHost');
     expect(clock.match(/usePixelTick\(/gu)).toHaveLength(1);
     expect(scene).not.toMatch(/setInterval|Date\.now|Math\.random/gu);
   });

@@ -12,6 +12,7 @@ const pixelRoot = path.join(root, 'src/ui/pixel');
 let bridge = '';
 let declaration = '';
 let boundary = '';
+let host = '';
 let packageDocument: PackageDocument;
 let lockDocument: LockDocument;
 let tsconfigDocument: TsconfigDocument;
@@ -42,6 +43,7 @@ beforeAll(async () => {
     bridge,
     declaration,
     boundary,
+    host,
     batchGate,
     packageDocument,
     lockDocument,
@@ -51,6 +53,7 @@ beforeAll(async () => {
     readFile(bridgePath, 'utf8'),
     readFile(declarationPath, 'utf8'),
     readFile(path.join(pixelRoot, 'renderer-boundary.tsx'), 'utf8'),
+    readFile(path.join(pixelRoot, 'pixel-render-host.tsx'), 'utf8'),
     readFile(path.join(root, 'tests/acceptance/batch-gates.test.ts'), 'utf8'),
     readJson<PackageDocument>('package.json'),
     readJson<LockDocument>('package-lock.json'),
@@ -234,11 +237,20 @@ describe('Pixi public-export compatibility bridge contract', () => {
     expect(bridge).toContain('callback(Object.freeze({ deltaMS: ticker.deltaMS }));');
   });
 
-  it('routes renderer errors and context loss to the complete DOM-static fallback', () => {
-    expect(boundary).toContain("setFallbackReason('RENDERER_CONTEXT_LOST')");
-    expect(boundary).toContain("setBackend('DOM_STATIC')");
-    expect(boundary).toContain('<PixelRendererErrorBoundary');
-    expect(boundary).toContain('<StaticWorldFallback');
+  it('routes renderer errors and context loss to the complete DOM-static fallback in the shared host', () => {
+    // Design §2.3 PR-2: the lifecycle/fallback now lives in the shared fixture-free pixel-render-host.
+    expect(host).toContain("setFallbackReason('RENDERER_CONTEXT_LOST')");
+    expect(host).toContain("setBackend('DOM_STATIC')");
+    expect(host).toContain('<PixelRendererErrorBoundary');
+    expect(host).toContain('<StaticWorldFallback');
+  });
+
+  it('delegates the prototype renderer boundary to the shared PixelRenderHost (no duplicate lifecycle)', () => {
+    expect(boundary).toContain("from './pixel-render-host.js'");
+    expect(boundary).toContain('<PixelRenderHost');
+    expect(boundary).toContain('renderScene={');
+    expect(boundary).not.toContain("setFallbackReason('RENDERER_CONTEXT_LOST')");
+    expect(boundary).not.toContain('<PixelRendererErrorBoundary');
   });
 
   it('resolves and transforms both public roots through the Vite boundary', async () => {
