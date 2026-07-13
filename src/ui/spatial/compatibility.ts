@@ -2,6 +2,7 @@ import {
   parseAuthenticatedSpatialPresentation,
   type AuthenticatedSpatialPresentationV1,
 } from '../../application/spatial-office/authenticated-projection.js';
+import type { PixelPresentationTier } from '../pixel/contracts.js';
 import {
   adaptM1FixedStations,
   selectSpatialOfficeCompatibilityView,
@@ -44,6 +45,22 @@ export interface AuthenticatedSpatialSelectorInput {
   readonly sceneRoles: readonly RoleSceneProjection[];
   readonly requestedTier?: SpatialPresentationTier;
   readonly reducedMotion?: boolean;
+}
+
+export type LivingOfficePresentationTier = PixelPresentationTier | 'M1_FIXED_STATIONS';
+
+/**
+ * Batch A living-office presentation-tier selection (design §9): PIXEL_FULL/PIXEL_RESTRAINED for a
+ * valid authenticated Office, DOM_STATIC on reduced-motion, and DOM_STATIC→M1_FIXED_STATIONS on a
+ * failed/invalid render input. UI-local only; it never changes authority, session, or capability.
+ */
+export function selectLivingOfficePresentationTier(input: {
+  readonly renderInputOk: boolean;
+  readonly fallbackTier: 'DOM_STATIC' | 'M1_FIXED_STATIONS';
+  readonly reducedMotion: boolean;
+}): LivingOfficePresentationTier {
+  if (!input.renderInputOk) return input.fallbackTier;
+  return input.reducedMotion ? 'DOM_STATIC' : 'PIXEL_FULL';
 }
 
 export function selectAuthenticatedSpatialPresentation(

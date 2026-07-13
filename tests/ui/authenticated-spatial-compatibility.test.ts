@@ -4,11 +4,24 @@ import type { AuthenticatedSpatialPresentationV1 } from '../../src/application/s
 import {
   projectAuthenticatedSpatialCues,
   selectAuthenticatedSpatialPresentation,
+  selectLivingOfficePresentationTier,
 } from '../../src/ui/spatial/compatibility.js';
 import {
   authenticatedSpatialPresentationFixture,
   m1SceneRolesFixture,
 } from '../helpers/authenticated-spatial.js';
+
+describe('BA-WU-07 living-office presentation-tier selection', () => {
+  it.each([
+    [{ renderInputOk: true, fallbackTier: 'DOM_STATIC', reducedMotion: false }, 'PIXEL_FULL'],
+    [{ renderInputOk: true, fallbackTier: 'DOM_STATIC', reducedMotion: true }, 'DOM_STATIC'],
+    [{ renderInputOk: false, fallbackTier: 'DOM_STATIC', reducedMotion: false }, 'DOM_STATIC'],
+    [{ renderInputOk: false, fallbackTier: 'M1_FIXED_STATIONS', reducedMotion: false }, 'M1_FIXED_STATIONS'],
+    [{ renderInputOk: false, fallbackTier: 'M1_FIXED_STATIONS', reducedMotion: true }, 'M1_FIXED_STATIONS'],
+  ] as const)('selects %o as %s', (input, expected) => {
+    expect(selectLivingOfficePresentationTier(input)).toBe(expected);
+  });
+});
 
 describe('AO12-IWU-13 authenticated spatial selection and rollback', () => {
   it.each([

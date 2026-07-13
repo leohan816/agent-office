@@ -8,7 +8,9 @@
 import { useMemo } from 'react';
 
 import { parseLivingOfficeProductionRenderInput } from '../../application/organization/production-render-input.js';
+import { selectLivingOfficePresentationTier } from '../spatial/compatibility.js';
 import { ProductionPixelWorldScene } from './production-pixel-world-scene.js';
+import './living-office.css';
 
 export interface ProductionPixelOfficeChunkProps {
   /** The composed LivingOfficeProductionRenderInputV1 (validated here at the untrusted boundary). */
@@ -32,5 +34,6 @@ export default function ProductionPixelOfficeChunk({ renderInput, reducedMotion 
       </div>
     );
   }
-  return <ProductionPixelWorldScene forceStatic={reducedMotion} input={result.value} />;
+  const tier = selectLivingOfficePresentationTier({ renderInputOk: true, fallbackTier: 'DOM_STATIC', reducedMotion });
+  return <ProductionPixelWorldScene forceStatic={tier === 'DOM_STATIC'} input={result.value} />;
 }
