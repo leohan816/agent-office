@@ -23,7 +23,8 @@
     <text x="34" y="22" class="name">Agent Office Worker</text>
     <text x="34" y="38" class="team">Worker · FND 파운데이션</text>
     <text x="158" y="38" class="state" fill="#2f8f4e">● 진행</text>
-    <text x="0" y="70" class="tiny">이름 · 역할 · Team(색+짧은 텍스트 FND/VBN) · 핵심 상태만 · 색은 유일 신호 아님</text>
+    <text x="0" y="66" class="tiny">이름 · 역할 · Team(FND/VBN) · 핵심 상태만</text>
+    <text x="0" y="80" class="tiny">색은 유일한 Team 신호가 아님</text>
     <path d="M196 27 L 240 27" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/><text x="200" y="18" class="tiny">hover</text>
   </g>
 
@@ -32,14 +33,15 @@
     <text class="h2" y="-6">② 데스크톱 hover/focus 퀵카드</text>
     <rect x="0" y="4" width="256" height="180" rx="10" fill="#fff" stroke="#b9cbe6" stroke-width="1.5"/>
     <rect x="0" y="4" width="256" height="26" rx="10" fill="#eef3fa"/><text x="12" y="22" class="name">Agent Office Worker · Worker</text>
-    <g font-size="10.5"><text x="12" y="50" class="k">현재 미션</text><text x="120" y="50" class="v">— (WU 미정의)</text>
-    <text x="12" y="70" class="k">WorkUnit</text><text x="120" y="70" class="v">— (승인 후 정의)</text>
-    <text x="12" y="90" class="k">모델 · 노력</text><text x="120" y="90" class="v">claude-opus-4-8 · ULTRACODE</text>
-    <text x="12" y="110" class="k">차단 / Leo</text><text x="120" y="110" class="v" fill="#2f8f4e">없음 / 대기 아님</text>
-    <text x="12" y="130" class="k">런타임(근거)</text><text x="120" y="130" class="v">AI_READY</text>
-    <text x="12" y="150" class="k">KST 최종 검증</text><text x="120" y="150" class="v">— (검증 UTC 원천 시)</text></g>
-    <text x="12" y="170" class="wm">설계 예시 · 실제 운영 아님</text>
-    <path d="M256 90 L 300 90" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/><text x="262" y="82" class="tiny">click</text>
+    <g font-size="10.5"><text x="12" y="48" class="k">현재 미션</text><text x="120" y="48" class="v">— (WU 미정의)</text>
+    <text x="12" y="66" class="k">WorkUnit</text><text x="120" y="66" class="v">— (승인 후 정의)</text>
+    <text x="12" y="84" class="k">모델</text><text x="120" y="84" class="v">claude-opus-4-8</text>
+    <text x="12" y="102" class="k">노력</text><text x="120" y="102" class="v">ULTRACODE</text>
+    <text x="12" y="120" class="k">차단 / Leo</text><text x="120" y="120" class="v" fill="#2f8f4e">없음 / 대기 아님</text>
+    <text x="12" y="138" class="k">런타임(근거)</text><text x="120" y="138" class="v">AI_READY</text>
+    <text x="12" y="156" class="k">KST 검증</text><text x="120" y="156" class="v">— (검증 UTC 원천 시)</text></g>
+    <text x="12" y="174" class="wm">설계 예시 · 실제 운영 아님</text>
+    <path d="M256 92 L 300 92" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/><text x="262" y="84" class="tiny">click</text>
   </g>
 
   <!-- 3) pinned card (exactly one; incl. blocker/Leo) -->
@@ -47,16 +49,17 @@
     <text class="h2" y="-6">③ 클릭 고정 카드 (정확히 1개)</text>
     <rect x="0" y="4" width="266" height="222" rx="10" fill="#fff" stroke="#2f6db0" stroke-width="2"/>
     <rect x="0" y="4" width="266" height="26" rx="10" fill="#2f6db0"/><text x="12" y="22" class="hdr">Agent Office Worker · ◉ 고정</text>
-    <g font-size="10.5"><text x="12" y="52" class="k">미션 · WU</text><text x="120" y="52" class="v">— / — (승인 후)</text>
-    <text x="12" y="72" class="k">런타임</text><text x="120" y="72" class="v">AI_READY (근거)</text>
-    <text x="12" y="92" class="k">진행</text><text x="120" y="92" class="v">0 / 0 (미확정)</text>
-    <text x="12" y="112" class="k">차단 / Leo</text><text x="120" y="112" class="v" fill="#2f8f4e">없음 / 대기 아님</text>
-    <text x="12" y="132" class="k">다음 액션</text><text x="120" y="132" class="v">— (미정의)</text>
-    <text x="12" y="152" class="k">보고 대상</text><text x="120" y="152" class="v">Foundation Advisor</text>
-    <text x="12" y="172" class="k">모델 · 노력</text><text x="120" y="172" class="v">claude-opus-4-8 · ULTRACODE</text></g>
-    <rect x="12" y="184" width="94" height="26" rx="7" fill="#eef3fa" stroke="#b9cbe6"/><text x="59" y="201" text-anchor="middle" class="v" fill="#2f6db0">상세 보기 ▸</text>
-    <text x="116" y="195" class="tiny">다른 액터=교체 · 빈 공간·Esc=닫힘</text><text x="116" y="209" class="wm">설계 예시 · 실제 운영 아님</text>
-    <path d="M266 110 L 300 110" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/><text x="270" y="102" class="tiny">상세</text>
+    <g font-size="10.5"><text x="12" y="50" class="k">미션 · WU</text><text x="120" y="50" class="v">— / — (승인 후)</text>
+    <text x="12" y="68" class="k">런타임</text><text x="120" y="68" class="v">AI_READY (근거)</text>
+    <text x="12" y="86" class="k">진행</text><text x="120" y="86" class="v">0 / 0 (미확정)</text>
+    <text x="12" y="104" class="k">차단 / Leo</text><text x="120" y="104" class="v" fill="#2f8f4e">없음 / 대기 아님</text>
+    <text x="12" y="122" class="k">다음 액션</text><text x="120" y="122" class="v">— (미정의)</text>
+    <text x="12" y="140" class="k">보고 대상</text><text x="120" y="140" class="v">Foundation Advisor</text>
+    <text x="12" y="158" class="k">모델</text><text x="120" y="158" class="v">claude-opus-4-8</text>
+    <text x="12" y="176" class="k">노력</text><text x="120" y="176" class="v">ULTRACODE</text></g>
+    <rect x="12" y="186" width="94" height="24" rx="7" fill="#eef3fa" stroke="#b9cbe6"/><text x="59" y="202" text-anchor="middle" class="v" fill="#2f6db0">상세 보기 ▸</text>
+    <text x="116" y="196" class="tiny">다른 액터=교체 · 빈 공간·Esc=닫힘</text><text x="116" y="209" class="wm">설계 예시 · 실제 운영 아님</text>
+    <path d="M266 112 L 300 112" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/><text x="270" y="104" class="tiny">상세</text>
   </g>
 
   <!-- 4) full drawer (17-field; exact tokens; fail-closed; clear of legend) -->
