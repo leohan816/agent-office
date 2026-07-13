@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="880" viewBox="0 0 1200 880" font-family="'Noto Sans KR','Malgun Gothic',system-ui,sans-serif">
+  <title>A-1R — layered information + interaction states (label → quick card → pinned card → full drawer → bottom sheet)</title>
+  <style>
+    .h{font-size:20px;font-weight:700;fill:#2c2a26}.h2{font-size:14px;font-weight:700;fill:#234b78}
+    .name{font-size:12.5px;font-weight:700;fill:#2c2a26}.team{font-size:10px;font-weight:600;fill:#5c554a}
+    .state{font-size:11px;font-weight:700}.lbl{font-size:11px;fill:#4a443a}.k{font-size:10.5px;fill:#6b6459}
+    .v{font-size:10.5px;font-weight:600;fill:#2c2a26}.tiny{font-size:9.5px;fill:#8a8072}.cap{font-size:11px;fill:#4a443a}
+    .hdr{font-size:11px;font-weight:700;fill:#fff}
+  </style>
+  <rect width="1200" height="880" fill="#f3ede2"/>
+  <text x="28" y="36" class="h">정보 계층 · 상호작용 상태</text>
+  <text x="28" y="56" class="cap">기본 캔버스는 최소 정보만. 소스 기반 기술 사실은 요청 시 퀵카드 → 고정카드 → 전체 서랍(모바일: 바텀시트)로 점진 공개.</text>
+
+  <!-- progression arrows baseline -->
+  <g stroke="#c3b79f" stroke-width="2" fill="none" marker-end="url(#a)">
+    <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#c3b79f"/></marker></defs>
+  </g>
+
+  <!-- 1) compact default label -->
+  <g transform="translate(28,92)">
+    <text class="h2" y="-6">① 기본 라벨 (항상 노출)</text>
+    <rect x="0" y="4" width="188" height="46" rx="9" fill="#fff" stroke="#c9c2b4"/>
+    <circle cx="18" cy="27" r="10" fill="#2f6db0"/><text x="18" y="31" text-anchor="middle" class="hdr">W</text>
+    <text x="34" y="22" class="name">Agent Office Worker</text>
+    <text x="34" y="38" class="team">Worker · FND 파운데이션</text>
+    <text x="150" y="38" class="state" fill="#2f8f4e">● 진행</text>
+    <text x="0" y="70" class="tiny">이름 · 역할 · Team(색+짧은 텍스트) · 핵심 상태만</text>
+    <text x="0" y="84" class="tiny">색은 유일한 Team 신호가 아님</text>
+    <path d="M188 27 L 236 27" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/>
+    <text x="196" y="18" class="tiny">hover/focus</text>
+  </g>
+
+  <!-- 2) desktop hover/focus quick card -->
+  <g transform="translate(266,92)">
+    <text class="h2" y="-6">② 데스크톱 hover/focus 퀵카드</text>
+    <rect x="0" y="4" width="252" height="176" rx="10" fill="#fff" stroke="#b9cbe6" stroke-width="1.5"/>
+    <rect x="0" y="4" width="252" height="26" rx="10" fill="#eef3fa"/><text x="12" y="22" class="name">Agent Office Worker · Worker</text>
+    <g font-size="10.5"><text x="12" y="50" class="k">현재 미션</text><text x="120" y="50" class="v">A-1R Living Office</text>
+    <text x="12" y="70" class="k">WorkUnit</text><text x="120" y="70" class="v">BA-WU-03</text>
+    <text x="12" y="90" class="k">모델 · 노력</text><text x="120" y="90" class="v">opus-4-8 · high</text>
+    <text x="12" y="110" class="k">차단 / Leo</text><text x="120" y="110" class="v" fill="#2f8f4e">없음 / 대기 아님</text>
+    <text x="12" y="130" class="k">런타임(근거)</text><text x="120" y="130" class="v">AI_WORKING</text>
+    <text x="12" y="150" class="k">KST 최종 검증</text><text x="120" y="150" class="v">07-13 22:31</text></g>
+    <text x="12" y="172" class="tiny">액터/핵심 가구를 가리지 않게 자동 배치</text>
+    <path d="M252 90 L 300 90" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/>
+    <text x="258" y="82" class="tiny">click</text>
+  </g>
+
+  <!-- 3) click-pinned compact card (exactly one) -->
+  <g transform="translate(614,92)">
+    <text class="h2" y="-6">③ 클릭 고정 카드 (정확히 1개)</text>
+    <rect x="0" y="4" width="262" height="212" rx="10" fill="#fff" stroke="#2f6db0" stroke-width="2"/>
+    <rect x="0" y="4" width="262" height="26" rx="10" fill="#2f6db0"/><text x="12" y="22" class="hdr">Agent Office Worker · ◉ 고정</text>
+    <g font-size="10.5"><text x="12" y="52" class="k">미션·WU</text><text x="120" y="52" class="v">A-1R · BA-WU-03</text>
+    <text x="12" y="72" class="k">런타임</text><text x="120" y="72" class="v">AI_WORKING(근거)</text>
+    <text x="12" y="92" class="k">진행</text><text x="120" y="92" class="v">3 / 9 WU</text>
+    <text x="12" y="112" class="k">다음 액션</text><text x="120" y="112" class="v">목업 검토 요청</text>
+    <text x="12" y="132" class="k">보고 대상</text><text x="120" y="132" class="v">Foundation Advisor</text>
+    <text x="12" y="152" class="k">모델·노력</text><text x="120" y="152" class="v">opus-4-8 · high</text>
+    <text x="12" y="172" class="k">KST 검증</text><text x="120" y="172" class="v">07-13 22:31</text></g>
+    <rect x="12" y="182" width="94" height="26" rx="7" fill="#eef3fa" stroke="#b9cbe6"/><text x="59" y="199" text-anchor="middle" class="v" fill="#2f6db0">상세 보기 ▸</text>
+    <text x="118" y="199" class="tiny">다른 액터 클릭=교체 · 빈 공간·Esc=닫힘</text>
+    <path d="M262 108 L 306 108" stroke="#9a8f78" stroke-width="2" marker-end="url(#a)"/>
+    <text x="266" y="100" class="tiny">상세</text>
+  </g>
+
+  <!-- 4) full drawer (complete 17-field, preserved) -->
+  <g transform="translate(922,92)">
+    <text class="h2" y="-6">④ 전체 서랍 (완전 계약 · 보존)</text>
+    <rect x="0" y="4" width="250" height="440" rx="10" fill="#fff" stroke="#c9c2b4" stroke-width="1.5"/>
+    <rect x="0" y="4" width="250" height="30" rx="10" fill="#3d3a34"/><text x="12" y="24" class="hdr">상세 · Agent Office Worker</text>
+    <g font-size="10"><g fill="#6b6459">
+      <text x="12" y="52">roleInstanceId</text><text x="12" y="72">stableDisplayName</text><text x="12" y="92">role</text><text x="12" y="112">project</text>
+      <text x="12" y="132">advisorTeam</text><text x="12" y="152">reportsToAdvisor</text><text x="12" y="172">assignedBy</text><text x="12" y="192">returnsResultTo</text>
+      <text x="12" y="212">sessionName</text><text x="12" y="232">sessionProcess</text><text x="12" y="252">aiIdentity</text><text x="12" y="272">model</text>
+      <text x="12" y="292">effort</text><text x="12" y="312">aiRuntimeState</text><text x="12" y="332">operationalState</text><text x="12" y="352">mission</text><text x="12" y="372">workUnit</text></g>
+      <g fill="#2c2a26" font-weight="600" text-anchor="end"><text x="238" y="52">agent-office-worker</text><text x="238" y="72">Agent Office Worker</text><text x="238" y="92">WORKER</text><text x="238" y="112">AGENT_OFFICE</text>
+      <text x="238" y="132">FOUNDATION_ADVISOR_TEAM</text><text x="238" y="152">foundation-advisor</text><text x="238" y="172">foundation-advisor</text><text x="238" y="192">foundation-advisor</text>
+      <text x="238" y="212">agent-office-opus</text><text x="238" y="232">AI_PROCESS_DETECTED</text><text x="238" y="252">claude-opus-4-8</text><text x="238" y="272">claude-opus-4-8</text>
+      <text x="238" y="292">high</text><text x="238" y="312">AI_WORKING</text><text x="238" y="332">WORKING</text><text x="238" y="352">A-1R Living Office</text><text x="238" y="372">BA-WU-03</text></g>
+    </g>
+    <line x1="12" y1="384" x2="238" y2="384" stroke="#eee5d6"/>
+    <text x="12" y="402" class="tiny">각 필드 = 소스/상태/근거 provenance 보존</text>
+    <text x="12" y="418" class="tiny">미확인 → fail-closed sentinel(UNKNOWN 등)</text>
+    <text x="12" y="434" class="tiny">Esc·빈 공간·닫기=닫힘 · 포커스 복원</text>
+  </g>
+
+  <!-- mobile bottom sheet mini -->
+  <g transform="translate(28,300)">
+    <text class="h2" y="-6">⑤ 모바일: 탭 → 바텀시트 → 상세 보기 → 서랍</text>
+    <rect x="0" y="4" width="220" height="300" rx="16" fill="#fff" stroke="#cdbfa6"/>
+    <rect x="92" y="16" width="36" height="5" rx="3" fill="#d8cfbf"/>
+    <text x="14" y="44" class="name">Agent Office Worker</text><text x="14" y="60" class="team">Worker · Foundation Team</text>
+    <rect x="14" y="70" width="80" height="20" rx="10" fill="#e5f3ea"/><text x="54" y="84" text-anchor="middle" class="state" fill="#2f8f4e">● 진행 중</text>
+    <line x1="14" y1="102" x2="206" y2="102" stroke="#eee5d6"/>
+    <g font-size="10.5"><text x="14" y="124" class="k">미션 · A-1R</text><text x="14" y="144" class="k">WU · BA-WU-03</text><text x="14" y="164" class="k">모델·노력 · opus-4-8·high</text><text x="14" y="184" class="k">진행 · 3/9 · 다음 · 목업</text><text x="14" y="204" class="k">보고 · Foundation Advisor</text></g>
+    <text x="14" y="226" class="tiny">KST 07-13 22:31</text>
+    <rect x="14" y="238" width="130" height="28" rx="8" fill="#2f6db0"/><text x="79" y="257" text-anchor="middle" class="hdr">상세 보기 ▸</text>
+    <text x="14" y="288" class="tiny">다른 액터 탭=교체 · 빈 Office=닫힘</text>
+  </g>
+
+  <!-- state badge legend (11 states in mission) -->
+  <g transform="translate(280,320)">
+    <text class="h2" y="0">핵심 상태 배지 · 직접 노출 (색 + 아이콘 + 한글)</text>
+    <g font-size="11" font-weight="700">
+      <g transform="translate(0,18)"><rect width="150" height="30" rx="8" fill="#e5f3ea"/><text x="12" y="20" fill="#2f8f4e">● 진행 중 (ACTIVE)</text></g>
+      <g transform="translate(160,18)"><rect width="150" height="30" rx="8" fill="#fbf1de"/><text x="12" y="20" fill="#b8791c">◐ 대기 (WAITING)</text></g>
+      <g transform="translate(320,18)"><rect width="150" height="30" rx="8" fill="#fbe3df"/><text x="12" y="20" fill="#c0392b">■ 차단됨 (BLOCKED)</text></g>
+      <g transform="translate(480,18)"><rect width="170" height="30" rx="8" fill="#ede4f5"/><text x="12" y="20" fill="#6b3fa0">◆ Leo 필요 (NEEDS_LEO)</text></g>
+      <g transform="translate(0,56)"><rect width="188" height="30" rx="8" fill="#e7e2da"/><text x="12" y="20" fill="#57514a">◌ 세션 오프라인 (OFFLINE)</text></g>
+      <g transform="translate(198,56)"><rect width="200" height="30" rx="8" fill="#e7e2da"/><text x="12" y="20" fill="#57514a">◌ AI 프로세스 없음 (NO_AI_PROCESS)</text></g>
+      <g transform="translate(408,56)"><rect width="150" height="30" rx="8" fill="#fbe3df"/><text x="12" y="20" fill="#c0392b">⚠ AI 오류 (AI_ERROR)</text></g>
+      <g transform="translate(568,56)"><rect width="150" height="30" rx="8" fill="#eceae6"/><text x="12" y="20" fill="#6b6459">◦ 상태 불명 (UNKNOWN)</text></g>
+    </g>
+    <text x="0" y="110" class="cap">미확인 상태는 중립 표기 — 작업 애니메이션·활동 추정 금지. 권한/보안 홀드·결정 충돌도 직접 노출. 메타데이터 미확인만 압축 요약.</text>
+  </g>
+
+  <!-- interaction rules -->
+  <g transform="translate(280,470)">
+    <text class="h2" y="0">상호작용 규칙</text>
+    <g class="lbl" font-size="11">
+      <text y="24">· hover/focus → 퀵카드(자동 배치, 액터·가구 비가림) · 포커스 이탈 시 닫힘</text>
+      <text y="44">· click/tap → 고정 카드/바텀시트 (정확히 1개 고정)</text>
+      <text y="64">· 다른 액터 선택 → 기존 고정 카드/시트 교체 (중복 고정 없음)</text>
+      <text y="84">· 빈 공간 클릭 / 빈 Office 탭 → 닫힘 · Esc → 닫힘 · 포커스 복원</text>
+      <text y="104">· 상세 보기 → 전체 서랍 (완전 필드·provenance 보존)</text>
+      <text y="124">· 관계선: 기본 숨김 · 명시적 액터/Team/관계 선택 시에만 표시</text>
+      <text y="144">· 키보드 전용 도달 가능 · 200% 확대·고대비·감속 모션 지원</text>
+    </g>
+  </g>
+
+  <!-- reduced/static/semantic equivalents -->
+  <g transform="translate(760,556)">
+    <text class="h2" y="0">모드별 동등성</text>
+    <rect x="0" y="12" width="410" height="290" rx="10" fill="#fbf8f2" stroke="#cdbfa6"/>
+    <g font-size="10.5" class="lbl">
+      <text x="14" y="36" class="v">일반 시각 모드</text><text x="14" y="54">· 큰 액터 리스트는 「접근 가능한 에이전트 목록 (N)」로 접힘</text><text x="14" y="70">· 스크린리더 패리티 유지</text>
+      <text x="14" y="96" class="v">정적/무캔버스 · 고텍스트 · 렌더 실패 · 접근성 모드</text><text x="14" y="114">· 시맨틱 리스트가 기본(primary)이 됨</text><text x="14" y="130">· 동일 서랍·동일 사실 열람</text>
+      <text x="14" y="156" class="v">감속 모션(reduced motion)</text><text x="14" y="174">· 모든 앰비언트/전환 정지 · 의미는 색 외 신호로 유지</text>
+      <text x="14" y="200" class="v">고텍스트(≥1.3×)·200%</text><text x="14" y="218">· 라벨 폭 고정, 높이만 증가 · 겹침·잘림·이탈 0</text>
+      <text x="14" y="244" class="v">시맨틱 등가</text><text x="14" y="262">· 캔버스의 모든 상태/사실은 텍스트로 동일 접근</text>
+      <text x="14" y="286" class="tiny">기본 세계에 기술 마이크로카피를 사실 증명용으로 넣지 않음</text>
+    </g>
+  </g>
+
+  <text x="28" y="864" class="cap">이전 실패 회피: 244×180 고정 카드/7개 상시 기술 팩트/변위 커넥터 제거 → 최소 라벨 + 온디맨드 계층 · 테스트가 아니라 제품 사용에서 출발</text>
+</svg>

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="720" viewBox="0 0 1000 720" font-family="'Noto Sans KR','Malgun Gothic',system-ui,sans-serif">
+  <title>A-1R — Foundation Advisor Team Pod detail (role anchors, furniture depth, Mission Board)</title>
+  <defs>
+    <linearGradient id="pw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe7db"/><stop offset="1" stop-color="#e4dccb"/></linearGradient>
+    <linearGradient id="pp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe8f2"/><stop offset="1" stop-color="#c5d5ea"/></linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d3b075"/><stop offset="1" stop-color="#bf9a5c"/></linearGradient>
+    <style>
+      .h{font-size:20px;font-weight:700;fill:#2c2a26}.sub{font-size:12px;fill:#6b6459}
+      .anch{font-size:12px;font-weight:700;fill:#234b78}.name{font-size:12px;font-weight:700;fill:#2c2a26}
+      .team{font-size:10px;font-weight:600;fill:#5c554a}.state{font-size:11px;font-weight:700}
+      .mbh{font-size:12px;font-weight:700;fill:#2c2a26}.mb{font-size:11px;fill:#3a352c}
+      .cap{font-size:11px;fill:#4a443a}.tiny{font-size:10px;fill:#8a8072}
+    </style>
+    <!-- angled monitor+desk unit (consistent depth/occlusion) -->
+    <g id="unit">
+      <polygon points="0,26 96,26 108,58 -12,58" fill="url(#desk)"/>
+      <polygon points="96,26 108,58 108,64 96,32" fill="#a07f45"/>
+      <rect x="26" y="2" width="44" height="26" rx="3" fill="#3a3f47"/><rect x="30" y="6" width="36" height="18" rx="2" fill="#5b7fa6"/>
+      <rect x="42" y="28" width="12" height="6" fill="#2b2f36"/>
+    </g>
+  </defs>
+  <rect width="1000" height="720" fill="url(#pw)"/>
+  <text x="28" y="36" class="h">Foundation Advisor Team Pod — 상세</text>
+  <text x="28" y="56" class="sub">한 층 위 하나의 Pod · 역할별 고유 앵커 · 근접이 권한을 만들지 않음 · 45° 3/4 · 정사각/다이아 타일</text>
+
+  <!-- pod platform -->
+  <g transform="translate(60,84)">
+    <polygon points="0,60 820,60 880,600 -40,600" fill="url(#pp)" stroke="#7ba0cc" stroke-width="2.5"/>
+    <!-- diamond floor tiles -->
+    <g stroke="#a6c0e0" stroke-width="1" opacity="0.6">
+      <line x1="140" y1="60" x2="120" y2="600"/><line x1="280" y1="60" x2="270" y2="600"/><line x1="420" y1="60" x2="430" y2="600"/><line x1="560" y1="60" x2="600" y2="600"/><line x1="700" y1="60" x2="770" y2="600"/>
+      <line x1="0" y1="200" x2="852" y2="200"/><line x1="-14" y1="360" x2="866" y2="360"/><line x1="-28" y1="500" x2="878" y2="500"/>
+    </g>
+    <!-- accent header + restrained mark + short text (never saturated fill) -->
+    <rect x="0" y="0" width="430" height="34" rx="7" fill="#2f6db0"/>
+    <text x="14" y="23" font-size="14" font-weight="700" fill="#fff">◆ Foundation Advisor Team · FND</text>
+
+    <!-- (1) Advisor Mission Board + coordination desk -->
+    <g transform="translate(30,80)">
+      <rect x="0" y="0" width="300" height="150" rx="10" fill="#f7fafd" stroke="#8fb0d6" stroke-width="1.5"/>
+      <rect x="0" y="0" width="300" height="26" rx="10" fill="#dce9f7"/><text x="12" y="18" class="mbh">Team Mission Board · Foundation</text>
+      <text x="12" y="48" class="mb">Team/프로젝트 · Foundation</text>
+      <text x="12" y="68" class="mb">현재 미션 · A-1R Living Office 리파인먼트</text>
+      <text x="12" y="88" class="mb">진행 · 설계 게이트 3/9 · 상태 · <tspan fill="#b8791c" font-weight="700">대기 · Leo 승인</tspan></text>
+      <text x="12" y="108" class="mb">차단 · 없음 · Leo 결정 · 정적 목업 승인 대기</text>
+      <text x="12" y="128" class="mb">다음 · 독립 설계 검토 → Leo 승인</text>
+      <text x="12" y="145" class="tiny">KST 검증 07-13 22:38 · 미확인은 미확인으로 표기(날조 금지)</text>
+      <text x="10" y="176" class="anch">① Advisor · 조정 데스크 + Mission Board</text>
+      <g transform="translate(180,184)"><use href="#unit"/><g transform="translate(6,-34)"><circle cx="42" cy="6" r="11" fill="#e9c9a0"/><rect x="30" y="16" width="24" height="22" rx="7" fill="#2f6db0"/></g>
+        <g transform="translate(-10,66)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#8fb0d6"/><circle cx="17" cy="16" r="9" fill="#7a4b8c"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">A</text><text x="34" y="14" class="name">Foundation Advisor</text><text x="34" y="30" class="team">Advisor · 조정</text><text x="134" y="30" class="state" fill="#2f8f4e">● 진행 중</text></g></g>
+    </g>
+
+    <!-- (2) Control architecture/design surface -->
+    <g transform="translate(360,120)">
+      <rect x="0" y="0" width="150" height="70" rx="8" fill="#eef1f5" stroke="#b7c4d6"/><text x="10" y="18" class="tiny">아키텍처/설계 보드</text>
+      <line x1="12" y1="30" x2="140" y2="30" stroke="#c4cfe0"/><line x1="12" y1="42" x2="120" y2="42" stroke="#c4cfe0"/><rect x="12" y="50" width="60" height="12" rx="2" fill="#c9d6e8"/><rect x="80" y="50" width="40" height="12" rx="2" fill="#dbe4f0"/>
+      <text x="0" y="92" class="anch">② Control · 아키텍처/설계 표면</text>
+      <g transform="translate(20,100)"><use href="#unit"/><g transform="translate(6,-32)"><circle cx="42" cy="6" r="11" fill="#e9c9a0"/><rect x="30" y="16" width="24" height="20" rx="6" fill="#3d3a34"/></g>
+        <g transform="translate(-6,66)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#3d3a34"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">C</text><text x="34" y="14" class="name">Foundation Control</text><text x="34" y="30" class="team">Control · 설계</text><text x="128" y="30" class="state" fill="#6b6459">◦ 상태 불명</text></g></g>
+    </g>
+
+    <!-- (3) Worker individual desks — Agent Office / Cosmile / SIASIU (Agent Office = Foundation member) -->
+    <text x="560" y="100" class="anch">③ Worker · 개인 데스크 (Agent Office는 Foundation 소속)</text>
+    <g transform="translate(560,110)"><use href="#unit"/><g transform="translate(6,-30)"><circle cx="42" cy="6" r="10" fill="#e9c9a0"/><rect x="31" y="15" width="22" height="18" rx="6" fill="#2f6db0"/></g>
+      <g transform="translate(-6,66)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="14" class="name">Agent Office Worker</text><text x="34" y="30" class="team">Worker · 개인 데스크</text><text x="128" y="30" class="state" fill="#2f8f4e">● 진행 중</text></g></g>
+    <g transform="translate(560,290)"><use href="#unit"/><g transform="translate(6,-30)"><circle cx="42" cy="6" r="10" fill="#e9c9a0"/><rect x="31" y="15" width="22" height="18" rx="6" fill="#2f6db0"/></g>
+      <g transform="translate(-6,66)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="14" class="name">Cosmile Worker</text><text x="34" y="30" class="team">Worker · 개인 데스크</text><text x="140" y="30" class="state" fill="#b8791c">◐ 대기</text></g></g>
+    <g transform="translate(360,300)"><use href="#unit"/><g transform="translate(6,-30)"><circle cx="42" cy="6" r="10" fill="#e9c9a0"/><rect x="31" y="15" width="22" height="18" rx="6" fill="#2f6db0"/></g>
+      <g transform="translate(-6,66)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#e0b6a9"/><circle cx="17" cy="16" r="9" fill="#2f6db0"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">W</text><text x="34" y="14" class="name">SIASIU Worker</text><text x="34" y="30" class="team">Worker · 개인 데스크</text><text x="140" y="30" class="state" fill="#c0392b">■ 차단됨</text></g></g>
+
+    <!-- (4) Reviewer independent booth/zone -->
+    <g transform="translate(60,360)">
+      <rect x="0" y="0" width="250" height="150" rx="12" fill="#f4f1ea" stroke="#b7ae9c" stroke-dasharray="6 4" stroke-width="1.5"/>
+      <text x="12" y="20" class="anch">④ Reviewer · 독립 부스/구역</text>
+      <text x="12" y="38" class="tiny">경계 구획 · 근접이 승인을 의미하지 않음</text>
+      <g transform="translate(40,52)"><use href="#unit"/><g transform="translate(6,-30)"><circle cx="42" cy="6" r="10" fill="#e9c9a0"/><rect x="31" y="15" width="22" height="18" rx="6" fill="#4a4a4a"/></g>
+        <g transform="translate(-6,66)"><rect width="176" height="42" rx="8" fill="#fff" stroke="#c9c2b4"/><circle cx="17" cy="16" r="9" fill="#4a4a4a"/><text x="17" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">R</text><text x="34" y="14" class="name">Independent Reviewer</text><text x="34" y="30" class="team">Reviewer · 독립</text><text x="128" y="30" class="state" fill="#6b6459">◦ 대기</text></g></g>
+    </g>
+
+    <!-- idle/reference quiet peripheral seat + Channy -->
+    <g transform="translate(700,470)">
+      <rect x="0" y="0" width="120" height="70" rx="10" fill="#efe9dd" stroke="#cdbfa6"/><text x="60" y="26" text-anchor="middle" class="tiny">유휴/참조</text><text x="60" y="42" text-anchor="middle" class="tiny">조용한 주변 좌석</text><text x="60" y="58" text-anchor="middle" class="tiny">(중립 · 작업 애니메이션 없음)</text>
+    </g>
+    <g transform="translate(560,500)"><ellipse cx="24" cy="34" rx="24" ry="5" fill="#000" opacity="0.10"/><path d="M4 24 C0 13 10 6 18 8 C 20 2 32 2 34 8 C 46 8 52 16 47 24 C 52 27 50 34 44 34 L 16 34 C 6 34 3 29 4 24Z" fill="#e8e4ec" stroke="#cfc8d8" stroke-width="1.2"/><circle cx="38" cy="17" r="1.8" fill="#3a3540"/><text x="24" y="50" text-anchor="middle" class="tiny">Channy · 앰비언트</text></g>
+  </g>
+
+  <text x="28" y="704" class="cap">역할 배치 근거: Advisor=조정+Mission Board · Control=아키텍처 표면 · Worker=개인 데스크 · Reviewer=독립 부스 · 유휴=주변 좌석 · 모든 액터 고유 위치 · 관계선 기본 숨김</text>
+</svg>
