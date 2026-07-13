@@ -29,6 +29,7 @@
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",
-    "playwright.composed.config.ts"
+    "playwright.composed.config.ts",
+    "playwright.batch-a-living-office.config.ts"
   ]
 }
