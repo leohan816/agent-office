@@ -175,13 +175,13 @@ interface CommittedOfficeLayoutConfigV1 {
   readonly roleCategoryByRole: Readonly<Record<OrganizationRole,        // closed TOTAL map (all OrganizationRole keys)
     'LEO_DECISION'|'ADVISOR_ROUTING'|'CONTROL_RECOVERY'|'INDEPENDENT_REVIEW'|'WORKER_BUILD'|'GENERIC_REGISTERED'>>;
   readonly defaultRoleCategory: 'GENERIC_REGISTERED';                   // for OrganizationUnknown / unmapped
-  readonly projectIdentityByProject: Readonly<Record<string, PixelProjectIdentity>>;  // keyed by registry `project`
+  readonly projectIdentityByProject: Readonly<Record<string, PixelProjectIdentity>>;  // sole key = CommittedPodConfig.projectKey (never registryRow.project)
   readonly defaultProjectIdentity: PixelProjectIdentity;               // all 8 fields; for unmapped project
 }
 interface CommittedPodConfig {
   readonly podId: string;                            // unique across pods
   readonly advisorTeamId: AdvisorTeamValue;          // the pod's Advisor Team lane
-  readonly responsibleAdvisorRoleInstanceId: string | null;  // exactly one; null/empty/multiple → UNASSIGNED
+  readonly responsibleAdvisorRoleInstanceId: string | null;  // valid only as exactly one ADVISOR+matching-Team+member; null/empty/multiple/unresolvable → pod OMITTED with diagnostic (never a role-instance UNASSIGNED sentinel)
   readonly projectKey: string;                       // → projectIdentityByProject
   readonly podLabel: string;
   readonly memberRoleInstanceIds: readonly string[]; // exact membership; an actor may appear in at most one pod
