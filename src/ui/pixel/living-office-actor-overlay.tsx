@@ -27,14 +27,30 @@ const LABEL_HEIGHT = 78;
 // so its §2.7 first-layer facts are readable (>=10px). The placement algorithm must reserve exactly the
 // production footprint (kept in sync with `.living-office-actor-label--production` in living-office.css)
 // so production labels are displaced without overlapping each other or actors.
-const PRODUCTION_LABEL_WIDTH = 196;
-// The card is ~143px tall at normal text; reserve enough to also cover 200% text (~258px tall, the
-// card width is fixed px so only its wrapped height grows) so labels never overlap at either scale.
-const PRODUCTION_LABEL_HEIGHT = 262;
+// A3-2: the compact two-column card is ~244px wide and ~85px tall at normal text; reserve enough to
+// also cover 200% text (~170px tall — the card width is fixed px, so only its wrapped height grows) so
+// labels never overlap at either scale while occupying far less of the Office than the old tall card.
+const PRODUCTION_LABEL_WIDTH = 244;
+const PRODUCTION_LABEL_HEIGHT = 180;
 const VIEWPORT_PADDING = 8;
 
+// A3-2: compact, non-color source codes for the dense on-canvas label (the full source labels in
+// PIXEL_ACTOR_FACT_SOURCE_LABELS do not fit a compact card and are kept, in full, in the roster/drawer
+// and the accessible label name). Deterministic 3-letter mapping — a truthful indication, not color.
+const COMPACT_SOURCE_LABELS: Readonly<Record<PixelActorFactSource, string>> = {
+  VERIFIED_REGISTRY: 'REG',
+  VERIFIED_MISSION_ARTIFACT: 'ART',
+  CANONICAL_FIXTURE: 'FIX',
+  SYNTHETIC_FIXTURE: 'SYN',
+  UNVERIFIED: 'UNV',
+};
+
 // Contract §2.7 compact summary subset (after role glyph+ring and stableDisplayName), in order.
+// A3-1: `advisorTeam` (current Team or the `UNASSIGNED` sentinel) is a required first-layer fact — the
+// mutable organizational assignment, kept distinct from the stable identity above it and rendered from
+// its own truthful envelope (value/source/status), inferred from nothing.
 export const ORGANIZATION_COMPACT_FIELDS = [
+  ['advisorTeam', 'Team'],
   ['sessionProcess', 'Process'],
   ['aiIdentity', 'AI identity'],
   ['model', 'Model'],
@@ -294,7 +310,7 @@ function OrganizationCompactSummary({ facts }: { readonly facts: OrganizationFra
         return (
           <span data-actor-summary-field={key} data-actor-fact-source={fact.source} key={key}>
             <span className="living-office-actor-label__field">{label}: {fact.value}</span>
-            <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[fact.source]}</small>
+            <small>{COMPACT_SOURCE_LABELS[fact.source]}</small>
           </span>
         );
       })}
@@ -511,6 +527,7 @@ function actorLabelAccessibleName(actor: PixelActorFrame): string {
   if (organizationFacts !== undefined) {
     return `${organizationFacts.stableDisplayName.value}. `
       + `Role ${organizationFacts.role.value}. `
+      + `Team ${organizationFacts.advisorTeam.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.advisorTeam.source]}. `
       + `Session process ${organizationFacts.sessionProcess.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.sessionProcess.source]}. `
       + `AI identity ${organizationFacts.aiIdentity.value}, source ${PIXEL_ACTOR_FACT_SOURCE_LABELS[organizationFacts.aiIdentity.source]}. `
       + `Model ${organizationFacts.model.value}. Effort ${organizationFacts.effort.value}. `

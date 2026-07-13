@@ -45,9 +45,14 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     // and — critically — displaced so no two cards overlap each other.
     await assertReadableProductionLabels(page);
     await assertNoProductionLabelOverlap(page);
+    // A3-2: the labels must not form a wall of cards over the Office — the world stays the primary signal.
+    await assertOfficeIsPrimary(page);
     await assertActorConnectors(page);
     // I2-2: the always-visible roster carries every actor's first layer (mobile/200%/bounded equivalent).
     await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
+    // A3-1: the current Team fact is in the first layer — on every production label and in the roster.
+    await expect(page.locator('.living-office-actor-label--production [data-actor-summary-field="advisorTeam"]').first()).toBeVisible();
+    await expect(page.locator('[data-actor-roster-field="advisorTeam"]')).toHaveCount(8);
     // I2-4: the semantic Channy state tracks the animating canvas across ambient states (not stuck at STOP).
     await assertChannySemanticParity(page);
 
@@ -107,6 +112,8 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     // first layer remains present + readable in the always-visible roster.
     await expect(page.locator('.living-office-actor-label--production:visible')).toHaveCount(0);
     await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
+    // A3-1/A3-2 #6: the mobile roster equivalent keeps every actor's Team fact present and readable.
+    await expect(page.locator('[data-actor-roster-field="advisorTeam"]')).toHaveCount(8);
     await page.evaluate(() => window.scrollTo(0, 0));
     await attachUnmaskedOffice(page, testInfo, 'living-office-mobile-unmasked-390x844');
   });
@@ -242,6 +249,38 @@ async function assertReadableProductionLabels(page: Page): Promise<void> {
     expect(measure.minFont, 'label fact/source font size (px)').toBeGreaterThanOrEqual(10);
     expect(measure.overflows, 'no label descendant overflows its card').toBe(false);
   }
+}
+
+/**
+ * A3-2: the production labels must be secondary to the Office world — not a wall of cards. Measure the
+ * fraction of the live office viewport covered by the union of the on-canvas label rectangles. The
+ * pre-A3-2 tall-opaque-card composition (`1187b9a`) covered ~28% of the viewport; the compact
+ * two-column recomposition covers ~17%. A rectangle-overlap test alone is not product closure — this
+ * gate fails the old composition and passes the corrected, Office-first one.
+ */
+async function assertOfficeIsPrimary(page: Page): Promise<void> {
+  const coverage = await page.evaluate(() => {
+    const viewport = document.querySelector('.pixel-world-viewport')?.getBoundingClientRect();
+    if (viewport === undefined) return -1;
+    const labels = [...document.querySelectorAll('.living-office-actor-label--production')]
+      .filter((element) => getComputedStyle(element as HTMLElement).display !== 'none')
+      .map((element) => element.getBoundingClientRect());
+    const step = 4;
+    let covered = 0;
+    let total = 0;
+    for (let y = viewport.top; y < viewport.bottom; y += step) {
+      for (let x = viewport.left; x < viewport.right; x += step) {
+        total += 1;
+        if (labels.some((r) => x >= r.left && x < r.right && y >= r.top && y < r.bottom)) covered += 1;
+      }
+    }
+    return total === 0 ? -1 : (covered / total) * 100;
+  });
+  expect(coverage, 'labels are present over the office viewport').toBeGreaterThan(0);
+  expect(
+    coverage,
+    `Office label coverage ${coverage.toFixed(1)}% must stay well below the pre-A3-2 wall-of-cards (~28%) so the world is primary`,
+  ).toBeLessThanOrEqual(22);
 }
 
 /** I2-2 #2: the displaced production labels must not overlap each other (a >1px rectangle intersection). */

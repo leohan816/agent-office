@@ -106,7 +106,7 @@ function renderOverlay(actor: OrganizationFrameActor) {
 }
 
 describe('BA-WU-03 compact actor summary (contract §2.7 first layer)', () => {
-  it('renders the eight compact fields with a per-field source tag and glyph+ring', () => {
+  it('renders the nine compact fields (incl. Team) with a per-field source tag and glyph+ring', () => {
     const actor = organizationActor({
       runtime: { roleInstanceId: TARGET, mission: 'MODERN_OFFICE', workUnit: 'BA-WU-03', observableName: 'WORKING' },
       evidence: [ev('process_detected'), ev('ai_identity_attestation', 'CLAUDE_OPUS_4_8'), ev('model_attestation', 'claude-opus-4-8'), ev('effort_attestation', 'ULTRACODE'), ev('ai_ready')],
@@ -114,10 +114,12 @@ describe('BA-WU-03 compact actor summary (contract §2.7 first layer)', () => {
     const { container } = renderOverlay(actor);
     const summary = container.querySelector(`[data-actor-summary="${TARGET}"]`);
     expect(summary).not.toBeNull();
-    for (const field of ['role', 'stableDisplayName', 'sessionProcess', 'aiIdentity', 'model', 'effort', 'aiRuntimeState', 'operationalState']) {
+    // A3-1: the required first layer includes the current Team (advisorTeam) as a distinct fact.
+    for (const field of ['role', 'stableDisplayName', 'advisorTeam', 'sessionProcess', 'aiIdentity', 'model', 'effort', 'aiRuntimeState', 'operationalState']) {
       expect(summary?.querySelector(`[data-actor-summary-field="${field}"]`), field).not.toBeNull();
     }
-    // process/identity/model/effort/runtime/operational carry a source tag (never color alone).
+    // team/process/identity/model/effort/runtime/operational carry a source tag (never color alone).
+    expect(summary?.querySelector('[data-actor-summary-field="advisorTeam"]')?.getAttribute('data-actor-fact-source')).not.toBeNull();
     expect(summary?.querySelector('[data-actor-summary-field="model"]')?.getAttribute('data-actor-fact-source')).toBe('VERIFIED_MISSION_ARTIFACT');
     expect(summary?.querySelector('[data-actor-summary-field="operationalState"]')?.getAttribute('data-actor-fact-source')).toBe('VERIFIED_MISSION_ARTIFACT');
     const label = container.querySelector(`[data-actor-label="${TARGET}"]`);
@@ -133,7 +135,7 @@ describe('BA-WU-03 compact actor summary (contract §2.7 first layer)', () => {
   it('announces the summary with sources in the accessible name', () => {
     const actor = organizationActor({ evidence: [ev('process_detected'), ev('ai_ready')] });
     renderOverlay(actor);
-    const label = screen.getByRole('button', { name: /Foundation Worker\. Role WORKER\..*Session process AI_PROCESS_DETECTED, source VERIFIED MISSION ARTIFACT\..*AI runtime AI_READY\./u });
+    const label = screen.getByRole('button', { name: /Foundation Worker\. Role WORKER\. Team [A-Z_]+, source .+?\..*Session process AI_PROCESS_DETECTED, source VERIFIED MISSION ARTIFACT\..*AI runtime AI_READY\./u });
     expect(label).not.toBeNull();
   });
 

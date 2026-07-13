@@ -444,24 +444,26 @@ body:has(#living-pixel-prototype) {
 }
 
 /*
- * I2-2: authenticated production actor labels. The compact §2.7 first-layer facts remain on the label
- * at a readable >=10px size (Sentinel flagged the base sub-10px text), each fact/source stays on a
- * single ellipsised line so the card is a fixed, deterministic size (PRODUCTION_LABEL_WIDTH/HEIGHT in
- * living-office-actor-overlay.tsx reserve exactly this footprint, so the placement algorithm displaces
- * labels without overlapping each other or actors, joining displaced ones to their actor by a
- * connector). The full untruncated values remain in the always-visible roster and the 17-field drawer,
- * so nothing is hidden. Scoped to `--production` so the synthetic prototype label is unchanged.
+ * I2-2 / A3-2: authenticated production actor labels. The compact §2.7 first-layer facts (incl. the A3-1
+ * Team fact) stay on the label at a readable >=10px size (Sentinel flagged the base sub-10px text), but
+ * to keep the Office world the primary desktop signal — not a wall of tall cards — the facts render in a
+ * dense two-column grid so each card is a short, translucent annotation over the world. Each fact is a
+ * single ellipsised line; the full untruncated values + full source labels remain in the always-visible
+ * roster and the 17-field drawer, so nothing is hidden. The card is a fixed, deterministic size
+ * (PRODUCTION_LABEL_WIDTH/HEIGHT in living-office-actor-overlay.tsx reserve exactly this footprint) so the
+ * placement algorithm displaces labels without overlapping each other or actors, joining displaced ones
+ * to their actor by a connector. Scoped to `--production` so the synthetic prototype label is unchanged.
  */
 .living-office-actor-label--production {
-  width: 196px !important;
-  min-width: 196px !important;
+  width: 208px !important;
+  min-width: 208px !important;
   height: auto !important;
   min-height: 0 !important;
   align-items: start !important;
-  background: rgba(255, 252, 246, 0.92) !important;
-  grid-template-columns: 22px minmax(0, 1fr) !important;
-  gap: 4px !important;
-  padding: 6px 8px !important;
+  background: rgba(255, 252, 246, 0.82) !important;
+  grid-template-columns: 18px minmax(0, 1fr) !important;
+  gap: 2px !important;
+  padding: 4px 6px !important;
 }
 
 .living-office-actor-label--production .living-office-actor-label__glyph {
@@ -473,22 +475,49 @@ body:has(#living-pixel-prototype) {
 }
 
 .living-office-actor-label--production .living-office-actor-label__facts {
-  font-size: 0.72rem; /* ~11.5px */
-  gap: 2px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* A3-2: dense two-column fact grid keeps the card short */
+  gap: 0 8px;
   grid-column: 2;
-  line-height: 1.2;
+  font-size: 0.64rem; /* ~10.24px */
+  line-height: 1.15;
+}
+
+/* role and display name are the header — span the full width above the two fact columns. */
+.living-office-actor-label--production .living-office-actor-label__facts > strong,
+.living-office-actor-label--production .living-office-actor-label__facts > span[data-actor-summary-field="stableDisplayName"] {
+  grid-column: 1 / -1;
 }
 
 .living-office-actor-label--production .living-office-actor-label__facts strong,
 .living-office-actor-label--production .living-office-actor-label__facts span,
 .living-office-actor-label--production .living-office-actor-label__field {
-  font-size: 0.72rem; /* ~11.5px; single ellipsised line (inherits nowrap + overflow:hidden from base) */
-  line-height: 1.25;
+  font-size: 0.64rem; /* ~10.24px */
+  line-height: 1.15;
+}
+
+/* A3-2: each fact is a flex row so the value ellipsises but the compact source code stays visible. */
+.living-office-actor-label--production .living-office-actor-label__facts span[data-actor-fact-source] {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.living-office-actor-label--production .living-office-actor-label__facts span[data-actor-fact-source] .living-office-actor-label__field {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .living-office-actor-label--production .living-office-actor-label__facts small {
-  font-size: 0.64rem; /* ~10.2px */
-  margin-left: 3px;
+  flex: none;
+  font-size: 0.64rem; /* ~10.24px */
+  font-weight: 800;
+  color: #6f4f2f;
 }
 
 .living-office-actor-overlay__connectors {
