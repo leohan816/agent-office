@@ -76,12 +76,18 @@ describe('BA-WU-05 living office scene-source content-safety (contract §5)', ()
     }
   });
 
-  it('keeps the committed registry + evidence fixture free of raw locators and credentials', async () => {
-    const fixture = await readFile(path.join(REPOSITORY_ROOT, 'fixtures/organization-registry.ts'), 'utf8');
-    const config = await readFile(path.join(REPOSITORY_ROOT, 'src/application/organization/office-layout-config.ts'), 'utf8');
-    // The sha256/UUID formats used for evidence identity are references, not credentials — assert the
-    // committed *data values* carry no absolute path, private key, or credential word.
-    for (const source of [fixture, config]) {
+  it('keeps the committed registry + evidence + layout data free of raw locators and credentials', async () => {
+    // The committed data values live in the application module (registry.ts / evidence.ts / the layout
+    // config); the repo-root fixture re-exports them. Assert every file that carries committed *data
+    // values* carries no absolute path, private key, or credential word.
+    const sources = await Promise.all([
+      'src/application/organization/registry.ts',
+      'src/application/organization/evidence.ts',
+      'src/application/organization/office-layout-config.ts',
+      'fixtures/organization-registry.ts',
+    ].map((relative) => readFile(path.join(REPOSITORY_ROOT, relative), 'utf8')));
+    // The sha256/UUID formats used for evidence identity are references, not credentials.
+    for (const source of sources) {
       expect(source).not.toMatch(/\/home\/|\/Users\/|[A-Za-z]:\\/u);
       expect(source).not.toMatch(/BEGIN (?:RSA |EC )?PRIVATE KEY|\bpassword\b|\bapi[_-]?key\b/iu);
     }

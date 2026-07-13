@@ -79,3 +79,119 @@ export function partitionRegistry(rows: readonly OrganizationRegistryRow[]): Reg
   }
   return { rows: resolved, diagnostics };
 }
+
+// ---------------------------------------------------------------------------
+// (A) committed identity/organization registry data (contract §2.1/§2.2).
+//
+// Immutable per reviewed commit; every row is a provenance-tagged committed record (VERIFIED_REGISTRY),
+// changed only by a normal reviewed commit — Batch A performs NO live discovery. Lives in `src` (not a
+// repo-root fixture) so the core build (`tsconfig.build.json`, rootDir=src) emits it into `dist/core`;
+// the committed test fixture `fixtures/organization-registry.ts` re-exports this authority.
+// ---------------------------------------------------------------------------
+const ALLOWED_AI_IDENTITIES = ['CLAUDE_OPUS_4_8', 'GPT_5_6_SOL', 'FABLE_5', 'CLAUDE_SONNET_5', 'CODEX_5_6_SOL'] as const;
+const ALLOWED_MODELS = ['claude-opus-4-8', 'gpt-5.6-sol', 'fable-5', 'claude-sonnet-5', 'codex-5.6-sol'] as const;
+const ALLOWED_EFFORTS = ['ULTRACODE', 'XHIGH', 'HIGH', 'MEDIUM', 'LOW'] as const;
+
+function committedRegistryRow(
+  row: Omit<OrganizationRegistryRow, 'allowedAiIdentities' | 'allowedModels' | 'allowedEfforts' | 'provenance'>,
+): OrganizationRegistryRow {
+  return {
+    ...row,
+    allowedAiIdentities: [...ALLOWED_AI_IDENTITIES],
+    allowedModels: [...ALLOWED_MODELS],
+    allowedEfforts: [...ALLOWED_EFFORTS],
+    provenance: 'VERIFIED_REGISTRY',
+  };
+}
+
+/** (A) committed identity/organization registry — stable identity + bindings + allowed tokens. */
+export const ORGANIZATION_REGISTRY: readonly OrganizationRegistryRow[] = [
+  committedRegistryRow({
+    roleInstanceId: 'foundation-advisor',
+    role: 'ADVISOR',
+    project: 'FOUNDATION',
+    stableDisplayName: 'Foundation Advisor',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'leo-gpt',
+    assignedBy: 'leo-gpt',
+    returnsResultTo: 'leo-gpt',
+    sessionName: 'foundation-advisor',
+  }),
+  committedRegistryRow({
+    roleInstanceId: 'foundation-control',
+    role: 'CONTROL',
+    project: 'FOUNDATION',
+    stableDisplayName: 'Foundation Control',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'foundation-control',
+  }),
+  committedRegistryRow({
+    roleInstanceId: 'agent-office-worker',
+    role: 'WORKER',
+    project: 'AGENT_OFFICE',
+    stableDisplayName: 'Agent Office Worker',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'agent-office-opus',
+  }),
+  committedRegistryRow({
+    roleInstanceId: 'foundation-reviewer',
+    role: 'REVIEWER',
+    project: 'FOUNDATION',
+    stableDisplayName: 'Independent Reviewer',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'foundation-reviewer-sol',
+  }),
+  committedRegistryRow({
+    roleInstanceId: 'cosmile-worker',
+    role: 'WORKER',
+    project: 'COSMILE',
+    stableDisplayName: 'Cosmile Worker',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'cosmile-worker',
+  }),
+  committedRegistryRow({
+    roleInstanceId: 'siasiu-worker',
+    role: 'WORKER',
+    project: 'SIASIU',
+    stableDisplayName: 'SIASIU Worker',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'siasiu-worker',
+  }),
+  committedRegistryRow({
+    roleInstanceId: 'vibenews-advisor',
+    role: 'ADVISOR',
+    project: 'VIBENEWS',
+    stableDisplayName: 'VibeNews Advisor',
+    advisorTeam: 'VIBENEWS_ADVISOR_TEAM',
+    reportsToAdvisor: 'leo-gpt',
+    assignedBy: 'leo-gpt',
+    returnsResultTo: 'leo-gpt',
+    sessionName: 'vibenews-advisor',
+  }),
+  committedRegistryRow({
+    roleInstanceId: 'vibenews-worker',
+    role: 'WORKER',
+    project: 'VIBENEWS',
+    stableDisplayName: 'VibeNews Worker',
+    advisorTeam: 'VIBENEWS_ADVISOR_TEAM',
+    reportsToAdvisor: 'vibenews-advisor',
+    assignedBy: 'vibenews-advisor',
+    returnsResultTo: 'vibenews-advisor',
+    sessionName: 'vibenews-worker',
+  }),
+];

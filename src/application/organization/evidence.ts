@@ -6,6 +6,7 @@
 // It never carries mission/workUnit/activity/operationalState, stores nothing, and reads no clock.
 import { assertUtcTimestamp, isUuidV7 } from '../../domain/time/index.js';
 import {
+  ACCEPTED_EVIDENCE_SCHEMA_VERSION,
   SESSION_PROCESS_UNKNOWN,
   type AcceptedEvidenceKind,
   type AcceptedEvidenceRecord,
@@ -224,3 +225,78 @@ export function arbitrateAiRuntimeState(input: AiRuntimeArbitrationInput): AiRun
   if (input.ready) return 'AI_READY';
   return 'AI_RUNTIME_UNKNOWN';
 }
+
+// ---------------------------------------------------------------------------
+// (B) committed accepted-evidence data (contract §2.3.1). Only facts genuinely ABSENT from the runtime
+// projection (process/identity/model/effort + ai_ready/ai_error). Committed in `src` (not a repo-root
+// fixture) so the core build emits it into `dist/core`; `fixtures/organization-registry.ts` re-exports it.
+// ---------------------------------------------------------------------------
+
+// Deterministic authoring-time id/ref helpers (pure; no clock, no randomness).
+function committedUuidV7(seed: string): string {
+  return `01983000-0000-7000-8000-${seed.padStart(12, '0')}`;
+}
+function committedSha256Ref(seed: string): string {
+  return `sha256:${seed.padStart(64, '0')}`;
+}
+
+let committedEvidenceSeq = 0;
+function committedEvidence(
+  kind: AcceptedEvidenceKind,
+  roleInstanceId: string,
+  extra: { readonly value?: string; readonly effectiveFrom?: string } = {},
+): AcceptedEvidenceRecord {
+  committedEvidenceSeq += 1;
+  const seed = committedEvidenceSeq.toString(16);
+  const effectiveFrom = extra.effectiveFrom ?? '2026-07-05T00:00:00.000Z';
+  return {
+    schemaVersion: ACCEPTED_EVIDENCE_SCHEMA_VERSION,
+    evidenceId: committedUuidV7(`a${seed}`),
+    evidenceRef: committedSha256Ref(`e${seed}`),
+    kind,
+    roleInstanceId,
+    ...(extra.value === undefined ? {} : { value: extra.value }),
+    provenance: 'VERIFIED_MISSION_ARTIFACT',
+    acceptanceStatus: 'ACCEPTED',
+    sourceEventIds: [committedUuidV7(`5${seed}`)],
+    observedAt: effectiveFrom,
+    effectiveFrom,
+  };
+}
+
+/**
+ * (B) committed accepted-evidence — only facts genuinely absent from the runtime projection
+ * (process/identity/model/effort + ai_ready/ai_error). Deliberately varied to exercise the
+ * fail-closed contract: some actors fully attested, some partial, some with no evidence (sentinels),
+ * one offline, one no-process, one contradictory-free error.
+ */
+export const ORGANIZATION_EVIDENCE: readonly AcceptedEvidenceRecord[] = [
+  // agent-office-worker: fully attested + ready.
+  committedEvidence('process_detected', 'agent-office-worker'),
+  committedEvidence('ai_identity_attestation', 'agent-office-worker', { value: 'CLAUDE_OPUS_4_8' }),
+  committedEvidence('model_attestation', 'agent-office-worker', { value: 'claude-opus-4-8' }),
+  committedEvidence('effort_attestation', 'agent-office-worker', { value: 'ULTRACODE' }),
+  committedEvidence('ai_ready', 'agent-office-worker'),
+  // foundation-reviewer: identity/model/effort attested, detected, but no ready → AI_RUNTIME_UNKNOWN.
+  committedEvidence('process_detected', 'foundation-reviewer'),
+  committedEvidence('ai_identity_attestation', 'foundation-reviewer', { value: 'GPT_5_6_SOL' }),
+  committedEvidence('model_attestation', 'foundation-reviewer', { value: 'gpt-5.6-sol' }),
+  committedEvidence('effort_attestation', 'foundation-reviewer', { value: 'XHIGH' }),
+  // foundation-advisor: detected + ready, no identity/model/effort → those sentinel, runtime AI_READY.
+  committedEvidence('process_detected', 'foundation-advisor'),
+  committedEvidence('ai_ready', 'foundation-advisor'),
+  // foundation-control: offline → SESSION_OFFLINE, runtime UNKNOWN.
+  committedEvidence('process_offline', 'foundation-control'),
+  // cosmile-worker: no AI process → NO_AI_PROCESS, runtime UNKNOWN.
+  committedEvidence('process_absent', 'cosmile-worker'),
+  // siasiu-worker: NO evidence at all → every §2.3 fact fails closed to its sentinel.
+  // vibenews-advisor: detected + error → AI_ERROR.
+  committedEvidence('process_detected', 'vibenews-advisor'),
+  committedEvidence('ai_error', 'vibenews-advisor'),
+  // vibenews-worker: detected + full attestation + ready.
+  committedEvidence('process_detected', 'vibenews-worker'),
+  committedEvidence('ai_identity_attestation', 'vibenews-worker', { value: 'FABLE_5' }),
+  committedEvidence('model_attestation', 'vibenews-worker', { value: 'fable-5' }),
+  committedEvidence('effort_attestation', 'vibenews-worker', { value: 'HIGH' }),
+  committedEvidence('ai_ready', 'vibenews-worker'),
+];

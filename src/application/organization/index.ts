@@ -4,6 +4,7 @@
 // existing runtime projection (RT) into one final frame (contract §2.5/§3). No live discovery.
 export * from './types.js';
 export {
+  ORGANIZATION_EVIDENCE,
   arbitrateAiRuntimeState,
   dedupeByEvidenceId,
   isAttestationKind,
@@ -14,6 +15,7 @@ export {
   resolveSessionProcess,
 } from './evidence.js';
 export {
+  ORGANIZATION_REGISTRY,
   normalizeAdvisorTeam,
   normalizeRegistryRole,
   normalizeRegistryText,

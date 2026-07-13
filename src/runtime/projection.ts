@@ -1,12 +1,13 @@
 import type { AdvisorInboxService } from '../application/advisor-inbox/service.js';
 import type { DurableAlertCenter } from '../application/alerts/index.js';
 import {
+  ORGANIZATION_EVIDENCE,
+  ORGANIZATION_REGISTRY,
   projectOrganizationFrame,
   type OrganizationFrame,
   type RuntimeWorkInput,
 } from '../application/organization/index.js';
 import { projectRequiredObservable } from '../domain/activity/index.js';
-import { ORGANIZATION_EVIDENCE, ORGANIZATION_REGISTRY } from '../../fixtures/organization-registry.js';
 import type { OfficeStationId } from '../ui/scene/types.js';
 import {
   buildAuthenticatedSpatialPresentation,
