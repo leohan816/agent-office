@@ -331,6 +331,17 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
     const surface = document.querySelector('[data-office-actor-ids]');
     const expectedIds = JSON.parse(surface?.getAttribute('data-office-actor-ids') ?? '[]') as string[];
     const viewport = document.querySelector('.pixel-world-viewport')?.getBoundingClientRect() ?? null;
+    // A7: an element is rendered only if neither it nor an ancestor is hidden / aria-hidden / display:none /
+    // visibility:hidden|collapse / zero-opacity, and it has a positive layout box (Chromium E2E).
+    const isRendered = (element: Element) => {
+      for (let node: Element | null = element; node !== null; node = node.parentElement) {
+        if (node.hasAttribute('hidden') || node.getAttribute('aria-hidden') === 'true') return false;
+        const style = getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+        if (Number.parseFloat(style.opacity) === 0) return false;
+      }
+      return element.getClientRects().length > 0;
+    };
     const predicate = () => {
       const labels = [...document.querySelectorAll('.living-office-actor-label--production')].filter((element) => {
         const node = element as HTMLElement;
@@ -363,10 +374,20 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
       });
       const teamOk = labels.length > 0
         && labels.every((element) => element.querySelector('[data-actor-summary-field="advisorTeam"]') !== null);
-      // A6-2: each actual fact value (addressed independently of its label + source) must be non-empty.
+      // A6-2/A7: exactly one rendered, key-bound, non-empty value marker per keyed cell, and no extras.
       const valuesOk = labels.length > 0 && labels.every((element) => {
-        const values = [...element.querySelectorAll('[data-actor-fact-value]')];
-        return values.length === sourcedKeys.length && values.every((value) => value.textContent.trim().length > 0);
+        const allMarkers = [...element.querySelectorAll('[data-actor-fact-value]')];
+        if (allMarkers.length !== sourcedKeys.length) return false;
+        return sourcedKeys.every((key) => {
+          const cell = element.querySelector(`[data-actor-summary-field="${key}"]`);
+          if (cell === null) return false;
+          const markers = [...cell.querySelectorAll('[data-actor-fact-value]')];
+          const marker = markers[0];
+          if (markers.length !== 1 || marker === undefined) return false;
+          return marker.getAttribute('data-actor-fact-value') === key
+            && marker.textContent.trim().length > 0
+            && isRendered(marker);
+        });
       });
       let coverage = -1;
       if (viewport !== null) {
@@ -431,6 +452,27 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
       const original = value.textContent;
       return challenge(() => { value.textContent = ''; }, () => { value.textContent = original; });
     })();
+    // A7: hiding one authentic value marker (its key and text retained) must fail the render requirement.
+    const hiddenValue = first === undefined ? null : (() => {
+      const value = first.querySelector('[data-actor-fact-value]');
+      if (value === null) return null;
+      return challenge(() => { value.setAttribute('hidden', ''); }, () => { value.removeAttribute('hidden'); });
+    })();
+    // A7: removing one fact's value marker and adding a hidden duplicate under a different fact — so the
+    // global marker count stays seven — must still fail the exact per-cell binding.
+    const missingPlusHiddenDup = first === undefined ? null : (() => {
+      const cellA = first.querySelector('[data-actor-summary-field="effort"]');
+      const cellB = first.querySelector('[data-actor-summary-field="model"]');
+      const markerA = cellA?.querySelector('[data-actor-fact-value]') ?? null;
+      if (cellA === null || cellB === null || markerA === null) return null;
+      const anchor = markerA.nextSibling;
+      const duplicate = markerA.cloneNode(true) as HTMLElement;
+      duplicate.setAttribute('hidden', '');
+      return challenge(
+        () => { markerA.remove(); cellB.appendChild(duplicate); },
+        () => { duplicate.remove(); cellA.insertBefore(markerA, anchor); },
+      );
+    })();
     // all labels translated out of the production viewport fail the actual-viewport-presence requirement.
     const offViewport = (() => {
       const originalTransforms = all.map((element) => element.style.getPropertyValue('transform'));
@@ -444,7 +486,10 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
       );
     })();
     const restored = predicate();
-    return { positive, hiddenOne, wrongId, duplicateField, emptySource, emptyValue, offViewport, restored, expectedCount: expectedIds.length };
+    return {
+      positive, hiddenOne, wrongId, duplicateField, emptySource, emptyValue, hiddenValue, missingPlusHiddenDup,
+      offViewport, restored, expectedCount: expectedIds.length,
+    };
   }, { fieldKeys: [...EXPECTED_FIELD_KEYS], sourcedKeys: [...EXPECTED_SOURCED_KEYS] });
 
   expect(result.expectedCount, 'authoritative expected actor set is non-empty').toBeGreaterThan(0);
@@ -454,7 +499,7 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
   expect(result.positive.fieldsOk, 'exactly nine unique non-empty first-layer field keys per label').toBe(true);
   expect(result.positive.sourcesOk, 'exactly seven unique facts each with a non-empty source per label').toBe(true);
   expect(result.positive.teamOk, 'the Team fact on every label').toBe(true);
-  expect(result.positive.valuesOk, 'every actual fact value is non-empty on every label').toBe(true);
+  expect(result.positive.valuesOk, 'exactly one rendered key-bound non-empty value marker per keyed cell').toBe(true);
   expect(result.positive.coverageOk, 'label coverage within the Office-primary bound').toBe(true);
   expect(result.positive.valid, 'the combined complete-set predicate holds').toBe(true);
   // Negatives: each mutation must fail the SAME predicate.
@@ -465,6 +510,8 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
   expect(result.duplicateField?.valid, 'a duplicated field key fails the predicate').toBe(false);
   expect(result.emptySource?.valid, 'an empty source value fails the predicate').toBe(false);
   expect(result.emptyValue?.valid, 'an empty actual fact value fails the predicate (label/source retained)').toBe(false);
+  expect(result.hiddenValue?.valid, 'a hidden value marker (key/text retained) fails the render requirement').toBe(false);
+  expect(result.missingPlusHiddenDup?.valid, 'a removed value + hidden duplicate (count still seven) fails per-cell binding').toBe(false);
   expect(result.offViewport.valid, 'all labels outside the production viewport fail the predicate').toBe(false);
   // Restore: the predicate holds again.
   expect(result.restored.valid, 'the combined predicate holds again after restoring the labels').toBe(true);
@@ -484,6 +531,17 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
     const expectedIds = JSON.parse(surface?.getAttribute('data-office-actor-ids') ?? '[]') as string[];
     const visibleLabels = [...document.querySelectorAll('.living-office-actor-label--production')].filter((element) =>
       getComputedStyle(element as HTMLElement).display !== 'none' && !(element as HTMLElement).hasAttribute('hidden')).length;
+    // A7: an element is rendered only if neither it nor an ancestor is hidden / aria-hidden / display:none /
+    // visibility:hidden|collapse / zero-opacity, and it has a positive layout box.
+    const isRendered = (element: Element) => {
+      for (let node: Element | null = element; node !== null; node = node.parentElement) {
+        if (node.hasAttribute('hidden') || node.getAttribute('aria-hidden') === 'true') return false;
+        const style = getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+        if (Number.parseFloat(style.opacity) === 0) return false;
+      }
+      return element.getClientRects().length > 0;
+    };
     const predicate = () => {
       const rows = [...document.querySelectorAll('[data-actor-roster]')];
       const rosterIds = rows.map((row) => row.getAttribute('data-actor-roster') ?? '');
@@ -496,9 +554,18 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
         const cells = [...row.querySelectorAll('[data-actor-roster-field]')];
         const keys = cells.map((cell) => cell.getAttribute('data-actor-roster-field') ?? '');
         const unique = new Set(keys);
-        // A6-2: each actual value is addressed independently and required non-empty.
-        const values = [...row.querySelectorAll('[data-actor-fact-value]')];
-        const valuesOk = values.length === factKeys.length && values.every((value) => value.textContent.trim().length > 0);
+        // A6-2/A7: exactly one rendered, key-bound, non-empty value marker per keyed cell, and no extras.
+        const allMarkers = [...row.querySelectorAll('[data-actor-fact-value]')];
+        const valuesOk = allMarkers.length === factKeys.length && factKeys.every((key) => {
+          const cell = row.querySelector(`[data-actor-roster-field="${key}"]`);
+          if (cell === null) return false;
+          const markers = [...cell.querySelectorAll('[data-actor-fact-value]')];
+          const marker = markers[0];
+          if (markers.length !== 1 || marker === undefined) return false;
+          return marker.getAttribute('data-actor-fact-value') === key
+            && marker.textContent.trim().length > 0
+            && isRendered(marker);
+        });
         // A6-3: exactly one trigger per row, whose id equals the row id and an authoritative actor id.
         const rowId = row.getAttribute('data-actor-roster') ?? '';
         const triggers = [...row.querySelectorAll('[data-actor-roster-trigger]')];
@@ -564,6 +631,27 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
       const original = value.textContent;
       return challenge(() => { value.textContent = ''; }, () => { value.textContent = original; });
     })();
+    // A7: hiding one authentic roster value marker (its key and text retained) fails the render requirement.
+    const hiddenValue = firstRow === null ? null : (() => {
+      const value = firstRow.querySelector('[data-actor-fact-value]');
+      if (value === null) return null;
+      return challenge(() => { value.setAttribute('hidden', ''); }, () => { value.removeAttribute('hidden'); });
+    })();
+    // A7: removing one roster fact's value marker and adding a hidden duplicate under a different fact — so
+    // the global marker count stays seven — must still fail the exact per-cell binding.
+    const missingPlusHiddenDup = firstRow === null ? null : (() => {
+      const cellA = firstRow.querySelector('[data-actor-roster-field="effort"]');
+      const cellB = firstRow.querySelector('[data-actor-roster-field="model"]');
+      const markerA = cellA?.querySelector('[data-actor-fact-value]') ?? null;
+      if (cellA === null || cellB === null || markerA === null) return null;
+      const anchor = markerA.nextSibling;
+      const duplicate = markerA.cloneNode(true) as HTMLElement;
+      duplicate.setAttribute('hidden', '');
+      return challenge(
+        () => { markerA.remove(); cellB.appendChild(duplicate); },
+        () => { duplicate.remove(); cellA.insertBefore(markerA, anchor); },
+      );
+    })();
     // A6-3: a trigger id that no longer equals its row/authoritative actor id fails the binding.
     const wrongTriggerId = firstRow === null ? null : (() => {
       const trigger = firstRow.querySelector('[data-actor-roster-trigger]');
@@ -584,7 +672,8 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
     const restored = predicate();
     return {
       mode: overlay?.getAttribute('data-office-label-mode') ?? '', visibleLabels, expectedCount: expectedIds.length,
-      positive, wrongRosterId, emptyName, emptyRole, emptySource, duplicateFact, emptyValue, wrongTriggerId, duplicateTrigger, restored,
+      positive, wrongRosterId, emptyName, emptyRole, emptySource, duplicateFact, emptyValue, hiddenValue,
+      missingPlusHiddenDup, wrongTriggerId, duplicateTrigger, restored,
     };
   }, { factKeys: [...EXPECTED_SOURCED_KEYS] });
   expect(result.mode, 'explicit roster-equivalent DOM marker').toBe('roster-equivalent');
@@ -602,6 +691,8 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
   expect(result.emptySource?.valid, 'an empty roster fact source fails the predicate').toBe(false);
   expect(result.duplicateFact?.valid, 'a duplicated roster fact key fails the predicate').toBe(false);
   expect(result.emptyValue?.valid, 'an empty actual roster value fails the predicate (label/source retained)').toBe(false);
+  expect(result.hiddenValue?.valid, 'a hidden roster value marker (key/text retained) fails the render requirement').toBe(false);
+  expect(result.missingPlusHiddenDup?.valid, 'a removed roster value + hidden duplicate (count still seven) fails per-cell binding').toBe(false);
   expect(result.wrongTriggerId?.valid, 'a trigger id not equal to its row/authoritative actor id fails').toBe(false);
   expect(result.duplicateTrigger?.valid, 'a second trigger in a row fails the exactly-one-trigger requirement').toBe(false);
   expect(result.restored.valid, 'the roster-equivalent predicate holds again after restoring').toBe(true);
