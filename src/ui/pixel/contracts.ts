@@ -1,4 +1,5 @@
-import type { OrganizationFrameActor } from '../../application/organization/index.js';
+import type { AdvisorTeam, OrganizationFrameActor, OrganizationRole } from '../../application/organization/index.js';
+import type { LivingOfficePresentationV1 } from '../../runtime/projection.js';
 
 export const PIXEL_WORLD_FRAME_SCHEMA_VERSION = 'agent-office.pixel-world-frame.v1' as const;
 export const PIXEL_ATLAS_SCHEMA_VERSION = 'agent-office.pixel-atlas.v1' as const;
@@ -335,6 +336,54 @@ export interface PixelPrototypeViewOptions {
   readonly cameraOverride: PixelCameraState | null;
   readonly viewportWidth: number;
   readonly viewportHeight: number;
+}
+
+// ── Batch A production render path (WU-01 part 2; design delta §2.3, contract §3.1) ──────────────
+export type CommittedRoleCategory =
+  | 'LEO_DECISION'
+  | 'ADVISOR_ROUTING'
+  | 'CONTROL_RECOVERY'
+  | 'INDEPENDENT_REVIEW'
+  | 'WORKER_BUILD'
+  | 'GENERIC_REGISTERED';
+
+/** One committed pod lane. Presentation configuration only — never operational/mission truth. */
+export interface CommittedPodConfig {
+  readonly podId: string;
+  /** The pod's Advisor Team lane — a NON-sentinel AdvisorTeam (never the actor sentinel UNASSIGNED). */
+  readonly advisorTeamId: AdvisorTeam;
+  /** Valid only as exactly one ADVISOR + matching Team + member; else the pod is omitted (diagnostic). */
+  readonly responsibleAdvisorRoleInstanceId: string | null;
+  readonly projectKey: string;
+  readonly podLabel: string;
+  readonly memberRoleInstanceIds: readonly string[];
+}
+
+/** Committed presentation config (contract §3.1); immutable per reviewed commit; no operational state. */
+export interface CommittedOfficeLayoutConfigV1 {
+  readonly schemaVersion: 'agent-office.committed-office-layout-config.v1';
+  readonly pods: readonly CommittedPodConfig[];
+  readonly selectedDefaultPodId: string;
+  readonly roleCategoryByRole: Readonly<Record<OrganizationRole, CommittedRoleCategory>>;
+  readonly defaultRoleCategory: 'GENERIC_REGISTERED';
+  readonly projectIdentityByProject: Readonly<Record<string, PixelProjectIdentity>>;
+  readonly defaultProjectIdentity: PixelProjectIdentity;
+}
+
+/** Exact fixture-free structural props for overlay/mirror (contract §2.3 PRC-7). */
+export interface LivingOfficeStructuralProjection {
+  readonly pods: readonly PixelPodInput[];
+}
+
+/** Composed, versioned production render input (contract §3.1.1 PRC-6); validated before lazy mount. */
+export interface LivingOfficeProductionRenderInputV1 {
+  readonly schemaVersion: 'agent-office.living-office-production-render-input.v1';
+  readonly operational: LivingOfficePresentationV1;
+  readonly committedLayout: CommittedOfficeLayoutConfigV1;
+  readonly viewport: { readonly width: number; readonly height: number };
+  readonly logicalTimeMs: number;
+  readonly selection: { readonly selectedPodId: string };
+  readonly cues: readonly [];
 }
 
 // Narrow renderer ports keep the pure prototype contract independent from

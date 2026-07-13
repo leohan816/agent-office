@@ -5,6 +5,7 @@ import type {
   LocalRuntimeStatus,
 } from '../../server/application.js';
 import type { LivingOfficePresentationV1 } from '../../runtime/projection.js';
+import { parseRawLivingOfficePresentation } from '../../application/organization/index.js';
 import type { BrowserCapability } from '../../server/auth/index.js';
 import type { AuthenticatedSpatialPresentationV1 } from '../../application/spatial-office/authenticated-projection.js';
 import type { CommunicationCenterActionPort } from '../communication/types.js';
@@ -545,6 +546,15 @@ function parseProjection(value: unknown): RuntimeProjectionSnapshot {
     !Array.isArray(value.sceneRoles)
   ) {
     throw new RuntimeClientError('INVALID_PROJECTION_RESPONSE');
+  }
+  // First untrusted boundary (contract §3.1.2): validate the raw livingOffice subtree before it
+  // enters client state; an invalid subtree is dropped (shell falls back DOM_STATIC→M1_FIXED_STATIONS).
+  const rawLivingOffice = value.livingOffice;
+  if (rawLivingOffice !== undefined
+    && parseRawLivingOfficePresentation(rawLivingOffice, value.revision as number) === null) {
+    const withoutLivingOffice: Record<string, unknown> = { ...value };
+    delete withoutLivingOffice.livingOffice;
+    return withoutLivingOffice as unknown as RuntimeProjectionSnapshot;
   }
   return value as unknown as RuntimeProjectionSnapshot;
 }

@@ -20,3 +20,16 @@ export {
   partitionRegistry,
 } from './registry.js';
 export { mapOperationalState, projectOrganizationFrame } from './projector.js';
+export {
+  COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
+  DEFAULT_LOGICAL_TIME_MS,
+  DEFAULT_VIEWPORT,
+} from './office-layout-config.js';
+export {
+  assembleOfficeLayout,
+  composeLivingOfficeProductionRenderInput,
+  parseLivingOfficeProductionRenderInput,
+  parseRawLivingOfficePresentation,
+  type OfficeLayoutAssembly,
+  type ProductionRenderInputResult,
+} from './production-render-input.js';
