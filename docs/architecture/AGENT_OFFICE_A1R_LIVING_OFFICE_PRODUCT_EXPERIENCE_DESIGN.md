@@ -77,7 +77,7 @@ Empty lower floor is reduced: Pods and a peripheral band (plants, corridor, Chan
 
 **Advisor conversation lives in the Living Office** (not a separate app): accessible Advisor selector, selected-Advisor identity, desktop chat panel / mobile sheet, Founder-facing transcript (safe summary — excludes raw tmux, full launchers, full test output, repetitive patch chatter), unread state, completion/decision notifications, truthful delivery state. **Delivery stays `DELIVERY_DISABLED`** unless later technical evidence proves literally zero change to authority/security/routing/audit/command-target and the browser-direct Worker/Reviewer prohibition (A1R-U03). The static package designs only the **truthful selection/transcript/notification shell**, input locked.
 
-Korean is the natural user-facing language; **technical IDs, SHAs, schema names, WorkUnit IDs, and model names remain exact** (e.g. `BA-WU-03`, `claude-opus-4-8`, `FOUNDATION_ADVISOR_TEAM`).
+Korean is the natural user-facing language; **technical IDs, SHAs, schema names, WorkUnit IDs, and model names remain exact** (e.g. `claude-opus-4-8`, `FOUNDATION_ADVISOR_TEAM`) — shown **only when an accepted source exists**. A-1R WorkUnit IDs are undefined until after mockup approval, so no example WorkUnit ID is used; WorkUnit/progress render fail-closed (`—`) until an accepted source exists.
 
 ---
 
@@ -96,7 +96,7 @@ Korean is the natural user-facing language; **technical IDs, SHAs, schema names,
 | # | Founder deliverable | Design location |
 |---|---|---|
 | 1 | Full desktop Living Office | `mockups/a1r-full-office-desktop.svg/.png` (1440×900 + 1512×619 reflow) |
-| 2 | Full mobile Living Office | `mockups/a1r-full-office-mobile.svg/.png` (390×844) |
+| 2 | Full mobile Living Office | `mockups/a1r-full-office-mobile.svg/.png` (390×1200; PNG 780×2400) — a **static state-comparison sheet**: one Office frame followed by two **alternative, mutually exclusive** bottom-sheet states (① actor sheet, ② `DELIVERY_DISABLED` Advisor conversation sheet). The runtime viewport **never** shows both sheets open at once (K-3.1); the tall artifact only compares the two states side-by-side for review. |
 | 3 | Detailed Advisor Team Pod | `mockups/a1r-advisor-team-pod.svg/.png` |
 | 4 | Compact default actor label | §3; info-states mockup ① |
 | 5 | Desktop hover/focus quick card | §3; info-states mockup ② |
