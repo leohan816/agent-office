@@ -41,7 +41,10 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     });
     await expect(page.locator('.living-office-surface')).toBeVisible();
     await assertRosterEquivalentMode(page);
-    // Return to normal text: the accepted 100% composition and its exact gates follow.
+    // A6-1: operate an actor's native roster trigger while still in the initial-200% mount — exact actor
+    // drawer content, Enter/Escape/Close, focus back to the same visible trigger, zero partial labels.
+    await assertHighTextRosterDrawer(page);
+    // Return to normal text: subsequent normal recovery + the accepted 100% composition/gates follow.
     await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
 
     // SIR-1/SIR-3: strict-CSP init actually completed and the canvas is a non-blank office.
@@ -88,9 +91,6 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     await assertRosterEquivalentMode(page);
     await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
     await expect(page.locator('[data-actor-roster-field="advisorTeam"]')).toHaveCount(8);
-    // A5-1: every high-text roster actor has one keyboard/pointer trigger opening the SAME actor's
-    // 17-field drawer; close (button or Escape) restores focus to that trigger, with no partial labels.
-    await assertHighTextRosterDrawer(page);
     await expectFullSurfaceAxeClean(page, '200% text');
     await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
     // A4-1: the exact all-label predicate holds again when the text scale returns to normal.
@@ -363,6 +363,11 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
       });
       const teamOk = labels.length > 0
         && labels.every((element) => element.querySelector('[data-actor-summary-field="advisorTeam"]') !== null);
+      // A6-2: each actual fact value (addressed independently of its label + source) must be non-empty.
+      const valuesOk = labels.length > 0 && labels.every((element) => {
+        const values = [...element.querySelectorAll('[data-actor-fact-value]')];
+        return values.length === sourcedKeys.length && values.every((value) => value.textContent.trim().length > 0);
+      });
       let coverage = -1;
       if (viewport !== null) {
         const rects = labels.map((element) => element.getBoundingClientRect());
@@ -378,8 +383,8 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
       }
       const coverageOk = coverage >= 0 && coverage <= 22;
       return {
-        setEqual, inViewport, fieldsOk, sourcesOk, teamOk, coverage, coverageOk, visible: labels.length,
-        valid: setEqual && inViewport && fieldsOk && sourcesOk && teamOk && coverageOk,
+        setEqual, inViewport, fieldsOk, sourcesOk, teamOk, valuesOk, coverage, coverageOk, visible: labels.length,
+        valid: setEqual && inViewport && fieldsOk && sourcesOk && teamOk && valuesOk && coverageOk,
       };
     };
     // Run a mutation, evaluate the SAME predicate, then restore — so every challenge exercises the exact
@@ -418,6 +423,14 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
         () => cell.setAttribute('data-actor-fact-source', original),
       );
     })();
+    // A6-2: an emptied actual value (field label, key, source attribute and source text all retained)
+    // must still fail the predicate.
+    const emptyValue = first === undefined ? null : (() => {
+      const value = first.querySelector('[data-actor-fact-value]');
+      if (value === null) return null;
+      const original = value.textContent;
+      return challenge(() => { value.textContent = ''; }, () => { value.textContent = original; });
+    })();
     // all labels translated out of the production viewport fail the actual-viewport-presence requirement.
     const offViewport = (() => {
       const originalTransforms = all.map((element) => element.style.getPropertyValue('transform'));
@@ -431,7 +444,7 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
       );
     })();
     const restored = predicate();
-    return { positive, hiddenOne, wrongId, duplicateField, emptySource, offViewport, restored, expectedCount: expectedIds.length };
+    return { positive, hiddenOne, wrongId, duplicateField, emptySource, emptyValue, offViewport, restored, expectedCount: expectedIds.length };
   }, { fieldKeys: [...EXPECTED_FIELD_KEYS], sourcedKeys: [...EXPECTED_SOURCED_KEYS] });
 
   expect(result.expectedCount, 'authoritative expected actor set is non-empty').toBeGreaterThan(0);
@@ -441,6 +454,7 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
   expect(result.positive.fieldsOk, 'exactly nine unique non-empty first-layer field keys per label').toBe(true);
   expect(result.positive.sourcesOk, 'exactly seven unique facts each with a non-empty source per label').toBe(true);
   expect(result.positive.teamOk, 'the Team fact on every label').toBe(true);
+  expect(result.positive.valuesOk, 'every actual fact value is non-empty on every label').toBe(true);
   expect(result.positive.coverageOk, 'label coverage within the Office-primary bound').toBe(true);
   expect(result.positive.valid, 'the combined complete-set predicate holds').toBe(true);
   // Negatives: each mutation must fail the SAME predicate.
@@ -450,6 +464,7 @@ async function assertCompleteLabelSet(page: Page, mode: 'labels'): Promise<void>
   expect(result.wrongId?.valid, 'a wrong-but-unique actor id fails the predicate').toBe(false);
   expect(result.duplicateField?.valid, 'a duplicated field key fails the predicate').toBe(false);
   expect(result.emptySource?.valid, 'an empty source value fails the predicate').toBe(false);
+  expect(result.emptyValue?.valid, 'an empty actual fact value fails the predicate (label/source retained)').toBe(false);
   expect(result.offViewport.valid, 'all labels outside the production viewport fail the predicate').toBe(false);
   // Restore: the predicate holds again.
   expect(result.restored.valid, 'the combined predicate holds again after restoring the labels').toBe(true);
@@ -481,12 +496,20 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
         const cells = [...row.querySelectorAll('[data-actor-roster-field]')];
         const keys = cells.map((cell) => cell.getAttribute('data-actor-roster-field') ?? '');
         const unique = new Set(keys);
+        // A6-2: each actual value is addressed independently and required non-empty.
+        const values = [...row.querySelectorAll('[data-actor-fact-value]')];
+        const valuesOk = values.length === factKeys.length && values.every((value) => value.textContent.trim().length > 0);
+        // A6-3: exactly one trigger per row, whose id equals the row id and an authoritative actor id.
+        const rowId = row.getAttribute('data-actor-roster') ?? '';
+        const triggers = [...row.querySelectorAll('[data-actor-roster-trigger]')];
+        const triggerOk = triggers.length === 1
+          && triggers[0]?.getAttribute('data-actor-roster-trigger') === rowId && expectedIds.includes(rowId);
         return (role?.textContent ?? '').trim().length > 0
           && (name?.textContent ?? '').trim().length > 0
           && keys.length === factKeys.length && unique.size === factKeys.length && factKeys.every((k) => unique.has(k))
           && cells.every((cell) => cell.textContent.trim().length > 0)
           && cells.every((cell) => (cell.getAttribute('data-actor-fact-source') ?? '').trim().length > 0)
-          && row.querySelector('[data-actor-roster-trigger]') !== null;
+          && valuesOk && triggerOk;
       });
       return { setEqual, rowsOk, valid: setEqual && rowsOk };
     };
@@ -534,18 +557,43 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
         () => cell.setAttribute('data-actor-roster-field', 'effort'),
       );
     })();
+    // A6-2: an emptied actual roster value (label/key/source retained) fails the predicate.
+    const emptyValue = firstRow === null ? null : (() => {
+      const value = firstRow.querySelector('[data-actor-fact-value]');
+      if (value === null) return null;
+      const original = value.textContent;
+      return challenge(() => { value.textContent = ''; }, () => { value.textContent = original; });
+    })();
+    // A6-3: a trigger id that no longer equals its row/authoritative actor id fails the binding.
+    const wrongTriggerId = firstRow === null ? null : (() => {
+      const trigger = firstRow.querySelector('[data-actor-roster-trigger]');
+      if (trigger === null) return null;
+      const original = trigger.getAttribute('data-actor-roster-trigger') ?? '';
+      return challenge(
+        () => trigger.setAttribute('data-actor-roster-trigger', '__wrong_trigger_id__'),
+        () => trigger.setAttribute('data-actor-roster-trigger', original),
+      );
+    })();
+    // A6-3: a second trigger in a row breaks the exactly-one-trigger-per-row requirement.
+    const duplicateTrigger = firstRow === null ? null : (() => {
+      const trigger = firstRow.querySelector('[data-actor-roster-trigger]');
+      if (trigger === null) return null;
+      const clone = trigger.cloneNode(true);
+      return challenge(() => { firstRow.appendChild(clone); }, () => { firstRow.removeChild(clone); });
+    })();
     const restored = predicate();
     return {
       mode: overlay?.getAttribute('data-office-label-mode') ?? '', visibleLabels, expectedCount: expectedIds.length,
-      positive, wrongRosterId, emptyName, emptyRole, emptySource, duplicateFact, restored,
+      positive, wrongRosterId, emptyName, emptyRole, emptySource, duplicateFact, emptyValue, wrongTriggerId, duplicateTrigger, restored,
     };
   }, { factKeys: [...EXPECTED_SOURCED_KEYS] });
   expect(result.mode, 'explicit roster-equivalent DOM marker').toBe('roster-equivalent');
   expect(result.visibleLabels, 'zero partial on-canvas labels').toBe(0);
   expect(result.expectedCount, 'authoritative expected actor set is non-empty').toBeGreaterThan(0);
-  // Positive: exact set equality + one complete row per actor (role, name, seven sourced facts, trigger).
+  // Positive: exact set equality + one complete row per actor (role, name, seven sourced facts + values,
+  // and exactly one authoritative-bound trigger).
   expect(result.positive.setEqual, 'roster ids exactly equal the authoritative visible-actor ids').toBe(true);
-  expect(result.positive.rowsOk, 'every row has role, name, the exact seven sourced facts, and a trigger').toBe(true);
+  expect(result.positive.rowsOk, 'every row: role, name, seven sourced facts + non-empty values, one bound trigger').toBe(true);
   expect(result.positive.valid, 'the roster-equivalent predicate holds').toBe(true);
   // Negatives: each mutation fails the SAME roster predicate.
   expect(result.wrongRosterId?.valid, 'a wrong-but-unique roster id fails the predicate').toBe(false);
@@ -553,25 +601,33 @@ async function assertRosterEquivalentMode(page: Page): Promise<void> {
   expect(result.emptyRole?.valid, 'an empty roster role fails the predicate').toBe(false);
   expect(result.emptySource?.valid, 'an empty roster fact source fails the predicate').toBe(false);
   expect(result.duplicateFact?.valid, 'a duplicated roster fact key fails the predicate').toBe(false);
+  expect(result.emptyValue?.valid, 'an empty actual roster value fails the predicate (label/source retained)').toBe(false);
+  expect(result.wrongTriggerId?.valid, 'a trigger id not equal to its row/authoritative actor id fails').toBe(false);
+  expect(result.duplicateTrigger?.valid, 'a second trigger in a row fails the exactly-one-trigger requirement').toBe(false);
   expect(result.restored.valid, 'the roster-equivalent predicate holds again after restoring').toBe(true);
 }
 
 /**
- * A5-1: at high text every roster actor has one native keyboard/pointer trigger that opens the same
- * actor's 17-field drawer; closing with the button or Escape restores focus to that same trigger, and no
- * partial on-canvas label ever appears.
+ * A5-1 / A6-1: at high text every roster actor has one native keyboard/pointer trigger that opens the
+ * same actor's 17-field drawer with that actor's exact content; closing with the button or Escape restores
+ * focus to that same trigger, and no partial on-canvas label ever appears.
  */
 async function assertHighTextRosterDrawer(page: Page): Promise<void> {
   const trigger = page.locator('[data-actor-roster-trigger]').first();
   const actorId = await trigger.getAttribute('data-actor-roster-trigger');
   expect(actorId, 'roster trigger carries its actor id').not.toBeNull();
+  // The exact actor: the drawer heading is this actor's stable display name (== its roster row name).
+  const actorName = (await page.locator(`[data-actor-roster="${actorId}"] strong`).textContent())?.trim() ?? '';
+  expect(actorName.length, 'the actor has a stable display name').toBeGreaterThan(0);
   const drawer = page.locator(`[data-actor-detail="${actorId}"]`);
-  // Keyboard activation opens exactly this actor's drawer.
+  // Keyboard activation opens exactly this actor's drawer with the exact heading and the 17-field grid.
   await trigger.focus();
   await expect(trigger).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(drawer).toBeVisible();
   await expect(drawer).toHaveAttribute('role', 'dialog');
+  await expect(drawer.locator('#living-office-actor-detail-heading')).toHaveText(actorName);
+  await expect(drawer.locator('[data-actor-fact]')).toHaveCount(17);
   await expect(page.locator('.living-office-actor-label--production:visible')).toHaveCount(0);
   // Escape closes and restores focus to the invoking roster trigger.
   await page.keyboard.press('Escape');

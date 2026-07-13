@@ -88,7 +88,8 @@ export function LivingOfficeSemanticMirror({
                     const fact = organizationFact(facts, key);
                     return (
                       <span data-actor-fact-source={fact.source} data-actor-roster-field={key} key={key}>
-                        {label}: {fact.value} <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[fact.source]}</small>
+                        {/* A6-2: the actual roster fact value is independently addressable. */}
+                        {label}: <span data-actor-fact-value={key}>{fact.value}</span> <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[fact.source]}</small>
                       </span>
                     );
                   })}

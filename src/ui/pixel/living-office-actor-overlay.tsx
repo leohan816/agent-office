@@ -397,7 +397,11 @@ function OrganizationCompactSummary({ facts }: { readonly facts: OrganizationFra
         const fact = organizationFact(facts, key);
         return (
           <span data-actor-summary-field={key} data-actor-fact-source={fact.source} key={key}>
-            <span className="living-office-actor-label__field">{label}: {fact.value}</span>
+            {/* A6-2: the actual fact value is independently addressable, separate from the field label
+                and the source text, so it can be required non-empty on its own. */}
+            <span className="living-office-actor-label__field">
+              {label}: <span data-actor-fact-value={key}>{fact.value}</span>
+            </span>
             <small>{COMPACT_SOURCE_LABELS[fact.source]}</small>
           </span>
         );
