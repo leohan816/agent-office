@@ -315,6 +315,8 @@ export interface PixelWorldFrameV1 {
   readonly visibleEntityIds: readonly string[];
   readonly semanticEntities: readonly PixelSemanticEntity[];
   readonly hud: {
+    /** Truthful surface eyebrow carried from the producing projector (prototype vs authenticated Office). */
+    readonly eyebrow: string;
     readonly selectedTeamName: string;
     readonly projectName: string;
     readonly missionShortLabel: string;

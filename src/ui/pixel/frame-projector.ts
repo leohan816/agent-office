@@ -138,6 +138,9 @@ export function projectPixelWorldFrame(
     visibleEntityIds,
     semanticEntities,
     hud: {
+      // Prototype eyebrow derived from the prototype projection's own fixture label + the historical
+      // AO12-PWU-11-P1 visual-patch suffix (prototype-only module; never a production edge).
+      eyebrow: `${projection.fixtureLabel} / AO12-PWU-11-P1 VISUAL PATCH`,
       selectedTeamName: selectedPod.advisorTeamId,
       projectName: selectedPod.projectIdentity.displayName,
       missionShortLabel: selectedPod.missionShortLabel,

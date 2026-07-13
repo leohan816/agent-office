@@ -5,11 +5,6 @@ export interface LivingOfficeHudProps {
   readonly backend: PixelRendererBackend;
   readonly running: boolean;
   readonly complete: boolean;
-  /**
-   * Eyebrow label. The default preserves the synthetic-prototype branding for the test-demo path; the
-   * authenticated production Office supplies its own truthful eyebrow (never "SYNTHETIC PROTOTYPE").
-   */
-  readonly eyebrow?: string;
 }
 
 export function LivingOfficeHud({
@@ -17,14 +12,15 @@ export function LivingOfficeHud({
   backend,
   running,
   complete,
-  eyebrow = 'SYNTHETIC PROTOTYPE / AO12-PWU-11-P1 VISUAL PATCH',
 }: LivingOfficeHudProps) {
+  // The eyebrow is carried by the producing projector on `frame.hud.eyebrow` (prototype vs
+  // authenticated Office); the shared HUD embeds no fixture/prototype default of its own.
   return (
     <header className="living-office-hud" id="living-office-status">
       <div className="living-office-hud__brand">
         <span aria-hidden="true" className="living-office-hud__logo">AO</span>
         <div>
-          <p className="living-office-hud__eyebrow">{eyebrow}</p>
+          <p className="living-office-hud__eyebrow">{frame.hud.eyebrow}</p>
           <h1>Agent Office: Living Pixel Office</h1>
         </div>
       </div>

@@ -176,11 +176,12 @@ describe('living pixel-office production graph isolation (CD-3 / PR-4)', () => {
 
   it('(c) excludes every prototype FIXTURE marker from production and labels the Office truthfully', () => {
     const bundle = productionChunks.map((chunk) => chunk.code).join('\n');
-    // The prototype fixture identity/behaviour markers must be absent — the prototype fixtures/timeline
-    // are never in the production graph. (The shared HUD's "SYNTHETIC PROTOTYPE" default string is a
-    // test-demo default retained for the prototype e2e; production supplies its own truthful eyebrow,
-    // asserted positively below, so the authenticated Office never *renders* the prototype branding.)
-    for (const marker of PROTOTYPE_MARKERS.filter((marker) => marker !== 'SYNTHETIC PROTOTYPE')) {
+    // Every prototype fixture identity/behaviour marker MUST be absent from production output — with no
+    // exemption or filter. The prototype fixtures/timeline are never in the production graph, and the
+    // shared HUD embeds no prototype default: the eyebrow is carried by the producing projector, so the
+    // authenticated Office supplies its own truthful eyebrow and "SYNTHETIC PROTOTYPE" never reaches
+    // production. `PIXEL_PROTOTYPE_FIXTURE_ID` is asserted by its committed value (the first marker).
+    for (const marker of [...PROTOTYPE_MARKERS, 'fixtures/prototype-']) {
       expect(bundle, marker).not.toContain(marker);
     }
     const office = productionChunks.find((chunk) => chunk.facadeModuleId === OFFICE_CHUNK_FACADE);

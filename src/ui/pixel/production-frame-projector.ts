@@ -106,6 +106,9 @@ export function projectLivingOfficeFrame(
     visibleEntityIds,
     semanticEntities,
     hud: {
+      // Authenticated Living Office eyebrow set directly by the production projector — never a
+      // prototype default. The shared HUD renders this value verbatim (no fixture branding).
+      eyebrow: 'AGENT OFFICE · AUTHENTICATED LIVING OFFICE',
       selectedTeamName: selectedPod.advisorTeamId,
       projectName: selectedPod.projectIdentity.displayName,
       missionShortLabel: selectedPod.missionShortLabel,

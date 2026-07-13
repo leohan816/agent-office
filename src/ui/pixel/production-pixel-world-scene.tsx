@@ -53,7 +53,6 @@ export function ProductionPixelWorldScene({ input, forceStatic }: ProductionPixe
       <LivingOfficeHud
         backend={backend}
         complete={false}
-        eyebrow="AGENT OFFICE · AUTHENTICATED LIVING OFFICE"
         frame={frame}
         running={!forceStatic}
       />
