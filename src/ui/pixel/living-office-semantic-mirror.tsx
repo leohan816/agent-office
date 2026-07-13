@@ -1,9 +1,9 @@
 import { PIXEL_ACTOR_FACT_SOURCE_LABELS } from './contracts.js';
-import type { PixelPrototypeProjection, PixelWorldFrameV1 } from './contracts.js';
+import type { LivingOfficeStructuralProjection, PixelWorldFrameV1 } from './contracts.js';
 
 export interface LivingOfficeSemanticMirrorProps {
   readonly frame: PixelWorldFrameV1;
-  readonly projection: PixelPrototypeProjection;
+  readonly projection: LivingOfficeStructuralProjection;
 }
 
 export function LivingOfficeSemanticMirror({

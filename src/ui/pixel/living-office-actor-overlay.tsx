@@ -15,9 +15,9 @@ import type { OrganizationFact, OrganizationFrameActor } from '../../application
 import { cameraTransform } from './camera.js';
 import { PIXEL_ACTOR_FACT_SOURCE_LABELS } from './contracts.js';
 import type {
+  LivingOfficeStructuralProjection,
   PixelActorFactSource,
   PixelActorFrame,
-  PixelPrototypeProjection,
   PixelWorldFrameV1,
 } from './contracts.js';
 
@@ -80,7 +80,7 @@ export interface LivingOfficeActorOverlayHandle {
 
 export interface LivingOfficeActorOverlayProps {
   readonly frame: PixelWorldFrameV1;
-  readonly projection: PixelPrototypeProjection;
+  readonly projection: LivingOfficeStructuralProjection;
   readonly viewportWidth: number;
   readonly viewportHeight: number;
 }
