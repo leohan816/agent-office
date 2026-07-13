@@ -1,15 +1,21 @@
 import { PIXEL_ACTOR_FACT_SOURCE_LABELS } from './contracts.js';
 import type { LivingOfficeStructuralProjection, PixelWorldFrameV1 } from './contracts.js';
+import { ORGANIZATION_COMPACT_FIELDS, organizationFact } from './living-office-actor-overlay.js';
 
 export interface LivingOfficeSemanticMirrorProps {
   readonly frame: PixelWorldFrameV1;
   readonly projection: LivingOfficeStructuralProjection;
+  // I2-4: the authenticated production surface is a continuous fixture-free committed office; the
+  // prototype demo keeps its synthetic-fixture wording. Defaults to PROTOTYPE for the frozen entry.
+  readonly surfaceKind?: 'PROTOTYPE' | 'PRODUCTION';
 }
 
 export function LivingOfficeSemanticMirror({
   frame,
   projection,
+  surfaceKind = 'PROTOTYPE',
 }: LivingOfficeSemanticMirrorProps) {
+  const production = surfaceKind === 'PRODUCTION';
   return (
     <section
       aria-labelledby="living-office-semantic-heading"
@@ -20,7 +26,7 @@ export function LivingOfficeSemanticMirror({
     >
       <div className="living-office-semantic__heading">
         <div>
-          <p>Accessible synthetic fixture mirror</p>
+          <p>{production ? 'Accessible committed office mirror' : 'Accessible synthetic fixture mirror'}</p>
           <h2 id="living-office-semantic-heading">Every visible pixel has complete text meaning</h2>
         </div>
         <span className="living-office-semantic__parity">FRAME PARITY / {frame.visibleEntityIds.length} ENTITIES</span>
@@ -63,6 +69,31 @@ export function LivingOfficeSemanticMirror({
           </p>
         </div>
       </div>
+      {production ? (
+        <div className="living-office-semantic__roster">
+          <h3>Actor first-layer facts (every visible actor)</h3>
+          <ul className="living-office-semantic__roster-list">
+            {frame.actorFrames.filter((actor) => actor.visible && actor.organizationFacts !== undefined).map((actor) => {
+              const facts = actor.organizationFacts;
+              if (facts === undefined) return null;
+              return (
+                <li key={actor.roleInstanceId} data-actor-roster={actor.roleInstanceId}>
+                  <strong>{facts.stableDisplayName.value}</strong>
+                  <span className="living-office-semantic__roster-role">{facts.role.value}</span>
+                  {ORGANIZATION_COMPACT_FIELDS.map(([key, label]) => {
+                    const fact = organizationFact(facts, key);
+                    return (
+                      <span data-actor-fact-source={fact.source} data-actor-roster-field={key} key={key}>
+                        {label}: {fact.value} <small>{PIXEL_ACTOR_FACT_SOURCE_LABELS[fact.source]}</small>
+                      </span>
+                    );
+                  })}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
       <ul className="sr-only" data-semantic-entity-set>
         {frame.semanticEntities.map((entity) => (
           <li key={entity.entityId} data-entity-id={entity.entityId}>

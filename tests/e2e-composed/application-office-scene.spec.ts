@@ -1,6 +1,8 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
+import { assertOfficeCanvasNonblank } from '../helpers/production-office-canvas-proof.js';
+
 // Batch A CD-2: the authenticated app defaults to the Living Office; the historical Dashboard/spatial
 // technical views are preserved as SECONDARY views reachable through explicit navigation. Per Advisor
 // doc 50 this spec asserts the Office-first default + secondary-view navigation and keeps the full
@@ -452,12 +454,12 @@ function screenshotOptions() {
 
 /** SIR-3: prove the live office canvas actually initialized and rendered a non-blank office. */
 async function proveNonblankOfficeCanvas(page: Page): Promise<void> {
-  const canvas = page.locator('canvas[data-pixel-canvas="true"]');
-  await expect(canvas, 'onInit completed and marked the live canvas').toHaveCount(1);
   await expect(page.locator('.pixel-world-viewport'))
     .toHaveAttribute('data-pixel-renderer-status', 'PIXEL_READY');
-  const rendered = await canvas.screenshot({ animations: 'disabled' });
-  expect(rendered.byteLength, 'office canvas must be non-blank').toBeGreaterThan(15000);
+  // Live-canvas presence, initialized dimensions, direct color-diversity non-blank proof, and blank-fill
+  // compression separation — decoupled from the DOM label overlay (hidden on mobile per I2-2) and proven
+  // in a way a blank canvas cannot pass, not a byte threshold alone. See assertOfficeCanvasNonblank.
+  await assertOfficeCanvasNonblank(page);
 }
 
 /** Attach an unmasked live office capture as a directly-inspectable artifact (SIR-3). */

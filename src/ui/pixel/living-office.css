@@ -443,6 +443,81 @@ body:has(#living-pixel-prototype) {
   white-space: nowrap;
 }
 
+/*
+ * I2-2: authenticated production actor labels. The compact §2.7 first-layer facts remain on the label
+ * at a readable >=10px size (Sentinel flagged the base sub-10px text), each fact/source stays on a
+ * single ellipsised line so the card is a fixed, deterministic size (PRODUCTION_LABEL_WIDTH/HEIGHT in
+ * living-office-actor-overlay.tsx reserve exactly this footprint, so the placement algorithm displaces
+ * labels without overlapping each other or actors, joining displaced ones to their actor by a
+ * connector). The full untruncated values remain in the always-visible roster and the 17-field drawer,
+ * so nothing is hidden. Scoped to `--production` so the synthetic prototype label is unchanged.
+ */
+.living-office-actor-label--production {
+  width: 196px !important;
+  min-width: 196px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  align-items: start !important;
+  background: rgba(255, 252, 246, 0.92) !important;
+  grid-template-columns: 22px minmax(0, 1fr) !important;
+  gap: 4px !important;
+  padding: 6px 8px !important;
+}
+
+.living-office-actor-label--production .living-office-actor-label__glyph {
+  grid-row: 1 / -1;
+}
+
+.living-office-actor-label--production .living-office-actor-label__ring {
+  display: none; /* color-only cue removed; operational state stays as readable text below */
+}
+
+.living-office-actor-label--production .living-office-actor-label__facts {
+  font-size: 0.72rem; /* ~11.5px */
+  gap: 2px 0;
+  grid-column: 2;
+  line-height: 1.2;
+}
+
+.living-office-actor-label--production .living-office-actor-label__facts strong,
+.living-office-actor-label--production .living-office-actor-label__facts span,
+.living-office-actor-label--production .living-office-actor-label__field {
+  font-size: 0.72rem; /* ~11.5px; single ellipsised line (inherits nowrap + overflow:hidden from base) */
+  line-height: 1.25;
+}
+
+.living-office-actor-label--production .living-office-actor-label__facts small {
+  font-size: 0.64rem; /* ~10.2px */
+  margin-left: 3px;
+}
+
+.living-office-actor-overlay__connectors {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.living-office-actor-overlay__connectors line {
+  stroke: #6b5334;
+  stroke-width: 1.6;
+  stroke-dasharray: 4 3;
+  opacity: 0.75;
+}
+
+@media (max-width: 640px) {
+  /* Mobile: dense on-canvas facts labels would occlude the small Office. Use the accepted semantic
+   * equivalent — hide the on-canvas production labels and present every actor's first layer in the
+   * always-visible roster below (no actor or fact is silently hidden). */
+  .living-office-actor-label--production {
+    display: none !important;
+  }
+
+  .living-office-actor-overlay__connectors {
+    display: none;
+  }
+}
+
 .living-office-actor-detail {
   background: rgba(255, 252, 246, 0.995);
   border: 1px solid #8e8a85;
@@ -668,6 +743,65 @@ body:has(#living-pixel-prototype) {
 .living-office-semantic__heading h2 {
   font-family: system-ui, sans-serif;
   font-size: 1.05rem;
+}
+
+/* I2-2: the always-visible readable first-layer roster for every actor (the equivalent presentation
+ * for mobile, 200%, and any actor whose on-canvas label is bounded). Reflows via an auto-fill grid. */
+.living-office-semantic__roster {
+  margin-top: 16px;
+}
+
+.living-office-semantic__roster h3 {
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+}
+
+.living-office-semantic__roster-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.living-office-semantic__roster-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 8px;
+  background: #f3efe8;
+  border: 1px solid #c9c2b9;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* I2-2: long unbroken fact values (e.g. AI_IDENTITY_UNKNOWN) must wrap inside their flex cell
+   so the auto-fill tracks never grow past the container and force page overflow at 200% text. */
+.living-office-semantic__roster-list li > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.living-office-semantic__roster-list strong {
+  font-size: 0.9rem;
+}
+
+.living-office-semantic__roster-role {
+  background: #23272b;
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.living-office-semantic__roster-list small {
+  color: #6f4f2f;
+  font-weight: 700;
 }
 
 .living-office-semantic__columns {

@@ -256,6 +256,69 @@ describe('SIR-4 total no-throw committed-layout validation before assembly', () 
   });
 });
 
+describe('I2-3 exact pre-assembly selection / committed-default / membership validation', () => {
+  const baseWrapper = () => composeLivingOfficeProductionRenderInput({
+    operational: presentation(),
+    committedLayout: COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
+    viewport: { width: 1400, height: 800 },
+    selectedPodId: 'pod:foundation',
+    logicalTimeMs: 0,
+  });
+  const withSelection = (selection: unknown): unknown => ({ ...baseWrapper(), selection });
+  const withLayout = (layout: unknown): unknown => ({ ...baseWrapper(), committedLayout: layout });
+  const validLayout = (): CommittedOfficeLayoutConfigV1 => clone(COMMITTED_OFFICE_LAYOUT_CONFIG_V1);
+  const [firstPod, secondPod] = COMMITTED_OFFICE_LAYOUT_CONFIG_V1.pods;
+  if (firstPod === undefined || secondPod === undefined) throw new Error('committed layout fixture must have two pods');
+  const firstMember = firstPod.memberRoleInstanceIds[0];
+  if (firstMember === undefined) throw new Error('committed pod fixture must have members');
+
+  const noThrow = (input: unknown): ProductionRenderInputResult => {
+    let result: ProductionRenderInputResult | undefined;
+    expect(() => { result = parseLivingOfficeProductionRenderInput(input); }).not.toThrow();
+    if (result === undefined) throw new Error('parser returned no result');
+    return result;
+  };
+
+  it('rejects a committed default that is not the canonical-first pod, to M1', () => {
+    expect(noThrow(withLayout({ ...validLayout(), selectedDefaultPodId: 'pod:vibenews' })))
+      .toMatchObject({ ok: false, fallbackTier: 'M1_FIXED_STATIONS' });
+  });
+  it('rejects a non-existent committed default, to M1', () => {
+    expect(noThrow(withLayout({ ...validLayout(), selectedDefaultPodId: 'pod:missing' })))
+      .toMatchObject({ ok: false, fallbackTier: 'M1_FIXED_STATIONS' });
+  });
+  it('rejects cross-pod actor membership before assembly', () => {
+    const cloned = { ...validLayout(), pods: [firstPod, { ...secondPod, memberRoleInstanceIds: [...secondPod.memberRoleInstanceIds, firstMember] }] };
+    expect(noThrow(withLayout(cloned))).toMatchObject({ ok: false });
+  });
+  it('rejects a responsible Advisor that is not a member of its pod', () => {
+    const bad = { ...validLayout(), pods: [{ ...firstPod, responsibleAdvisorRoleInstanceId: 'ghost-advisor' }, secondPod] };
+    expect(noThrow(withLayout(bad))).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    ['a null selection', null],
+    ['an array selection', []],
+    ['a selection with an extra key', { selectedPodId: 'pod:foundation', extra: 1 }],
+    ['a numeric selectedPodId', { selectedPodId: 42 }],
+    ['a missing selectedPodId', {}],
+  ] as const)('rejects %s to DOM_STATIC without throwing', (_label, selection) => {
+    expect(noThrow(withSelection(selection))).toMatchObject({ ok: false, fallbackTier: 'DOM_STATIC' });
+  });
+
+  it('preserves the documented fallback: a well-formed but unknown selectedPodId string uses the committed default', () => {
+    const result = noThrow(withSelection({ selectedPodId: 'pod:unknown-but-well-formed' }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.selection.selectedPodId).toBe('pod:foundation');
+  });
+
+  it('still accepts the exact well-formed selection', () => {
+    const result = noThrow(baseWrapper());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.selection.selectedPodId).toBe('pod:foundation');
+  });
+});
+
 describe('production-frame-projector builds a fixture-free PixelWorldFrameV1', () => {
   it('produces a semantic-parity-valid frame with organization facts and no cues/route', () => {
     const wrapper = composeLivingOfficeProductionRenderInput({

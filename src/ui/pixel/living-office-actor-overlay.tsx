@@ -23,10 +23,18 @@ import type {
 
 const LABEL_WIDTH = 172;
 const LABEL_HEIGHT = 78;
+// I2-2: the authenticated production label is a fixed, larger card than the synthetic prototype label
+// so its §2.7 first-layer facts are readable (>=10px). The placement algorithm must reserve exactly the
+// production footprint (kept in sync with `.living-office-actor-label--production` in living-office.css)
+// so production labels are displaced without overlapping each other or actors.
+const PRODUCTION_LABEL_WIDTH = 196;
+// The card is ~143px tall at normal text; reserve enough to also cover 200% text (~258px tall, the
+// card width is fixed px so only its wrapped height grows) so labels never overlap at either scale.
+const PRODUCTION_LABEL_HEIGHT = 262;
 const VIEWPORT_PADDING = 8;
 
 // Contract §2.7 compact summary subset (after role glyph+ring and stableDisplayName), in order.
-const ORGANIZATION_COMPACT_FIELDS = [
+export const ORGANIZATION_COMPACT_FIELDS = [
   ['sessionProcess', 'Process'],
   ['aiIdentity', 'AI identity'],
   ['model', 'Model'],
@@ -59,7 +67,7 @@ type OrganizationFactKey =
   | (typeof ORGANIZATION_COMPACT_FIELDS)[number][0]
   | (typeof ORGANIZATION_DETAIL_FIELDS)[number][0];
 
-function organizationFact(facts: OrganizationFrameActor, key: OrganizationFactKey): OrganizationFact {
+export function organizationFact(facts: OrganizationFrameActor, key: OrganizationFactKey): OrganizationFact {
   return facts[key];
 }
 
@@ -105,6 +113,16 @@ export const LivingOfficeActorOverlay = forwardRef<
     () => new Map(placements.map((placement) => [placement.roleInstanceId, placement])),
     [placements],
   );
+  // I2-2: the authenticated production surface (actors carry organization facts) gets readable,
+  // auto-sized labels + connectors to their displaced actors; the synthetic prototype path is unchanged.
+  const isProduction = useMemo(
+    () => frame.actorFrames.some((actor) => actor.organizationFacts !== undefined),
+    [frame.actorFrames],
+  );
+  const connectors = useMemo(
+    () => isProduction ? placements.filter((placement) => placement.inViewport && labelIsDisplaced(placement)) : [],
+    [isProduction, placements],
+  );
   const selectedActor = selectedActorId === null
     ? null
     : frame.actorFrames.find((actor) => actor.roleInstanceId === selectedActorId) ?? null;
@@ -147,8 +165,32 @@ export const LivingOfficeActorOverlay = forwardRef<
         aria-label="Camera-tracked actor identity labels"
         className="living-office-actor-overlay"
         data-actor-label-count={frame.actorFrames.filter((actor) => actor.visible).length}
+        data-actor-surface={isProduction ? 'production' : 'prototype'}
         data-presentation-tier={frame.presentationTier}
+        // I2-2: a bare <div> may not carry aria-label (aria-prohibited-attr). On the production surface
+        // the on-canvas labels are hidden on mobile, leaving this container with an orphan name, so give
+        // it a `group` role (which permits naming). The prototype keeps its exact frozen DOM (no role).
+        role={isProduction ? 'group' : undefined}
       >
+        {isProduction && connectors.length > 0 ? (
+          <svg
+            aria-hidden="true"
+            className="living-office-actor-overlay__connectors"
+            height={viewportHeight}
+            width={viewportWidth}
+          >
+            {connectors.map((placement) => (
+              <line
+                data-connector-for={placement.roleInstanceId}
+                key={placement.roleInstanceId}
+                x1={placement.anchorX}
+                x2={placement.x + Math.min(placement.width, 96) / 2}
+                y1={placement.anchorY}
+                y2={placement.y + 12}
+              />
+            ))}
+          </svg>
+        ) : null}
         {frame.actorFrames.filter((actor) => actor.visible).map((actor) => {
           const placement = placementByActorId.get(actor.roleInstanceId);
           const pod = projection.pods.find((candidate) => candidate.podId === actor.podId);
@@ -160,9 +202,12 @@ export const LivingOfficeActorOverlay = forwardRef<
           return (
             <button
               aria-label={actorLabelAccessibleName(actor)}
-              className="living-office-actor-label"
+              className={actor.organizationFacts === undefined
+                ? 'living-office-actor-label'
+                : 'living-office-actor-label living-office-actor-label--production'}
               data-actor-label={actor.roleInstanceId}
               data-actor-state={labelRingState(actor)}
+              data-actor-pod-selected={actor.podId === frame.selectedPodId}
               data-anchor-x={placement?.anchorX}
               data-anchor-y={placement?.anchorY}
               hidden={placement?.inViewport === false}
@@ -327,6 +372,10 @@ export function layoutPixelActorLabels(
   viewportHeight: number,
 ): readonly PixelActorLabelPlacement[] {
   const transform = cameraTransform(frame.camera, viewportWidth, viewportHeight);
+  // I2-2: reserve the production label footprint for production frames so displaced labels never overlap.
+  const isProduction = frame.actorFrames.some((actor) => actor.organizationFacts !== undefined);
+  const labelWidth = isProduction ? PRODUCTION_LABEL_WIDTH : LABEL_WIDTH;
+  const labelHeight = isProduction ? PRODUCTION_LABEL_HEIGHT : LABEL_HEIGHT;
   const actors = frame.actorFrames
     .filter((actor) => actor.visible)
     .map((actor) => ({
@@ -347,12 +396,13 @@ export function layoutPixelActorLabels(
   return actors.map(({ actor, anchorX, anchorY }) => {
     const inViewport = anchorX >= -24 && anchorX <= viewportWidth + 24
       && anchorY >= -48 && anchorY <= viewportHeight + 24;
-    const candidates = labelCandidates(anchorX, anchorY, LABEL_WIDTH, LABEL_HEIGHT)
+    const candidates = labelCandidates(anchorX, anchorY, labelWidth, labelHeight)
       .map((candidate) => clampLabelRect(candidate, viewportWidth, viewportHeight));
     const isOpen = (candidate: Rect) => occupied.every((current) => !rectanglesOverlap(candidate, current))
       && actorBounds.every((current) => !rectanglesOverlap(candidate, current));
     const preferred = candidates.find(isOpen);
-    const openGridSlot = gridLabelCandidates(anchorX, anchorY, viewportWidth, viewportHeight).find(isOpen);
+    const openGridSlot = gridLabelCandidates(anchorX, anchorY, viewportWidth, viewportHeight, labelWidth, labelHeight)
+      .find(isOpen);
     const selected = preferred ?? openGridSlot ?? candidates
       .map((candidate) => ({
         candidate,
@@ -362,7 +412,7 @@ export function layoutPixelActorLabels(
       .sort((left, right) => left.penalty - right.penalty
         || left.candidate.y - right.candidate.y
         || left.candidate.x - right.candidate.x)[0]?.candidate
-      ?? { x: VIEWPORT_PADDING, y: VIEWPORT_PADDING, width: LABEL_WIDTH, height: LABEL_HEIGHT };
+      ?? { x: VIEWPORT_PADDING, y: VIEWPORT_PADDING, width: labelWidth, height: labelHeight };
     occupied.push(selected);
     return {
       roleInstanceId: actor.roleInstanceId,
@@ -379,11 +429,13 @@ function gridLabelCandidates(
   anchorY: number,
   viewportWidth: number,
   viewportHeight: number,
+  labelWidth: number,
+  labelHeight: number,
 ): readonly Rect[] {
   const candidates: Rect[] = [];
-  for (let y = VIEWPORT_PADDING; y <= viewportHeight - LABEL_HEIGHT - VIEWPORT_PADDING; y += LABEL_HEIGHT + 6) {
-    for (let x = VIEWPORT_PADDING; x <= viewportWidth - LABEL_WIDTH - VIEWPORT_PADDING; x += LABEL_WIDTH + 6) {
-      candidates.push({ x, y, width: LABEL_WIDTH, height: LABEL_HEIGHT });
+  for (let y = VIEWPORT_PADDING; y <= viewportHeight - labelHeight - VIEWPORT_PADDING; y += labelHeight + 6) {
+    for (let x = VIEWPORT_PADDING; x <= viewportWidth - labelWidth - VIEWPORT_PADDING; x += labelWidth + 6) {
+      candidates.push({ x, y, width: labelWidth, height: labelHeight });
     }
   }
   return candidates.sort((left, right) =>
@@ -396,6 +448,14 @@ function distanceSquared(rectangle: Rect, anchorX: number, anchorY: number): num
   const deltaX = rectangle.x + rectangle.width / 2 - anchorX;
   const deltaY = rectangle.y + rectangle.height / 2 - anchorY;
   return deltaX * deltaX + deltaY * deltaY;
+}
+
+// I2-2: a production label is "displaced" (and gets a connector to its actor) when its near corner sits
+// more than ~64px from its actor anchor.
+function labelIsDisplaced(placement: PixelActorLabelPlacement): boolean {
+  const deltaX = placement.x + Math.min(placement.width, 96) / 2 - placement.anchorX;
+  const deltaY = placement.y + 12 - placement.anchorY;
+  return deltaX * deltaX + deltaY * deltaY > 64 * 64;
 }
 
 export function pixelActorLabelPlacementsOverlap(

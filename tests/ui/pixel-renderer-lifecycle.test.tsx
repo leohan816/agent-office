@@ -72,4 +72,21 @@ describe('living pixel-office renderer lifecycle contract', () => {
     // CSP-safe Pixi is registered inside the sole production lazy chunk without weakening the CSP.
     expect(chunk).toContain("import 'pixi.js/unsafe-eval'");
   });
+
+  it('never advertises a parent backend before init and uses production (not prototype/tour) copy (I2-1/I2-4)', async () => {
+    const [scene, hud] = await Promise.all([
+      readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/production-pixel-world-scene.tsx'), 'utf8'),
+      readFile(path.resolve(import.meta.dirname, '../../src/ui/pixel/living-office-hud.tsx'), 'utf8'),
+    ]);
+    // I2-1: the parent starts PENDING (never WEBGL/CANVAS) until the child host reports a successful onInit.
+    expect(scene).toContain("useState<PixelRendererBackend | 'PENDING'>(forceStatic ? 'DOM_STATIC' : 'PENDING')");
+    expect(scene).toContain('surfaceKind="PRODUCTION"');
+    // The shared HUD renders PENDING truthfully as INITIALIZING.
+    expect(hud).toContain("backend === 'PENDING' ? 'INITIALIZING'");
+    // I2-4: authenticated production wording, not the prototype/tour labels (which the prototype keeps).
+    expect(hud).toContain("production ? 'Office renderer status' : 'Prototype status'");
+    expect(hud).toContain("running ? 'CONTINUOUS AMBIENT' : 'STATIC OFFICE'");
+    // I2-4: the parent commits a new frame only at a bounded meaningful Channy transition (no 30fps updates).
+    expect(scene).toContain('if (next.channy.animation !== lastChannyStateRef.current)');
+  });
 });

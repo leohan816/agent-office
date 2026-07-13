@@ -1,6 +1,8 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
+import { assertOfficeCanvasNonblank } from '../helpers/production-office-canvas-proof.js';
+
 // Primary-Office visual + interaction evidence (Advisor doc 50/51; SIR-1/2/3/5 re-review). The
 // authenticated production Living Office renders only against the real composed loopback runtime, so
 // this spec runs ONLY under `playwright.batch-a-living-office.config.ts`. Under the default demo config
@@ -32,11 +34,33 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     // SIR-2/SIR-3: full authenticated surface passes WCAG A/AA (not the drawer-only subset), including
     // forced-colors and 200% text.
     await expectFullSurfaceAxeClean(page, 'default');
+    // I2-1: the ready host advertises a real backend; the HUD badge agrees and is never PENDING/WEBGL-pre-init.
+    await expect(page.locator('.living-office-hud__badges span[data-backend]')).toHaveAttribute('data-backend', /WEBGL|CANVAS/u);
+    // I2-4: honest production copy — no prototype/tour/fixture wording on the authenticated surface.
+    await expect(page.locator('.living-office-hud__badges')).toHaveAttribute('aria-label', 'Office renderer status');
+    await expect(page.locator('.living-office-hud__badges')).not.toContainText(/TOUR|PROTOTYPE/u);
+    await expect(page.locator('.living-office-semantic__heading')).toContainText('Accessible committed office mirror');
+    await expect(page.locator('.living-office-semantic__heading')).not.toContainText(/synthetic fixture/iu);
+    // I2-2: production labels are readable (>=10px), contained (no overflow), connected to their actors,
+    // and — critically — displaced so no two cards overlap each other.
+    await assertReadableProductionLabels(page);
+    await assertNoProductionLabelOverlap(page);
+    await assertActorConnectors(page);
+    // I2-2: the always-visible roster carries every actor's first layer (mobile/200%/bounded equivalent).
+    await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
+    // I2-4: the semantic Channy state tracks the animating canvas across ambient states (not stuck at STOP).
+    await assertChannySemanticParity(page);
+
     await page.emulateMedia({ forcedColors: 'active' });
     await expectFullSurfaceAxeClean(page, 'forced-colors');
     await page.emulateMedia({ forcedColors: 'none' });
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     await expectNoHorizontalOverflow(page);
+    // I2-2 #5: at 200% text the labels stay contained/readable, non-overlapping, and the roster remains
+    // the complete equivalent.
+    await assertReadableProductionLabels(page);
+    await assertNoProductionLabelOverlap(page);
+    await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
     await expectFullSurfaceAxeClean(page, '200% text');
     await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
     // SIR-3: unmasked live production capture, directly inspectable.
@@ -79,6 +103,10 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     await proveNonblankProductionCanvas(page, pageErrors);
     await expectNoHorizontalOverflow(page);
     await expectFullSurfaceAxeClean(page, 'mobile');
+    // I2-2 mobile: the dense on-canvas facts labels are hidden (no Office occlusion); every actor's
+    // first layer remains present + readable in the always-visible roster.
+    await expect(page.locator('.living-office-actor-label--production:visible')).toHaveCount(0);
+    await expect(page.locator('[data-actor-roster]')).toHaveCount(8);
     await page.evaluate(() => window.scrollTo(0, 0));
     await attachUnmaskedOffice(page, testInfo, 'living-office-mobile-unmasked-390x844');
   });
@@ -92,6 +120,8 @@ test.describe('authenticated Living Office primary surface (Batch A CD-2)', () =
     // Reduced motion resolves to the DOM_STATIC office tier: no live Pixi canvas, no motion cues.
     await expect(page.locator('[data-pixel-canvas]')).toHaveCount(0);
     await expect(page.locator('[data-pixel-backend="DOM_STATIC"]')).toHaveCount(1);
+    // I2-1: the HUD badge reports the static fallback truthfully (DOM_STATIC, never WEBGL).
+    await expect(page.locator('.living-office-hud__badges span[data-backend]')).toHaveAttribute('data-backend', 'DOM_STATIC');
     await expect(page.locator('[data-motion-cue], [data-route-cue]')).toHaveCount(0);
     await expect(page.locator('.living-office-surface')).toBeVisible();
     await expectFullSurfaceAxeClean(page, 'reduced-motion static');
@@ -129,22 +159,13 @@ function capturePageErrors(page: Page): string[] {
 
 /** Prove the authenticated production Pixi canvas truly initialized and rendered a non-blank office. */
 async function proveNonblankProductionCanvas(page: Page, pageErrors: readonly string[]): Promise<void> {
-  const canvas = page.locator('canvas[data-pixel-canvas="true"]');
-  await expect(canvas, 'onInit completed and marked the live canvas').toHaveCount(1);
   await expect(page.locator('.pixel-world-viewport'))
     .toHaveAttribute('data-pixel-renderer-status', 'PIXEL_READY');
   await expect(page.locator('.pixel-world-viewport')).toHaveAttribute('data-pixel-backend', /WEBGL|CANVAS/u);
-  const size = await canvas.evaluate((element) => ({
-    width: (element as HTMLCanvasElement).width,
-    height: (element as HTMLCanvasElement).height,
-  }));
-  // A failed init leaves the 300x150 default; a real init sizes the canvas to the office viewport
-  // (≈1440 wide desktop, ≈386 wide mobile) — both clear the default in each dimension.
-  expect(size.width, 'canvas intrinsic width').toBeGreaterThan(320);
-  expect(size.height, 'canvas intrinsic height').toBeGreaterThan(200);
-  // Compositor screenshot of the canvas: a blank fill compresses to a tiny PNG, a rendered office does not.
-  const rendered = await canvas.screenshot({ animations: 'disabled' });
-  expect(rendered.byteLength, 'rendered canvas must be non-blank').toBeGreaterThan(15000);
+  // Live-canvas presence, initialized dimensions, direct color-diversity non-blank proof, and blank-fill
+  // compression separation — decoupled from the DOM label overlay (hidden on mobile per I2-2) and proven
+  // in a way a blank canvas cannot pass, not a byte threshold alone. See assertOfficeCanvasNonblank.
+  await assertOfficeCanvasNonblank(page);
   // No uncaught exception (the strict-CSP eval failure surfaced here as a pageerror), and no CSP/renderer
   // error on the console. Two pre-existing benign console messages are out of this rework's scope and
   // tolerated: the pre-auth protected-resource 401, and the `runtime-app.tsx` login-form `pattern`
@@ -190,4 +211,94 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
     scroll: document.documentElement.scrollWidth,
   }));
   expect(widths.scroll).toBeLessThanOrEqual(widths.client + 1);
+}
+
+/** I2-2: every visible production label fact/source is >=10px and no descendant overflows its card. */
+async function assertReadableProductionLabels(page: Page): Promise<void> {
+  const measures = await page.locator('.living-office-actor-label--production:visible').evaluateAll((labels) =>
+    labels.map((label) => {
+      const box = label.getBoundingClientRect();
+      const texts = [...label.querySelectorAll('.living-office-actor-label__field, .living-office-actor-label__facts small')];
+      const fontSizes = texts.map((node) => Number.parseFloat(getComputedStyle(node).fontSize));
+      const overflows = [...label.querySelectorAll('*')].some((child) => {
+        const rect = child.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return false; // display:none / empty node
+        // Content clipped by an overflow:hidden/clip ancestor (a single-line ellipsised fact) is
+        // visually contained, not a visible overflow — only unclipped descendants can spill the card.
+        for (let ancestor = child.parentElement; ancestor !== null && ancestor !== label; ancestor = ancestor.parentElement) {
+          const { overflowX, overflowY } = getComputedStyle(ancestor);
+          if (overflowX === 'hidden' || overflowY === 'hidden' || overflowX === 'clip' || overflowY === 'clip') {
+            return false;
+          }
+        }
+        return rect.right > box.right + 1 || rect.bottom > box.bottom + 1
+          || rect.left < box.left - 1 || rect.top < box.top - 1;
+      });
+      return { minFont: fontSizes.length === 0 ? 99 : Math.min(...fontSizes), fieldCount: texts.length, overflows };
+    }));
+  expect(measures.length, 'at least one production label visible').toBeGreaterThan(0);
+  for (const measure of measures) {
+    expect(measure.fieldCount, 'label carries its compact fact/source text').toBeGreaterThan(0);
+    expect(measure.minFont, 'label fact/source font size (px)').toBeGreaterThanOrEqual(10);
+    expect(measure.overflows, 'no label descendant overflows its card').toBe(false);
+  }
+}
+
+/** I2-2 #2: the displaced production labels must not overlap each other (a >1px rectangle intersection). */
+async function assertNoProductionLabelOverlap(page: Page): Promise<void> {
+  const overlaps = await page.locator('.living-office-actor-label--production:visible').evaluateAll((labels) => {
+    const rects = labels.map((label) => label.getBoundingClientRect());
+    const collisions: string[] = [];
+    rects.forEach((a, i) => {
+      rects.slice(i + 1).forEach((b, offset) => {
+        const overlapWidth = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const overlapHeight = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (overlapWidth > 1 && overlapHeight > 1) collisions.push(`${i}x${i + 1 + offset}`);
+      });
+    });
+    return { count: rects.length, collisions };
+  });
+  expect(overlaps.count, 'production labels are present to check for overlap').toBeGreaterThan(0);
+  expect(overlaps.collisions, 'production actor labels must not overlap each other (I2-2 #2)').toEqual([]);
+}
+
+/** I2-2: every displaced production label is joined to its actor anchor by a connector line. */
+async function assertActorConnectors(page: Page): Promise<void> {
+  const result = await page.evaluate(() => {
+    const overlay = document.querySelector('.living-office-actor-overlay');
+    if (overlay === null) return { labels: 0, displacedWithoutConnector: 1 };
+    const overlayRect = overlay.getBoundingClientRect();
+    const connectors = new Set(
+      [...document.querySelectorAll('.living-office-actor-overlay__connectors line')]
+        .map((line) => line.getAttribute('data-connector-for')),
+    );
+    let displacedWithoutConnector = 0;
+    const labels = [...document.querySelectorAll('.living-office-actor-label--production')]
+      .filter((label) => !(label as HTMLElement).hidden) as HTMLElement[];
+    for (const label of labels) {
+      const rect = label.getBoundingClientRect();
+      const anchorX = overlayRect.left + Number(label.dataset.anchorX);
+      const anchorY = overlayRect.top + Number(label.dataset.anchorY);
+      const nearX = rect.left + Math.min(rect.width, 96) / 2;
+      const nearY = rect.top + 12;
+      const distance = Math.hypot(nearX - anchorX, nearY - anchorY);
+      if (distance > 96 && !connectors.has(label.dataset.actorLabel ?? '')) displacedWithoutConnector += 1;
+    }
+    return { labels: labels.length, displacedWithoutConnector };
+  });
+  expect(result.labels, 'production labels present').toBeGreaterThan(0);
+  expect(result.displacedWithoutConnector, 'every displaced label has a connector to its actor').toBe(0);
+}
+
+/** I2-4: the semantic mirror's Channy state changes over time in parity with the animating canvas. */
+async function assertChannySemanticParity(page: Page): Promise<void> {
+  const channy = page.locator('.living-office-semantic__channy');
+  const states = new Set<string>();
+  for (let sample = 0; sample < 5; sample += 1) {
+    const text = (await channy.textContent()) ?? '';
+    const match = /Channy\s*:\s*([A-Z_]+)/u.exec(text);
+    if (match?.[1] !== undefined) states.add(match[1]);
+    if (sample < 4) await page.waitForTimeout(2600);
+  }
+  expect(states.size, `semantic Channy ambient states observed: ${[...states].join(',')}`).toBeGreaterThanOrEqual(2);
 }

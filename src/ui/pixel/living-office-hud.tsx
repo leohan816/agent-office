@@ -2,9 +2,14 @@ import type { PixelRendererBackend, PixelWorldFrameV1 } from './contracts.js';
 
 export interface LivingOfficeHudProps {
   readonly frame: PixelWorldFrameV1;
-  readonly backend: PixelRendererBackend;
+  // `PENDING` (I2-1): the child render host has not yet reported a successful `onInit`, so no backend
+  // is advertised. The shared HUD renders it truthfully as INITIALIZING (never WEBGL/CANVAS pre-init).
+  readonly backend: PixelRendererBackend | 'PENDING';
   readonly running: boolean;
   readonly complete: boolean;
+  // I2-4: the authenticated production surface is a continuous fixture-free ambient office (no 26s
+  // tour). The prototype demo keeps its tour wording. Defaults to PROTOTYPE for the frozen prototype entry.
+  readonly surfaceKind?: 'PROTOTYPE' | 'PRODUCTION';
 }
 
 export function LivingOfficeHud({
@@ -12,9 +17,15 @@ export function LivingOfficeHud({
   backend,
   running,
   complete,
+  surfaceKind = 'PROTOTYPE',
 }: LivingOfficeHudProps) {
   // The eyebrow is carried by the producing projector on `frame.hud.eyebrow` (prototype vs
   // authenticated Office); the shared HUD embeds no fixture/prototype default of its own.
+  const production = surfaceKind === 'PRODUCTION';
+  const backendLabel = backend === 'PENDING' ? 'INITIALIZING' : backend;
+  const activityLabel = production
+    ? backend === 'PENDING' ? 'INITIALIZING' : running ? 'CONTINUOUS AMBIENT' : 'STATIC OFFICE'
+    : complete ? 'TOUR COMPLETE' : running ? 'TOUR RUNNING' : 'FROZEN FRAME';
   return (
     <header className="living-office-hud" id="living-office-status">
       <div className="living-office-hud__brand">
@@ -24,10 +35,10 @@ export function LivingOfficeHud({
           <h1>Agent Office: Living Pixel Office</h1>
         </div>
       </div>
-      <div className="living-office-hud__badges" aria-label="Prototype status">
-        <span data-backend={backend}>{backend}</span>
+      <div className="living-office-hud__badges" aria-label={production ? 'Office renderer status' : 'Prototype status'}>
+        <span data-backend={backend}>{backendLabel}</span>
         <span>{frame.presentationTier}</span>
-        <span>{complete ? 'TOUR COMPLETE' : running ? 'TOUR RUNNING' : 'FROZEN FRAME'}</span>
+        <span>{activityLabel}</span>
       </div>
       <dl className="living-office-hud__facts">
         <div><dt>Advisor Team</dt><dd>{frame.hud.selectedTeamName}</dd></div>

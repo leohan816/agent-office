@@ -311,8 +311,11 @@ function validateCommittedPod(value: unknown): boolean {
   if (!isNonBlankString(value.projectKey) || typeof value.podLabel !== 'string') return false;
   if (!Array.isArray(value.memberRoleInstanceIds) || value.memberRoleInstanceIds.length === 0) return false;
   if (!value.memberRoleInstanceIds.every((id) => isNonBlankString(id))) return false;
-  // No duplicate actor id inside a pod (a cross-pod duplicate stays an assembly diagnostic).
-  return new Set(value.memberRoleInstanceIds).size === value.memberRoleInstanceIds.length;
+  if (new Set(value.memberRoleInstanceIds).size !== value.memberRoleInstanceIds.length) return false; // no duplicate inside a pod
+  // I2-3: a non-null responsible Advisor must be a declared member of its own pod (structural
+  // pre-assembly check; the ADVISOR-role + matching-Team invariant needs runtime and stays in assembly).
+  const responsible = value.responsibleAdvisorRoleInstanceId;
+  return typeof responsible !== 'string' || value.memberRoleInstanceIds.includes(responsible);
 }
 
 /**
@@ -327,6 +330,10 @@ function validateCommittedLayout(value: unknown): value is CommittedOfficeLayout
   if (!value.pods.every((pod) => validateCommittedPod(pod))) return false;
   const podIds = value.pods.map((pod) => (pod as { readonly podId: string }).podId);
   if (new Set(podIds).size !== podIds.length) return false; // unique pod ids
+  // I2-3: an actor may belong to at most one pod — cross-pod cloned membership is rejected before
+  // assembly (not left as an assembly-time diagnostic).
+  const allMembers = value.pods.flatMap((pod) => (pod as { readonly memberRoleInstanceIds: readonly string[] }).memberRoleInstanceIds);
+  if (new Set(allMembers).size !== allMembers.length) return false;
   if (!isNonBlankString(value.selectedDefaultPodId)) return false;
   // Total role-category map: exactly the closed OrganizationRole set, each a valid closed category.
   if (!isRecord(value.roleCategoryByRole) || !hasExactKeys(value.roleCategoryByRole, ORGANIZATION_ROLES)) return false;
@@ -374,6 +381,13 @@ function parseProductionRenderInput(raw: unknown): ProductionRenderInputResult {
     return { ok: false, reason: 'CUES_NON_EMPTY', fallbackTier: 'DOM_STATIC' };
   }
   const committedLayout = rawLayout;
+  // I2-3 (contract §174): the committed selectedDefaultPodId MUST exist and equal the first pod in
+  // canonical (ascending podId) order; an invalid committed default selects the M1 fallback.
+  const canonicalFirstPodId = [...committedLayout.pods.map((pod) => pod.podId)]
+    .sort((left, right) => left.localeCompare(right, 'en'))[0];
+  if (canonicalFirstPodId === undefined || committedLayout.selectedDefaultPodId !== canonicalFirstPodId) {
+    return { ok: false, reason: 'INVALID_COMMITTED_DEFAULT', fallbackTier: 'M1_FIXED_STATIONS' };
+  }
   const assembly = assembleOfficeLayout(operational, committedLayout);
   if (assembly.fallbackTier === 'M1_FIXED_STATIONS') {
     return { ok: false, reason: 'NO_VALID_PODS', fallbackTier: 'M1_FIXED_STATIONS' };
@@ -384,9 +398,12 @@ function parseProductionRenderInput(raw: unknown): ProductionRenderInputResult {
     height: finiteAbove(rawViewport.height, Number.MIN_VALUE) ? rawViewport.height : DEFAULT_VIEWPORT.height,
   };
   const logicalTimeMs = finiteAbove(raw.logicalTimeMs, 0) ? raw.logicalTimeMs : DEFAULT_LOGICAL_TIME_MS;
-  const requestedSelection = isRecord(raw.selection) && typeof raw.selection.selectedPodId === 'string'
-    ? raw.selection.selectedPodId
-    : '';
+  // I2-3: exact selection shape — a non-record, array, extra key, or non-string selectedPodId fails
+  // closed. A well-formed but unknown selectedPodId string falls back to the committed default below.
+  if (!isRecord(raw.selection) || !hasExactKeys(raw.selection, ['selectedPodId']) || typeof raw.selection.selectedPodId !== 'string') {
+    return { ok: false, reason: 'SELECTION_SHAPE', fallbackTier: 'DOM_STATIC' };
+  }
+  const requestedSelection = raw.selection.selectedPodId;
   const validPodIds = new Set(assembly.pods.map((pod) => pod.podId));
   const selectedPodId = validPodIds.has(requestedSelection)
     ? requestedSelection
