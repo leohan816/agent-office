@@ -11,6 +11,8 @@ import {
   projectOrganizationFrame,
   type OrganizationFrame,
 } from '../../src/application/organization/index.js';
+import { assertFrameSemanticParity } from '../../src/ui/pixel/frame-core.js';
+import { projectLivingOfficeFrame } from '../../src/ui/pixel/production-frame-projector.js';
 import type { CommittedOfficeLayoutConfigV1 } from '../../src/ui/pixel/contracts.js';
 import type { LivingOfficePresentationV1 } from '../../src/runtime/projection.js';
 
@@ -190,5 +192,31 @@ describe('§3.1.1 composed render-input wrapper validation (a cast is not valida
     const result = parseLivingOfficeProductionRenderInput({ ...wrapper(), logicalTimeMs: 0 });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.logicalTimeMs).toBe(0);
+  });
+});
+
+describe('production-frame-projector builds a fixture-free PixelWorldFrameV1', () => {
+  it('produces a semantic-parity-valid frame with organization facts and no cues/route', () => {
+    const wrapper = composeLivingOfficeProductionRenderInput({
+      operational: presentation(),
+      committedLayout: COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
+      viewport: { width: 1400, height: 800 },
+      selectedPodId: 'pod:foundation',
+      logicalTimeMs: 0,
+    });
+    const result = parseLivingOfficeProductionRenderInput(wrapper);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const frame = projectLivingOfficeFrame(result.value, { presentationTier: 'PIXEL_FULL' });
+    expect(frame.schemaVersion).toBe('agent-office.pixel-world-frame.v1');
+    expect(frame.sceneId).toBe('living-office');
+    expect(frame.selectedPodId).toBe('pod:foundation');
+    expect(assertFrameSemanticParity(frame)).toBe(true);
+    expect(frame.actorFrames.length).toBeGreaterThan(0);
+    expect(frame.actorFrames.every((actor) => actor.organizationFacts !== undefined)).toBe(true);
+    expect(frame.route).toBeNull();
+    expect(frame.acceptedCueIds).toEqual([]);
+    expect(frame.camera.mode).toBe('FULL_OFFICE');
+    expect(frame.channy.authorityRole).toBe('none');
   });
 });
