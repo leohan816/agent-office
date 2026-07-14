@@ -2,7 +2,16 @@ TARGET_ACTOR: Independent Agent Office Reviewer
 MISSION_ID: AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
 ACTION: RUN_NARROW_IMPLEMENTATION_SECURITY_IDENTITY_LINEAGE_REVIEW
 
-Use /fable-sentinel.
+Load the fable-sentinel protocol directly. This Codex CLI does not register it
+as a slash command. Read and hash-verify:
+/home/leo/Project/skill/fable-sentinel/SKILL.md
+/home/leo/Project/skill/fable-sentinel/references/contract-review.md
+/home/leo/Project/skill/fable-sentinel/references/provenance-review.md
+/home/leo/Project/skill/fable-sentinel/references/review-classification.md
+/home/leo/Project/foundation-docs/설계문서/shared/AGENT_ROLE_BOUNDARY_AND_RELEASE_TRAIN_PROTOCOL_V2.md
+
+Expected SHA-256 values are committed in REVIEW_HANDOFF.md. Follow the loaded
+Sentinel protocol exactly and record successful loading in the result.
 
 Review read-only in:
 /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
@@ -17,13 +26,13 @@ Read and execute the exact committed review handoff:
 artifacts/pre-as1-registry-reconciliation/REVIEW_HANDOFF.md
 
 Review handoff commit:
-9dc0d5109b7ad1fd54f4556acf2063d4a9e75d1f
+8479185d64853f3de547067bda7a4570ae55e21f
 
 Review handoff blob:
-4eb93a70a647b3313fa953c09cb31c7740dafacb
+fbc345ef20fa11702a5b5190c80f70dd8d605cc8
 
 Review handoff SHA-256:
-1d5c8617af602b97c54124b228bdf90ac2d337522822e900f10e035b9b418bda
+b96a9bde71f330fce93bc878fc8fa2c10a5cae1385cb620021f639da342b744b
 
 Verify all anchors before review. Inspect actual source and reproduce the named
 targeted gates. Do not trust Worker or Advisor summaries. Do not implement,
