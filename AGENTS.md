@@ -10,11 +10,17 @@ Scope: this file applies to the entire repository.
   Agent Office Advisor, Designer, Worker, and independent Reviewer may all
   operate here; this file applies to whichever authorized actor is active, not
   only the Worker.
-- The active actor and role are set by an exact, committed Advisor handoff plus
-  verified runtime/actor binding — never by the session name alone. A session
-  name is not actor, role, model, effort, or authority evidence. Read your
-  matching role document under `docs/agent/roles/`, and fail closed if the
-  handoff, the verified runtime binding, and the role document disagree.
+- Actor and role are established by role, never by the session name alone. A
+  session name proves none of actor, role, model, effort, readiness, or
+  authority.
+  - **Advisor entry:** active Advisor authority comes from a Leo/GPT mission or
+    decision plus verified actor/runtime binding and `docs/agent/roles/advisor.md`.
+  - **Subordinate entry (Designer, Worker, Reviewer, Control):** authority comes
+    from an exact committed Advisor handoff plus verified actor/runtime binding
+    and the matching role document under `docs/agent/roles/`.
+  - Any disagreement between the mission/handoff, the verified runtime binding,
+    and the role document fails closed to the responsible Advisor — or to Leo/GPT
+    when the active actor is the Advisor.
 - Role separation is fixed and does not expand:
   - the **Advisor** routes, selects, and audits, but does not implement or
     review its own Team's work;
@@ -28,18 +34,22 @@ Scope: this file applies to the entire repository.
     and selection of the next mission.
 - No actor here holds cross-project, canonical-policy, risk-acceptance,
   final-approval, or next-mission authority beyond what its role and the exact
-  handoff grant.
+  mission or handoff grant.
 - Every role result must be written as durable evidence and returned to
   **Advisor**. Advisor owns routine routing and the mission audit and returns to
   Leo/GPT for the decisions above.
 
 ## Required Entry Reads
 
-Before work, read the exact active Advisor handoff, this file, `CLAUDE.md`,
+Common mandatory reads for every role: this file, `CLAUDE.md`,
 `docs/agent/TEAM_OPERATING_MODEL.md`, the actor's matching role document under
-`docs/agent/roles/`, `docs/agent/RUN_PROTOCOL.md`, and
-`docs/agent/RESULT_REPORTING_PROTOCOL.md`. Read any canonical authority named by
-the handoff directly. Historical reports are evidence, not current permission.
+`docs/agent/roles/`, and the current role-appropriate authority input — a Leo/GPT
+mission or decision for the Advisor, or the exact committed Advisor handoff for a
+subordinate. `docs/agent/RUN_PROTOCOL.md` and
+`docs/agent/RESULT_REPORTING_PROTOCOL.md` are mandatory for **Worker
+assignments**; another role reads them only when its exact authority names them
+for read-only audit context. Read any canonical authority named by the
+mission/handoff directly. Historical reports are evidence, not current permission.
 
 ## Team Binding and Common Role Docs
 
@@ -71,9 +81,14 @@ the handoff directly. Historical reports are evidence, not current permission.
   final approval, merge to `main`, push to `main`, force push, or select or start
   the next mission automatically.
 - Do not broaden allowed files, product behavior, repositories, branches, or
-  external systems beyond the exact handoff.
+  external systems beyond the exact mission or handoff.
 
 ## Work and Git Rules
+
+These execution, Git, result, and STOP rules apply to a **Worker assignment**.
+The Designer and Reviewer follow their matching role documents and handoffs; the
+Advisor follows `docs/agent/roles/advisor.md`, writes the mission audit, and
+returns to Leo/GPT, and never implements or self-reviews.
 
 - Inspect repository and dirty-worktree state before editing. Preserve unrelated
   user changes and stop on an unsafe overlap.
@@ -90,8 +105,11 @@ the handoff directly. Historical reports are evidence, not current permission.
 
 The six-file bootstrap allowlist was completed by commit
 `937f0c5f92cd3b39d81796c13bc00b4afe3407fb` and is historical evidence, not an
-active limit on a later exact Advisor handoff. For every current assignment, the
-exact committed Advisor handoff is the only repo-local file/scope authorization.
+active limit on later work. Current scope authorization is role-specific: for a
+subordinate (Designer, Worker, Reviewer, Control) the exact committed Advisor
+handoff is the only repo-local file/scope authorization; for the Advisor it is
+the Leo/GPT mission or decision. Neither path grants work beyond its exact
+mission or handoff.
 
 This replacement does not grant product work by itself. If a handoff authorizes
 design only, runtime source, configuration, tests, capabilities, server start,

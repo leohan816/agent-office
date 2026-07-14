@@ -5,21 +5,28 @@ Status: `ACTIVE`
 `AGENTS.md` applies to the whole repository and is mandatory. At the start of
 every assignment, also read:
 
-1. the exact committed Advisor handoff for the current mission;
+1. the current role-appropriate authority input — a Leo/GPT mission or decision
+   for the Advisor, or the exact committed Advisor handoff for a subordinate
+   (Designer, Worker, Reviewer, Control);
 2. `docs/agent/TEAM_OPERATING_MODEL.md` and the actor's matching role document
    under `docs/agent/roles/`;
-3. `docs/agent/RUN_PROTOCOL.md`;
-4. `docs/agent/RESULT_REPORTING_PROTOCOL.md`; and
-5. every canonical authority explicitly named by the handoff.
+3. `docs/agent/RUN_PROTOCOL.md` and `docs/agent/RESULT_REPORTING_PROTOCOL.md` for
+   a Worker assignment (another role reads them only when its exact authority
+   names them for read-only audit context); and
+4. every canonical authority explicitly named by the mission or handoff.
 
 ## Role Summary
 
 This repository is a shared canonical workspace for the Agent Office Team. The
 Advisor, Designer, Worker, and independent Reviewer may all operate here. Act
-only as the role set by your exact committed Advisor handoff plus verified
-runtime/actor binding — never inferred from the session name — and read your
-matching role document under `docs/agent/roles/`. Fail closed if the handoff, the
-verified runtime binding, and the role document disagree.
+only as the role set by your role-appropriate authority plus verified
+runtime/actor binding — never inferred from the session name. The **Advisor**
+acts on a Leo/GPT mission or decision and `docs/agent/roles/advisor.md`; a
+**subordinate** (Designer, Worker, Reviewer, Control) acts on an exact committed
+Advisor handoff and its matching role document under `docs/agent/roles/`. Fail
+closed to the responsible Advisor — or to Leo/GPT when the active actor is the
+Advisor — if the mission/handoff, the verified runtime binding, and the role
+document disagree.
 
 Role separation holds: the **Advisor** routes and audits but does not implement
 or self-review; the **Designer** designs only within an exact handoff and does
@@ -43,15 +50,18 @@ and STOP rules below apply whenever this session is running a Worker assignment.
 - Never force push, merge or push to `main`, modify a protected branch, or stage
   unrelated changes.
 - Never infer, select, or begin the next mission. Return the durable result and
-  pointer to Advisor, then stop.
+  pointer to the responsible Advisor — the Advisor returns its mission audit to
+  Leo/GPT — then stop.
 
 If actor, scope, branch, allowed files, authority, dirty state, or a security
-boundary is unclear or conflicting, stop and return the exception to Advisor.
+boundary is unclear or conflicting, stop and return the exception to the
+responsible Advisor — or to Leo/GPT when the active actor is the Advisor.
 
-The six-file bootstrap allowlist is closed historical evidence. A later exact,
-committed Advisor handoff controls the current repo-local file and behavior scope;
-it grants nothing beyond its own mission. Exact-delivery work follows the exact
-current Advisor handoff: implementation and synthetic tests never imply an
-activation or rehearsal grant. Do not start a server, create usable authority
-material, or send tmux input unless a later exact Advisor handoff explicitly
-authorizes that separate step.
+The six-file bootstrap allowlist is closed historical evidence. Current scope is
+role-specific: a subordinate's repo-local file and behavior scope is controlled
+by the exact committed Advisor handoff, and the Advisor's scope by the Leo/GPT
+mission or decision; neither grants anything beyond its own mission or handoff.
+Exact-delivery work follows that exact current authority: implementation and
+synthetic tests never imply an activation or rehearsal grant. Do not start a
+server, create usable authority material, or send tmux input unless a later exact
+mission or handoff explicitly authorizes that separate step.
