@@ -33,8 +33,13 @@ The one common source of the operating model and roles is Agent Office
   Reviewer, Control) plus an index.
 - `docs/agent/RUN_PROTOCOL.md` and `docs/agent/RESULT_REPORTING_PROTOCOL.md` —
   Worker execution and result evidence.
-- Runtime session registry (read-only reference, owned by the Advisor system):
-  `foundation-docs/advisor/_system/tmux_transport/SESSION_REGISTRY.md`.
+
+Agent Office `docs/agent/` is the current authority for Team, Actor, role,
+authority, routine, onboarding, dispatch, and tmux/runtime-binding rules.
+`foundation-docs` is evidence, history, audit, migration, and pointer storage
+only; the historical session registry
+`foundation-docs/advisor/_system/tmux_transport/SESSION_REGISTRY.md` is retained
+as evidence, not as current role or runtime authority.
 
 Project roots (`agent-office`, `FOUNDATION`, `SIASIU`, `Cosmile`) carry only a
 concise pointer to this common set plus their local Team binding and their own
@@ -65,20 +70,20 @@ The official product name is `SIASIU`.
 ## 4. Intended tmux / Workspace Bindings
 
 Session names are labels only; the live model, effort, workspace, and readiness
-must be verified before any dispatch. Intended bindings (verified present as
-directories under `/home/leo/Project/` at record time):
+must be verified before any dispatch. Canonical workspaces are project
+repositories or authorized mission worktrees, never role-named folders:
 
-| Actor / role | tmux session | Intended workspace |
-|--------------|--------------|--------------------|
-| Agent Office Advisor | `agent-office-advisor` | `/home/leo/Project/agent-office-advisor` |
-| Agent Office Worker | `agent-office-opus` | `/home/leo/Project/agent-office` (+ mission worktrees under `/home/leo/Project/.worktrees/agent-office/<MISSION>`) |
-| Agent Office Designer | `agent-office-designer` | Agent Office design workspace for `agent-office` |
-| Agent Office Reviewer | `agent-office-reviewer` | independent review session for `agent-office` |
-| Foundation Advisor | `foundation-advisor` | `/home/leo/Project/foundation-advisor` (read scope: `FOUNDATION`, `SIASIU`, `Cosmile`, `foundation-control`, `foundation-docs`) |
-| Foundation Designer | `foundation-designer` | Foundation design workspace |
+| Actor / role | tmux session | Canonical workspace |
+|--------------|--------------|---------------------|
+| Agent Office Advisor | `agent-office-advisor` | `/home/leo/Project/agent-office` or an authorized Agent Office mission worktree |
+| Agent Office Worker | `agent-office-opus` | `/home/leo/Project/agent-office` or a mission worktree under `/home/leo/Project/.worktrees/agent-office/<MISSION>` |
+| Agent Office Designer | `agent-office-designer` | `/home/leo/Project/agent-office` or an authorized Agent Office mission worktree |
+| Agent Office Reviewer | `agent-office-reviewer` | `/home/leo/Project/agent-office` or an authorized Agent Office mission worktree |
+| Foundation Advisor | `foundation-advisor` | the exact mission target among `/home/leo/Project/FOUNDATION`, `/home/leo/Project/SIASIU`, `/home/leo/Project/Cosmile` (idle/default `/home/leo/Project/FOUNDATION`) |
+| Foundation Designer | `foundation-designer` | the exact active Foundation-Team project or its mission worktree (idle/default `/home/leo/Project/FOUNDATION`) |
 | Foundation Control | `foundation-control` | `/home/leo/Project/foundation-control` |
 | Foundation Worker(s) | `foundation` / `siasiu` / `cosmile` | `/home/leo/Project/FOUNDATION` / `/home/leo/Project/SIASIU` / `/home/leo/Project/Cosmile` |
-| Foundation Reviewer | `foundation-reviewer-fable5` | independent review session for Foundation scope |
+| Foundation Reviewer | `foundation-reviewer-fable5` | the exact reviewed Foundation-Team project or its mission worktree |
 
 Durable Advisor artifacts and role results live under `foundation-docs/advisor/`
 and `foundation-docs/runs/`, per the Advisor role document.
@@ -92,7 +97,14 @@ and `foundation-docs/runs/`, per the Advisor role document.
 - No tmux session was created, modified, or dispatched by this mission; the
   session list above is read-only evidence of intended bindings.
 
-## 6. Rollback
+## 6. Machine Registry Deferral (Pre-AS1)
+
+Existing machine registry actor/Team bindings remain **unchanged** by this
+mission. A separate, minimal, config-only machine-registry delta is **mandatory
+before** the AS1 Slack Pilot. This mission does not perform that delta and does
+not start AS1; Slack remains forbidden here.
+
+## 7. Rollback
 
 This mission adds documentation and concise root pointers only. Reverting the
 mission commits on each affected branch fully restores the prior state; no
