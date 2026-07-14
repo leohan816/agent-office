@@ -1,0 +1,22 @@
+/fable-builder
+
+MISSION_ID: AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+TARGET_ACTOR: Agent Office Worker
+TARGET_SESSION: agent-office-opus
+TARGET_WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+TARGET_BRANCH: config/pre-as1-machine-registry-binding-reconciliation-001
+BASELINE_COMMIT: 5df16b311b8e7835b5b621ce2181509a445602c6
+HANDOFF_COMMIT: 6abbb274493c3bd5eb6374f7888002f6c9a85aa0
+READ_EXACT_HANDOFF: artifacts/pre-as1-registry-reconciliation/WORKER_HANDOFF.md
+HANDOFF_SHA256: ea26a431318ebca8c09527e914f045e6a75d81c893740abc0640ae12cafeda3b
+
+Read the exact committed handoff and every required entry file directly from
+the target worktree. Verify the handoff hash, branch, base ancestry, clean state,
+runtime identity, and scope before editing. Then implement the authorized narrow
+registry identity migration, run only the named targeted checks, commit and
+non-force push the isolated branch, write the exact Worker result and pointer,
+return them to agent-office-advisor, and STOP.
+
+Do not work from the main Agent Office worktree. Do not modify historical
+evidence or exact-delivery/transport code. Do not start Slack or AS1. Do not use
+another agent, session, sub-agent, or Reviewer. Do not execute from memory.
