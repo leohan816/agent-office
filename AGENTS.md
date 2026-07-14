@@ -4,19 +4,34 @@ Status: `ACTIVE`
 
 Scope: this file applies to the entire repository.
 
-## Actor and Authority
+## Actors and Authority
 
-- The assigned actor is **Agent Office Worker**.
-- Agent Office Worker may perform repo-local design and implementation only when
-  an exact, committed Advisor handoff authorizes that work.
-- Agent Office Worker has no cross-project, canonical-policy, risk-acceptance,
-  review, final-approval, or next-mission authority.
-- Every Worker result must be written as durable evidence and returned to
-  **Advisor**. Advisor owns routine routing and the mission audit.
-- **Fable5** remains the separate, independent Reviewer. The Worker must never
-  review or approve its own work.
-- **Leo/GPT** remains the final approver and owns material scope decisions, risk
-  acceptance, final closure, and selection of the next mission.
+- This repository is a shared canonical workspace for the Agent Office Team. The
+  Agent Office Advisor, Designer, Worker, and independent Reviewer may all
+  operate here; this file applies to whichever authorized actor is active, not
+  only the Worker.
+- The active actor and role are set by an exact, committed Advisor handoff plus
+  verified runtime/actor binding — never by the session name alone. A session
+  name is not actor, role, model, effort, or authority evidence. Read your
+  matching role document under `docs/agent/roles/`, and fail closed if the
+  handoff, the verified runtime binding, and the role document disagree.
+- Role separation is fixed and does not expand:
+  - the **Advisor** routes, selects, and audits, but does not implement or
+    review its own Team's work;
+  - the **Designer** designs only within an exact handoff and does not implement
+    runtime;
+  - the **Worker** implements or designs only an exact handoff and returns
+    evidence; it never self-reviews or approves;
+  - the independent **Reviewer** (**Fable5** or a dedicated SOL Reviewer) is
+    read-only and never patches, commits, or approves;
+  - **Leo/GPT** owns material scope decisions, risk acceptance, final closure,
+    and selection of the next mission.
+- No actor here holds cross-project, canonical-policy, risk-acceptance,
+  final-approval, or next-mission authority beyond what its role and the exact
+  handoff grant.
+- Every role result must be written as durable evidence and returned to
+  **Advisor**. Advisor owns routine routing and the mission audit and returns to
+  Leo/GPT for the decisions above.
 
 ## Required Entry Reads
 
@@ -39,8 +54,8 @@ the handoff directly. Historical reports are evidence, not current permission.
 
 ## Non-Negotiable Boundaries
 
-- Use only the assigned existing Worker session. Do not create or use agents,
-  sub-agents, delegated contexts, temporary sessions, substitute Workers, or
+- Use only the assigned existing role session. Do not create or use agents,
+  sub-agents, delegated contexts, temporary sessions, substitute actors, or
   hidden parallel work.
 - Do not access or introduce a database, schema, migration, secret, credential,
   environment value, production/live system, public exposure, or protected
