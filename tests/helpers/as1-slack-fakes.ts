@@ -6,6 +6,36 @@ import { chmod, mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import type { AgentOfficeRuntimeIdentity } from '../../src/runtime/identity.js';
+import { uuidV7 } from './fixtures.js';
+
+/** Deterministic, advanceable trusted-local clock + UUIDv7 source for AS1 synthetic tests. */
+export class FakeClock implements AgentOfficeRuntimeIdentity {
+  private ms: number;
+  private seq = 0;
+
+  public constructor(startIso: string) {
+    this.ms = Date.parse(startIso);
+  }
+
+  public now(): string {
+    return new Date(this.ms).toISOString();
+  }
+
+  public nextId(): string {
+    this.seq += 1;
+    return uuidV7(this.seq);
+  }
+
+  public advanceMs(delta: number): void {
+    this.ms += delta;
+  }
+
+  public setIso(iso: string): void {
+    this.ms = Date.parse(iso);
+  }
+}
+
 const HASH_A = `sha256:${'a'.repeat(64)}`;
 const HASH_B = `sha256:${'b'.repeat(64)}`;
 const HASH_C = `sha256:${'c'.repeat(64)}`;
