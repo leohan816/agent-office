@@ -213,6 +213,7 @@ describe('reviewed exact Advisor delivery bridge', () => {
     'killSwitchAndFallback',
     'optionADecision',
     'parentMissionManifest',
+    'physicalMigrationDecision',
   ] as const)('requires the exact %s authority snapshot', async (missingKey) => {
     const fixture = authorityFixture();
     const blobs = new Map(fixture.blobs);
@@ -288,6 +289,115 @@ describe('reviewed exact Advisor delivery bridge', () => {
     });
   });
 
+  it('fences the current physical destination: legacy v1, missing/wrong migration decision, old job paths, and bad registry rows fail closed', async () => {
+    const fixture = authorityFixture();
+    // Legacy v1 activation descriptor fails closed at the schema/version boundary.
+    expect(() => parseExactAdvisorDeliveryActivation({
+      ...fixture.activation,
+      schemaVersion: 'agent-office.exact-advisor-delivery-activation.v1',
+    })).toThrow(expect.objectContaining({ code: 'INVALID_SCHEMA' }));
+    // A snapshot set without the current migration decision fails closed (nine exact snapshots required).
+    const eightRefs = Object.fromEntries(
+      Object.entries(fixture.activation.snapshotRefs).filter(([key]) => key !== 'physicalMigrationDecision'),
+    );
+    expect(() => parseExactAdvisorDeliveryActivation({ ...fixture.activation, snapshotRefs: eightRefs }))
+      .toThrow(expect.objectContaining({ code: 'INVALID_SCHEMA' }));
+    // Readiness/evidence paths under the historical 20260711 job fail closed.
+    expect(() => parseExactAdvisorDeliveryActivation({
+      ...fixture.activation,
+      readinessLeasePath:
+        'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/ADVISOR_READINESS.json',
+    })).toThrow(expect.objectContaining({ code: 'INVALID_SCHEMA' }));
+    expect(() => parseExactAdvisorDeliveryActivation({
+      ...fixture.activation,
+      advisorEvidencePrefix:
+        'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/advisor-evidence',
+    })).toThrow(expect.objectContaining({ code: 'INVALID_SCHEMA' }));
+    // Identical valid decision bytes referenced from any other trusted-repository path fail closed.
+    expect(() => parseExactAdvisorDeliveryActivation({
+      ...fixture.activation,
+      snapshotRefs: {
+        ...fixture.activation.snapshotRefs,
+        physicalMigrationDecision: {
+          ...fixture.activation.snapshotRefs.physicalMigrationDecision,
+          path: 'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/OTHER_DECISION.md',
+        },
+      },
+    })).toThrow(expect.objectContaining({ code: 'INVALID_SCHEMA' }));
+
+    const root = await makeStateRoot();
+    roots.push(root);
+    let seed = 8_100;
+    // A wrong/tampered migration decision fails static authority — missing, opposite, or partial
+    // prohibition wording all fail closed even when the current destination tokens are present.
+    for (const badDecision of [
+      'Pre-AS1 migration to agent-office-advisor $26 @26 %26 /home/leo/Project/agent-office codex.\n',
+      'Some unrelated authority document with no migration decision.\n',
+      // Opposite wording (permits fallback): the exact prohibition clause is absent.
+      [
+        'Current destination: agent-office-advisor $26 @26 %26 /home/leo/Project/agent-office codex.',
+        'After the patch, active code may resolve, deliver, and fall back to the historical destination.',
+        'Historical evidence remains byte-for-byte, non-routable, and non-authoritative.',
+        'It must never be interpreted as a current physical destination or authority subject.',
+        'Do not change VibeNews, activate Slack/AS1, send tmux input, or restart the mission.',
+      ].join('\n'),
+      // Partial wording: a prohibition clause is truncated ("or authority subject" dropped).
+      [
+        'Current destination: agent-office-advisor $26 @26 %26 /home/leo/Project/agent-office codex.',
+        'After the patch, no active code or configuration may resolve, deliver, or fall back to the historical destination.',
+        'Historical evidence remains byte-for-byte, non-routable, and non-authoritative.',
+        'It must never be interpreted as a current physical destination.',
+        'Do not change VibeNews, activate Slack/AS1, send tmux input, or restart the mission.',
+      ].join('\n'),
+    ]) {
+      const bad = authorityFixture({ physicalMigrationDecision: badDecision });
+      const authority = await ExactAdvisorAuthorityValidator.open({
+        activation: bad.activation, git: new FakeGitAuthorityReader(bad.blobs), runtime: runtime(seed), stateRoot: root,
+      });
+      seed += 1;
+      await expect(authority.validateStaticAuthority()).rejects.toThrow();
+    }
+    // A tampered migration-decision blob (bytes changed, snapshot hash unchanged) fails closed.
+    const tampered = new Map(fixture.blobs);
+    const decisionRef = fixture.activation.snapshotRefs.physicalMigrationDecision;
+    tampered.set(decisionRef.path, {
+      ref: decisionRef,
+      blobId: 'b'.repeat(40),
+      bytes: Buffer.from('tampered migration decision bytes', 'utf8'),
+    });
+    const tamperedAuthority = await ExactAdvisorAuthorityValidator.open({
+      activation: fixture.activation, git: new FakeGitAuthorityReader(tampered), runtime: runtime(seed), stateRoot: root,
+    });
+    seed += 1;
+    await expect(tamperedAuthority.validateStaticAuthority()).rejects.toMatchObject({
+      code: 'AUTHORITY_ARTIFACT_INVALID',
+    });
+    // Bad session-registry rows fail: fabricated `| Advisor |` row, a duplicate current row, and a
+    // malformed row with a wrong pane id.
+    for (const badRegistry of [
+      ['synchronize-panes off',
+        '| Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | a | b |'].join('\n'),
+      ['synchronize-panes off',
+        '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | a | b |',
+        '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | a | b |'].join('\n'),
+      ['synchronize-panes off',
+        '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%99` | `/home/leo/Project/agent-office` | `codex` | a | b |'].join('\n'),
+    ]) {
+      const bad = authorityFixture({ sessionRegistry: badRegistry });
+      const authority = await ExactAdvisorAuthorityValidator.open({
+        activation: bad.activation, git: new FakeGitAuthorityReader(bad.blobs), runtime: runtime(seed), stateRoot: root,
+      });
+      seed += 1;
+      await expect(authority.validateStaticAuthority()).rejects.toThrow();
+    }
+
+    // The current exact migration decision + current destination + real registry row still pass.
+    const okAuthority = await ExactAdvisorAuthorityValidator.open({
+      activation: fixture.activation, git: new FakeGitAuthorityReader(fixture.blobs), runtime: runtime(seed), stateRoot: root,
+    });
+    await expect(okAuthority.validateStaticAuthority()).resolves.toBeDefined();
+  });
+
   it('keeps similar decision files in distinct exact-path Git histories without following copies', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'agent-office-exact-path-history-'));
     roots.push(root);
@@ -295,7 +405,7 @@ describe('reviewed exact Advisor delivery bridge', () => {
     await runFixtureGit(root, ['config', 'user.name', 'Agent Office Test']);
     await runFixtureGit(root, ['config', 'user.email', 'agent-office-test@example.invalid']);
     const prefix =
-      'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/advisor-evidence';
+      'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/advisor-evidence';
     const firstPath = `${prefix}/${uuidV7(120)}/03_DECISION.json`;
     const secondPath = `${prefix}/${uuidV7(121)}/03_DECISION.json`;
     const identicalDecision = `${JSON.stringify({
@@ -700,7 +810,7 @@ describe('closed committed Advisor evidence ingress', () => {
     const git = new FakeGitAuthorityReader(fixture.blobs);
     const decisionId = uuidV7(6_900);
     const reference = git.addUpstreamJson(
-      'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/advisor-evidence/authorities/BOUNDED_ROUTINE.json',
+      'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/advisor-evidence/authorities/BOUNDED_ROUTINE.json',
       {
         schemaVersion: 'agent-office.decision-authority-evidence.v2',
         decisionId,
@@ -751,7 +861,7 @@ describe('closed committed Advisor evidence ingress', () => {
 
     const waitingDecisionId = uuidV7(6_901);
     const waitingReference = git.addUpstreamJson(
-      'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/advisor-evidence/authorities/WAITING_ROUTE.json',
+      'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/advisor-evidence/authorities/WAITING_ROUTE.json',
       {
         schemaVersion: 'agent-office.decision-authority-evidence.v2',
         decisionId: waitingDecisionId,
@@ -944,7 +1054,7 @@ describe('closed committed Advisor evidence ingress', () => {
 
     const decisionId = uuidV7(7_230);
     const decisionAuthorityRef = git.addUpstreamJson(
-      'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/advisor-evidence/authorities/ROUTINE_ROUTE.json',
+      'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/advisor-evidence/authorities/ROUTINE_ROUTE.json',
       {
         schemaVersion: 'agent-office.decision-authority-evidence.v2',
         decisionId,
@@ -1113,7 +1223,7 @@ function authorityFixture(overrides: Readonly<Record<string, string>> = {}): {
     ].join('\n'),
     sessionRegistry: [
       'synchronize-panes off',
-      '| Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | role | fixed |',
+      '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` v0.144.3; live launch | role stored under roles/agent-office-advisor | Agent Office field manager |',
     ].join('\n'),
     killSwitchAndFallback: [
       'Current kill-switch state: `DISENGAGED`',
@@ -1121,6 +1231,38 @@ function authorityFixture(overrides: Readonly<Record<string, string>> = {}): {
     ].join('\n'),
     optionADecision: `Option A\n${MISSION_ID}\nAGENT_OFFICE_M01_EXACT_ADVISOR_DELIVERY_ACTIVATION\n`,
     parentMissionManifest: JSON.stringify(parentManifest()),
+    // Exact fixture preserving the canonical 01A artifact's real Markdown line wrapping: the
+    // prohibition clauses wrap mid-sentence exactly as committed, so the positive path only passes
+    // when whitespace is normalized before clause matching (07B real-artifact fence).
+    physicalMigrationDecision: [
+      '# Active reference scope clarification',
+      '',
+      'For every current and future Agent Office operation, replace every active',
+      'delivery, routing, preflight, allowlist, session, workspace, and fallback',
+      'reference to the historical physical destination with the verified current',
+      'destination:',
+      '',
+      'session: agent-office-advisor',
+      'sessionId: $26',
+      'windowId: @26',
+      'paneId: %26',
+      'windowIndex: 0',
+      'paneIndex: 0',
+      'workspace: /home/leo/Project/agent-office',
+      'currentCommand: codex',
+      '',
+      'After the patch, no active code or configuration may resolve, deliver, or fall',
+      'back to session foundation-advisor or workspace',
+      '/home/leo/Project/foundation-advisor or historical fixed session/window/pane IDs.',
+      '',
+      'Historical immutable evidence and audit artifacts remain byte-for-byte,',
+      'non-routable, and non-authoritative. The immutable historical roleInstanceId',
+      'foundation-advisor is evidence-only. It must never be interpreted as a',
+      'current physical destination or authority subject.',
+      '',
+      'Do not change VibeNews, activate Slack/AS1, send tmux input, or restart the',
+      'mission.',
+    ].join('\n'),
     ...overrides,
   };
   const snapshotRefs = Object.fromEntries(Object.entries(content).map(([key, text], index) => {
@@ -1128,12 +1270,14 @@ function authorityFixture(overrides: Readonly<Record<string, string>> = {}): {
     return [key, {
       repository: 'foundation-docs',
       commit,
-      path: `authority/${String(index).padStart(2, '0')}_${key}.json`,
+      path: key === 'physicalMigrationDecision'
+        ? 'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/01A_ACTIVE_REFERENCE_SCOPE_CLARIFICATION.md'
+        : `authority/${String(index).padStart(2, '0')}_${key}.json`,
       sha256: sha256Bytes(bytes),
     }];
   })) as unknown as ExactAdvisorDeliveryActivation['snapshotRefs'];
   const activation = parseExactAdvisorDeliveryActivation({
-    schemaVersion: 'agent-office.exact-advisor-delivery-activation.v1',
+    schemaVersion: 'agent-office.exact-advisor-delivery-activation.v2',
     activationId: 'AO-M01-EXACT-ADVISOR-POINTER-V1',
     mode: 'EXACT_ADVISOR_POINTER',
     authorityProjectId: 'foundation-docs',
@@ -1147,9 +1291,9 @@ function authorityFixture(overrides: Readonly<Record<string, string>> = {}): {
     },
     snapshotRefs,
     readinessLeasePath:
-      'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/ADVISOR_READINESS.json',
+      'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/ADVISOR_READINESS.json',
     advisorEvidencePrefix:
-      'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/advisor-evidence',
+      'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/advisor-evidence',
     capabilityTtlMs: 20_000,
     preflightMaxAgeMs: 20_000,
     toolLimits: { timeoutMs: 1_000, maxOutputBytes: 16 * 1024 },

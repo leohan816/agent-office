@@ -184,6 +184,7 @@ export class ExactAdvisorAuthorityValidator {
     const registryWindowId = assertRegistry(blobs.sessionRegistry.bytes);
     assertOptionA(blobs.optionADecision.bytes);
     assertParentManifest(blobs.parentMissionManifest.bytes);
+    assertPhysicalMigrationDecision(blobs.physicalMigrationDecision.bytes);
     const finalSnapshot = await this.git.snapshot();
     if (
       finalSnapshot.headCommit !== snapshot.headCommit ||
@@ -195,6 +196,7 @@ export class ExactAdvisorAuthorityValidator {
       { key: 'roleProtocol', ref: this.activation.snapshotRefs.roleProtocol },
       { key: 'optionADecision', ref: this.activation.snapshotRefs.optionADecision },
       { key: 'parentMissionManifest', ref: this.activation.snapshotRefs.parentMissionManifest },
+      { key: 'physicalMigrationDecision', ref: this.activation.snapshotRefs.physicalMigrationDecision },
     ]);
     const activationSnapshotHash = hashCanonical([
       { key: 'transportProtocol', ref: this.activation.snapshotRefs.transportProtocol },
@@ -613,15 +615,37 @@ function assertRoleProtocol(bytes: Uint8Array): void {
 
 function assertRegistry(bytes: Uint8Array): string {
   const text = utf8(bytes, 'session registry');
-  const advisorRow = text.split('\n').find((line) =>
-    line.startsWith('| Advisor |') && line.includes('`agent-office-advisor`'));
+  if (!text.includes('synchronize-panes off')) {
+    throw authorityFailure('session registry does not record synchronize-panes off');
+  }
+  // Structural column check of the real committed registry row, which begins `| Agent Office Advisor |`.
+  // Require exactly one routable Agent Office Advisor row with the exact current destination; a loose
+  // substring match that could accept a duplicate or malformed row is not sufficient.
+  const rows = text.split('\n').map((line) => line.trim()).filter((line) => {
+    const cells = line.split('|').map((cell) => cell.trim());
+    return cells.length >= 11 && cells[0] === '' && cells[1] === 'Agent Office Advisor';
+  });
+  const [advisorRow] = rows;
+  if (rows.length !== 1 || advisorRow === undefined) {
+    throw authorityFailure('session registry must contain exactly one routable Agent Office Advisor row');
+  }
+  const cells = advisorRow.split('|').map((cell) => cell.trim());
+  const code = (cell: string | undefined): string | null => {
+    if (cell === undefined) return null;
+    return /^`([^`]+)`/u.exec(cell)?.[1] ?? null;
+  };
   if (
-    advisorRow === undefined || !advisorRow.includes('`$26`') || !advisorRow.includes('`@26`') ||
-    !advisorRow.includes('`%26`') ||
-    !advisorRow.includes('`/home/leo/Project/agent-office`') ||
-    !advisorRow.includes('`codex`') ||
-    !text.includes('synchronize-panes off')
-  ) throw authorityFailure('session registry does not contain the fixed Advisor destination');
+    code(cells[2]) !== 'agent-office-advisor' ||
+    code(cells[3]) !== '$26' ||
+    cells[4] !== '0' ||
+    code(cells[5]) !== '@26' ||
+    cells[6] !== '0' ||
+    code(cells[7]) !== '%26' ||
+    code(cells[8]) !== '/home/leo/Project/agent-office' ||
+    code(cells[9]) !== 'codex'
+  ) {
+    throw authorityFailure('session registry Agent Office Advisor row is not the exact current destination');
+  }
   return '@26';
 }
 
@@ -632,6 +656,40 @@ function assertOptionA(bytes: Uint8Array): void {
     !text.includes(EXACT_DELIVERY_ACTIVATION_MISSION) ||
     !text.includes(EXACT_DELIVERY_GOVERNED_MISSION)
   ) throw authorityFailure('Leo/GPT Option A activation authority is absent');
+}
+
+// Current physical-identity migration decision fence (pre-AS1). A current v2 activation must snapshot
+// the exact migration decision, which pins the current destination, prohibits the historical
+// destination, treats historical evidence as non-authoritative, and forbids VibeNews / Slack / AS1
+// changes. Without this snapshot a legacy v1 activation / historical chain fails closed.
+function assertPhysicalMigrationDecision(bytes: Uint8Array): void {
+  const text = utf8(bytes, 'physical migration decision');
+  // The current destination is pinned by exact tokens — never whitespace-normalized.
+  const exactTokens = [
+    'agent-office-advisor',
+    '$26',
+    '@26',
+    '%26',
+    '/home/leo/Project/agent-office',
+  ];
+  if (exactTokens.some((token) => !text.includes(token))) {
+    throw authorityFailure('physical migration decision does not pin the exact current destination');
+  }
+  // Unambiguous prohibition semantics — exact stable clauses, not merely legacy-token presence.
+  // The canonical 01A decision wraps these clauses across Markdown line breaks, so collapse Unicode
+  // whitespace runs to a single ASCII space before matching. Only whitespace is normalized; the
+  // destination tokens above, clause punctuation, path identity, Git hash, and SourceArtifactRef
+  // checks all stay byte-exact.
+  const normalized = text.replace(/\s+/gu, ' ');
+  const clauses = [
+    'no active code or configuration may resolve, deliver, or fall back to',
+    'byte-for-byte, non-routable, and non-authoritative',
+    'never be interpreted as a current physical destination or authority subject',
+    'Do not change VibeNews, activate Slack/AS1, send tmux input',
+  ];
+  if (clauses.some((clause) => !normalized.includes(clause))) {
+    throw authorityFailure('physical migration decision is missing a required prohibition clause');
+  }
 }
 
 function assertParentManifest(bytes: Uint8Array): void {

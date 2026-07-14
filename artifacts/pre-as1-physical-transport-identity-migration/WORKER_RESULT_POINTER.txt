@@ -5,9 +5,11 @@ RESULT_FILE: artifacts/pre-as1-physical-transport-identity-migration/WORKER_RESU
 TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_PHYSICAL_TRANSPORT_IDENTITY_MIGRATION_001
 TARGET_BRANCH: config/pre-as1-physical-transport-identity-migration-001
 BASELINE_COMMIT: 88c6cbd757ed205eb1aadd68d8ea7629865d5765
-CHANGE: rebind active exact-delivery physical identity foundation-advisor/$9/@9/%9//home/leo/Project/foundation-advisor -> agent-office-advisor/$26/@26/%26//home/leo/Project/agent-office; authority subject -> agent-office-advisor; no schema-version bump (rejection-by-value fences legacy)
-CHECKS: tsc 0 errors; exact-delivery focused tests 53/53 (incl. added legacy-rejection negative); eslint clean; git diff --check clean
-ACTIVE_SURFACE: no historical physical-destination token in active src/config; residual legacy tokens classified (1) org evidence join key / (2) historical-only non-routable fixture
+PATCH_BASE_CANDIDATE: b523b5cf0277badb093c6d1046d71ff3f414446c
+CHANGE: rebind active exact-delivery physical identity foundation-advisor/$9/@9/%9//home/leo/Project/foundation-advisor -> agent-office-advisor/$26/@26/%26//home/leo/Project/agent-office; authority subject -> agent-office-advisor
+AUTHORITY_FENCE: F01 structural single `| Agent Office Advisor |` registry-row validation (exact columns); F02 ninth physicalMigrationDecision snapshot bound to exact 01A path (07A) + activation schema v1->v2 (legacy fails closed) + trusted job path 20260711->20260714 + decision folded into authority hash; 07B clause checks normalize only whitespace (real 01A wraps clauses across line breaks) while destination tokens/punctuation/path/hash stay byte-exact
+CHECKS: tsc 0 errors; exact-delivery focused tests 55/55; eslint clean; git diff --check clean
+ACTIVE_SURFACE: no historical physical-destination token in active src/config (authority assert enforces prohibition clauses, not tokens); residual legacy tokens classified (1) org evidence join key / (2) historical-only non-routable fixture
 PRESERVED: historical evidence/job artifacts + org evidence.ts/registry.ts byte-for-byte untouched
 BOUNDARIES: no tmux input, no Slack/AS1/transport activation, no merge/main/force, mandatory independent security review pending
 RETURN_TO: Advisor

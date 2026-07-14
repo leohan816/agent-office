@@ -22,6 +22,9 @@ const SNAPSHOT_KEYS = [
   'killSwitchAndFallback',
   'optionADecision',
   'parentMissionManifest',
+  // Current physical-identity migration decision (pre-AS1). A current v2 activation must snapshot the
+  // exact migration decision; a legacy v1 activation / historical chain alone fails closed.
+  'physicalMigrationDecision',
 ] as const;
 
 export type ExactDeliverySnapshotKey = (typeof SNAPSHOT_KEYS)[number];
@@ -41,7 +44,7 @@ export interface ExactAdvisorLiveDestination extends ExactAdvisorDestination {
 }
 
 export interface ExactAdvisorDeliveryActivation {
-  readonly schemaVersion: 'agent-office.exact-advisor-delivery-activation.v1';
+  readonly schemaVersion: 'agent-office.exact-advisor-delivery-activation.v2';
   readonly activationId: string;
   readonly mode: 'EXACT_ADVISOR_POINTER';
   readonly authorityProjectId: 'foundation-docs';
@@ -130,7 +133,7 @@ export function parseExactAdvisorDeliveryActivation(
     'exact delivery activation',
   );
   if (
-    value.schemaVersion !== 'agent-office.exact-advisor-delivery-activation.v1' ||
+    value.schemaVersion !== 'agent-office.exact-advisor-delivery-activation.v2' ||
     value.mode !== 'EXACT_ADVISOR_POINTER' ||
     value.authorityProjectId !== 'foundation-docs' ||
     value.governedMissionId !== EXACT_DELIVERY_GOVERNED_MISSION ||
@@ -151,7 +154,15 @@ export function parseExactAdvisorDeliveryActivation(
     SNAPSHOT_KEYS.map((key) => [key, parseSourceArtifactRef(rawSnapshotRefs[key], `snapshotRefs.${key}`)]),
   ) as unknown as Readonly<Record<ExactDeliverySnapshotKey, SourceArtifactRef>>;
   if (new Set(Object.values(snapshotRefs).map((ref) => `${ref.commit}:${ref.path}`)).size !== SNAPSHOT_KEYS.length) {
-    throw invalid('exact delivery authority snapshots must be eight distinct Git blobs');
+    throw invalid('exact delivery authority snapshots must be nine distinct Git blobs');
+  }
+  // The current physical-migration decision must be the exact committed migration-decision artifact;
+  // identical decision bytes at any other trusted-repository path fail closed.
+  if (
+    snapshotRefs.physicalMigrationDecision.path !==
+    'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/01A_ACTIVE_REFERENCE_SCOPE_CLARIFICATION.md'
+  ) {
+    throw invalid('physical migration decision must be the exact current migration-decision artifact');
   }
   assertRecord(value.toolLimits, 'toolLimits');
   assertExactKeys(value.toolLimits, ['timeoutMs', 'maxOutputBytes'], 'toolLimits');
@@ -162,7 +173,7 @@ export function parseExactAdvisorDeliveryActivation(
     65_536,
   );
   return {
-    schemaVersion: 'agent-office.exact-advisor-delivery-activation.v1',
+    schemaVersion: 'agent-office.exact-advisor-delivery-activation.v2',
     activationId,
     mode: 'EXACT_ADVISOR_POINTER',
     authorityProjectId: 'foundation-docs',
@@ -369,7 +380,7 @@ function boundedInteger(value: unknown, label: string, maximum: number): number 
 
 function trustedJobPath(value: unknown, label: string, directory: boolean): string {
   const result = normalizedRelativePath(value, label);
-  const prefix = 'advisor/jobs/20260711_agent_office_m01_exact_advisor_delivery_activation/';
+  const prefix = 'advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/';
   if (
     !result.startsWith(prefix) ||
     (directory ? !result.endsWith('/advisor-evidence') : !result.endsWith('.json'))

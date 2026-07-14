@@ -139,5 +139,59 @@ classified:
 - The migration is a DISABLED, fail-closed identity rebind; no live delivery was
   exercised (no tmux input). Live activation remains a separate, later gate.
 
+## Patch 01 — F01/F02 authority fence (handoff `07_WORKER_PATCH_HANDOFF.md` + path fence `07A`)
+
+Advisor validation of candidate `b523b5c` found two defects; both closed on top of it
+(allowed files only: `exact-config.ts`, `exact-authority.ts`, the exact-delivery test).
+The valid destination migration is preserved.
+
+- **F01 — real registry row structurally validated.** `assertRegistry` no longer
+  loose-substring-matches a fabricated `| Advisor |` row; it structurally parses the
+  committed markdown and requires **exactly one** routable `| Agent Office Advisor |` row
+  whose exact columns are `agent-office-advisor` / `$26` / `0` / `@26` / `0` / `%26` /
+  `/home/leo/Project/agent-office` / `codex` (backtick-extracted; the command cell may
+  carry trailing version text). Zero, duplicate, or malformed rows fail closed.
+- **F02 — versioned current-destination authority fence.** Added a ninth authority
+  snapshot `physicalMigrationDecision`, required to be the exact committed artifact
+  `advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/01A_ACTIVE_REFERENCE_SCOPE_CLARIFICATION.md`
+  (identical decision bytes at any other trusted-repository path fail closed — `07A`).
+  `assertPhysicalMigrationDecision` requires the current destination plus the exact stable
+  prohibition clauses (no active code may resolve/deliver/fall back to the historical
+  destination; historical evidence is byte-for-byte non-routable and non-authoritative;
+  the historical roleInstanceId is evidence-only and never a current destination/authority
+  subject; no VibeNews/Slack/AS1/tmux change) — not mere legacy-token presence. The snapshot
+  is folded into the capability authority hash. The activation descriptor schema is bumped
+  `v1 -> v2`, so a legacy v1 descriptor / the historical activation chain alone fails closed.
+  Active readiness-lease and Advisor-evidence path validation moved from the historical
+  `20260711` activation job to the current `20260714` migration job.
+- **Preserved:** the live two-preflight, one-use capability, single exact pane, kill switch,
+  manual fallback, and journal fail-closed behavior are unchanged. No tmux input, no transport
+  activation. No historical artifact modified. This patch changed only `exact-config.ts` +
+  `exact-authority.ts` in source; `exact-transport.ts` / `decision-authority.ts` /
+  `evidence-ingress.ts` / the config json were not touched.
+- **Tests (all pass):** the real `| Agent Office Advisor |` row + v2 + migration-decision
+  snapshot positive; and negatives — fabricated `| Advisor |`, duplicate, and malformed
+  registry rows; legacy v1 descriptor; a snapshot set without the migration decision; a
+  wrong/tampered migration decision; the migration decision at a different path; readiness/
+  evidence paths under the old `20260711` job; and all historical destination fields
+  `FORBIDDEN_TARGET`. `physicalMigrationDecision` added to the exact-snapshot-required set.
+- **07B — real-artifact fence.** The committed `01A_ACTIVE_REFERENCE_SCOPE_CLARIFICATION.md`
+  wraps three prohibition clauses across Markdown line breaks (`…or fall`↵`back to`,
+  `byte-for-byte,`↵`non-routable`, `interpreted as a`↵`current physical destination`), so a
+  one-space `includes()` check would have rejected the canonical artifact while a synthetic
+  single-line fixture passed. `assertPhysicalMigrationDecision` now collapses only Unicode
+  whitespace runs to one ASCII space before matching the prose clauses; destination tokens,
+  clause punctuation, the exact `01A` path, the snapshot Git hash, and every `SourceArtifactRef`
+  check stay byte-exact. The positive fixture was replaced with one that preserves the real
+  mid-clause wrapping (it fails without the normalization). Negatives retained/added: opposite
+  wording (permits fallback), partial wording (a clause truncated), wrong path, a tampered
+  decision blob (bytes changed / snapshot hash unchanged → `AUTHORITY_ARTIFACT_INVALID`), and
+  missing clauses — all fail closed.
+- **Checks:** `tsc` 0 errors; exact-delivery suite **55/55**; eslint clean; `git diff --check`
+  clean. Active-surface: the authority assert enforces prohibition **clauses**, so no
+  historical physical-destination token remains in active `src`/`config`; remaining historical
+  tokens are classified (1) org-registry evidence join key / (2) historical-only negative
+  fixtures that cannot route.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
