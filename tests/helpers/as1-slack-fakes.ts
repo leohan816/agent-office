@@ -7,6 +7,18 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import type { AgentOfficeRuntimeIdentity } from '../../src/runtime/identity.js';
+import type {
+  As1AuthTestResult,
+  As1BotsInfoResult,
+  As1PostMessageRequest,
+  As1PostMessageResult,
+  As1WebPort,
+} from '../../src/adapters/gateways/slack-pilot/web-client.js';
+import type {
+  As1InboundEnvelope,
+  As1SocketConnectResult,
+  As1SocketPort,
+} from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import { uuidV7 } from './fixtures.js';
 
 /** Deterministic, advanceable trusted-local clock + UUIDv7 source for AS1 synthetic tests. */
@@ -190,4 +202,171 @@ export async function makeNestedSecret(content: string, dirMode: number): Promis
   await chmod(filePath, 0o600);
   await chmod(dir, dirMode);
   return { dir, filePath };
+}
+
+// ── Fake Slack ports (no real network) ───────────────────────────────────────
+export interface FakeBotIdentity {
+  readonly teamId: string;
+  readonly appId: string;
+  readonly botId: string;
+  readonly botUserId: string;
+  readonly deleted?: boolean;
+}
+
+export interface PostedMessage {
+  readonly botToken: string;
+  readonly request: As1PostMessageRequest;
+}
+
+/** In-memory Web port. Faithfully maps each bot token to its true identity; swaps are made by the caller. */
+export class FakeWebPort implements As1WebPort {
+  public authTestCalls = 0;
+  public readonly posted: PostedMessage[] = [];
+  private readonly byBotToken = new Map<string, FakeBotIdentity>();
+  private postResult: As1PostMessageResult | null = null;
+  private postError: Error | null = null;
+
+  public register(botToken: string, identity: FakeBotIdentity): void {
+    this.byBotToken.set(botToken, identity);
+  }
+
+  public setPostResult(result: As1PostMessageResult): void {
+    this.postResult = result;
+  }
+
+  public setPostError(error: Error): void {
+    this.postError = error;
+  }
+
+  public authTest(botToken: string): Promise<As1AuthTestResult> {
+    this.authTestCalls += 1;
+    const identity = this.byBotToken.get(botToken);
+    if (identity === undefined) {
+      return Promise.resolve({ ok: false, teamId: '', userId: '', botId: '' });
+    }
+    return Promise.resolve({ ok: true, teamId: identity.teamId, userId: identity.botUserId, botId: identity.botId });
+  }
+
+  public botsInfo(botToken: string, botId: string): Promise<As1BotsInfoResult> {
+    const identity = this.byBotToken.get(botToken);
+    if (identity === undefined) {
+      return Promise.resolve({ ok: false, appId: '', botId, userId: '', deleted: true });
+    }
+    return Promise.resolve({
+      ok: true,
+      appId: identity.appId,
+      botId: identity.botId,
+      userId: identity.botUserId,
+      deleted: identity.deleted ?? false,
+    });
+  }
+
+  public postMessage(botToken: string, request: As1PostMessageRequest): Promise<As1PostMessageResult> {
+    this.posted.push({ botToken, request });
+    if (this.postError !== null) return Promise.reject(this.postError);
+    return Promise.resolve(this.postResult ?? { ok: true, channel: request.channel, ts: '1720000000.000999' });
+  }
+}
+
+/** In-memory Socket port. Maps each app token to the hello app_id it would report. */
+export class FakeSocketPort implements As1SocketPort {
+  public connectCalls = 0;
+  public disconnectCalls = 0;
+  private readonly byAppToken = new Map<string, string>();
+  private handler: ((envelope: As1InboundEnvelope) => Promise<void>) | null = null;
+
+  public register(appToken: string, helloAppId: string): void {
+    this.byAppToken.set(appToken, helloAppId);
+  }
+
+  public connect(appToken: string): Promise<As1SocketConnectResult> {
+    this.connectCalls += 1;
+    const helloAppId = this.byAppToken.get(appToken);
+    if (helloAppId === undefined) {
+      return Promise.resolve({ ok: false, helloAppId: '' });
+    }
+    return Promise.resolve({ ok: true, helloAppId });
+  }
+
+  public onEnvelope(handler: (envelope: As1InboundEnvelope) => Promise<void>): void {
+    this.handler = handler;
+  }
+
+  public disconnect(): Promise<void> {
+    this.disconnectCalls += 1;
+    return Promise.resolve();
+  }
+
+  public async deliver(envelope: As1InboundEnvelope): Promise<void> {
+    if (this.handler === null) throw new Error('no envelope handler registered');
+    await this.handler(envelope);
+  }
+}
+
+export interface FakeWireWorld {
+  readonly workspaceId: string;
+  readonly agentOffice: {
+    readonly appId: string;
+    readonly channelId: string;
+    readonly leoUserId: string;
+    readonly botToken: string;
+    readonly appToken: string;
+    readonly botId: string;
+    readonly botUserId: string;
+  };
+  readonly foundation: {
+    readonly appId: string;
+    readonly channelId: string;
+    readonly leoUserId: string;
+    readonly botToken: string;
+    readonly appToken: string;
+    readonly botId: string;
+    readonly botUserId: string;
+  };
+}
+
+/** A synthetic two-profile Slack world with fully registered Web/Socket ports. */
+export function fakeWireWorld(): {
+  world: FakeWireWorld;
+  web: FakeWebPort;
+  socket: FakeSocketPort;
+} {
+  const world: FakeWireWorld = {
+    workspaceId: 'TWORKSPACE001',
+    agentOffice: {
+      appId: 'AAGENTOFFICE01',
+      channelId: 'CAGENTOFFICE01',
+      leoUserId: APPROVED_LEO_USER_ID,
+      botToken: 'xoxb-agentoffice-placeholder-0001',
+      appToken: 'xapp-agentoffice-placeholder-0001',
+      botId: 'BAGENTOFFICE01',
+      botUserId: 'UAGENTOFFICEBOT1',
+    },
+    foundation: {
+      appId: 'AFOUNDATION001',
+      channelId: 'CFOUNDATION001',
+      leoUserId: APPROVED_LEO_USER_ID,
+      botToken: 'xoxb-foundation-placeholder-00001',
+      appToken: 'xapp-foundation-placeholder-00001',
+      botId: 'BFOUNDATION0001',
+      botUserId: 'UFOUNDATIONBOT1',
+    },
+  };
+  const web = new FakeWebPort();
+  const socket = new FakeSocketPort();
+  web.register(world.agentOffice.botToken, {
+    teamId: world.workspaceId,
+    appId: world.agentOffice.appId,
+    botId: world.agentOffice.botId,
+    botUserId: world.agentOffice.botUserId,
+  });
+  web.register(world.foundation.botToken, {
+    teamId: world.workspaceId,
+    appId: world.foundation.appId,
+    botId: world.foundation.botId,
+    botUserId: world.foundation.botUserId,
+  });
+  socket.register(world.agentOffice.appToken, world.agentOffice.appId);
+  socket.register(world.foundation.appToken, world.foundation.appId);
+  return { world, web, socket };
 }
