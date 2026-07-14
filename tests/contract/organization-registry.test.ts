@@ -258,6 +258,104 @@ describe('pre-AS1 actorId identity migration + routing (roleInstanceId join key 
   });
 });
 
+describe('routine completeness reconciliation — current Team/session bindings (patch 01)', () => {
+  const frame = project({ registry: ORGANIZATION_REGISTRY, evidence: ORGANIZATION_EVIDENCE });
+  function reg(roleInstanceId: string): OrganizationRegistryRow {
+    const found = ORGANIZATION_REGISTRY.find((r) => r.roleInstanceId === roleInstanceId);
+    if (found === undefined) throw new Error(`registry row ${roleInstanceId} not found`);
+    return found;
+  }
+  function responsibleFor(team: string): string {
+    if (team === 'AGENT_OFFICE_ADVISOR_TEAM') return 'agent-office-advisor';
+    if (team === 'FOUNDATION_ADVISOR_TEAM') return 'foundation-advisor';
+    if (team === 'VIBENEWS_ADVISOR_TEAM') return 'vibenews-advisor';
+    throw new Error(`no responsible advisor mapped for team ${team}`);
+  }
+
+  it('preserves all eight original immutable roleInstanceId keys', () => {
+    for (const key of ['foundation-advisor', 'foundation-control', 'agent-office-worker', 'foundation-reviewer', 'cosmile-worker', 'siasiu-worker', 'vibenews-advisor', 'vibenews-worker']) {
+      expect(ORGANIZATION_REGISTRY.some((r) => r.roleInstanceId === key)).toBe(true);
+    }
+  });
+
+  it('migrates the continuing Reviewer to the Agent Office Reviewer while retaining its evidence', () => {
+    const rev = reg('foundation-reviewer');
+    expect(rev.actorId).toBe('agent-office-reviewer');
+    expect(rev.role).toBe('REVIEWER');
+    expect(rev.project).toBe('AGENT_OFFICE');
+    expect(rev.advisorTeam).toBe('AGENT_OFFICE_ADVISOR_TEAM');
+    expect(rev.reportsToAdvisor).toBe('agent-office-advisor');
+    expect(rev.sessionName).toBe('agent-office-reviewer');
+    // Its committed evidence still joins only to the immutable key `foundation-reviewer`.
+    const projected = actorById(frame.actors, 'foundation-reviewer');
+    expect(projected.sessionProcess.value).toBe('AI_PROCESS_DETECTED');
+    expect(projected.aiIdentity.value).toBe('GPT_5_6_SOL');
+    expect(projected.model.value).toBe('gpt-5.6-sol');
+    expect(projected.effort.value).toBe('XHIGH');
+  });
+
+  it('adds registry-only Designer/Worker/Reviewer rows that inherit no historical evidence', () => {
+    for (const roleInstanceId of ['agent-office-designer', 'foundation-designer', 'foundation-worker', 'foundation-reviewer-fable5']) {
+      const projected = actorById(frame.actors, roleInstanceId);
+      expect(projected.sessionProcess.value).toBe('SESSION_PROCESS_UNKNOWN');
+      expect(projected.aiRuntimeState.value).toBe('AI_RUNTIME_UNKNOWN');
+      expect(projected.model.value).toBe('MODEL_UNKNOWN');
+    }
+  });
+
+  it('binds exactly one responsible ADVISOR per current Advisor-led Team by actorId', () => {
+    const advisorsByTeam = new Map<string, string[]>();
+    for (const r of ORGANIZATION_REGISTRY) {
+      if (r.role !== 'ADVISOR') continue;
+      const group = advisorsByTeam.get(r.advisorTeam) ?? [];
+      group.push(r.actorId);
+      advisorsByTeam.set(r.advisorTeam, group);
+    }
+    expect(advisorsByTeam.get('AGENT_OFFICE_ADVISOR_TEAM')).toEqual(['agent-office-advisor']);
+    expect(advisorsByTeam.get('FOUNDATION_ADVISOR_TEAM')).toEqual(['foundation-advisor']);
+    expect(advisorsByTeam.get('VIBENEWS_ADVISOR_TEAM')).toEqual(['vibenews-advisor']);
+  });
+
+  it('routes every current subordinate to its Team responsible Advisor by actorId', () => {
+    for (const r of ORGANIZATION_REGISTRY) {
+      if (r.role === 'ADVISOR') continue; // Advisors route to external authority leo-gpt.
+      expect(r.reportsToAdvisor).toBe(responsibleFor(r.advisorTeam));
+      expect(r.assignedBy).toBe(responsibleFor(r.advisorTeam));
+      expect(r.returnsResultTo).toBe(responsibleFor(r.advisorTeam));
+    }
+  });
+
+  it('keeps both Reviewer rows role REVIEWER (verdict independence; only routing through the Advisor)', () => {
+    const reviewers = ORGANIZATION_REGISTRY.filter((r) => r.role === 'REVIEWER');
+    expect(reviewers.map((r) => r.roleInstanceId).sort()).toEqual(['foundation-reviewer', 'foundation-reviewer-fable5']);
+    for (const r of reviewers) {
+      expect(r.role).toBe('REVIEWER');
+      expect(Object.keys(r)).not.toContain('verdictAuthority');
+    }
+  });
+
+  it('sets the exact current session bindings', () => {
+    expect(reg('cosmile-worker').sessionName).toBe('cosmile');
+    expect(reg('siasiu-worker').sessionName).toBe('siasiu');
+    expect(reg('foundation-worker').sessionName).toBe('foundation');
+    expect(reg('foundation-reviewer-fable5').sessionName).toBe('foundation-reviewer-fable5');
+    expect(reg('foundation-reviewer').sessionName).toBe('agent-office-reviewer');
+    expect(reg('agent-office-designer').sessionName).toBe('agent-office-designer');
+    expect(reg('foundation-designer').sessionName).toBe('foundation-designer');
+  });
+
+  it('excludes agent-office-sol as a current dispatchable Team actor', () => {
+    expect(ORGANIZATION_REGISTRY.some((r) => r.roleInstanceId === 'agent-office-sol' || r.actorId === 'agent-office-sol' || r.sessionName === 'agent-office-sol')).toBe(false);
+  });
+
+  it('leaves both VibeNews rows unchanged', () => {
+    const va = reg('vibenews-advisor');
+    const vw = reg('vibenews-worker');
+    expect([va.actorId, va.project, va.advisorTeam, va.sessionName, va.reportsToAdvisor]).toEqual(['vibenews-advisor', 'VIBENEWS', 'VIBENEWS_ADVISOR_TEAM', 'vibenews-advisor', 'leo-gpt']);
+    expect([vw.actorId, vw.project, vw.advisorTeam, vw.sessionName, vw.reportsToAdvisor]).toEqual(['vibenews-worker', 'VIBENEWS', 'VIBENEWS_ADVISOR_TEAM', 'vibenews-worker', 'vibenews-advisor']);
+  });
+});
+
 describe('§2.3 process & AI-runtime facts require exact evidence', () => {
   it('a missing process observation is SESSION_PROCESS_UNKNOWN, never SESSION_OFFLINE', () => {
     const actor = actorById(project({ registry: [row()] }).actors, 'r1');

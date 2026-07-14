@@ -56,10 +56,11 @@ export const COMMITTED_OFFICE_LAYOUT_CONFIG_V1: CommittedOfficeLayoutConfigV1 = 
   pods: [
     {
       // Foundation Advisor Team. After the pre-AS1 identity migration the responsible Advisor is the
-      // newly created Foundation Advisor (roleInstanceId `foundation-advisor-20260714-01`); the former
-      // `foundation-advisor` roleInstanceId and `agent-office-worker` are now Agent Office Team actors
-      // and are no longer Foundation pod members. This is the minimal layout reconciliation needed to
-      // keep the composed render valid — no new office pod is introduced.
+      // newly created Foundation Advisor (roleInstanceId `foundation-advisor-20260714-01`). The former
+      // `foundation-advisor` roleInstanceId, `agent-office-worker`, and the migrated Reviewer
+      // `foundation-reviewer` are now Agent Office Team actors and are no longer Foundation pod
+      // members; the pod lists exactly the current Foundation Team registry actors. This is the minimal
+      // layout reconciliation needed to keep the composed render valid — no new office pod is introduced.
       podId: 'pod:foundation',
       advisorTeamId: 'FOUNDATION_ADVISOR_TEAM',
       responsibleAdvisorRoleInstanceId: 'foundation-advisor-20260714-01',
@@ -68,9 +69,11 @@ export const COMMITTED_OFFICE_LAYOUT_CONFIG_V1: CommittedOfficeLayoutConfigV1 = 
       memberRoleInstanceIds: [
         'foundation-advisor-20260714-01',
         'foundation-control',
-        'foundation-reviewer',
+        'foundation-designer',
+        'foundation-worker',
         'cosmile-worker',
         'siasiu-worker',
+        'foundation-reviewer-fable5',
       ],
     },
     {

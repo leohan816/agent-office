@@ -30,7 +30,7 @@ function frame(): OrganizationFrame {
     evidence: ORGANIZATION_EVIDENCE,
     runtime: [
       { roleInstanceId: 'agent-office-worker', mission: 'MODERN_OFFICE', workUnit: 'BA-WU-01', observableName: 'WORKING' },
-      { roleInstanceId: 'foundation-reviewer', mission: 'MODERN_OFFICE', workUnit: 'BA-WU-01', observableName: 'REVIEWING' },
+      { roleInstanceId: 'foundation-reviewer-fable5', mission: 'MODERN_OFFICE', workUnit: 'BA-WU-01', observableName: 'REVIEWING' },
     ],
     evaluatedAt: EVALUATED_AT,
   });
@@ -107,10 +107,10 @@ describe('§3.1 deterministic pod assembly', () => {
   });
 
   it('selects the current actor by the 14-state priority order (REVIEWING wins in the Foundation pod)', () => {
-    // agent-office-worker (WORKING) is now an Agent Office Team actor, not a Foundation pod member, so
-    // the highest-priority Foundation member is the reviewer (REVIEWING).
+    // agent-office-worker (WORKING) is an Agent Office Team actor, not a Foundation pod member; the
+    // highest-priority Foundation member is the current Foundation Reviewer (REVIEWING).
     const foundation = assembly.pods.find((pod) => pod.podId === 'pod:foundation');
-    expect(foundation?.currentActorRoleInstanceId).toBe('foundation-reviewer');
+    expect(foundation?.currentActorRoleInstanceId).toBe('foundation-reviewer-fable5');
     expect(foundation?.operationalState).toBe('REVIEWING');
   });
 

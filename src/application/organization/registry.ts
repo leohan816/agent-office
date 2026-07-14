@@ -195,17 +195,33 @@ export const ORGANIZATION_REGISTRY: readonly OrganizationRegistryRow[] = [
     returnsResultTo: 'agent-office-advisor',
     sessionName: 'agent-office-opus',
   }),
+  // Continuing reviewed Reviewer migrated to the Agent Office Reviewer. Immutable join key retained
+  // (keeps its committed evidence); routable identity + project/team/route/session migrated. Reviewer
+  // verdict independence is unchanged; only assignment/result routing goes through the Advisor.
   committedRegistryRow({
     roleInstanceId: 'foundation-reviewer',
-    actorId: 'foundation-reviewer',
+    actorId: 'agent-office-reviewer',
     role: 'REVIEWER',
-    project: 'FOUNDATION',
+    project: 'AGENT_OFFICE',
     stableDisplayName: 'Independent Reviewer',
-    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
-    reportsToAdvisor: 'foundation-advisor',
-    assignedBy: 'foundation-advisor',
-    returnsResultTo: 'foundation-advisor',
-    sessionName: 'foundation-reviewer-sol',
+    advisorTeam: 'AGENT_OFFICE_ADVISOR_TEAM',
+    reportsToAdvisor: 'agent-office-advisor',
+    assignedBy: 'agent-office-advisor',
+    returnsResultTo: 'agent-office-advisor',
+    sessionName: 'agent-office-reviewer',
+  }),
+  // Registry-only Agent Office Designer (no historical evidence).
+  committedRegistryRow({
+    roleInstanceId: 'agent-office-designer',
+    actorId: 'agent-office-designer',
+    role: 'DESIGNER',
+    project: 'AGENT_OFFICE',
+    stableDisplayName: 'Agent Office Designer',
+    advisorTeam: 'AGENT_OFFICE_ADVISOR_TEAM',
+    reportsToAdvisor: 'agent-office-advisor',
+    assignedBy: 'agent-office-advisor',
+    returnsResultTo: 'agent-office-advisor',
+    sessionName: 'agent-office-designer',
   }),
   committedRegistryRow({
     roleInstanceId: 'cosmile-worker',
@@ -217,7 +233,7 @@ export const ORGANIZATION_REGISTRY: readonly OrganizationRegistryRow[] = [
     reportsToAdvisor: 'foundation-advisor',
     assignedBy: 'foundation-advisor',
     returnsResultTo: 'foundation-advisor',
-    sessionName: 'cosmile-worker',
+    sessionName: 'cosmile',
   }),
   committedRegistryRow({
     roleInstanceId: 'siasiu-worker',
@@ -229,7 +245,47 @@ export const ORGANIZATION_REGISTRY: readonly OrganizationRegistryRow[] = [
     reportsToAdvisor: 'foundation-advisor',
     assignedBy: 'foundation-advisor',
     returnsResultTo: 'foundation-advisor',
-    sessionName: 'siasiu-worker',
+    sessionName: 'siasiu',
+  }),
+  // Registry-only Foundation Designer (no historical evidence).
+  committedRegistryRow({
+    roleInstanceId: 'foundation-designer',
+    actorId: 'foundation-designer',
+    role: 'DESIGNER',
+    project: 'FOUNDATION',
+    stableDisplayName: 'Foundation Designer',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'foundation-designer',
+  }),
+  // Foundation Worker (session `foundation`); routes through the Foundation Advisor.
+  committedRegistryRow({
+    roleInstanceId: 'foundation-worker',
+    actorId: 'foundation-worker',
+    role: 'WORKER',
+    project: 'FOUNDATION',
+    stableDisplayName: 'Foundation Worker',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'foundation',
+  }),
+  // Current independent Foundation Reviewer (session `foundation-reviewer-fable5`); assignment/result
+  // route through the Foundation Advisor while verdict independence is unchanged. No historical evidence.
+  committedRegistryRow({
+    roleInstanceId: 'foundation-reviewer-fable5',
+    actorId: 'foundation-reviewer-fable5',
+    role: 'REVIEWER',
+    project: 'FOUNDATION',
+    stableDisplayName: 'Foundation Reviewer',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'foundation-advisor',
+    returnsResultTo: 'foundation-advisor',
+    sessionName: 'foundation-reviewer-fable5',
   }),
   // VibeNews rows are read-only: only the mechanical addition of `actorId` (same existing identifier).
   committedRegistryRow({

@@ -343,7 +343,7 @@ describe('executable loopback composition and production runtime client', () => 
     // Batch A additive Living Office derived view reaches the browser client (design §2.2).
     const livingOffice = client.snapshot().projection?.livingOffice;
     expect(livingOffice).toMatchObject({ schemaVersion: 'agent-office.living-office-presentation.v1' });
-    expect(livingOffice?.frame.actors).toHaveLength(9);
+    expect(livingOffice?.frame.actors).toHaveLength(13);
     const agentOfficeActor = livingOffice?.frame.actors.find((actor) => actor.roleInstanceId === 'agent-office-worker');
     expect(agentOfficeActor?.stableDisplayName.value).toBe('Agent Office Worker');
     // Re-parented to the Agent Office Team by the pre-AS1 registry identity migration.
