@@ -372,16 +372,54 @@ describe('reviewed exact Advisor delivery bridge', () => {
     await expect(tamperedAuthority.validateStaticAuthority()).rejects.toMatchObject({
       code: 'AUTHORITY_ARTIFACT_INVALID',
     });
-    // Bad session-registry rows fail: fabricated `| Advisor |` row, a duplicate current row, and a
-    // malformed row with a wrong pane id.
+    // Bad session-registry rows fail closed. The canonical content columns (Actor, session,
+    // sessionId, windowIndex, windowId, paneIndex, paneId, workspace, process, role evidence,
+    // dispatch status) are valid on their own; each negative injects exactly one defect so it fails
+    // only on that defect.
+    const canonicalCells = [
+      'Agent Office Advisor',
+      '`agent-office-advisor`',
+      '`$26`',
+      '0',
+      '`@26`',
+      '0',
+      '`%26`',
+      '`/home/leo/Project/agent-office`',
+      '`codex` v0.144.3; live launch record identifies `gpt-5.6-sol` / `max` at this observation',
+      'role stored under roles/agent-office-advisor',
+      'Agent Office field manager',
+    ];
+    const registry = (cells: readonly string[]): string =>
+      ['synchronize-panes off', `| ${cells.join(' | ')} |`].join('\n');
+    const withCell = (index: number, value: string): readonly string[] => {
+      const copy = [...canonicalCells];
+      copy[index] = value;
+      return copy;
+    };
     for (const badRegistry of [
-      ['synchronize-panes off',
-        '| Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | a | b |'].join('\n'),
-      ['synchronize-panes off',
-        '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | a | b |',
-        '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | a | b |'].join('\n'),
-      ['synchronize-panes off',
-        '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%99` | `/home/leo/Project/agent-office` | `codex` | a | b |'].join('\n'),
+      // Fabricated `| Advisor |` label.
+      registry(withCell(0, 'Advisor')),
+      // Duplicate current Advisor row.
+      ['synchronize-panes off', `| ${canonicalCells.join(' | ')} |`, `| ${canonicalCells.join(' | ')} |`].join('\n'),
+      // Wrong pane id.
+      registry(withCell(6, '`%99`')),
+      // Suffix contamination on each authority-bearing identity/location cell.
+      registry(withCell(1, '`agent-office-advisor`JUNK')),
+      registry(withCell(2, '`$26`JUNK')),
+      registry(withCell(4, '`@26`JUNK')),
+      registry(withCell(6, '`%26`JUNK')),
+      registry(withCell(7, '`/home/leo/Project/agent-office`JUNK')),
+      // Suffix contamination on the process command token.
+      registry(withCell(8, '`codex`JUNK')),
+      // Process annotation that satisfies the permissive `; \S.*` shape but not the canonical
+      // grammar (arbitrary text after the version/semicolon).
+      registry(withCell(8, '`codex` v0.144.3; arbitrary trailing observation text')),
+      // Process annotation with extra text appended after the complete canonical grammar.
+      registry(withCell(8, '`codex` v0.144.3; live launch record identifies `gpt-5.6-sol` / `max` at this observation EXTRA')),
+      // Row truncated after the process column (no role-evidence / dispatch-status cells).
+      registry(canonicalCells.slice(0, 9)),
+      // Row with an unexpected extra structural column.
+      registry([...canonicalCells, 'unexpected extra column']),
     ]) {
       const bad = authorityFixture({ sessionRegistry: badRegistry });
       const authority = await ExactAdvisorAuthorityValidator.open({
@@ -447,7 +485,7 @@ describe('reviewed exact Advisor delivery bridge', () => {
     await expect(reader.pathHistory(secondPath)).resolves.toHaveLength(2);
   });
 
-  it('writes byte-exact pointer evidence and invokes only load, paste-to-%9, and Enter once', async () => {
+  it('writes byte-exact pointer evidence and invokes only load, paste-to-%26, and Enter once', async () => {
     const fixture = await deliveryFixture();
     const request = gatewayRequest(100);
     const pointerEnvelope = canonicalAdvisorPointerEnvelope(request);
@@ -1221,9 +1259,11 @@ function authorityFixture(overrides: Readonly<Record<string, string>> = {}): {
       'KILL_SWITCH_FINAL_STATE: `DISENGAGED`',
       'PRODUCT_MISSION_AUTHORIZATION: `NONE`',
     ].join('\n'),
+    // The actual current canonical Advisor row from the committed SESSION_REGISTRY.md, including its
+    // accepted process observation annotation (`codex` + version observation with embedded backticks).
     sessionRegistry: [
       'synchronize-panes off',
-      '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` v0.144.3; live launch | role stored under roles/agent-office-advisor | Agent Office field manager |',
+      '| Agent Office Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` v0.144.3; live launch record identifies `gpt-5.6-sol` / `max` at this observation | Agent Office Advisor role is stored under `foundation-docs/advisor/_system/roles/agent-office-advisor/`; no role-named project folder | Agent Office field manager; historical exact-delivery authority remains `SUSPENDED__LOCATOR_REBIND_REQUIRED` until the current migration implementation and independent review pass |',
     ].join('\n'),
     killSwitchAndFallback: [
       'Current kill-switch state: `DISENGAGED`',

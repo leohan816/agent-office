@@ -618,31 +618,51 @@ function assertRegistry(bytes: Uint8Array): string {
   if (!text.includes('synchronize-panes off')) {
     throw authorityFailure('session registry does not record synchronize-panes off');
   }
-  // Structural column check of the real committed registry row, which begins `| Agent Office Advisor |`.
-  // Require exactly one routable Agent Office Advisor row with the exact current destination; a loose
-  // substring match that could accept a duplicate or malformed row is not sufficient.
+  // Exact structural authority fence over the committed registry row, which begins
+  // `| Agent Office Advisor |`. Select every row whose Actor label is exactly the current Advisor,
+  // require exactly one, then validate the complete canonical column shape with byte-exact
+  // identity/location/index cells. A start-anchored extractor that reduces a suffix-contaminated
+  // cell to its expected value, or a width predicate that accepts a row truncated after the process
+  // column, is not sufficient (Sentinel F01).
   const rows = text.split('\n').map((line) => line.trim()).filter((line) => {
     const cells = line.split('|').map((cell) => cell.trim());
-    return cells.length >= 11 && cells[0] === '' && cells[1] === 'Agent Office Advisor';
+    return cells[0] === '' && cells[1] === 'Agent Office Advisor';
   });
   const [advisorRow] = rows;
   if (rows.length !== 1 || advisorRow === undefined) {
     throw authorityFailure('session registry must contain exactly one routable Agent Office Advisor row');
   }
   const cells = advisorRow.split('|').map((cell) => cell.trim());
-  const code = (cell: string | undefined): string | null => {
-    if (cell === undefined) return null;
-    return /^`([^`]+)`/u.exec(cell)?.[1] ?? null;
-  };
+  // Complete canonical shape: leading and trailing table edges plus exactly eleven content columns
+  // (Actor, session, sessionId, windowIndex, windowId, paneIndex, paneId, workspace, process,
+  // role evidence, dispatch status). Reject truncation after the process column and extra columns.
+  const roleEvidence = cells[10];
+  const dispatchStatus = cells[11];
   if (
-    code(cells[2]) !== 'agent-office-advisor' ||
-    code(cells[3]) !== '$26' ||
+    cells.length !== 13 || cells[12] !== '' ||
+    roleEvidence === undefined || roleEvidence.length === 0 ||
+    dispatchStatus === undefined || dispatchStatus.length === 0
+  ) {
+    throw authorityFailure('session registry Agent Office Advisor row is not the complete canonical shape');
+  }
+  // Byte-exact identity, location, and index cells — the whole Markdown cell, with no prefix or
+  // suffix contamination. The process cell must be exactly the `codex` command, or that command
+  // followed by the complete current canonical observation-annotation grammar, end-anchored:
+  //   `codex` v<numeric semver>; live launch record identifies `<model>` / `<effort>` at this observation
+  // It must not accept `` `codex`JUNK ``, arbitrary text after the semicolon, or appended/reordered
+  // annotation text (Sentinel F01 / process-cell grammar fence 09A).
+  const process = cells[9] ?? '';
+  const processGrammar =
+    /^`codex` v\d+\.\d+\.\d+; live launch record identifies `[^`]+` \/ `[^`]+` at this observation$/u;
+  if (
+    cells[2] !== '`agent-office-advisor`' ||
+    cells[3] !== '`$26`' ||
     cells[4] !== '0' ||
-    code(cells[5]) !== '@26' ||
+    cells[5] !== '`@26`' ||
     cells[6] !== '0' ||
-    code(cells[7]) !== '%26' ||
-    code(cells[8]) !== '/home/leo/Project/agent-office' ||
-    code(cells[9]) !== 'codex'
+    cells[7] !== '`%26`' ||
+    cells[8] !== '`/home/leo/Project/agent-office`' ||
+    !(process === '`codex`' || processGrammar.test(process))
   ) {
     throw authorityFailure('session registry Agent Office Advisor row is not the exact current destination');
   }

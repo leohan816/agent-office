@@ -150,7 +150,12 @@ The valid destination migration is preserved.
   committed markdown and requires **exactly one** routable `| Agent Office Advisor |` row
   whose exact columns are `agent-office-advisor` / `$26` / `0` / `@26` / `0` / `%26` /
   `/home/leo/Project/agent-office` / `codex` (backtick-extracted; the command cell may
-  carry trailing version text). Zero, duplicate, or malformed rows fail closed.
+  carry trailing version text). Zero and duplicate rows fail closed. **Correction (closed in
+  Patch 02):** this initial extraction was start-anchored, so it still reduced a
+  suffix-contaminated cell (e.g. `` `%26`JUNK ``) to its expected value and accepted a row
+  truncated after the process column. The claim that "malformed rows fail closed" was therefore
+  inaccurate at candidate `9a7e944`; the independent Sentinel flagged this (F01) and it is fixed
+  in Patch 02 below.
 - **F02 — versioned current-destination authority fence.** Added a ninth authority
   snapshot `physicalMigrationDecision`, required to be the exact committed artifact
   `advisor/jobs/20260714_agent_office_pre_as1_physical_transport_identity_migration/01A_ACTIVE_REFERENCE_SCOPE_CLARIFICATION.md`
@@ -192,6 +197,50 @@ The valid destination migration is preserved.
   historical physical-destination token remains in active `src`/`config`; remaining historical
   tokens are classified (1) org-registry evidence join key / (2) historical-only negative
   fixtures that cannot route.
+
+## Patch 02 — Sentinel finding closure (handoff `09` + grammar fence `09A`)
+
+The independent SOL Sentinel review (`08_SENTINEL_REVIEW_RESULT.md`, verdict `NEEDS_PATCH`)
+found two defects in candidate `9a7e944`. Both are closed on top of it. Allowed files only:
+`exact-authority.ts` and the exact-delivery test (plus these Worker evidence files).
+
+- **F01 (HIGH) — malformed registry cells were accepted as exact authority.** The prior
+  `assertRegistry` selected rows on `cells.length >= 11` and extracted each identity value with
+  the start-anchored `/^`([^`]+)`/u`, which reduced suffix-contaminated cells (`` `%26`JUNK ``)
+  to their expected value and accepted a row truncated after the process column. Rewritten to a
+  true structural fence: select rows whose Actor label is exactly `Agent Office Advisor`, require
+  **exactly one**, then require the **complete canonical 13-field shape** (leading/trailing table
+  edges + eleven content columns, including non-empty role-evidence and dispatch-status cells) and
+  validate every identity/location/index cell as a **byte-exact whole cell** — `` `agent-office-advisor` ``
+  / `` `$26` `` / `0` / `` `@26` `` / `0` / `` `%26` `` / `` `/home/leo/Project/agent-office` ``.
+- **F01 process-cell grammar fence (`09A`).** The process cell must be exactly `` `codex` `` or that
+  command followed by the **complete current canonical observation-annotation grammar**, end-anchored:
+  `` `codex` v<numeric semver>; live launch record identifies `<model>` / `<effort>` at this observation ``.
+  The interim `; \S.*` shape was too permissive (arbitrary text after the semicolon); it is replaced
+  by `` /^`codex` v\d+\.\d+\.\d+; live launch record identifies `[^`]+` \/ `[^`]+` at this observation$/u ``.
+  It rejects `` `codex`JUNK ``, arbitrary text after the version, and any appended/reordered text.
+- **F02 (LOW) — stale legacy pane token in a test title.** The integration title `paste-to-%9` (whose
+  assertions already require `%26`) was renamed to `paste-to-%26`.
+- **Tests.** The positive path now uses the **actual current canonical Advisor row** verbatim from the
+  committed `SESSION_REGISTRY.md` (including the real process annotation with embedded `` `gpt-5.6-sol` ``
+  / `` `max` `` tokens). New negatives (each isolates one defect against a valid base): suffix
+  contamination on session / sessionId / windowId / paneId / workspace cells; suffix contamination on
+  the `codex` command token; a permissive-but-non-canonical annotation (`; arbitrary trailing…`, which
+  passes the old `; \S.*` shape); appended text after the full annotation; a row truncated after the
+  process column; a row with an unexpected extra structural column. The prior fabricated-label,
+  duplicate-row, and wrong-pane (`%99`) negatives are retained; positive re-validation still resolves.
+- **Corrected classification (F02 completeness).** Targeted legacy physical-target search over the
+  changed surface: active `src` (`exact-authority.ts`) contains **no** historical physical-destination
+  token (the registry fence now hard-codes only the current destination). In the changed test:
+  `foundation-advisor/$9/@9/%9//home/leo/Project/foundation-advisor` appears only in (2) the
+  intentional legacy-rejection negative asserted `FORBIDDEN_TARGET` and in the migration-decision
+  fixture that *prohibits* those references; `foundation-docs` is (1) the authority/role-storage
+  **repository** identifier in the canonical registry row and the `SourceArtifactRef` repository field,
+  not a physical transport destination. No unclassified active legacy token remains.
+- **Checks:** `tsc` 0 errors; exact-delivery focused suite **55/55** (4 files); eslint clean on the two
+  changed paths; `git diff --check` from `9a7e944` clean. No tmux input; no Slack/AS1/transport
+  activation; no historical-artifact or governance change. Same independent Sentinel delta re-review is
+  required before any activation.
 
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
