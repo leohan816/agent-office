@@ -125,7 +125,7 @@ export class As1Outbox {
           return { outcome: 'DELIVERED', phase: 'RESPONSE_RECORDED', attempts, reason: 'ok' };
         }
         // Malformed success (no exact channel/timestamp correspondence) is ambiguous — never resend.
-        return this.reconcile(journal, outboundId, attempts, 'malformed success response');
+        return await this.reconcile(journal, outboundId, attempts, 'malformed success response');
       } catch (error) {
         if (error instanceof As1OutboundError && error.outboundClass === 'CONNECTION_BEFORE_SEND') {
           if (attempt < LIMITS.OUTBOUND_MAX_ATTEMPTS) {
@@ -142,7 +142,7 @@ export class As1Outbox {
           return this.reconcile(journal, outboundId, attempts, 'rate limits exhausted');
         }
         // Any other/ambiguous failure: latch and require manual reconciliation.
-        return this.reconcile(journal, outboundId, attempts, 'ambiguous outbound failure');
+        return await this.reconcile(journal, outboundId, attempts, 'ambiguous outbound failure');
       }
     }
     return this.reconcile(journal, outboundId, attempts, 'attempts exhausted');
