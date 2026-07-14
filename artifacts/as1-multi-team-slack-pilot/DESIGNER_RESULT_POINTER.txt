@@ -7,6 +7,6 @@ TARGET_REPO: /home/leo/Project/agent-office
 TARGET_BRANCH: feature/as1-multi-team-slack-pilot-001
 TARGET_COMMIT: dea1e5f62eda2c014cfa6bf31ca5fe5c64c95d2b
 PUSH_STATUS: PUSHED_TO_ORIGIN__UPSTREAM_EQUAL_AT_RESULT_COMMIT
-RETURN_TO: Agent Office Advisor
+RETURN_TO: agent-office-advisor
 PROPOSED_NEXT_ACTOR: Agent Office Advisor
 STOP
