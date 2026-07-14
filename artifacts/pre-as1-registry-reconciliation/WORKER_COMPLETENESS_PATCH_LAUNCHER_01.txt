@@ -1,0 +1,35 @@
+TARGET_ACTOR: Agent Office Worker
+MISSION_ID: AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+ACTION: APPLY_ROUTINE_COMPLETENESS_PATCH_01
+
+Use /fable-builder.
+
+Work only in:
+/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+
+Required branch:
+config/pre-as1-machine-registry-binding-reconciliation-001
+
+Base candidate requiring this routine patch:
+7f29388f3a824b7f3a149a68eae35b9df32cf3ea
+
+Read and execute the exact committed patch handoff:
+artifacts/pre-as1-registry-reconciliation/WORKER_COMPLETENESS_PATCH_01.md
+
+Handoff commit:
+dc5168f0a256bf8097896f0ab2e62e5a48540e28
+
+Handoff blob:
+0116a471c296c3c80b3a6871ce64a29a2945d375
+
+Handoff SHA-256:
+dd4eb595d43b01747e284bacf66ade5079d8b865783e7da936b76b6308c85c2d
+
+Before editing, verify the branch, worktree, commit, blob, SHA-256, clean state,
+and allowed-file list. Preserve all immutable roleInstanceId values and evidence
+joins. Do not touch the main worktree, documentation branch, exact delivery,
+transport, Slack, or AS1. Do not dispatch another actor.
+
+Implement the bounded completeness correction, run only the named targeted
+checks, update the durable Worker result and pointer, commit, non-force push,
+return the exact pointer to agent-office-advisor, and STOP.
