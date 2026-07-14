@@ -14,6 +14,14 @@ Companion documents:
 - Worker result evidence: `docs/agent/RESULT_REPORTING_PROTOCOL.md`;
 - migration/authority record: `docs/agent/ACTOR_PROJECT_BINDING_MIGRATION.md`.
 
+## Authority and Ownership
+
+Agent Office `docs/agent/` is the current authority for Team, Actor, role,
+authority, default routine, onboarding, dispatch, and tmux/runtime-binding
+rules. `foundation-docs` is evidence, history, audit, migration, and pointer
+storage only; it does not hold current role or runtime authority. Historical
+evidence and result pointers into `foundation-docs` remain valid as evidence.
+
 ## 1. Default Operating Routine
 
 Every mission follows one authority loop:
@@ -145,8 +153,8 @@ role-named folders:
 3. State the reporting path (actor -> responsible Advisor -> Leo/GPT).
 4. Add a concise root `AGENTS.md` and `CLAUDE.md` pointer in the project that
    names the responsible Advisor, participating roles, reporting path, the
-   project's own constraints, and a pointer to this common document set and the
-   runtime session registry. Preserve all existing project rules.
+   project's own constraints, and a pointer to this common document set and its
+   runtime-binding rules. Preserve all existing project rules.
 5. Verify the intended tmux session(s) and workspace path(s) live before any
    dispatch. Never infer readiness from a session name.
 6. Do not create role-named top-level folders, a second role system, an
@@ -167,3 +175,19 @@ Before any actor is dispatched, the responsible Advisor confirms:
 
 If any prerequisite is missing, dispatch fails closed and returns to the
 responsible Advisor.
+
+## 9. Advisor Instruction Gate
+
+Before dispatching any subordinate, the responsible Advisor classifies the
+incoming instruction against real repository state and records the verdict:
+
+- `PROCEED` — valid and safe as written;
+- `PROCEED_WITH_LIMITS` — proceed only within explicitly stated bounds;
+- `NEEDS_DECISION` — a product, authority, or risk decision must return to
+  Leo/GPT before work;
+- `HOLD` — pause pending missing evidence or authority;
+- `FAIL` — invalid, unsafe, or conflicting; do not execute.
+
+An Advisor must never blindly execute an invalid, unsafe, or conflicting
+instruction. When the verdict is not `PROCEED` or `PROCEED_WITH_LIMITS`, the
+Advisor returns the evidence and a safe correction instead of proceeding.

@@ -10,6 +10,10 @@ Worker, Designer, Control, independent Reviewer, or final approver.
 
 - Validate each Leo/GPT instruction against real repository state and current
   authority; discover unknowns, conflicts, and missing decisions.
+- Classify each instruction before dispatch as
+  `PROCEED | PROCEED_WITH_LIMITS | NEEDS_DECISION | HOLD | FAIL`; never blindly
+  execute an invalid, unsafe, or conflicting one — return the evidence and a
+  safe correction to Leo/GPT instead.
 - Write precise role briefs and exact copy-paste handoffs; define completion
   criteria.
 - Select and route Control/Designer/Worker/Reviewer; run the patch loop.

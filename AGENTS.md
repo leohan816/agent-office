@@ -32,10 +32,10 @@ the handoff directly. Historical reports are evidence, not current permission.
 - Participating roles: Agent Office Designer, Worker (`agent-office-opus`), and
   the independent Agent Office Reviewer.
 - Reporting path: actor -> `agent-office-advisor` -> Leo/GPT.
-- Common operating model and role definitions are canonical here in
-  `docs/agent/` (see `docs/agent/TEAM_OPERATING_MODEL.md` and
-  `docs/agent/roles/`); the runtime session registry is
-  `../foundation-docs/advisor/_system/tmux_transport/SESSION_REGISTRY.md`.
+- Common operating model, role definitions, and tmux/runtime-binding rules are
+  canonical here in `docs/agent/` (see `docs/agent/TEAM_OPERATING_MODEL.md` and
+  `docs/agent/roles/`). `foundation-docs` is historical evidence, result
+  storage, and pointer storage only, not current role or runtime authority.
 
 ## Non-Negotiable Boundaries
 
