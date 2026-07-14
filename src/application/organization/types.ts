@@ -32,7 +32,7 @@ export const ORGANIZATION_ROLES = ['ADVISOR', 'WORKER', 'REVIEWER', 'CONTROL', '
 export type OrganizationRole = (typeof ORGANIZATION_ROLES)[number];
 
 // ── Organizational bindings (contract §2.2) ──────────────────────────────────
-export const ADVISOR_TEAMS = ['FOUNDATION_ADVISOR_TEAM', 'VIBENEWS_ADVISOR_TEAM'] as const;
+export const ADVISOR_TEAMS = ['AGENT_OFFICE_ADVISOR_TEAM', 'FOUNDATION_ADVISOR_TEAM', 'VIBENEWS_ADVISOR_TEAM'] as const;
 export type AdvisorTeam = (typeof ADVISOR_TEAMS)[number];
 /** Fail-closed sentinel for advisorTeam — an actor that is UNASSIGNED cannot receive work. */
 export const ADVISOR_TEAM_UNASSIGNED = 'UNASSIGNED' as const;
@@ -73,7 +73,17 @@ export const OPERATIONAL_STATE_UNKNOWN = 'UNKNOWN' as const satisfies PixelOpera
  * an unresolvable `advisorTeam` normalizes to `UNASSIGNED`.
  */
 export interface OrganizationRegistryRow {
+  /**
+   * Immutable internal identity and the sole registry/runtime/evidence join key. Never re-keyed,
+   * transferred, or reused for a new Actor; accepted-evidence (B) joins only by this value.
+   */
   readonly roleInstanceId: string;
+  /**
+   * Unique current canonical routable Actor identity. Route fields resolve against this (not the
+   * internal join key). Nonblank and unique across accepted rows; a blank/duplicate `actorId` fails
+   * closed (dropped + diagnostic), never first-winning or shadowing another Actor.
+   */
+  readonly actorId: string;
   readonly role: OrganizationRole | OrganizationUnknown;
   readonly project: string;
   readonly stableDisplayName: string;
@@ -149,6 +159,8 @@ export interface OrganizationProjectorInput {
 export type OrganizationDiagnosticCode =
   | 'INVALID_REGISTRY_ROLE_INSTANCE_ID'
   | 'DUPLICATE_REGISTRY_ROLE_INSTANCE_ID'
+  | 'INVALID_REGISTRY_ACTOR_ID'
+  | 'DUPLICATE_REGISTRY_ACTOR_ID'
   | 'EVIDENCE_ID_COLLISION'
   | 'SESSION_PROCESS_CONTRADICTION'
   | 'ATTESTATION_VALUE_CONFLICT'

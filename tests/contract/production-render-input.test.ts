@@ -100,14 +100,18 @@ describe('§3.1 deterministic pod assembly', () => {
     expect(assembly.fallbackTier).toBe('NONE');
     expect(assembly.pods.map((pod) => pod.podId)).toEqual(['pod:foundation', 'pod:vibenews']);
     const foundation = assembly.pods.find((pod) => pod.podId === 'pod:foundation');
-    expect(foundation?.responsibleAdvisorRoleInstanceId).toBe('foundation-advisor');
+    // After the pre-AS1 identity migration the Foundation pod's responsible Advisor is the newly
+    // created Foundation Advisor (roleInstanceId foundation-advisor-20260714-01), still FOUNDATION_ADVISOR_TEAM.
+    expect(foundation?.responsibleAdvisorRoleInstanceId).toBe('foundation-advisor-20260714-01');
     expect(foundation?.advisorTeamId).toBe('FOUNDATION_ADVISOR_TEAM');
   });
 
-  it('selects the current actor by the 14-state priority order (WORKING wins)', () => {
+  it('selects the current actor by the 14-state priority order (REVIEWING wins in the Foundation pod)', () => {
+    // agent-office-worker (WORKING) is now an Agent Office Team actor, not a Foundation pod member, so
+    // the highest-priority Foundation member is the reviewer (REVIEWING).
     const foundation = assembly.pods.find((pod) => pod.podId === 'pod:foundation');
-    expect(foundation?.currentActorRoleInstanceId).toBe('agent-office-worker');
-    expect(foundation?.operationalState).toBe('WORKING');
+    expect(foundation?.currentActorRoleInstanceId).toBe('foundation-reviewer');
+    expect(foundation?.operationalState).toBe('REVIEWING');
   });
 
   it('uses the sole projectKey for identity and fails progress closed to 0', () => {
@@ -144,13 +148,13 @@ describe('§3.1 deterministic pod assembly', () => {
       ...COMMITTED_OFFICE_LAYOUT_CONFIG_V1,
       pods: [
         foundationPod,
-        { ...vibenewsPod, memberRoleInstanceIds: ['vibenews-advisor', 'vibenews-worker', 'agent-office-worker'] },
+        { ...vibenewsPod, memberRoleInstanceIds: ['vibenews-advisor', 'vibenews-worker', 'cosmile-worker'] },
       ],
     };
     const result = assembleOfficeLayout(presentation(), cloned);
     const allMembers = result.pods.flatMap((pod) => pod.actorRoleInstanceIds);
-    expect(allMembers).not.toContain('agent-office-worker');
-    expect(result.diagnostics.some((d) => d.roleInstanceId === 'agent-office-worker')).toBe(true);
+    expect(allMembers).not.toContain('cosmile-worker');
+    expect(result.diagnostics.some((d) => d.roleInstanceId === 'cosmile-worker')).toBe(true);
   });
 });
 

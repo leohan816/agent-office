@@ -58,6 +58,7 @@ function organizationActor(overrides: {
 } = {}): OrganizationFrameActor {
   const registry: OrganizationRegistryRow = {
     roleInstanceId: TARGET,
+    actorId: TARGET,
     role: 'WORKER',
     project: 'FOUNDATION',
     stableDisplayName: 'Foundation Worker',

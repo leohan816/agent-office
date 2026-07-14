@@ -52,8 +52,10 @@ function ev(
 }
 
 function row(overrides: Partial<OrganizationRegistryRow> = {}): OrganizationRegistryRow {
+  const roleInstanceId = overrides.roleInstanceId ?? 'r1';
   return {
-    roleInstanceId: 'r1',
+    roleInstanceId,
+    actorId: roleInstanceId,
     role: 'WORKER',
     project: 'AGENT_OFFICE',
     stableDisplayName: 'Test Worker',
@@ -97,6 +99,8 @@ describe('WU-02 committed organization fixture', () => {
     expect(frame.actors).toHaveLength(ORGANIZATION_REGISTRY.length);
     expect(frame.diagnostics.filter((d) => d.code === 'INVALID_REGISTRY_ROLE_INSTANCE_ID')).toHaveLength(0);
     expect(frame.diagnostics.filter((d) => d.code === 'DUPLICATE_REGISTRY_ROLE_INSTANCE_ID')).toHaveLength(0);
+    expect(frame.diagnostics.filter((d) => d.code === 'INVALID_REGISTRY_ACTOR_ID')).toHaveLength(0);
+    expect(frame.diagnostics.filter((d) => d.code === 'DUPLICATE_REGISTRY_ACTOR_ID')).toHaveLength(0);
     expect(frame.diagnostics.filter((d) => d.code === 'EVIDENCE_ID_COLLISION')).toHaveLength(0);
   });
 
@@ -167,6 +171,90 @@ describe('§2.1/§2.2 stable identity vs mutable bindings', () => {
     expect(actor.stableDisplayName.status).toBe('MISSING');
     expect(actor.advisorTeam.value).toBe('UNASSIGNED');
     expect(actor.canReceiveWork).toBe(false);
+  });
+});
+
+describe('pre-AS1 actorId identity migration + routing (roleInstanceId join key vs actorId)', () => {
+  const frame = project({ registry: ORGANIZATION_REGISTRY, evidence: ORGANIZATION_EVIDENCE });
+
+  function regByActorId(actorId: string): OrganizationRegistryRow {
+    const found = ORGANIZATION_REGISTRY.find((r) => r.actorId === actorId);
+    if (found === undefined) throw new Error(`registry row with actorId ${actorId} not found`);
+    return found;
+  }
+  function regByRoleInstanceId(roleInstanceId: string): OrganizationRegistryRow {
+    const found = ORGANIZATION_REGISTRY.find((r) => r.roleInstanceId === roleInstanceId);
+    if (found === undefined) throw new Error(`registry row with roleInstanceId ${roleInstanceId} not found`);
+    return found;
+  }
+
+  it('accepts every committed row with no actorId diagnostics and globally unique nonblank actorIds', () => {
+    expect(frame.diagnostics.filter((d) => d.code === 'INVALID_REGISTRY_ACTOR_ID')).toHaveLength(0);
+    expect(frame.diagnostics.filter((d) => d.code === 'DUPLICATE_REGISTRY_ACTOR_ID')).toHaveLength(0);
+    const actorIds = ORGANIZATION_REGISTRY.map((r) => r.actorId);
+    expect(new Set(actorIds).size).toBe(actorIds.length);
+    expect(actorIds.every((id) => id.trim() !== '')).toBe(true);
+  });
+
+  it('the continuing actor keeps immutable roleInstanceId foundation-advisor but routes as agent-office-advisor', () => {
+    const continuing = regByRoleInstanceId('foundation-advisor');
+    expect(continuing.actorId).toBe('agent-office-advisor');
+    expect(continuing.project).toBe('AGENT_OFFICE');
+    expect(continuing.advisorTeam).toBe('AGENT_OFFICE_ADVISOR_TEAM');
+    expect(continuing.stableDisplayName).toBe('Agent Office Advisor');
+  });
+
+  it('the continuing actor retains its historical evidence (still joined only by roleInstanceId)', () => {
+    // The foundation-advisor evidence (process_detected + ai_ready) still resolves to the continuing actor.
+    const continuing = actorById(frame.actors, 'foundation-advisor');
+    expect(continuing.sessionProcess.value).toBe('AI_PROCESS_DETECTED');
+    expect(continuing.aiRuntimeState.value).toBe('AI_READY');
+  });
+
+  it('the newly created Foundation Advisor has a fresh internal key and inherits no historical evidence', () => {
+    const created = regByActorId('foundation-advisor');
+    expect(created.roleInstanceId).toBe('foundation-advisor-20260714-01');
+    expect(created.project).toBe('FOUNDATION');
+    expect(created.advisorTeam).toBe('FOUNDATION_ADVISOR_TEAM');
+    const projected = actorById(frame.actors, 'foundation-advisor-20260714-01');
+    expect(projected.sessionProcess.value).toBe('SESSION_PROCESS_UNKNOWN');
+    expect(projected.aiRuntimeState.value).toBe('AI_RUNTIME_UNKNOWN');
+    expect(projected.model.value).toBe('MODEL_UNKNOWN');
+  });
+
+  it('re-parents the Agent Office Worker to the Agent Office Team routing through agent-office-advisor', () => {
+    const worker = regByRoleInstanceId('agent-office-worker');
+    expect(worker.actorId).toBe('agent-office-worker');
+    expect(worker.advisorTeam).toBe('AGENT_OFFICE_ADVISOR_TEAM');
+    expect(worker.reportsToAdvisor).toBe('agent-office-advisor');
+    expect(worker.assignedBy).toBe('agent-office-advisor');
+    expect(worker.returnsResultTo).toBe('agent-office-advisor');
+  });
+
+  it('route fields carry routable actorIds (or external leo-gpt) that resolve to a unique row', () => {
+    const routable = new Map(ORGANIZATION_REGISTRY.map((r) => [r.actorId, r]));
+    for (const r of ORGANIZATION_REGISTRY) {
+      for (const route of [r.reportsToAdvisor, r.assignedBy, r.returnsResultTo]) {
+        if (route === 'leo-gpt') continue;
+        expect(routable.has(route)).toBe(true);
+      }
+    }
+    // foundation-control routes to the NEW Foundation Advisor (actorId 'foundation-advisor'), NOT the
+    // continuing actor whose internal join key is also 'foundation-advisor'.
+    const control = regByRoleInstanceId('foundation-control');
+    expect(routable.get(control.reportsToAdvisor)?.roleInstanceId).toBe('foundation-advisor-20260714-01');
+  });
+
+  it('fails closed on a duplicate actorId across distinct roleInstanceIds (never first-win)', () => {
+    const f = project({ registry: [row({ roleInstanceId: 'a', actorId: 'dupe' }), row({ roleInstanceId: 'b', actorId: 'dupe' })] });
+    expect(f.actors).toHaveLength(0);
+    expect(f.diagnostics.some((d) => d.code === 'DUPLICATE_REGISTRY_ACTOR_ID')).toBe(true);
+  });
+
+  it('drops a row with a blank actorId and reports it', () => {
+    const f = project({ registry: [row({ roleInstanceId: 'a', actorId: '   ' }), row({ roleInstanceId: 'b', actorId: 'b' })] });
+    expect(f.actors.map((a) => a.roleInstanceId)).toEqual(['b']);
+    expect(f.diagnostics.some((d) => d.code === 'INVALID_REGISTRY_ACTOR_ID')).toBe(true);
   });
 });
 

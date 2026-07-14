@@ -1,0 +1,14 @@
+WORKER_RESULT_POINTER
+MISSION_ID: AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+ACTOR: Agent Office Worker
+RESULT_FILE: artifacts/pre-as1-registry-reconciliation/WORKER_RESULT.md
+TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+TARGET_BRANCH: config/pre-as1-machine-registry-binding-reconciliation-001
+BASELINE_COMMIT: 5df16b311b8e7835b5b621ce2181509a445602c6
+CHANGE: config-only registry roleInstanceId/actorId separation + Advisor identity migration + AGENT_OFFICE_ADVISOR_TEAM + minimal layout reconciliation
+CHECKS: tsc clean (after Advisor-authorized UI fixture fix); focused contract + UI tests 111/111; runtime-composition 12/13 (1 env-only worktree limitation); eslint clean; git diff --check clean
+EVIDENCE: ORGANIZATION_EVIDENCE byte-for-byte untouched; old evidence resolves only to roleInstanceId foundation-advisor; new foundation-advisor-20260714-01 has no evidence
+UNTOUCHED: exact-delivery/transport/tmux; VibeNews semantics; no Slack/AS1 activation
+RETURN_TO: Advisor
+PROPOSED_NEXT_ACTOR: Advisor
+STOP
