@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "agent-office.as1-slack-pilot-descriptor.v1",
+  "enabled": false,
+  "receiveGrantRef": null,
+  "secretFilePath": "/home/leo/.config/agent-office/as1-slack-pilot.env"
+}

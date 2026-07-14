@@ -31,6 +31,7 @@
     "dev": "vite --host 127.0.0.1",
     "preview": "vite preview --host 127.0.0.1",
     "start:loopback": "node dist/core/runtime/cli.js",
+    "as1:slack-pilot": "node dist/core/runtime/as1-slack-pilot/cli.js",
     "smoke:runtime": "npm run build && node scripts/runtime-smoke.mjs",
     "audit:dependencies": "npm audit --audit-level=high",
     "check": "npm run lint && npm run typecheck && npm test && npm run build"
