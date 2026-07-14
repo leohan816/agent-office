@@ -242,5 +242,39 @@ found two defects in candidate `9a7e944`. Both are closed on top of it. Allowed 
   activation; no historical-artifact or governance change. Same independent Sentinel delta re-review is
   required before any activation.
 
+### Patch 02 — Git state, checks, and result contract (evidence correction `09B`)
+
+- **Source candidate commit:** `1a4e1e98a0ea07c3f383da3761792298cd807f29`.
+- **Ancestry:** patch base `9a7e9444208b613752dc4ab42e23b3cc70cc1516` and mission baseline
+  `88c6cbd757ed205eb1aadd68d8ea7629865d5765` are both ancestors of the source candidate.
+- **Exact four changed paths in the source candidate** (`git diff --name-only 9a7e944 1a4e1e9`):
+  - `src/adapters/gateways/tmux-advisor/exact-authority.ts`
+  - `tests/integration/exact-advisor-delivery.test.ts`
+  - `artifacts/pre-as1-physical-transport-identity-migration/WORKER_RESULT.md`
+  - `artifacts/pre-as1-physical-transport-identity-migration/WORKER_RESULT_POINTER.txt`
+- **Checks already obtained (not rerun under this evidence-only correction):** `tsc --noEmit -p
+  tsconfig.json` — 0 errors; exact-delivery focused suite — 55/55 across 4 files (`exact-advisor-delivery`,
+  `decision-authority-evidence`, `advisor-inbox`, `advisor-message-crash-consistency`); ESLint — clean on
+  the two changed TypeScript/test paths; `git diff --check` from `9a7e944` — clean.
+- **Failed commands for Patch 02:** none.
+- **Git state at the source candidate:** the four paths above were staged; there were no other staged,
+  unstaged, or untracked entries (the temporary `node_modules` validation symlink was removed before
+  commit); the worktree was clean after commit; the branch
+  `config/pre-as1-physical-transport-identity-migration-001` was non-force fast-forward pushed
+  (`9a7e944..1a4e1e9`), and HEAD equalled its configured upstream.
+- **Durable result path:** `artifacts/pre-as1-physical-transport-identity-migration/WORKER_RESULT.md`.
+  **Pointer path:** `artifacts/pre-as1-physical-transport-identity-migration/WORKER_RESULT_POINTER.txt`.
+- **`FOUNDATION_DOCS_COMMIT`: not applicable** — the Advisor owns governance/foundation-docs; this Worker
+  changed no foundation-docs or governance content.
+- **This evidence-only amendment (`09B`):** updates only the two result files above; it introduces no
+  source, test, configuration, governance, or historical-evidence change and reruns no tests. It is a
+  separate two-file, non-force-pushed commit on the same branch; its commit hash is returned to the
+  Advisor in the pane result and is deliberately not self-referenced in these files.
+- **Boundaries / STOP (unchanged):** no tmux input; no Slack/AS1/transport activation; no
+  DB/schema/secret/environment/PII/runtime/public/production access; no protected-branch or `main`
+  merge/push; no force push; no agent/sub-agent/delegation, browser dispatch, or arbitrary terminal
+  execution; no self-review; no next-mission inference. The same independent Sentinel delta re-review of
+  `9a7e944..1a4e1e9` remains required before any activation.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
