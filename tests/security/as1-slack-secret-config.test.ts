@@ -114,7 +114,7 @@ describe('AS1 secret-config parser — data grammar', () => {
   });
 
   it('rejects an unknown key', async () => {
-    const { filePath } = await writeSecretFile(`${secretText(validSecretValues())}SLACK_EXTRA_KEY=xoxb-extra-000000000\n`);
+    const { filePath } = await writeSecretFile(`${secretText(validSecretValues())}SLACK_EXTRA_KEY=xoxb-extra-placeholder-00\n`);
     expect((await grabDomainError(() => parseSecretConfigFile(filePath))).code).toBe('UNKNOWN_FIELD');
   });
 
