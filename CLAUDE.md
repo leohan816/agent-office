@@ -6,9 +6,11 @@ Status: `ACTIVE`
 every assignment, also read:
 
 1. the exact committed Advisor handoff for the current mission;
-2. `docs/agent/RUN_PROTOCOL.md`;
-3. `docs/agent/RESULT_REPORTING_PROTOCOL.md`; and
-4. every canonical authority explicitly named by the handoff.
+2. `docs/agent/TEAM_OPERATING_MODEL.md` and the actor's matching role document
+   under `docs/agent/roles/`;
+3. `docs/agent/RUN_PROTOCOL.md`;
+4. `docs/agent/RESULT_REPORTING_PROTOCOL.md`; and
+5. every canonical authority explicitly named by the handoff.
 
 ## Role Summary
 

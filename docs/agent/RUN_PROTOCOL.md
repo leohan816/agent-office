@@ -11,8 +11,9 @@ forbidden scope, durable result path, and pointer path.
 Before changing state:
 
 1. Confirm the actor is Agent Office Worker in the assigned existing session.
-2. Read `AGENTS.md`, `CLAUDE.md`, this protocol, the result protocol, the exact
-   handoff, and any canonical authority it names.
+2. Read `AGENTS.md`, `CLAUDE.md`, this protocol, the result protocol,
+   `docs/agent/TEAM_OPERATING_MODEL.md`, the actor's matching role document under
+   `docs/agent/roles/`, the exact handoff, and any canonical authority it names.
 3. Confirm no agent, sub-agent, delegation, temporary session, or substitute
    Worker is active or needed.
 4. Verify the repository, branch, remote, upstream, and current worktree state.
