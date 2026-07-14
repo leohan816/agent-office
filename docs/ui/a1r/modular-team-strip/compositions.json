@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1.0.0",
+  "geometry": {
+    "singleCanvas": {"width": 2400, "height": 720},
+    "stackedCanvas": {"width": 2400, "height": 2480},
+    "stripContentBounds": {"x": 36, "y": 36, "width": 2328, "height": 614},
+    "canonicalStandingCharacterHeight": 144,
+    "minimumCorridorRatio": 1.25,
+    "minimumCorridorHeight": 180,
+    "stackedStripOffset": 804,
+    "actualClearCorridorHeight": 190,
+    "lanes": {
+      "designer": {"x": 56, "y": 118, "width": 424, "height": 470},
+      "advisor": {"x": 480, "y": 118, "width": 400, "height": 470},
+      "worker": {"x": 880, "y": 118, "width": 1050, "height": 470},
+      "reviewer": {"x": 1930, "y": 118, "width": 414, "height": 470}
+    },
+    "slots": {
+      "D1": {"lane":"designer","x":88,"y":260},
+      "D2": {"lane":"designer","x":282,"y":260},
+      "A1": {"lane":"advisor","x":500,"y":226},
+      "W1": {"lane":"worker","x":888,"y":260},
+      "W2": {"lane":"worker","x":1084,"y":260},
+      "W3": {"lane":"worker","x":1280,"y":260},
+      "W4": {"lane":"worker","x":1476,"y":260},
+      "W5": {"lane":"worker","x":1672,"y":260},
+      "R1": {"lane":"reviewer","x":1942,"y":260},
+      "R2": {"lane":"reviewer","x":2144,"y":260}
+    }
+  },
+  "proofs": {
+    "small": {
+      "teamLabel":"FND · SMALL SAMPLE",
+      "accent":"#287d76",
+      "advisorState":"coordinating",
+      "designers":{"D1":"working"},
+      "workers":{"W1":"working"},
+      "reviewers":{"R1":"reviewing"},
+      "channy":true
+    },
+    "medium": {
+      "teamLabel":"COS · MEDIUM SAMPLE",
+      "accent":"#a45d3b",
+      "advisorState":"idle",
+      "designers":{"D1":"working"},
+      "workers":{"W1":"working","W2":"working","W3":"idle"},
+      "reviewers":{"R1":"reviewing"},
+      "channy":false
+    },
+    "large": {
+      "teamLabel":"SYS · LARGE SAMPLE",
+      "accent":"#5f62a7",
+      "advisorState":"coordinating",
+      "designers":{"D1":"working","D2":"working"},
+      "workers":{"W1":"working","W2":"working","W3":"working","W4":"working","W5":"working"},
+      "reviewers":{"R1":"reviewing","R2":"reviewing"},
+      "channy":false
+    },
+    "stacked": {
+      "order":["large","small","medium"],
+      "offsets":[0,804,1608],
+      "continuation":true
+    }
+  }
+}

@@ -1,0 +1,521 @@
+{
+  "status": "PASS",
+  "sourceOfTruth": [
+    "canonical-modules.svg",
+    "module-manifest.json",
+    "compositions.json",
+    "export-proofs.mjs"
+  ],
+  "sourceIdentity": {
+    "canonicalModulesSha256": "c262da5b7ecb585c049098a8b4b1d058cbba02acde88b4c448192eafc22249fe",
+    "moduleManifestSha256": "8170066b2d0973af1ece3df6607240ad343f45f6a327407baed88ce73030148c",
+    "compositionsSha256": "14aa36bceaa2d9321a24145667a6923962abfc9b8eac16bc44e1b28bd88da756",
+    "exporterSha256": "3e47b97dd25229bb4f398b22be18ee878c3e2b5ad57a79fc058971e86dcd2b39"
+  },
+  "moduleIdCount": 33,
+  "moduleIds": [
+    "surface.floor",
+    "surface.corridor",
+    "surface.lane",
+    "ambient.light-pool",
+    "ui.team-sign",
+    "ui.lane-sign",
+    "ui.drag-handle",
+    "ui.focus-ring",
+    "ui.state-indicator",
+    "ui.slot-anchor-empty",
+    "ui.continuation",
+    "ui.catalog-card",
+    "ui.catalog-label",
+    "furniture.desk",
+    "furniture.chair",
+    "device.monitor",
+    "device.pen-display",
+    "device.keyboard",
+    "furniture.mission-board",
+    "furniture.shelf",
+    "prop.plant",
+    "prop.mug",
+    "prop.paper-stack",
+    "prop.task-lamp",
+    "actor.advisor",
+    "actor.designer",
+    "actor.worker",
+    "actor.reviewer",
+    "pet.channy",
+    "assembly.worker-workstation",
+    "assembly.designer-station",
+    "assembly.advisor-station",
+    "assembly.reviewer-station"
+  ],
+  "coverage": {
+    "visibleObjectsWithoutModuleId": 0,
+    "everyExportBuiltByRegisteredEmitter": true,
+    "assemblyComponentsResolveToCanonicalIds": true
+  },
+  "geometry": {
+    "canonicalStandingCharacterHeight": 144,
+    "minimumCorridorRatio": 1.25,
+    "minimumCorridorHeight": 180,
+    "sharedStripContentBounds": {
+      "x": 36,
+      "y": 36,
+      "width": 2328,
+      "height": 614
+    },
+    "sharedLanes": {
+      "designer": {
+        "x": 56,
+        "y": 118,
+        "width": 424,
+        "height": 470
+      },
+      "advisor": {
+        "x": 480,
+        "y": 118,
+        "width": 400,
+        "height": 470
+      },
+      "worker": {
+        "x": 880,
+        "y": 118,
+        "width": 1050,
+        "height": 470
+      },
+      "reviewer": {
+        "x": 1930,
+        "y": 118,
+        "width": 414,
+        "height": 470
+      }
+    },
+    "sharedSlotAnchors": {
+      "D1": {
+        "lane": "designer",
+        "x": 88,
+        "y": 260
+      },
+      "D2": {
+        "lane": "designer",
+        "x": 282,
+        "y": 260
+      },
+      "A1": {
+        "lane": "advisor",
+        "x": 500,
+        "y": 226
+      },
+      "W1": {
+        "lane": "worker",
+        "x": 888,
+        "y": 260
+      },
+      "W2": {
+        "lane": "worker",
+        "x": 1084,
+        "y": 260
+      },
+      "W3": {
+        "lane": "worker",
+        "x": 1280,
+        "y": 260
+      },
+      "W4": {
+        "lane": "worker",
+        "x": 1476,
+        "y": 260
+      },
+      "W5": {
+        "lane": "worker",
+        "x": 1672,
+        "y": 260
+      },
+      "R1": {
+        "lane": "reviewer",
+        "x": 1942,
+        "y": 260
+      },
+      "R2": {
+        "lane": "reviewer",
+        "x": 2144,
+        "y": 260
+      }
+    },
+    "workerOrdering": "W1 nearest Advisor, then W2-W5 in fixed order",
+    "corridorChecks": [
+      {
+        "index": 1,
+        "y": 650,
+        "height": 190,
+        "ratioToStandingSprite": 1.3194
+      },
+      {
+        "index": 2,
+        "y": 1454,
+        "height": 190,
+        "ratioToStandingSprite": 1.3194
+      }
+    ]
+  },
+  "occupancy": {
+    "small": {
+      "designers": 1,
+      "advisors": 1,
+      "workers": 1,
+      "reviewers": 1
+    },
+    "medium": {
+      "designers": 1,
+      "advisors": 1,
+      "workers": 3,
+      "reviewers": 1
+    },
+    "large": {
+      "designers": 2,
+      "advisors": 1,
+      "workers": 5,
+      "reviewers": 2
+    }
+  },
+  "monitorStates": {
+    "working": "bright white UI",
+    "idle": "black/off",
+    "demonstratedIdleInstance": "team-strip-medium W3"
+  },
+  "reorderProof": {
+    "stackedOrder": [
+      "large",
+      "small",
+      "medium"
+    ],
+    "stripGeometryMutation": false,
+    "authorityMutation": false,
+    "operation": "data order only"
+  },
+  "artifacts": {
+    "module-catalog": {
+      "svg": "module-catalog.svg",
+      "png": "module-catalog.png",
+      "dimensions": [
+        2400,
+        1400
+      ],
+      "svgSha256": "2ae9ce76c929132a67ac48d3f69fbd61c1faa5beec24bb492eb51806a67a9f98",
+      "pngSha256": "4f6eaac57b4b2adb8bec05d4d05f180ac4ec22d8a6a8692a6a968b858124b1be",
+      "visibleInstanceCount": 103,
+      "unmappedVisibleObjects": 0,
+      "directModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 1,
+        "actor.reviewer": 1,
+        "actor.worker": 1,
+        "ambient.light-pool": 1,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 1,
+        "assembly.reviewer-station": 1,
+        "assembly.worker-workstation": 1,
+        "device.keyboard": 1,
+        "device.monitor": 1,
+        "device.pen-display": 1,
+        "furniture.chair": 1,
+        "furniture.desk": 1,
+        "furniture.mission-board": 1,
+        "furniture.shelf": 1,
+        "pet.channy": 1,
+        "prop.mug": 1,
+        "prop.paper-stack": 1,
+        "prop.plant": 1,
+        "prop.task-lamp": 1,
+        "surface.corridor": 1,
+        "surface.floor": 3,
+        "surface.lane": 1,
+        "ui.catalog-card": 34,
+        "ui.catalog-label": 36,
+        "ui.continuation": 1,
+        "ui.drag-handle": 1,
+        "ui.focus-ring": 1,
+        "ui.lane-sign": 1,
+        "ui.slot-anchor-empty": 1,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      },
+      "expandedModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 1,
+        "actor.reviewer": 1,
+        "actor.worker": 1,
+        "ambient.light-pool": 4,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 1,
+        "assembly.reviewer-station": 1,
+        "assembly.worker-workstation": 1,
+        "device.keyboard": 2,
+        "device.monitor": 4,
+        "device.pen-display": 2,
+        "furniture.chair": 5,
+        "furniture.desk": 5,
+        "furniture.mission-board": 2,
+        "furniture.shelf": 2,
+        "pet.channy": 1,
+        "prop.mug": 4,
+        "prop.paper-stack": 2,
+        "prop.plant": 1,
+        "prop.task-lamp": 3,
+        "surface.corridor": 1,
+        "surface.floor": 3,
+        "surface.lane": 1,
+        "ui.catalog-card": 34,
+        "ui.catalog-label": 36,
+        "ui.continuation": 1,
+        "ui.drag-handle": 1,
+        "ui.focus-ring": 1,
+        "ui.lane-sign": 1,
+        "ui.slot-anchor-empty": 1,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      }
+    },
+    "team-strip-small": {
+      "svg": "team-strip-small.svg",
+      "png": "team-strip-small.png",
+      "dimensions": [
+        2400,
+        720
+      ],
+      "svgSha256": "3f1dde2d78399696a2346b68c176b4725cff01233b59209e6bd554f415bb72ee",
+      "pngSha256": "b8fdda00ee61ccdf49aebf970e1277445b9ef27c85e3e0f979097e971a244f41",
+      "visibleInstanceCount": 29,
+      "unmappedVisibleObjects": 0,
+      "directModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 1,
+        "actor.reviewer": 1,
+        "actor.worker": 1,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 1,
+        "assembly.reviewer-station": 1,
+        "assembly.worker-workstation": 1,
+        "pet.channy": 1,
+        "prop.plant": 2,
+        "surface.floor": 1,
+        "surface.lane": 4,
+        "ui.drag-handle": 1,
+        "ui.lane-sign": 4,
+        "ui.slot-anchor-empty": 6,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      },
+      "expandedModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 1,
+        "actor.reviewer": 1,
+        "actor.worker": 1,
+        "ambient.light-pool": 3,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 1,
+        "assembly.reviewer-station": 1,
+        "assembly.worker-workstation": 1,
+        "device.keyboard": 1,
+        "device.monitor": 3,
+        "device.pen-display": 1,
+        "furniture.chair": 4,
+        "furniture.desk": 4,
+        "furniture.mission-board": 1,
+        "furniture.shelf": 1,
+        "pet.channy": 1,
+        "prop.mug": 3,
+        "prop.paper-stack": 1,
+        "prop.plant": 2,
+        "prop.task-lamp": 2,
+        "surface.floor": 1,
+        "surface.lane": 4,
+        "ui.drag-handle": 1,
+        "ui.lane-sign": 4,
+        "ui.slot-anchor-empty": 6,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      }
+    },
+    "team-strip-medium": {
+      "svg": "team-strip-medium.svg",
+      "png": "team-strip-medium.png",
+      "dimensions": [
+        2400,
+        720
+      ],
+      "svgSha256": "0ae2e38d3a8d6693dbf6caa79d96637fa923f2a8d3b4ab3b91524b3025e8bca1",
+      "pngSha256": "07ee789f3bea4c1b09d004f988022726f258a5f649c7cfb8840e59bedc4acc91",
+      "visibleInstanceCount": 30,
+      "unmappedVisibleObjects": 0,
+      "directModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 1,
+        "actor.reviewer": 1,
+        "actor.worker": 3,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 1,
+        "assembly.reviewer-station": 1,
+        "assembly.worker-workstation": 3,
+        "prop.plant": 2,
+        "surface.floor": 1,
+        "surface.lane": 4,
+        "ui.drag-handle": 1,
+        "ui.lane-sign": 4,
+        "ui.slot-anchor-empty": 4,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      },
+      "expandedModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 1,
+        "actor.reviewer": 1,
+        "actor.worker": 3,
+        "ambient.light-pool": 5,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 1,
+        "assembly.reviewer-station": 1,
+        "assembly.worker-workstation": 3,
+        "device.keyboard": 3,
+        "device.monitor": 5,
+        "device.pen-display": 1,
+        "furniture.chair": 6,
+        "furniture.desk": 6,
+        "furniture.mission-board": 1,
+        "furniture.shelf": 1,
+        "prop.mug": 5,
+        "prop.paper-stack": 1,
+        "prop.plant": 2,
+        "prop.task-lamp": 2,
+        "surface.floor": 1,
+        "surface.lane": 4,
+        "ui.drag-handle": 1,
+        "ui.lane-sign": 4,
+        "ui.slot-anchor-empty": 4,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      }
+    },
+    "team-strip-large": {
+      "svg": "team-strip-large.svg",
+      "png": "team-strip-large.png",
+      "dimensions": [
+        2400,
+        720
+      ],
+      "svgSha256": "98a84aa37bd4740aecbe54606f7bf08265fcf2896f8f615aa64d115a337c8c59",
+      "pngSha256": "0e9e510102a196ceb4c64db1a903169fc864f0828f900939ae764308bb7c431d",
+      "visibleInstanceCount": 34,
+      "unmappedVisibleObjects": 0,
+      "directModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 2,
+        "actor.reviewer": 2,
+        "actor.worker": 5,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 2,
+        "assembly.reviewer-station": 2,
+        "assembly.worker-workstation": 5,
+        "prop.plant": 2,
+        "surface.floor": 1,
+        "surface.lane": 4,
+        "ui.drag-handle": 1,
+        "ui.lane-sign": 4,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      },
+      "expandedModuleCounts": {
+        "actor.advisor": 1,
+        "actor.designer": 2,
+        "actor.reviewer": 2,
+        "actor.worker": 5,
+        "ambient.light-pool": 9,
+        "assembly.advisor-station": 1,
+        "assembly.designer-station": 2,
+        "assembly.reviewer-station": 2,
+        "assembly.worker-workstation": 5,
+        "device.keyboard": 5,
+        "device.monitor": 8,
+        "device.pen-display": 2,
+        "furniture.chair": 10,
+        "furniture.desk": 10,
+        "furniture.mission-board": 1,
+        "furniture.shelf": 1,
+        "prop.mug": 8,
+        "prop.paper-stack": 2,
+        "prop.plant": 2,
+        "prop.task-lamp": 4,
+        "surface.floor": 1,
+        "surface.lane": 4,
+        "ui.drag-handle": 1,
+        "ui.lane-sign": 4,
+        "ui.state-indicator": 1,
+        "ui.team-sign": 1
+      }
+    },
+    "stacked-team-strips": {
+      "svg": "stacked-team-strips.svg",
+      "png": "stacked-team-strips.png",
+      "dimensions": [
+        2400,
+        2480
+      ],
+      "svgSha256": "20d0837329606cd115d112916cd69f50a37d1526e30accedade3133c875a3e10",
+      "pngSha256": "98edcdd24875506d9c4066a5e2b3f538601473bb42641249ae80ce34cd7c148d",
+      "visibleInstanceCount": 97,
+      "unmappedVisibleObjects": 0,
+      "directModuleCounts": {
+        "actor.advisor": 3,
+        "actor.designer": 4,
+        "actor.reviewer": 4,
+        "actor.worker": 9,
+        "assembly.advisor-station": 3,
+        "assembly.designer-station": 4,
+        "assembly.reviewer-station": 4,
+        "assembly.worker-workstation": 9,
+        "pet.channy": 1,
+        "prop.plant": 6,
+        "surface.corridor": 2,
+        "surface.floor": 4,
+        "surface.lane": 12,
+        "ui.continuation": 1,
+        "ui.drag-handle": 3,
+        "ui.lane-sign": 12,
+        "ui.slot-anchor-empty": 10,
+        "ui.state-indicator": 3,
+        "ui.team-sign": 3
+      },
+      "expandedModuleCounts": {
+        "actor.advisor": 3,
+        "actor.designer": 4,
+        "actor.reviewer": 4,
+        "actor.worker": 9,
+        "ambient.light-pool": 17,
+        "assembly.advisor-station": 3,
+        "assembly.designer-station": 4,
+        "assembly.reviewer-station": 4,
+        "assembly.worker-workstation": 9,
+        "device.keyboard": 9,
+        "device.monitor": 16,
+        "device.pen-display": 4,
+        "furniture.chair": 20,
+        "furniture.desk": 20,
+        "furniture.mission-board": 3,
+        "furniture.shelf": 3,
+        "pet.channy": 1,
+        "prop.mug": 16,
+        "prop.paper-stack": 4,
+        "prop.plant": 6,
+        "prop.task-lamp": 8,
+        "surface.corridor": 2,
+        "surface.floor": 4,
+        "surface.lane": 12,
+        "ui.continuation": 1,
+        "ui.drag-handle": 3,
+        "ui.lane-sign": 12,
+        "ui.slot-anchor-empty": 10,
+        "ui.state-indicator": 3,
+        "ui.team-sign": 3
+      }
+    }
+  }
+}

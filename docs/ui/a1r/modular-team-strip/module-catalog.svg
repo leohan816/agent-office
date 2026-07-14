@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2400" height="1400" viewBox="0 0 2400 1400">
+  <title>Canonical module catalog</title>
+  <desc>Deterministically composed from canonical module IDs. PNG is evidence; SVG and manifests are source.</desc>
+  <defs>
+    <linearGradient id="floor-wash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8f1e7"/>
+      <stop offset="1" stop-color="#e6d7c5"/>
+    </linearGradient>
+    <linearGradient id="wood-top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c99561"/>
+      <stop offset="1" stop-color="#9f6c43"/>
+    </linearGradient>
+    <linearGradient id="screen-white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e8f4f3"/>
+    </linearGradient>
+    <radialGradient id="light-pool" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd88a" stop-opacity=".34"/>
+      <stop offset=".72" stop-color="#ffd88a" stop-opacity=".09"/>
+      <stop offset="1" stop-color="#ffd88a" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="floor-grid" width="96" height="48" patternUnits="userSpaceOnUse">
+      <path d="M0 24 48 0 96 24 48 48Z" fill="none" stroke="#b9a78f" stroke-width="1" opacity=".23"/>
+      <path d="M48 0v48M0 24h96" stroke="#fff" stroke-width="1" opacity=".14"/>
+    </pattern>
+    <pattern id="corridor-dots" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="16" cy="16" r="2" fill="#9ab7b2" opacity=".18"/>
+    </pattern>
+
+    <symbol id="surface-office-floor" viewBox="0 0 2400 720">
+      <rect width="2400" height="720" fill="url(#floor-wash)"/>
+      <rect width="2400" height="720" fill="url(#floor-grid)"/>
+      <path d="M0 688H2400" stroke="#d1bea5" stroke-width="18" opacity=".32"/>
+    </symbol>
+
+    <symbol id="surface-shared-corridor" viewBox="0 0 2400 190">
+      <rect width="2400" height="190" fill="#edf0e8" opacity=".88"/>
+      <rect width="2400" height="190" fill="url(#corridor-dots)"/>
+      <path d="M0 32H2400M0 158H2400" stroke="#fff" stroke-width="2" opacity=".42"/>
+    </symbol>
+
+    <symbol id="surface-lane-field" viewBox="0 0 420 470">
+      <path d="M26 42 344 12 404 76 86 108Z" fill="currentColor" opacity=".055"/>
+      <path d="M54 398 368 368 408 410 94 440Z" fill="currentColor" opacity=".045"/>
+      <path d="M42 86 357 56" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".12"/>
+    </symbol>
+
+    <symbol id="ambient-light-pool" viewBox="0 0 200 120">
+      <ellipse cx="100" cy="72" rx="96" ry="44" fill="url(#light-pool)"/>
+    </symbol>
+
+    <symbol id="ui-team-sign" viewBox="0 0 390 66">
+      <path d="M12 0h360l18 18v36l-12 12H12L0 54V12Z" fill="#fffaf1" stroke="#5f625f" stroke-width="3"/>
+      <path d="M0 12 12 0h22v66H12L0 54Z" fill="currentColor"/>
+      <path d="m13 22 8-8 8 8-8 8Z" fill="#fff" opacity=".9"/>
+      <path d="M54 48h292" stroke="currentColor" stroke-width="3" opacity=".18"/>
+    </symbol>
+
+    <symbol id="ui-lane-sign" viewBox="0 0 150 34">
+      <path d="M8 0h134l8 8v18l-8 8H8L0 26V8Z" fill="#2f3c42" opacity=".88"/>
+      <rect x="10" y="9" width="5" height="16" rx="2" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ui-drag-handle" viewBox="0 0 80 58">
+      <rect x="1.5" y="1.5" width="77" height="55" rx="16" fill="#fffaf1" stroke="#59646b" stroke-width="3"/>
+      <g fill="#59646b">
+        <circle cx="29" cy="20" r="3.5"/><circle cx="51" cy="20" r="3.5"/>
+        <circle cx="29" cy="29" r="3.5"/><circle cx="51" cy="29" r="3.5"/>
+        <circle cx="29" cy="38" r="3.5"/><circle cx="51" cy="38" r="3.5"/>
+      </g>
+    </symbol>
+
+    <symbol id="ui-state-indicator-active" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="23" fill="#eff8f2" stroke="#3c9364" stroke-width="3"/>
+      <circle cx="28" cy="28" r="10" fill="#3c9364"/>
+    </symbol>
+    <symbol id="ui-state-indicator-idle" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="23" fill="#f4f1ec" stroke="#73777b" stroke-width="3"/>
+      <path d="M19 28h18" stroke="#73777b" stroke-width="5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ui-state-indicator-unknown" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="23" fill="#f6f2e9" stroke="#73777b" stroke-width="3" stroke-dasharray="5 5"/>
+      <circle cx="28" cy="28" r="5" fill="#73777b"/>
+    </symbol>
+
+    <symbol id="ui-slot-anchor-empty" viewBox="0 0 172 168">
+      <path d="M18 52 104 16l50 30-86 36Z" fill="#fff" opacity=".22" stroke="#6e7a7b" stroke-width="3" stroke-dasharray="8 8"/>
+      <path d="M54 120h64" stroke="#6e7a7b" stroke-width="3" stroke-linecap="round" opacity=".38"/>
+      <circle cx="86" cy="120" r="9" fill="none" stroke="#6e7a7b" stroke-width="3" opacity=".38"/>
+    </symbol>
+
+    <symbol id="ui-continuation" viewBox="0 0 180 64">
+      <path d="M2 2h176v60H2Z" fill="#fffaf1" stroke="#5e686a" stroke-width="3" stroke-dasharray="8 7"/>
+      <path d="m70 20 20 20 20-20" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="square"/>
+    </symbol>
+
+    <symbol id="ui-focus-ring" viewBox="0 0 96 74">
+      <rect x="4" y="4" width="88" height="66" rx="19" fill="none" stroke="#0b63ce" stroke-width="8"/>
+      <rect x="14" y="14" width="68" height="46" rx="12" fill="none" stroke="#fff" stroke-width="3"/>
+    </symbol>
+
+    <symbol id="ui-catalog-card" viewBox="0 0 350 250">
+      <path d="M16 0h318l16 16v218l-16 16H16L0 234V16Z" fill="#fffaf3" stroke="#c7b9a7" stroke-width="3"/>
+      <path d="M20 196h310" stroke="#d9cdbd" stroke-width="2"/>
+    </symbol>
+
+    <symbol id="furniture-desk" viewBox="0 0 168 96">
+      <ellipse cx="88" cy="82" rx="70" ry="12" fill="#513f38" opacity=".18"/>
+      <path d="M9 18h126l24 22H33Z" fill="url(#wood-top)" stroke="#493a36" stroke-width="4"/>
+      <path d="M33 40h126v14H33Z" fill="#83583b" stroke="#493a36" stroke-width="4"/>
+      <path d="M40 54h14v35H40ZM138 54h14v35h-14Z" fill="#5f4434"/>
+      <path d="M17 24h122" stroke="#e6b77f" stroke-width="3" opacity=".7"/>
+    </symbol>
+
+    <symbol id="furniture-chair" viewBox="0 0 72 94">
+      <ellipse cx="36" cy="86" rx="31" ry="7" fill="#413a39" opacity=".2"/>
+      <path d="M18 8h36l7 11-8 35H19l-8-35Z" fill="#354248" stroke="#252e33" stroke-width="4"/>
+      <path d="M14 45h45l-7 17H21Z" fill="#53666c" stroke="#252e33" stroke-width="4"/>
+      <path d="M36 62v17M17 84l19-5 19 5M36 79 8 86M36 79l28 7" stroke="#252e33" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="8" cy="87" r="4" fill="#252e33"/><circle cx="64" cy="87" r="4" fill="#252e33"/>
+      <circle cx="17" cy="85" r="4" fill="#252e33"/><circle cx="55" cy="85" r="4" fill="#252e33"/>
+    </symbol>
+
+    <symbol id="device-monitor-working" viewBox="0 0 76 70">
+      <path d="M7 4h57l7 7v40H7Z" fill="#2a3439" stroke="#172126" stroke-width="4"/>
+      <path d="M13 11h50v32H13Z" fill="url(#screen-white)"/>
+      <rect x="18" y="16" width="16" height="4" fill="currentColor" opacity=".88"/>
+      <rect x="18" y="24" width="38" height="3" fill="#8b9ca0"/>
+      <rect x="18" y="31" width="25" height="3" fill="#8b9ca0"/>
+      <rect x="18" y="37" width="33" height="3" fill="#c6d3d2"/>
+      <path d="M38 51v10M24 65h28" stroke="#2a3439" stroke-width="5" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="device-monitor-idle" viewBox="0 0 76 70">
+      <path d="M7 4h57l7 7v40H7Z" fill="#2a3439" stroke="#172126" stroke-width="4"/>
+      <path d="M13 11h50v32H13Z" fill="#090d10"/>
+      <circle cx="57" cy="38" r="2.5" fill="#6f7779"/>
+      <path d="M38 51v10M24 65h28" stroke="#2a3439" stroke-width="5" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="device-pen-display" viewBox="0 0 92 64">
+      <path d="M8 9h64l13 10-8 34H13Z" fill="#2c383d" stroke="#172126" stroke-width="4"/>
+      <path d="M15 16h57l6 5-6 24H19Z" fill="#f7fbfa"/>
+      <path d="m25 37 13-11 9 7 13-12" fill="none" stroke="currentColor" stroke-width="4"/>
+      <path d="M86 7 65 41" stroke="#2a3439" stroke-width="4" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="device-keyboard" viewBox="0 0 96 34">
+      <path d="M4 11 78 2l14 10-75 12Z" fill="#273238" stroke="#172126" stroke-width="3"/>
+      <path d="m17 12 57-7M22 17l58-7M31 9l5 8M45 7l5 8M59 5l5 8M73 4l5 8" stroke="#b6c3c3" stroke-width="1.5" opacity=".72"/>
+    </symbol>
+
+    <symbol id="furniture-mission-board" viewBox="0 0 190 116">
+      <path d="M4 4h170l12 12v84l-12 12H4Z" fill="#815f43" stroke="#493a36" stroke-width="5"/>
+      <path d="M14 14h153l9 9v67l-9 9H14Z" fill="#d8c3a3"/>
+      <path d="m33 32 38 2-3 25-38-2ZM83 25l42 3-2 30-42-3ZM128 62l28 1-2 22-28-1ZM49 69l53 2-2 17-53-2Z" fill="#fffaf1" stroke="#8f7c67" stroke-width="2"/>
+      <path d="M69 47 92 38l29 25 20 9" fill="none" stroke="currentColor" stroke-width="3"/>
+      <g fill="currentColor"><circle cx="33" cy="32" r="4"/><circle cx="84" cy="26" r="4"/><circle cx="129" cy="63" r="4"/><circle cx="50" cy="70" r="4"/></g>
+      <path d="M22 112h153" stroke="#493a36" stroke-width="7"/>
+    </symbol>
+
+    <symbol id="furniture-shelf" viewBox="0 0 140 70">
+      <path d="M6 8h128v56H6Z" fill="#865c3d" stroke="#493a36" stroke-width="4"/>
+      <path d="M10 34h120M48 10v50M94 10v50" stroke="#493a36" stroke-width="4"/>
+      <path d="M16 17h10v14H16ZM29 13h9v18h-9ZM55 18h14v13H55ZM73 12h8v19h-8ZM101 16h12v15h-12ZM116 20h8v11h-8Z" fill="currentColor" opacity=".78"/>
+      <path d="M18 43h20v17H18ZM56 44h30v16H56ZM101 42h22v18h-22Z" fill="#d8c3a3"/>
+    </symbol>
+
+    <symbol id="prop-plant" viewBox="0 0 56 76">
+      <ellipse cx="28" cy="70" rx="24" ry="6" fill="#473c37" opacity=".18"/>
+      <path d="M16 45h25l-4 25H20Z" fill="#a66e4c" stroke="#604534" stroke-width="3"/>
+      <path d="M28 48C10 42 7 25 12 13c14 7 18 18 16 35ZM29 48C42 39 51 25 46 11 33 16 27 31 29 48ZM27 47C18 29 20 11 29 2c10 13 7 30-2 45Z" fill="#4c8261" stroke="#315c45" stroke-width="3"/>
+    </symbol>
+
+    <symbol id="prop-mug" viewBox="0 0 34 34">
+      <path d="M5 7h20v21H8L5 24Z" fill="#f4eee2" stroke="#554941" stroke-width="3"/>
+      <path d="M25 12h4c5 0 5 10 0 10h-4" fill="none" stroke="#554941" stroke-width="3"/>
+      <path d="M9 11h12" stroke="currentColor" stroke-width="4"/>
+    </symbol>
+
+    <symbol id="prop-paper-stack" viewBox="0 0 64 42">
+      <path d="m5 15 46-9 8 7-45 10Z" fill="#e8dfd0" stroke="#66584c" stroke-width="2"/>
+      <path d="m8 21 46-8 6 7-45 9Z" fill="#fffaf1" stroke="#66584c" stroke-width="2"/>
+      <path d="m12 29 43-7 5 7-42 8Z" fill="#f7f2e9" stroke="#66584c" stroke-width="2"/>
+      <path d="m22 27 22-4" stroke="currentColor" stroke-width="3"/>
+    </symbol>
+
+    <symbol id="prop-task-lamp" viewBox="0 0 58 84">
+      <ellipse cx="28" cy="78" rx="24" ry="5" fill="#3a3230" opacity=".16"/>
+      <path d="M15 73h29M27 71 31 36M31 36l13-18" stroke="#29353a" stroke-width="6" stroke-linecap="round"/>
+      <path d="M34 11h18l4 10-19 7Z" fill="currentColor" stroke="#29353a" stroke-width="4"/>
+      <circle cx="31" cy="36" r="5" fill="#d9b05d"/>
+    </symbol>
+
+    <symbol id="actor-advisor-standing" viewBox="0 0 88 144">
+      <ellipse cx="44" cy="136" rx="35" ry="7" fill="#3d3432" opacity=".2"/>
+      <path d="M28 91h16l-3 38H25ZM46 91h16l5 38H49Z" fill="#3f4c55" stroke="#273139" stroke-width="3"/>
+      <path d="m24 128 18 1 3 8H21ZM49 128l18-1 4 9H49Z" fill="#2a3238"/>
+      <path d="M25 42h35l10 18-8 40H25L17 60Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="M37 43h14l6 44H31Z" fill="#f7f0e5"/>
+      <path d="M27 50 13 63 5 57l18-20ZM59 48l17 6 10-3 2 8-14 6-20-7Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="m4 55 8-4 5 8-7 6Z" fill="#bd7a57"/>
+      <path d="m79 50 8-3 1 10-8 2Z" fill="#bd7a57"/>
+      <path d="M29 12c7-12 29-11 35 1l-2 22-13 11-16-6-7-15Z" fill="#bd7a57" stroke="#49352e" stroke-width="3"/>
+      <path d="M27 22C22 4 49-5 65 12l-4 9-9-8-23 8Z" fill="#2b2728"/>
+      <path d="M45 26h4M57 25h4" stroke="#2b2728" stroke-width="3" stroke-linecap="round"/>
+      <path d="m51 32 5 1" stroke="#8c4c3e" stroke-width="2"/>
+    </symbol>
+
+    <symbol id="actor-advisor-seated" viewBox="0 0 88 144">
+      <ellipse cx="45" cy="136" rx="34" ry="7" fill="#3d3432" opacity=".2"/>
+      <path d="M28 85h30l9 26-17 9-9-20-9 23-17-7Z" fill="#3f4c55" stroke="#273139" stroke-width="3"/>
+      <path d="m13 115 20 6-3 10-22-6ZM49 119l19-10 6 8-21 13Z" fill="#2a3238"/>
+      <path d="M24 43h38l8 19-12 39H24L15 62Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="M36 44h15l6 39H31Z" fill="#f7f0e5"/>
+      <path d="M24 54 10 75l9 5 16-19ZM59 54l18 12-5 9-20-11Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="m9 74 9-2 3 8-8 4ZM70 66l9 2-4 9-7-4Z" fill="#bd7a57"/>
+      <path d="M29 12c7-12 29-11 35 1l-2 22-13 11-16-6-7-15Z" fill="#bd7a57" stroke="#49352e" stroke-width="3"/>
+      <path d="M27 22C22 4 49-5 65 12l-4 9-9-8-23 8Z" fill="#2b2728"/>
+      <path d="M45 26h4M57 25h4" stroke="#2b2728" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="actor-designer-working" viewBox="0 0 88 144">
+      <ellipse cx="43" cy="136" rx="34" ry="7" fill="#3d3432" opacity=".2"/>
+      <path d="M29 88h31l10 25-17 8-10-18-9 24-17-5Z" fill="#344856" stroke="#25343d" stroke-width="3"/>
+      <path d="m15 121 20 4-2 10-23-5ZM52 120l18-8 5 8-20 11Z" fill="#2a3238"/>
+      <path d="M25 45h35l11 21-12 35H26L16 65Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="M25 55 7 77l8 7 22-19ZM59 57l21 15-4 8-25-11Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="m5 76 9-2 4 8-8 5ZM76 72l8 4-5 8-7-5Z" fill="#9b6349"/>
+      <path d="M27 15c8-14 30-13 37 0l-3 22-15 10-15-7-6-14Z" fill="#9b6349" stroke="#3b2b2a" stroke-width="3"/>
+      <path d="M25 24C21 5 52-4 66 17l-7 3-7-7-25 11Z" fill="#242425"/>
+      <path d="M43 28h4M56 27h4" stroke="#242425" stroke-width="3" stroke-linecap="round"/>
+      <path d="M80 69 84 61" stroke="#26343a" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="actor-worker-rear-typing" viewBox="0 0 88 144">
+      <ellipse cx="44" cy="136" rx="35" ry="7" fill="#3d3432" opacity=".2"/>
+      <path d="M27 89h34l6 32-16 5-8-22-7 23-17-4Z" fill="#33424a" stroke="#243037" stroke-width="3"/>
+      <path d="m17 122 19 4-3 10-22-5ZM51 123l18-3 5 10-22 5Z" fill="#242c31"/>
+      <path d="M22 42h43l9 24-12 39H25L13 66Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="M23 56 7 76l9 7 20-17ZM64 56l17 19-8 7-20-16Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="m6 75 10-1 3 9-10 3ZM72 75l10 1-2 10-10-3Z" fill="#b47655"/>
+      <path d="M28 13c8-11 28-11 35 0l3 21-16 11-17-7-8-15Z" fill="#b47655" stroke="#48332d" stroke-width="3"/>
+      <path d="M25 23C21 3 53-5 66 14l-4 13-9-11-27 8Z" fill="#332827"/>
+      <path d="M32 46h24" stroke="#f5d4ba" stroke-width="4" opacity=".35"/>
+    </symbol>
+
+    <symbol id="actor-worker-rear-idle" viewBox="0 0 88 144">
+      <ellipse cx="44" cy="136" rx="35" ry="7" fill="#3d3432" opacity=".2"/>
+      <path d="M27 89h34l6 32-16 5-8-22-7 23-17-4Z" fill="#33424a" stroke="#243037" stroke-width="3"/>
+      <path d="m17 122 19 4-3 10-22-5ZM51 123l18-3 5 10-22 5Z" fill="#242c31"/>
+      <path d="M22 42h43l9 24-12 39H25L13 66Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="M23 58 11 89l10 3 14-25ZM64 58l12 31-10 3-13-25Z" fill="currentColor" stroke="#29343a" stroke-width="4"/>
+      <path d="m10 88 10-2 3 9-10 3ZM65 87l10 1-2 10-10-3Z" fill="#b47655"/>
+      <path d="M28 13c8-11 28-11 35 0l3 21-16 11-17-7-8-15Z" fill="#b47655" stroke="#48332d" stroke-width="3"/>
+      <path d="M25 23C21 3 53-5 66 14l-4 13-9-11-27 8Z" fill="#332827"/>
+    </symbol>
+
+    <symbol id="actor-reviewer-reviewing" viewBox="0 0 88 144">
+      <ellipse cx="44" cy="136" rx="35" ry="7" fill="#3d3432" opacity=".2"/>
+      <path d="M27 89h34l6 32-16 5-8-22-7 23-17-4Z" fill="#3e4850" stroke="#273139" stroke-width="3"/>
+      <path d="m18 122 18 4-3 10-21-5ZM51 123l18-3 5 10-22 5Z" fill="#262e33"/>
+      <path d="M23 43h41l10 22-12 38H25L14 65Z" fill="#58636a" stroke="#29343a" stroke-width="4"/>
+      <path d="M25 54 8 75l8 8 21-18ZM62 55l18 17-7 8-21-14Z" fill="#58636a" stroke="#29343a" stroke-width="4"/>
+      <path d="m7 74 10-1 3 9-10 3ZM71 71l10 3-4 9-9-4Z" fill="#7f553f"/>
+      <path d="m28 72 31-7 8 34-31 7Z" fill="#fffaf1" stroke="#5c5149" stroke-width="3"/>
+      <path d="m37 81 20-4M39 89l19-4M41 97l13-3" stroke="currentColor" stroke-width="3"/>
+      <path d="M27 14c8-13 29-12 37 1l-3 22-15 10-15-7-6-15Z" fill="#7f553f" stroke="#3b2926" stroke-width="3"/>
+      <path d="M25 24C21 5 52-4 66 17l-7 3-8-7-25 11Z" fill="#1f2225"/>
+      <path d="M44 28h4M57 27h4" stroke="#1f2225" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="pet-channy-walk" viewBox="0 0 112 96">
+      <ellipse cx="56" cy="88" rx="47" ry="7" fill="#403936" opacity=".18"/>
+      <path d="M21 48C29 30 63 29 76 42l13 17-19 9H35L17 58Z" fill="#9ca6aa" stroke="#4d565b" stroke-width="3"/>
+      <path d="M67 41c1-22 25-31 36-16 8 11 1 28-10 34l-17-4Z" fill="#eee6d8" stroke="#4d565b" stroke-width="3"/>
+      <path d="M76 31c-8 2-11 14-7 26l12 3 5-24Z" fill="#7d878d" stroke="#4d565b" stroke-width="3"/>
+      <path d="M91 31c-5 4-4 17 1 25l8-6 1-17Z" fill="#c6c4bd"/>
+      <path d="M99 41h10l3 5-9 4Z" fill="#2d3032"/>
+      <circle cx="96" cy="35" r="3" fill="#252729"/>
+      <path d="M17 52 3 43 1 36" fill="none" stroke="#7e898e" stroke-width="5" stroke-linecap="round"/>
+      <path d="M27 61 20 89h11l8-25ZM50 64l-2 27h11l4-28ZM71 64l7 25h11L82 59Z" fill="#eee6d8" stroke="#4d565b" stroke-width="3"/>
+      <path d="M80 48h16" stroke="currentColor" stroke-width="5"/>
+      <g fill="#d8d3c9" opacity=".8">
+        <circle cx="34" cy="41" r="6"/><circle cx="46" cy="38" r="6"/><circle cx="57" cy="40" r="6"/>
+        <circle cx="79" cy="25" r="6"/><circle cx="89" cy="21" r="6"/><circle cx="98" cy="25" r="6"/>
+      </g>
+    </symbol>
+
+    <symbol id="assembly-worker-workstation-working" viewBox="0 0 190 190">
+      <use href="#ambient-light-pool" x="0" y="85" width="190" height="105"/>
+      <use href="#furniture-chair" x="58" y="100" width="72" height="94"/>
+      <use href="#furniture-desk" x="10" y="72" width="168" height="96"/>
+      <use href="#device-monitor-working" x="56" y="36" width="76" height="70"/>
+      <use href="#device-keyboard" x="47" y="102" width="96" height="34"/>
+      <use href="#prop-mug" x="135" y="78" width="30" height="30"/>
+    </symbol>
+
+    <symbol id="assembly-worker-workstation-idle" viewBox="0 0 190 190">
+      <use href="#ambient-light-pool" x="0" y="85" width="190" height="105" opacity=".45"/>
+      <use href="#furniture-chair" x="58" y="100" width="72" height="94"/>
+      <use href="#furniture-desk" x="10" y="72" width="168" height="96"/>
+      <use href="#device-monitor-idle" x="56" y="36" width="76" height="70"/>
+      <use href="#device-keyboard" x="47" y="102" width="96" height="34"/>
+      <use href="#prop-mug" x="135" y="78" width="30" height="30"/>
+    </symbol>
+
+    <symbol id="assembly-designer-station" viewBox="0 0 190 190">
+      <use href="#ambient-light-pool" x="0" y="85" width="190" height="105"/>
+      <use href="#furniture-chair" x="58" y="100" width="72" height="94"/>
+      <use href="#furniture-desk" x="10" y="72" width="168" height="96"/>
+      <use href="#device-pen-display" x="50" y="49" width="92" height="64"/>
+      <use href="#prop-task-lamp" x="127" y="45" width="45" height="65"/>
+      <use href="#prop-mug" x="22" y="80" width="30" height="30"/>
+    </symbol>
+
+    <symbol id="assembly-advisor-station-working" viewBox="0 0 360 220">
+      <use href="#furniture-mission-board" x="0" y="0" width="190" height="116"/>
+      <use href="#furniture-shelf" x="12" y="118" width="140" height="70"/>
+      <use href="#furniture-chair" x="243" y="126" width="72" height="94"/>
+      <use href="#furniture-desk" x="180" y="90" width="168" height="96"/>
+      <use href="#device-monitor-working" x="228" y="56" width="76" height="70"/>
+      <use href="#prop-mug" x="310" y="102" width="30" height="30"/>
+    </symbol>
+
+    <symbol id="assembly-advisor-station-idle" viewBox="0 0 360 220">
+      <use href="#furniture-mission-board" x="0" y="0" width="190" height="116" opacity=".72"/>
+      <use href="#furniture-shelf" x="12" y="118" width="140" height="70"/>
+      <use href="#furniture-chair" x="243" y="126" width="72" height="94"/>
+      <use href="#furniture-desk" x="180" y="90" width="168" height="96"/>
+      <use href="#device-monitor-idle" x="228" y="56" width="76" height="70"/>
+      <use href="#prop-mug" x="310" y="102" width="30" height="30"/>
+    </symbol>
+
+    <symbol id="assembly-reviewer-station" viewBox="0 0 190 190">
+      <use href="#ambient-light-pool" x="0" y="85" width="190" height="105"/>
+      <use href="#furniture-chair" x="58" y="100" width="72" height="94"/>
+      <use href="#furniture-desk" x="10" y="72" width="168" height="96"/>
+      <use href="#device-monitor-working" x="32" y="36" width="76" height="70"/>
+      <use href="#prop-paper-stack" x="103" y="78" width="58" height="38"/>
+      <use href="#prop-task-lamp" x="137" y="34" width="45" height="65"/>
+    </symbol>
+  </defs>
+  <g shape-rendering="geometricPrecision"><g data-instance-id="catalog/floor/1" data-module-id="surface.floor" data-state="default" style="color:#287d76" opacity="1"><use href="#surface-office-floor" x="0" y="0" width="2400" height="720" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/floor/2" data-module-id="surface.floor" data-state="default" style="color:#287d76" opacity="1"><use href="#surface-office-floor" x="0" y="720" width="2400" height="720" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/title" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="54" y="68" font-family="Inter,DejaVu Sans,sans-serif" font-size="34" font-weight="700" fill="#2d3538" letter-spacing=".4">CANONICAL MODULE CATALOG</text></g><g data-instance-id="catalog/subtitle" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="0.72"><text x="56" y="98" font-family="Inter,DejaVu Sans,sans-serif" font-size="16" font-weight="700" fill="#2d3538" letter-spacing=".4">ONE SOURCE · FIXED ANCHORS · RESTRAINED TEAM TINT</text></g><g data-instance-id="catalog/card/surface.floor" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="40" y="132" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/surface.floor" data-module-id="surface.floor" data-state="default" style="color:#287d76" opacity="1"><use href="#surface-office-floor" x="74" y="178.5" width="250" height="75" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/surface.floor" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="56" y="329" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">surface.floor</text></g><g data-instance-id="catalog/card/surface.corridor" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="376" y="132" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/surface.corridor" data-module-id="surface.corridor" data-state="default" style="color:#a45d3b" opacity="1"><use href="#surface-shared-corridor" x="410" y="201" width="250" height="30" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/surface.corridor" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="392" y="329" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">surface.corridor</text></g><g data-instance-id="catalog/card/surface.lane" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="712" y="132" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/surface.lane" data-module-id="surface.lane" data-state="default" style="color:#5f62a7" opacity="1"><use href="#surface-lane-field" x="812.0212765957447" y="150" width="117.95744680851064" height="132" preserveAspectRatio="none"/></g><g data-instance-id="catalog/label/surface.lane" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="728" y="329" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">surface.lane</text></g><g data-instance-id="catalog/card/ambient.light-pool" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1048" y="132" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ambient.light-pool" data-module-id="ambient.light-pool" data-state="default" style="color:#287d76" opacity="1"><use href="#ambient-light-pool" x="1097" y="150" width="220.00000000000003" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/ambient.light-pool" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1064" y="329" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ambient.light-pool</text></g><g data-instance-id="catalog/card/ui.team-sign" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1384" y="132" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.team-sign" data-module-id="ui.team-sign" data-state="default" style="color:#a45d3b" opacity="1"><use href="#ui-team-sign" x="1418" y="194.84615384615384" width="250.00000000000003" height="42.307692307692314" preserveAspectRatio="xMidYMid meet"/><text x="1472" y="236.84615384615384" font-family="Inter,DejaVu Sans,sans-serif" font-size="23" font-weight="800" fill="#2d3538" letter-spacing=".5">TEAM · SAMPLE</text></g><g data-instance-id="catalog/label/ui.team-sign" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1400" y="329" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.team-sign</text></g><g data-instance-id="catalog/card/ui.lane-sign" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1720" y="132" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.lane-sign" data-module-id="ui.lane-sign" data-state="default" style="color:#5f62a7" opacity="1"><use href="#ui-lane-sign" x="1754" y="187.66666666666666" width="250" height="56.66666666666667" preserveAspectRatio="xMidYMid meet"/><text x="1779" y="210.66666666666666" font-family="Inter,DejaVu Sans,sans-serif" font-size="13" font-weight="800" fill="#fffaf1" letter-spacing="1.1">ROLE LANE</text></g><g data-instance-id="catalog/label/ui.lane-sign" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1736" y="329" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.lane-sign</text></g><g data-instance-id="catalog/card/ui.drag-handle" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="2056" y="132" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.drag-handle" data-module-id="ui.drag-handle" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-drag-handle" x="2123.9655172413795" y="150" width="182.0689655172414" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/ui.drag-handle" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="2072" y="329" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.drag-handle</text></g><g data-instance-id="catalog/card/ui.focus-ring" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="40" y="376" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.focus-ring" data-module-id="ui.focus-ring" data-state="focus" style="color:#a45d3b" opacity="1"><use href="#ui-focus-ring" x="113.37837837837839" y="394" width="171.24324324324323" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/ui.focus-ring" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="56" y="573" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.focus-ring</text></g><g data-instance-id="catalog/card/ui.state-indicator" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="376" y="376" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.state-indicator" data-module-id="ui.state-indicator" data-state="active" style="color:#5f62a7" opacity="1"><use href="#ui-state-indicator-active" x="469" y="394" width="132" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/ui.state-indicator" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="392" y="573" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.state-indicator</text></g><g data-instance-id="catalog/card/ui.slot-anchor-empty" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="712" y="376" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.slot-anchor-empty" data-module-id="ui.slot-anchor-empty" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-slot-anchor-empty" x="803.4285714285714" y="394" width="135.14285714285714" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/ui.slot-anchor-empty" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="728" y="573" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.slot-anchor-empty</text></g><g data-instance-id="catalog/card/ui.continuation" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1048" y="376" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.continuation" data-module-id="ui.continuation" data-state="default" style="color:#a45d3b" opacity="1"><use href="#ui-continuation" x="1082" y="415.55555555555554" width="250" height="88.88888888888889" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/ui.continuation" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1064" y="573" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.continuation</text></g><g data-instance-id="catalog/card/ui.catalog-card" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1384" y="376" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.catalog-card" data-module-id="ui.catalog-card" data-state="default" style="color:#5f62a7" opacity="1"><use href="#ui-catalog-card" x="1450.6" y="394" width="184.8" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/ui.catalog-card" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1400" y="573" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.catalog-card</text></g><g data-instance-id="catalog/card/ui.catalog-label" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1720" y="376" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/ui.catalog-label" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1754" y="459.59375" font-family="Inter,DejaVu Sans,sans-serif" font-size="16" font-weight="700" fill="#2d3538" letter-spacing=".4">MODULE LABEL</text></g><g data-instance-id="catalog/label/ui.catalog-label" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1736" y="573" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">ui.catalog-label</text></g><g data-instance-id="catalog/card/furniture.desk" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="2056" y="376" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/furniture.desk" data-module-id="furniture.desk" data-state="default" style="color:#a45d3b" opacity="1"><use href="#furniture-desk" x="2099.5" y="394" width="231" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/furniture.desk" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="2072" y="573" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">furniture.desk</text></g><g data-instance-id="catalog/card/furniture.chair" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="40" y="620" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/furniture.chair" data-module-id="furniture.chair" data-state="default" style="color:#5f62a7" opacity="1"><use href="#furniture-chair" x="148.4468085106383" y="638" width="101.1063829787234" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/furniture.chair" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="56" y="817" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">furniture.chair</text></g><g data-instance-id="catalog/card/device.monitor" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="376" y="620" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/device.monitor" data-module-id="device.monitor" data-state="working" style="color:#287d76" opacity="1"><use href="#device-monitor-working" x="463.34285714285716" y="638" width="143.31428571428572" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/device.monitor" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="392" y="817" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">device.monitor</text></g><g data-instance-id="catalog/card/device.pen-display" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="712" y="620" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/device.pen-display" data-module-id="device.pen-display" data-state="working" style="color:#a45d3b" opacity="1"><use href="#device-pen-display" x="776.125" y="638" width="189.75" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/device.pen-display" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="728" y="817" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">device.pen-display</text></g><g data-instance-id="catalog/card/device.keyboard" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1048" y="620" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/device.keyboard" data-module-id="device.keyboard" data-state="default" style="color:#5f62a7" opacity="1"><use href="#device-keyboard" x="1082" y="659.7291666666666" width="250" height="88.54166666666666" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/device.keyboard" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1064" y="817" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">device.keyboard</text></g><g data-instance-id="catalog/card/furniture.mission-board" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1384" y="620" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/furniture.mission-board" data-module-id="furniture.mission-board" data-state="default" style="color:#287d76" opacity="1"><use href="#furniture-mission-board" x="1434.896551724138" y="638" width="216.20689655172416" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/furniture.mission-board" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1400" y="817" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">furniture.mission-board</text></g><g data-instance-id="catalog/card/furniture.shelf" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1720" y="620" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/furniture.shelf" data-module-id="furniture.shelf" data-state="default" style="color:#a45d3b" opacity="1"><use href="#furniture-shelf" x="1754" y="641.5" width="250" height="125" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/furniture.shelf" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1736" y="817" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">furniture.shelf</text></g><g data-instance-id="catalog/card/prop.plant" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="2056" y="620" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/prop.plant" data-module-id="prop.plant" data-state="default" style="color:#5f62a7" opacity="1"><use href="#prop-plant" x="2166.3684210526317" y="638" width="97.26315789473685" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/prop.plant" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="2072" y="817" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">prop.plant</text></g><g data-instance-id="catalog/card/prop.mug" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="40" y="864" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/prop.mug" data-module-id="prop.mug" data-state="default" style="color:#287d76" opacity="1"><use href="#prop-mug" x="133" y="882" width="132" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/prop.mug" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="56" y="1061" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">prop.mug</text></g><g data-instance-id="catalog/card/prop.paper-stack" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="376" y="864" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/prop.paper-stack" data-module-id="prop.paper-stack" data-state="default" style="color:#a45d3b" opacity="1"><use href="#prop-paper-stack" x="434.42857142857144" y="882" width="201.14285714285714" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/prop.paper-stack" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="392" y="1061" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">prop.paper-stack</text></g><g data-instance-id="catalog/card/prop.task-lamp" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="712" y="864" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/prop.task-lamp" data-module-id="prop.task-lamp" data-state="on" style="color:#5f62a7" opacity="1"><use href="#prop-task-lamp" x="825.4285714285714" y="882" width="91.14285714285714" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/prop.task-lamp" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="728" y="1061" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">prop.task-lamp</text></g><g data-instance-id="catalog/card/actor.advisor" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1048" y="864" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/actor.advisor" data-module-id="actor.advisor" data-state="coordinating" style="color:#287d76" opacity="1"><use href="#actor-advisor-standing" x="1166.6666666666667" y="882" width="80.66666666666666" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/actor.advisor" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1064" y="1061" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">actor.advisor</text></g><g data-instance-id="catalog/card/actor.designer" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1384" y="864" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/actor.designer" data-module-id="actor.designer" data-state="working" style="color:#a45d3b" opacity="1"><use href="#actor-designer-working" x="1502.6666666666667" y="882" width="80.66666666666666" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/actor.designer" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1400" y="1061" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">actor.designer</text></g><g data-instance-id="catalog/card/actor.worker" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1720" y="864" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/actor.worker" data-module-id="actor.worker" data-state="working" style="color:#5f62a7" opacity="1"><use href="#actor-worker-rear-typing" x="1838.6666666666667" y="882" width="80.66666666666666" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/actor.worker" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1736" y="1061" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">actor.worker</text></g><g data-instance-id="catalog/card/actor.reviewer" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="2056" y="864" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/actor.reviewer" data-module-id="actor.reviewer" data-state="reviewing" style="color:#287d76" opacity="1"><use href="#actor-reviewer-reviewing" x="2174.6666666666665" y="882" width="80.66666666666666" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/actor.reviewer" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="2072" y="1061" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">actor.reviewer</text></g><g data-instance-id="catalog/card/pet.channy" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="40" y="1108" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/pet.channy" data-module-id="pet.channy" data-state="walking" style="color:#a45d3b" opacity="1"><use href="#pet-channy-walk" x="122" y="1126" width="154" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/pet.channy" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="56" y="1305" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">pet.channy</text></g><g data-instance-id="catalog/card/assembly.worker-workstation" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="376" y="1108" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/assembly.worker-workstation" data-module-id="assembly.worker-workstation" data-state="working" style="color:#5f62a7" opacity="1"><use href="#assembly-worker-workstation-working" x="469" y="1126" width="132" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/assembly.worker-workstation" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="392" y="1305" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">assembly.worker-workstation</text></g><g data-instance-id="catalog/card/assembly.designer-station" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="712" y="1108" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/assembly.designer-station" data-module-id="assembly.designer-station" data-state="working" style="color:#287d76" opacity="1"><use href="#assembly-designer-station" x="805" y="1126" width="132" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/assembly.designer-station" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="728" y="1305" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">assembly.designer-station</text></g><g data-instance-id="catalog/card/assembly.advisor-station" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1048" y="1108" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/assembly.advisor-station" data-module-id="assembly.advisor-station" data-state="coordinating" style="color:#a45d3b" opacity="1"><use href="#assembly-advisor-station-working" x="1099" y="1126" width="216" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/assembly.advisor-station" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1064" y="1305" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">assembly.advisor-station</text></g><g data-instance-id="catalog/card/assembly.reviewer-station" data-module-id="ui.catalog-card" data-state="default" style="color:#287d76" opacity="1"><use href="#ui-catalog-card" x="1384" y="1108" width="318" height="226" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/sample/assembly.reviewer-station" data-module-id="assembly.reviewer-station" data-state="reviewing" style="color:#5f62a7" opacity="1"><use href="#assembly-reviewer-station" x="1477" y="1126" width="132" height="132" preserveAspectRatio="xMidYMid meet"/></g><g data-instance-id="catalog/label/assembly.reviewer-station" data-module-id="ui.catalog-label" data-state="default" style="color:#287d76" opacity="1"><text x="1400" y="1305" font-family="Inter,DejaVu Sans,sans-serif" font-size="15" font-weight="700" fill="#2d3538" letter-spacing=".4">assembly.reviewer-station</text></g></g>
+</svg>
