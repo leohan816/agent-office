@@ -1,0 +1,221 @@
+# AS1 Multi-Team Slack Pilot Setup
+
+Status: `SETUP_PACK_ONLY__RUNTIME_COMMANDS_NOT_YET_AVAILABLE`
+
+Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
+
+This is the non-secret owner Setup Pack for two private Slack Socket Mode apps.
+It does not activate a client, connect to Slack, create a runtime capability,
+start Agent Office, or authorize a real pilot. The commands in section 7 are a
+Phase A contract and remain unavailable until Phase A implementation lands.
+Even after they exist, live connection remains disabled until independent
+implementation/security review passes and the Advisor records the owner gate.
+
+## 1. Fixed pilot boundary
+
+| Slack app | Private channel | Routed Team | Only routable Actor |
+|---|---|---|---|
+| Agent Office Advisor Pilot | `team-agent-office` | `AGENT_OFFICE_ADVISOR_TEAM` | `agent-office-advisor` |
+| Foundation Advisor Pilot | `team-foundation` | `FOUNDATION_ADVISOR_TEAM` | `foundation-advisor` |
+
+The runtime route is determined by the selected fixed profile and immutable
+workspace, app, channel, and Leo user IDs. Slack text, names, topics, mentions,
+and payload fields never select a Team, Actor, tmux destination, workspace,
+model, effort, command, or file path.
+
+The pilot excludes DMs, public channels, App Home commands, slash commands,
+interactive components, public Request URLs, status/agents/missions queries,
+VibeNews, other users, additional routes, and direct Worker or Reviewer
+dispatch.
+
+## 2. Committed non-secret inputs
+
+- `config/slack/agent-office-advisor.manifest.yaml`
+- `config/slack/foundation-advisor.manifest.yaml`
+- `config/slack/as1-slack-pilot.env.example`
+
+Each manifest enables Socket Mode, declares only the `message.groups` bot event,
+and requests only `groups:history` and `chat:write` bot scopes. App-level tokens
+are owner-created separately with only `connections:write`. Neither manifest
+declares a Request URL, DM event, App Home surface, slash command, shortcut, or
+interactive action. The two apps and bot display names remain distinct.
+
+## 3. Owner app creation
+
+Perform these steps in the same intended private Slack workspace. Do not paste
+any token into a repository, terminal transcript, issue, chat, or review
+artifact.
+
+### 3.1 Agent Office app
+
+1. Create a new Slack app from
+   `config/slack/agent-office-advisor.manifest.yaml`.
+2. Confirm the app is named **Agent Office Advisor Pilot** and its bot is named
+   **Agent Office Advisor**.
+3. Confirm Socket Mode is enabled and no public Request URL exists.
+4. Confirm the bot scopes are exactly `groups:history` and `chat:write`, and the
+   only subscribed bot event is `message.groups`.
+5. Create one app-level token with exactly `connections:write`. Store it only in
+   the external secret file described in section 5.
+6. Install the app to the private workspace and store the resulting bot token
+   only in that external file.
+7. Create or select the private `team-agent-office` channel, invite only the
+   intended pilot participants and this bot, and record its immutable channel
+   ID. The channel name is operator guidance; the immutable ID is authority.
+8. Record the immutable App ID from Slack app settings.
+
+### 3.2 Foundation app
+
+1. Create a separate Slack app from
+   `config/slack/foundation-advisor.manifest.yaml`.
+2. Confirm the app is named **Foundation Advisor Pilot** and its bot is named
+   **Foundation Advisor**.
+3. Repeat the Socket Mode, no-Request-URL, exact bot-scope, and exact bot-event
+   checks above.
+4. Create a different app-level token with exactly `connections:write`, install
+   the app, and keep both Foundation tokens only in the external secret file.
+5. Create or select the private `team-foundation` channel, invite only the
+   intended pilot participants and this bot, and record its immutable channel
+   ID.
+6. Record this app's immutable App ID.
+
+Do not reuse an app, bot token, app token, or channel ID between profiles. Do not
+use display-name overrides or impersonation. A credential pair that resolves to
+the other App ID must fail startup rather than swap routes.
+
+## 4. Identity values the owner must verify
+
+- The workspace ID is the same exact immutable ID returned for both apps.
+- The only accepted Slack user is Leo, immutable user ID `U0BD3523C1F`.
+- The Agent Office and Foundation App IDs are present and different.
+- The Agent Office and Foundation private channel IDs are present and different.
+- Each app is installed in the intended workspace and invited only to its own
+  fixed private channel.
+- Each bot token authenticates the bot for its declared App ID; each app token
+  authenticates the same app and has only `connections:write`.
+
+Names and icons are never substitutes for these immutable checks.
+
+## 5. External secret file
+
+The sole planned secret input path is:
+
+```text
+/home/leo/.config/agent-office/as1-slack-pilot.env
+```
+
+Required filesystem properties:
+
+- `/home/leo/.config/agent-office` is a real owner-controlled directory, not a
+  symlink, owned by the runtime UID, with mode `0700`.
+- `as1-slack-pilot.env` is a regular non-symlink file, owned by the runtime UID,
+  with mode `0600`.
+- The file contains each template key exactly once, contains no unknown key,
+  and has no comments, shell syntax, interpolation, quoting, duplicate key, or
+  multiline value.
+- Runtime parsing treats the file as bounded data. It must never use `source`,
+  `eval`, a shell, or environment inheritance to interpret it.
+
+Owner preparation, from the repository root, is planned as:
+
+```sh
+install -d -m 0700 /home/leo/.config/agent-office
+install -m 0600 config/slack/as1-slack-pilot.env.example \
+  /home/leo/.config/agent-office/as1-slack-pilot.env
+```
+
+Then edit only the external copy with an owner-controlled editor. Populate the
+workspace, App, channel, bot-token, and app-token values obtained in sections 3
+and 4. Leave the committed example unchanged. Never print or commit the filled
+file.
+
+## 6. Redacted validation contract
+
+The future redacted check must validate file type, owner, modes, exact key set,
+nonempty values, immutable ID syntax, token class, two distinct App IDs, two
+distinct channel IDs, per-profile token/App identity, intended workspace, and
+the approved Leo user ID. It must never print a token, token prefix, token
+length, raw ID, file contents, Slack response body, or reconstructable hash.
+
+Successful output is limited to this shape:
+
+```text
+AS1_SLACK_REDACTED_CHECK
+CONFIG_FILE: VALID_OWNER_ONLY
+KEY_SET: EXACT
+WORKSPACE: VERIFIED_REDACTED
+LEO_USER: VERIFIED_APPROVED_ID
+AGENT_OFFICE_PROFILE: VERIFIED_REDACTED
+FOUNDATION_PROFILE: VERIFIED_REDACTED
+PROFILE_SEPARATION: VERIFIED
+TOKENS: PRESENT_AND_REDACTED
+LIVE_CONNECTION: NOT_STARTED
+RESULT: PASS
+```
+
+On failure, output only a stable reason code and the affected profile or field
+name; never echo the rejected value. Validation failure leaves both profiles
+disconnected.
+
+## 7. Planned lifecycle commands
+
+These exact command forms are design inputs for the Worker. They do not exist in
+the Setup Pack and must not be run until Phase A implementation lands:
+
+```sh
+npm run as1:slack-pilot -- start --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+npm run as1:slack-pilot -- stop --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+npm run as1:slack-pilot -- restart --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+npm run as1:slack-pilot -- status --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+npm run as1:slack-pilot -- redacted-check --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+```
+
+Command semantics after implementation:
+
+- `redacted-check` performs validation without opening a Slack connection.
+- `start` fails closed unless both profiles validate, the global kill switch is
+  disengaged, the reviewed Phase A gate is present, and no instance is running.
+- `stop` stops inbound acceptance, drains only already durable work to a bounded
+  deadline, closes both Socket Mode clients, and leaves unresolved work for
+  restart-safe replay.
+- `restart` is exactly a successful clean `stop` followed by a fresh `start`;
+  it never clears dedupe, journal, outbox, capability consumption, or failure
+  latches.
+- `status` reports process/profile states and stable reason codes only. It never
+  prints configuration values or Slack payloads.
+
+No lifecycle command creates a Mission, issues an Advisor/tmux capability,
+dispatches an actor, or overrides a latch. Real pilot start remains an
+Advisor-owned, separately authorized sequential action after all preceding
+gates.
+
+## 8. Owner gate evidence
+
+Return only the following non-secret facts to the Advisor:
+
+- both apps were created from the committed manifests;
+- exact scopes/events and absence of public/interactive/DM surfaces were checked;
+- both apps are installed in the same intended private workspace;
+- Leo's approved immutable user ID was checked;
+- App and channel IDs are pairwise distinct where required;
+- each app was invited only to its fixed private channel;
+- the external directory/file ownership and modes pass;
+- `redacted-check` output, once implemented, matches section 6;
+- no token or filled configuration content is included.
+
+Owner setup does not itself authorize a connection or pilot. The Advisor records
+`OWNER_SETUP_COMPLETE` only after reviewing this redacted evidence and all
+required design, implementation, and independent-review gates.
+
+## 9. Removal and rollback
+
+Before any live connection, rollback is deletion of the external secret file
+and revocation of both app-level and bot tokens in Slack. Remove both apps from
+their pilot channels or uninstall them if the pilot is abandoned. Keep the
+committed non-secret Setup Pack as historical evidence unless a reviewed commit
+replaces it.
+
+After Phase A exists, run the planned `stop` command before revocation. If stop
+is ambiguous, engage the global kill switch, revoke both app-level tokens, and
+require manual reconciliation. Rollback never edits Exact Delivery v2 history,
+reuses a consumed capability, or silently clears durable evidence.
