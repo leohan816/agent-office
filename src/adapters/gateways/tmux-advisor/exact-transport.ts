@@ -72,7 +72,7 @@ export interface ExactTmuxMutationRunner {
 export function exactTmuxArgv(operation: ExactTmuxOperation): readonly string[] {
   switch (operation.kind) {
     case 'PREFLIGHT':
-      return ['display-message', '-p', '-t', '%9', '-F', EXACT_TMUX_PREFLIGHT_FORMAT];
+      return ['display-message', '-p', '-t', '%26', '-F', EXACT_TMUX_PREFLIGHT_FORMAT];
     case 'BUFFER_ABSENT':
       assertBufferName(operation.bufferName);
       return ['list-buffers', '-F', '#{buffer_name}'];
@@ -84,9 +84,9 @@ export function exactTmuxArgv(operation: ExactTmuxOperation): readonly string[] 
       return ['load-buffer', '-b', operation.bufferName, operation.pointerFile];
     case 'PASTE_BUFFER':
       assertBufferName(operation.bufferName);
-      return ['paste-buffer', '-p', '-b', operation.bufferName, '-t', '%9', '-d'];
+      return ['paste-buffer', '-p', '-b', operation.bufferName, '-t', '%26', '-d'];
     case 'SEND_ENTER':
-      return ['send-keys', '-t', '%9', 'Enter'];
+      return ['send-keys', '-t', '%26', 'Enter'];
     case 'DELETE_BUFFER':
       assertBufferName(operation.bufferName);
       return ['delete-buffer', '-b', operation.bufferName];
@@ -237,7 +237,7 @@ interface ExactTransportJournalRecord {
   readonly activationSnapshotHash: string;
   readonly registrySnapshotHash: string;
   readonly bufferName: string;
-  readonly target: '%9';
+  readonly target: '%26';
   readonly pointerArtifactRef: string;
   readonly pointerArtifactHash: string;
   readonly firstPreflightHash: string;
@@ -661,7 +661,7 @@ export class DurableExactAdvisorDeliveryPort implements ExactAdvisorDeliveryPort
       activationSnapshotHash: input.capability.activationSnapshotHash,
       registrySnapshotHash: input.capability.registrySnapshotHash,
       bufferName: input.bufferName,
-      target: '%9' as const,
+      target: '%26' as const,
       pointerArtifactRef: input.pointerArtifactRef,
       pointerArtifactHash: input.pointerArtifactHash,
       firstPreflightHash: input.firstPreflightHash,
@@ -801,7 +801,7 @@ function assertJournal(value: unknown, notificationId: string): asserts value is
         'TRANSPORT_RECORDED', 'MANUAL_RECONCILIATION_REQUIRED',
       ].includes(String(raw.phase)) ||
       !('identity' in raw) || typeof raw.identity !== 'object' || raw.identity === null ||
-      !('target' in raw) || raw.target !== '%9' ||
+      !('target' in raw) || raw.target !== '%26' ||
       !('evidenceRefs' in raw) || !Array.isArray(raw.evidenceRefs) || raw.evidenceRefs.length > 8 ||
       raw.evidenceRefs.some((reference) =>
         typeof reference !== 'string' ||
@@ -982,9 +982,9 @@ export function decodePreflight(bytes: Uint8Array, observedAt: string): ExactTmu
   };
   assertUtcTimestamp(observedAt, 'tmux preflight observedAt');
   if (
-    record.sessionId !== '$9' || record.paneId !== '%9' || record.sessionName !== 'foundation-advisor' ||
+    record.sessionId !== '$26' || record.paneId !== '%26' || record.sessionName !== 'agent-office-advisor' ||
     record.windowIndex !== 0 || record.paneIndex !== 0 ||
-    record.workspace !== '/home/leo/Project/foundation-advisor' || record.currentCommand !== 'codex' ||
+    record.workspace !== '/home/leo/Project/agent-office' || record.currentCommand !== 'codex' ||
     record.panePid < 1 || record.paneDead || record.paneInMode || record.inputOff || record.synchronizePanes
   ) throw invalidTarget('tmux preflight is not the fixed safe Advisor pane');
   return record;

@@ -7,12 +7,12 @@
     "requiredMode": "EXACT_ADVISOR_POINTER"
   },
   "fixedDestination": {
-    "sessionName": "foundation-advisor",
-    "sessionId": "$9",
+    "sessionName": "agent-office-advisor",
+    "sessionId": "$26",
     "windowIndex": 0,
     "paneIndex": 0,
-    "paneId": "%9",
-    "workspace": "/home/leo/Project/foundation-advisor",
+    "paneId": "%26",
+    "workspace": "/home/leo/Project/agent-office",
     "currentCommand": "codex"
   },
   "activationDescriptorPresent": false,

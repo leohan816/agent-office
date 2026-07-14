@@ -75,7 +75,7 @@ describe('reviewed exact Advisor delivery bridge', () => {
     })).toThrow(expect.objectContaining({ code: 'FORBIDDEN_TARGET' }));
     expect(() => parseExactAdvisorDeliveryActivation({
       ...fixture.activation,
-      browserTarget: '%9',
+      browserTarget: '%26',
     })).toThrow(expect.objectContaining({ code: 'UNKNOWN_FIELD' }));
 
     const legacy = await operationalRuntimeConfiguration();
@@ -120,6 +120,32 @@ describe('reviewed exact Advisor delivery bridge', () => {
     })).not.toThrow();
   });
 
+  it('rejects the historical foundation-advisor physical destination as FORBIDDEN_TARGET (legacy is non-routable)', () => {
+    const fixture = authorityFixture();
+    // Explicit historical-only fixture (cannot route): the pre-AS1 migration rebound the current pane
+    // to agent-office-advisor/$26/@26/%26 in /home/leo/Project/agent-office, so the legacy foundation
+    // destination must now be rejected by every active parser.
+    const historicalDestination = {
+      sessionName: 'foundation-advisor', sessionId: '$9', windowIndex: 0, paneIndex: 0,
+      paneId: '%9', workspace: '/home/leo/Project/foundation-advisor', currentCommand: 'codex',
+    };
+    expect(() => parseExactAdvisorDeliveryActivation({
+      ...fixture.activation,
+      destination: historicalDestination,
+    })).toThrow(expect.objectContaining({ code: 'FORBIDDEN_TARGET' }));
+    for (const legacyField of [
+      { sessionName: 'foundation-advisor' },
+      { sessionId: '$9' },
+      { paneId: '%9' },
+      { workspace: '/home/leo/Project/foundation-advisor' },
+    ]) {
+      expect(() => parseExactAdvisorDeliveryActivation({
+        ...fixture.activation,
+        destination: { ...fixture.activation.destination, ...legacyField },
+      })).toThrow(expect.objectContaining({ code: 'FORBIDDEN_TARGET' }));
+    }
+  });
+
   it('rejects traversal and unknown fields in activation, lease, and in-memory capability schemas', () => {
     const fixture = authorityFixture();
     expect(() => parseExactAdvisorDeliveryActivation({
@@ -139,7 +165,7 @@ describe('reviewed exact Advisor delivery bridge', () => {
       registrySnapshotHash: `sha256:${'3'.repeat(64)}`,
     };
     const lease = readinessLease(validated);
-    expect(() => parseAdvisorDeliveryReadinessLease({ ...lease, browserTarget: '%9' }))
+    expect(() => parseAdvisorDeliveryReadinessLease({ ...lease, browserTarget: '%26' }))
       .toThrow(expect.objectContaining({ code: 'UNKNOWN_FIELD' }));
     for (const invalidLease of [
       { ...lease, issuerRole: 'Worker' },
@@ -172,7 +198,7 @@ describe('reviewed exact Advisor delivery bridge', () => {
       registrySnapshotHash: validated.registrySnapshotHash,
     } as const;
     expect(() => assertAdvisorTransportCapabilityV2(capability)).not.toThrow();
-    expect(() => assertAdvisorTransportCapabilityV2({ ...capability, target: '%9' }))
+    expect(() => assertAdvisorTransportCapabilityV2({ ...capability, target: '%26' }))
       .toThrow(expect.objectContaining({ code: 'UNKNOWN_FIELD' }));
     expect(() => assertAdvisorTransportCapabilityV2({ ...capability, logicalRoute: 'WORKER' }))
       .toThrow(expect.objectContaining({ code: 'INVALID_SCHEMA' }));
@@ -332,10 +358,10 @@ describe('reviewed exact Advisor delivery bridge', () => {
     expect(exactTmuxArgv({ kind: 'LOAD_BUFFER', bufferName: load.bufferName, pointerFile: load.pointerFile }))
       .toEqual(['load-buffer', '-b', load.bufferName, load.pointerFile]);
     expect(exactTmuxArgv({ kind: 'PASTE_BUFFER', bufferName: load.bufferName }))
-      .toEqual(['paste-buffer', '-p', '-b', load.bufferName, '-t', '%9', '-d']);
-    expect(exactTmuxArgv({ kind: 'SEND_ENTER' })).toEqual(['send-keys', '-t', '%9', 'Enter']);
+      .toEqual(['paste-buffer', '-p', '-b', load.bufferName, '-t', '%26', '-d']);
+    expect(exactTmuxArgv({ kind: 'SEND_ENTER' })).toEqual(['send-keys', '-t', '%26', 'Enter']);
     expect(exactTmuxArgv({ kind: 'PREFLIGHT' })).toEqual([
-      'display-message', '-p', '-t', '%9', '-F', expect.any(String),
+      'display-message', '-p', '-t', '%26', '-F', expect.any(String),
     ]);
 
     const replay = await fixture.port.deliverPointer({
@@ -680,7 +706,7 @@ describe('closed committed Advisor evidence ingress', () => {
         decisionId,
         missionId: MISSION_ID,
         authorityRole: 'Advisor',
-        authoritySubjectId: 'foundation-advisor',
+        authoritySubjectId: 'agent-office-advisor',
         scope: { kind: 'WORK_UNIT_SET', workUnitIds: ['AO-WU-19'] },
         decidedAt: NOW,
         decisionKind: 'ROUTINE_ROUTE',
@@ -704,7 +730,7 @@ describe('closed committed Advisor evidence ingress', () => {
       intakeClassification: 'ROUTINE_ROUTE',
     })).resolves.toMatchObject({
       authorityRole: 'Advisor',
-      authoritySubjectId: 'foundation-advisor',
+      authoritySubjectId: 'agent-office-advisor',
     });
     for (const changed of [
       { intakeClassification: 'NEEDS_LEO_DECISION' as const },
@@ -731,7 +757,7 @@ describe('closed committed Advisor evidence ingress', () => {
         decisionId: waitingDecisionId,
         missionId: MISSION_ID,
         authorityRole: 'Advisor',
-        authoritySubjectId: 'foundation-advisor',
+        authoritySubjectId: 'agent-office-advisor',
         scope: { kind: 'WORK_UNIT_SET', workUnitIds: ['AO-WU-20'] },
         decidedAt: NOW,
         decisionKind: 'ROUTINE_ROUTE',
@@ -770,7 +796,7 @@ describe('closed committed Advisor evidence ingress', () => {
       requestId: uuidV7(7_001),
       correlationId: uuidV7(7_002),
       causationId: uuidV7(7_003),
-      actor: { role: 'Advisor', subjectId: 'foundation-advisor' },
+      actor: { role: 'Advisor', subjectId: 'agent-office-advisor' },
       occurredAt: NOW,
       receivedAt: NOW,
       recordedAt: NOW,
@@ -863,7 +889,7 @@ describe('closed committed Advisor evidence ingress', () => {
       acknowledgementId: uuidV7(7_211),
       acknowledgedAt: NOW,
       advisorRole: 'Advisor',
-      advisorSubjectId: 'foundation-advisor',
+      advisorSubjectId: 'agent-office-advisor',
       destination: exactDestination(),
       readinessLeaseId: gateway.leaseId,
       pointerEnvelopeHash: pointerHash,
@@ -924,7 +950,7 @@ describe('closed committed Advisor evidence ingress', () => {
         decisionId,
         missionId: MISSION_ID,
         authorityRole: 'Advisor',
-        authoritySubjectId: 'foundation-advisor',
+        authoritySubjectId: 'agent-office-advisor',
         scope: { kind: 'WORK_UNIT_SET', workUnitIds: ['AO-WU-19'] },
         decidedAt: NOW,
         decisionKind: 'ROUTINE_ROUTE',
@@ -942,7 +968,7 @@ describe('closed committed Advisor evidence ingress', () => {
         decisionId,
         decisionKind: 'ROUTINE_ROUTE',
         authorityRole: 'Advisor',
-        authoritySubjectId: 'foundation-advisor',
+        authoritySubjectId: 'agent-office-advisor',
         scope: { kind: 'WORK_UNIT_SET', workUnitIds: ['AO-WU-19'] },
         decidedAt: NOW,
         intakeArtifact: intakeRef,
@@ -956,7 +982,7 @@ describe('closed committed Advisor evidence ingress', () => {
     expect(inbox.project().messages[persisted.messageId]).toMatchObject({
       state: 'DECISION_LINKED',
       authorityRole: 'Advisor',
-      authoritySubjectId: 'foundation-advisor',
+      authoritySubjectId: 'agent-office-advisor',
       decisionEvidenceRef: decisionRef,
       authorityEvidenceRef: decisionAuthorityRef,
     });
@@ -989,7 +1015,7 @@ describe('closed committed Advisor evidence ingress', () => {
     expect(inbox.project().messages[persisted.messageId]?.resumeEvidenceRefs).toEqual([resumeRef]);
     expect(store.readAll().at(-1)).toMatchObject({
       eventType: 'WorkUnitStateTransitioned',
-      actor: { role: 'Advisor', subjectId: 'foundation-advisor' },
+      actor: { role: 'Advisor', subjectId: 'agent-office-advisor' },
       payload: { from: 'WAITING_ADVISOR', to: 'REVIEW_PENDING' },
     });
 
@@ -1087,7 +1113,7 @@ function authorityFixture(overrides: Readonly<Record<string, string>> = {}): {
     ].join('\n'),
     sessionRegistry: [
       'synchronize-panes off',
-      '| Advisor | `foundation-advisor` | `$9` | 0 | `@9` | 0 | `%9` | `/home/leo/Project/foundation-advisor` | `codex` | role | fixed |',
+      '| Advisor | `agent-office-advisor` | `$26` | 0 | `@26` | 0 | `%26` | `/home/leo/Project/agent-office` | `codex` | role | fixed |',
     ].join('\n'),
     killSwitchAndFallback: [
       'Current kill-switch state: `DISENGAGED`',
@@ -1116,8 +1142,8 @@ function authorityFixture(overrides: Readonly<Record<string, string>> = {}): {
     governedMissionId: MISSION_ID,
     activationMissionId: 'AGENT_OFFICE_M01_EXACT_ADVISOR_DELIVERY_ACTIVATION',
     destination: {
-      sessionName: 'foundation-advisor', sessionId: '$9', windowIndex: 0, paneIndex: 0,
-      paneId: '%9', workspace: '/home/leo/Project/foundation-advisor', currentCommand: 'codex',
+      sessionName: 'agent-office-advisor', sessionId: '$26', windowIndex: 0, paneIndex: 0,
+      paneId: '%26', workspace: '/home/leo/Project/agent-office', currentCommand: 'codex',
     },
     snapshotRefs,
     readinessLeasePath:
@@ -1309,10 +1335,10 @@ function readinessLease(validated: Pick<
     activationMissionId: 'AGENT_OFFICE_M01_EXACT_ADVISOR_DELIVERY_ACTIVATION',
     governedMissionId: MISSION_ID,
     issuerRole: 'Advisor',
-    issuerSubjectId: 'foundation-advisor',
+    issuerSubjectId: 'agent-office-advisor',
     destination: {
-      sessionName: 'foundation-advisor', sessionId: '$9', windowId: '@9', windowIndex: 0,
-      paneIndex: 0, paneId: '%9', workspace: '/home/leo/Project/foundation-advisor',
+      sessionName: 'agent-office-advisor', sessionId: '$26', windowId: '@26', windowIndex: 0,
+      paneIndex: 0, paneId: '%26', workspace: '/home/leo/Project/agent-office',
       currentCommand: 'codex',
     },
     readiness: 'IDLE_FOR_ONE_POINTER',
@@ -1329,8 +1355,8 @@ function readinessLease(validated: Pick<
 
 function preflight(): ExactTmuxPreflightRecord {
   return {
-    sessionName: 'foundation-advisor', sessionId: '$9', windowId: '@9', windowIndex: 0,
-    paneIndex: 0, paneId: '%9', workspace: '/home/leo/Project/foundation-advisor',
+    sessionName: 'agent-office-advisor', sessionId: '$26', windowId: '@26', windowIndex: 0,
+    paneIndex: 0, paneId: '%26', workspace: '/home/leo/Project/agent-office',
     currentCommand: 'codex', windowName: 'advisor', panePid: 42, paneDead: false,
     paneInMode: false, inputOff: false, synchronizePanes: false, activityTime: 1,
     observedAt: NOW,
@@ -1366,8 +1392,8 @@ function bufferNameFor(notificationId: string): string {
 
 function exactDestination() {
   return {
-    sessionName: 'foundation-advisor', sessionId: '$9', windowId: '@9', windowIndex: 0,
-    paneIndex: 0, paneId: '%9', workspace: '/home/leo/Project/foundation-advisor',
+    sessionName: 'agent-office-advisor', sessionId: '$26', windowId: '@26', windowIndex: 0,
+    paneIndex: 0, paneId: '%26', workspace: '/home/leo/Project/agent-office',
     currentCommand: 'codex',
   } as const;
 }
@@ -1425,7 +1451,7 @@ function contractEvidenceRecords() {
       acknowledgementId: uuidV7(8_004),
       acknowledgedAt: NOW,
       advisorRole: 'Advisor',
-      advisorSubjectId: 'foundation-advisor',
+      advisorSubjectId: 'agent-office-advisor',
       destination: exactDestination(),
       readinessLeaseId: uuidV7(8_005),
       pointerEnvelopeHash: `sha256:${'b'.repeat(64)}`,
@@ -1457,7 +1483,7 @@ function contractEvidenceRecords() {
       decisionId,
       decisionKind: 'ROUTINE_ROUTE',
       authorityRole: 'Advisor',
-      authoritySubjectId: 'foundation-advisor',
+      authoritySubjectId: 'agent-office-advisor',
       scope: { kind: 'WORK_UNIT_SET', workUnitIds: ['AO-WU-19'] },
       decidedAt: NOW,
       intakeArtifact: artifact,

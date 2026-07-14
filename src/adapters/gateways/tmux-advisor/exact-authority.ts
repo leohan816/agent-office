@@ -614,15 +614,15 @@ function assertRoleProtocol(bytes: Uint8Array): void {
 function assertRegistry(bytes: Uint8Array): string {
   const text = utf8(bytes, 'session registry');
   const advisorRow = text.split('\n').find((line) =>
-    line.startsWith('| Advisor |') && line.includes('`foundation-advisor`'));
+    line.startsWith('| Advisor |') && line.includes('`agent-office-advisor`'));
   if (
-    advisorRow === undefined || !advisorRow.includes('`$9`') || !advisorRow.includes('`@9`') ||
-    !advisorRow.includes('`%9`') ||
-    !advisorRow.includes('`/home/leo/Project/foundation-advisor`') ||
+    advisorRow === undefined || !advisorRow.includes('`$26`') || !advisorRow.includes('`@26`') ||
+    !advisorRow.includes('`%26`') ||
+    !advisorRow.includes('`/home/leo/Project/agent-office`') ||
     !advisorRow.includes('`codex`') ||
     !text.includes('synchronize-panes off')
   ) throw authorityFailure('session registry does not contain the fixed Advisor destination');
-  return '@9';
+  return '@26';
 }
 
 function assertOptionA(bytes: Uint8Array): void {

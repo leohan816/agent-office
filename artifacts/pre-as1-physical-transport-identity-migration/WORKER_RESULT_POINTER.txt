@@ -1,0 +1,15 @@
+WORKER_RESULT_POINTER
+MISSION_ID: AGENT_OFFICE_PRE_AS1_PHYSICAL_TRANSPORT_IDENTITY_MIGRATION_001
+ACTOR: Agent Office Worker
+RESULT_FILE: artifacts/pre-as1-physical-transport-identity-migration/WORKER_RESULT.md
+TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_PHYSICAL_TRANSPORT_IDENTITY_MIGRATION_001
+TARGET_BRANCH: config/pre-as1-physical-transport-identity-migration-001
+BASELINE_COMMIT: 88c6cbd757ed205eb1aadd68d8ea7629865d5765
+CHANGE: rebind active exact-delivery physical identity foundation-advisor/$9/@9/%9//home/leo/Project/foundation-advisor -> agent-office-advisor/$26/@26/%26//home/leo/Project/agent-office; authority subject -> agent-office-advisor; no schema-version bump (rejection-by-value fences legacy)
+CHECKS: tsc 0 errors; exact-delivery focused tests 53/53 (incl. added legacy-rejection negative); eslint clean; git diff --check clean
+ACTIVE_SURFACE: no historical physical-destination token in active src/config; residual legacy tokens classified (1) org evidence join key / (2) historical-only non-routable fixture
+PRESERVED: historical evidence/job artifacts + org evidence.ts/registry.ts byte-for-byte untouched
+BOUNDARIES: no tmux input, no Slack/AS1/transport activation, no merge/main/force, mandatory independent security review pending
+RETURN_TO: Advisor
+PROPOSED_NEXT_ACTOR: Advisor
+STOP

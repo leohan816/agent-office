@@ -197,7 +197,7 @@ implements DecisionAuthorityEvidenceVerifier {
       if (
         record.schemaVersion !== 'agent-office.decision-authority-evidence.v2' ||
         record.decisionKind !== 'ROUTINE_ROUTE' ||
-        record.authoritySubjectId !== 'foundation-advisor' ||
+        record.authoritySubjectId !== 'agent-office-advisor' ||
         record.decisionCode !== 'ROUTE_ALREADY_AUTHORIZED_WORK' ||
         input.intakeClassification !== 'ROUTINE_ROUTE' ||
         referenceKey(record.governingLeoAuthorityArtifact) !== referenceKey(this.governingLeoAuthorityArtifact)

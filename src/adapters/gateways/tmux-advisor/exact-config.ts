@@ -27,12 +27,12 @@ const SNAPSHOT_KEYS = [
 export type ExactDeliverySnapshotKey = (typeof SNAPSHOT_KEYS)[number];
 
 export interface ExactAdvisorDestination {
-  readonly sessionName: 'foundation-advisor';
-  readonly sessionId: '$9';
+  readonly sessionName: 'agent-office-advisor';
+  readonly sessionId: '$26';
   readonly windowIndex: 0;
   readonly paneIndex: 0;
-  readonly paneId: '%9';
-  readonly workspace: '/home/leo/Project/foundation-advisor';
+  readonly paneId: '%26';
+  readonly workspace: '/home/leo/Project/agent-office';
   readonly currentCommand: 'codex';
 }
 
@@ -68,7 +68,7 @@ export interface AdvisorDeliveryReadinessLease {
   readonly activationMissionId: typeof EXACT_DELIVERY_ACTIVATION_MISSION;
   readonly governedMissionId: typeof EXACT_DELIVERY_GOVERNED_MISSION;
   readonly issuerRole: 'Advisor';
-  readonly issuerSubjectId: 'foundation-advisor';
+  readonly issuerSubjectId: 'agent-office-advisor';
   readonly destination: ExactAdvisorLiveDestination;
   readonly readiness: 'IDLE_FOR_ONE_POINTER';
   readonly useLimit: 1;
@@ -212,7 +212,7 @@ export function parseAdvisorDeliveryReadinessLease(
     value.activationMissionId !== EXACT_DELIVERY_ACTIVATION_MISSION ||
     value.governedMissionId !== EXACT_DELIVERY_GOVERNED_MISSION ||
     value.issuerRole !== 'Advisor' ||
-    value.issuerSubjectId !== 'foundation-advisor' ||
+    value.issuerSubjectId !== 'agent-office-advisor' ||
     value.readiness !== 'IDLE_FOR_ONE_POINTER' ||
     value.useLimit !== 1
   ) {
@@ -237,7 +237,7 @@ export function parseAdvisorDeliveryReadinessLease(
     activationMissionId: EXACT_DELIVERY_ACTIVATION_MISSION,
     governedMissionId: EXACT_DELIVERY_GOVERNED_MISSION,
     issuerRole: 'Advisor',
-    issuerSubjectId: 'foundation-advisor',
+    issuerSubjectId: 'agent-office-advisor',
     destination: parseDestination(value.destination, true),
     readiness: 'IDLE_FOR_ONE_POINTER',
     useLimit: 1,
@@ -330,23 +330,23 @@ function parseDestination(
     'Advisor destination',
   );
   if (
-    value.sessionName !== 'foundation-advisor' ||
-    value.sessionId !== '$9' ||
+    value.sessionName !== 'agent-office-advisor' ||
+    value.sessionId !== '$26' ||
     value.windowIndex !== 0 ||
     value.paneIndex !== 0 ||
-    value.paneId !== '%9' ||
-    value.workspace !== '/home/leo/Project/foundation-advisor' ||
+    value.paneId !== '%26' ||
+    value.workspace !== '/home/leo/Project/agent-office' ||
     value.currentCommand !== 'codex'
   ) {
     throw new DomainError('FORBIDDEN_TARGET', 'only the fixed existing Advisor pane is representable');
   }
   const base: ExactAdvisorDestination = {
-    sessionName: 'foundation-advisor',
-    sessionId: '$9',
+    sessionName: 'agent-office-advisor',
+    sessionId: '$26',
     windowIndex: 0,
     paneIndex: 0,
-    paneId: '%9',
-    workspace: '/home/leo/Project/foundation-advisor',
+    paneId: '%26',
+    workspace: '/home/leo/Project/agent-office',
     currentCommand: 'codex',
   };
   if (!live) return base;

@@ -361,7 +361,7 @@ export class AdvisorEvidenceIngress {
     if (evidence.authorityRole === 'Advisor') {
       if (
         evidence.decisionKind !== 'ROUTINE_ROUTE' ||
-        evidence.authoritySubjectId !== 'foundation-advisor' ||
+        evidence.authoritySubjectId !== 'agent-office-advisor' ||
         evidence.decisionCode !== 'ROUTE_ALREADY_AUTHORIZED_WORK' ||
         message.intakeClassification !== 'ROUTINE_ROUTE' ||
         !sameRef(evidence.governingLeoAuthorityArtifact, this.activation.snapshotRefs.optionADecision)
@@ -500,7 +500,7 @@ export class AdvisorEvidenceIngress {
 
   private context(requestId: string, receivedAt: string): ApplicationCommandContext {
     return {
-      actor: { role: 'Advisor', subjectId: 'foundation-advisor' },
+      actor: { role: 'Advisor', subjectId: 'agent-office-advisor' },
       correlationId: requestId,
       causationId: requestId,
       receivedAt,
@@ -521,7 +521,7 @@ export function parseAdvisorAcknowledgementEvidence(bytes: Uint8Array): AckEvide
     value.schemaVersion !== 'agent-office.advisor-acknowledgement-evidence.v1' ||
     value.missionId !== EXACT_DELIVERY_GOVERNED_MISSION ||
     value.activationMissionId !== EXACT_DELIVERY_ACTIVATION_MISSION ||
-    value.advisorRole !== 'Advisor' || value.advisorSubjectId !== 'foundation-advisor' ||
+    value.advisorRole !== 'Advisor' || value.advisorSubjectId !== 'agent-office-advisor' ||
     value.artifactReadStatus !== 'VERIFIED'
   ) throw invalidEvidence('Advisor acknowledgement authority is invalid');
   assertExactDestination(value.destination);
@@ -636,9 +636,9 @@ function assertExactDestination(value: unknown): void {
     'workspace', 'currentCommand',
   ], 'Advisor evidence destination');
   if (
-    value.sessionName !== 'foundation-advisor' || value.sessionId !== '$9' || value.windowId !== '@9' ||
-    value.windowIndex !== 0 || value.paneIndex !== 0 || value.paneId !== '%9' ||
-    value.workspace !== '/home/leo/Project/foundation-advisor' || value.currentCommand !== 'codex'
+    value.sessionName !== 'agent-office-advisor' || value.sessionId !== '$26' || value.windowId !== '@26' ||
+    value.windowIndex !== 0 || value.paneIndex !== 0 || value.paneId !== '%26' ||
+    value.workspace !== '/home/leo/Project/agent-office' || value.currentCommand !== 'codex'
   ) throw invalidEvidence('Advisor evidence destination is not the fixed pane');
 }
 
