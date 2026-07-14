@@ -1,0 +1,34 @@
+TARGET_ACTOR: Independent Agent Office Reviewer
+MISSION_ID: AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+ACTION: RUN_NARROW_IMPLEMENTATION_SECURITY_IDENTITY_LINEAGE_REVIEW
+
+Use /fable-sentinel.
+
+Review read-only in:
+/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001
+
+Implementation baseline:
+5df16b311b8e7835b5b621ce2181509a445602c6
+
+Exact candidate:
+491bffb62a58b23d095d4bcf9b92d5b485fe8113
+
+Read and execute the exact committed review handoff:
+artifacts/pre-as1-registry-reconciliation/REVIEW_HANDOFF.md
+
+Review handoff commit:
+9dc0d5109b7ad1fd54f4556acf2063d4a9e75d1f
+
+Review handoff blob:
+4eb93a70a647b3313fa953c09cb31c7740dafacb
+
+Review handoff SHA-256:
+1d5c8617af602b97c54124b228bdf90ac2d337522822e900f10e035b9b418bda
+
+Verify all anchors before review. Inspect actual source and reproduce the named
+targeted gates. Do not trust Worker or Advisor summaries. Do not implement,
+patch, stage, commit, push, change branch, dispatch another actor, start AS1, or
+grant Founder approval.
+
+Write only the exact authorized REVIEW_RESULT.md and
+REVIEW_RESULT_POINTER.txt, return the pointer to agent-office-advisor, and STOP.
