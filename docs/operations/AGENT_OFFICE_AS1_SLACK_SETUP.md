@@ -13,15 +13,17 @@ implementation/security review passes and the Advisor records the owner gate.
 
 ## 1. Fixed pilot boundary
 
-| Slack app | Private channel | Routed Team | Only routable Actor |
+| Slack app/bot display name | Private channel | Routed Team | Only routable Actor |
 |---|---|---|---|
-| Agent Office Advisor Pilot | `team-agent-office` | `AGENT_OFFICE_ADVISOR_TEAM` | `agent-office-advisor` |
-| Foundation Advisor Pilot | `team-foundation` | `FOUNDATION_ADVISOR_TEAM` | `foundation-advisor` |
+| `agent-office-advisor` | `team-agent-office` | `AGENT_OFFICE_ADVISOR_TEAM` | `agent-office-advisor` |
+| `foundation-advisor` | `team-foundation` | `FOUNDATION_ADVISOR_TEAM` | `foundation-advisor` |
 
-The runtime route is determined by the selected fixed profile and immutable
-workspace, app, channel, and Leo user IDs. Slack text, names, topics, mentions,
-and payload fields never select a Team, Actor, tmux destination, workspace,
-model, effort, command, or file path.
+The exact app/bot display names `agent-office-advisor` and
+`foundation-advisor` are operator-facing labels only and never routing
+authority. The selected closed profile and immutable workspace, App, channel,
+and Leo user IDs are the authority inputs. Slack text, display names, topics,
+mentions, and payload fields never select a Team, Actor, tmux destination,
+workspace, model, effort, command, or file path.
 
 The pilot excludes DMs, public channels, App Home commands, slash commands,
 interactive components, public Request URLs, status/agents/missions queries,
@@ -42,7 +44,8 @@ profiles. App-level tokens are owner-created separately with only
 `connections:write`. Neither manifest declares a Request URL, DM event, App
 Home command or message surface: both Home and Messages tabs are explicitly
 disabled. Neither manifest declares a slash command, shortcut, or interactive
-action. The two apps and bot display names remain distinct.
+action. Each profile uses its exact approved literal for both its app and bot
+display name: `agent-office-advisor` or `foundation-advisor`.
 
 ## 3. Owner app creation
 
@@ -54,8 +57,8 @@ artifact.
 
 1. Create a new Slack app from
    `config/slack/agent-office-advisor.manifest.yaml`.
-2. Confirm the app is named **Agent Office Advisor Pilot** and its bot is named
-   **Agent Office Advisor**.
+2. Confirm the app and bot display names are both exactly
+   **agent-office-advisor**.
 3. Confirm Socket Mode is enabled and no public Request URL exists.
 4. Confirm the bot scopes are exactly `groups:history`, `chat:write`, and
    `users:read`, and the only subscribed bot event is `message.groups`.
@@ -72,8 +75,8 @@ artifact.
 
 1. Create a separate Slack app from
    `config/slack/foundation-advisor.manifest.yaml`.
-2. Confirm the app is named **Foundation Advisor Pilot** and its bot is named
-   **Foundation Advisor**.
+2. Confirm the app and bot display names are both exactly
+   **foundation-advisor**.
 3. Repeat the Socket Mode, no-Request-URL, exact bot-scope, and exact bot-event
    checks above.
 4. Create a different app-level token with exactly `connections:write`, install

@@ -99,7 +99,14 @@ fields.
 | current command | `codex` | `codex` |
 | private channel | exact external `SLACK_AGENT_OFFICE_CHANNEL_ID` | exact external `SLACK_FOUNDATION_CHANNEL_ID` |
 | Slack app | exact external `SLACK_AGENT_OFFICE_APP_ID` | exact external `SLACK_FOUNDATION_APP_ID` |
+| Slack app display name | `agent-office-advisor` | `foundation-advisor` |
+| Slack bot display name | `agent-office-advisor` | `foundation-advisor` |
 | evidence namespace | `agent-office-advisor` | `foundation-advisor` |
+
+The app and bot display names are fixed operator-facing setup labels, not
+routing authority. Only the selected closed profile and its exact immutable
+workspace, App, channel, and Leo user IDs participate in Slack identity and
+route validation.
 
 The intake observed Agent Office at `$26/@26/%26` and Foundation at
 `$27/@27/%27`. Those locator values are evidence at one time, not permanent
