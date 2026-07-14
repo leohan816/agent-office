@@ -639,6 +639,40 @@ export class As1ProfileInboundStore {
     return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
   }
 
+  // ── Durable outbound Slack outbox (design §14) ────────────────────────────
+  public async persistOutboundArtifact(outboundId: string, rendered: unknown): Promise<ImmutableArtifactReceipt> {
+    return this.artifacts.putScopedCanonicalJson(
+      ARTIFACT_KIND,
+      [this.profile.profileStateSlug, 'outbound', outboundId],
+      rendered,
+    );
+  }
+
+  public async recordOutboxPhase(outboundId: string, phase: string): Promise<void> {
+    await this.mutex.run(async () => {
+      const records = await this.readJsonArray<{ outboundId: string; phase: string; recordedAt: string }>(
+        this.indexPath('slack-outbox.json'),
+      );
+      const index = records.findIndex((r) => r.outboundId === outboundId);
+      const record = { outboundId, phase, recordedAt: this.clock.now() };
+      if (index >= 0) {
+        const copy = [...records];
+        copy[index] = record;
+        await this.writeJsonArray(this.indexPath('slack-outbox.json'), copy);
+      } else {
+        if (records.length >= LIMITS.OUTBOX_PER_PROFILE) {
+          throw new DomainError('STORE_QUARANTINED', 'outbox capacity exhausted; no silent eviction');
+        }
+        await this.writeJsonArray(this.indexPath('slack-outbox.json'), [...records, record]);
+      }
+    });
+  }
+
+  public async readOutboxPhase(outboundId: string): Promise<string | null> {
+    const records = await this.readJsonArray<{ outboundId: string; phase: string }>(this.indexPath('slack-outbox.json'));
+    return records.find((r) => r.outboundId === outboundId)?.phase ?? null;
+  }
+
   // ── Advisor evidence ingress log (design §13) ─────────────────────────────
   public async appendAcceptedEvidence(entry: {
     readonly evidenceKind: string;

@@ -233,6 +233,7 @@ export class FakeWebPort implements As1WebPort {
   private readonly byBotToken = new Map<string, FakeBotIdentity>();
   private postResult: As1PostMessageResult | null = null;
   private postError: Error | null = null;
+  private readonly postScript: ('ok' | 'malformed' | Error)[] = [];
 
   public register(botToken: string, identity: FakeBotIdentity): void {
     this.byBotToken.set(botToken, identity);
@@ -244,6 +245,11 @@ export class FakeWebPort implements As1WebPort {
 
   public setPostError(error: Error): void {
     this.postError = error;
+  }
+
+  /** Script a sequence of postMessage behaviors: 'ok', 'malformed', or a thrown Error. */
+  public setPostScript(behaviors: readonly ('ok' | 'malformed' | Error)[]): void {
+    this.postScript.push(...behaviors);
   }
 
   public authTest(botToken: string): Promise<As1AuthTestResult> {
@@ -271,6 +277,9 @@ export class FakeWebPort implements As1WebPort {
 
   public postMessage(botToken: string, request: As1PostMessageRequest): Promise<As1PostMessageResult> {
     this.posted.push({ botToken, request });
+    const scripted = this.postScript.shift();
+    if (scripted instanceof Error) return Promise.reject(scripted);
+    if (scripted === 'malformed') return Promise.resolve({ ok: true, channel: 'CWRONGCHANNEL', ts: '' });
     if (this.postError !== null) return Promise.reject(this.postError);
     return Promise.resolve(this.postResult ?? { ok: true, channel: request.channel, ts: '1720000000.000999' });
   }
