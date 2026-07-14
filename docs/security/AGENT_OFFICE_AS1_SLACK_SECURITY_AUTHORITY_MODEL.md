@@ -261,9 +261,12 @@ any state -> DISABLED_LATCHED (global integrity failure)
 
 Only one profile can hold the live receive slot. `DISABLED_CLEAN` does not
 authorize another pilot or renew authority. An exact same-pilot clean restart
-may revalidate the same unexpired nonretired grant/state; the next pilot needs a
-different Advisor-created receive grant. `DISABLED_LATCHED` has no reset in
-AS1.
+may revalidate the same unexpired nonretired grant/state before Socket reopen;
+the next pilot needs a different Advisor-created receive grant. If the same
+grant has expired, restart cannot enter authentication/receive state, but it may
+perform a bounded local `DRAINING` pass for exact `TRANSPORT_ACK_RECORDED`
+decisions and then remain `DISABLED_CLEAN`. That pass is not receive-grant reuse.
+`DISABLED_LATCHED` has no reset in AS1.
 
 ### 7.2 Profile state
 
@@ -280,10 +283,12 @@ INACTIVE | STOPPED_CLEAN
 any live state -> RECONCILIATION_REQUIRED -> LATCHED
 ```
 
-The `STOPPED_CLEAN` branch is same-pilot restart only: it accepts the same
-unexpired grant and exact preserved `UNBOUND` or `ROOT_BOUND` state, then still
-performs authentication and quarantine before either ready state. It cannot
-convert a bound state back to unbound or skip startup identity proof.
+The `STOPPED_CLEAN` receive branch is same-pilot restart only: it accepts the
+same unexpired grant and exact preserved `UNBOUND` or `ROOT_BOUND` state, then
+still performs authentication and quarantine before either ready state. It
+cannot convert a bound state back to unbound or skip startup identity proof. An
+expired grant cannot take this receive branch; offline materialization of exact
+ACK-recorded work remains separate and does not enter a receive-ready state.
 
 No transition is inferred from a process existing. Each transition is an exact
 state-machine operation with expected prior state, request ID, timestamp,
@@ -348,6 +353,8 @@ sourceEventId/rootTs/root key and consumes rootLimit=1
   happens-before
 Socket ACK write
   happens-before
+durable TRANSPORT_ACK_RECORDED
+  happens-before
 asynchronous intake/pointer materialization
 ```
 
@@ -358,6 +365,15 @@ only the Socket ACK. A second top-level event is durably rejected. A thread
 reply is eligible only under the exact bound root and one open fixed-kind
 question, which is atomically consumed before ACK.
 
+The serialized root/question transition is the sole receive-expiry decision
+point. At its one linearization point the trusted local clock supplies
+`boundAt` for `UNBOUND -> ROOT_BOUND` or `consumedAt` for `OPEN -> CONSUMED`.
+The primitive may commit the business transition only when that recorded value
+is strictly earlier than the grant's exclusive `expiresAt`; at or after expiry
+it commits the terminal expiry rejection. Receipt time, Slack event time, parse
+time, and dedupe-write time do not freeze eligibility. The comparison and state
+decision are one serialized operation, not a check followed by a later append.
+
 Malformed input with no safe envelope ID is not ACKed. A usable but rejected
 envelope may be ACKed only after its rejection/dedupe state is durable; it does
 not change the root slot or mint authority. Wrong identity on an authenticated
@@ -366,19 +382,31 @@ wrong surface, deferred query, and uncorrelated replies never bind or consume a
 grant.
 
 Restart revalidates the same grant/state and does not extend expiry. Expiry
-before root records `EXPIRED_UNBOUND`; expiry after root records
-`EXPIRED_BOUND`, refuses new input, and drains only already-durable work. A
-provider disconnect latches without renewing. Ambiguous ACK retains binding and
-dedupe for exact retry. Kill/latch forbids receive and delivery; corruption
-fails closed, with cross-profile/global contradictions engaging the global
-latch.
+before a new root/question transition records the matching terminal rejection;
+expiry after root records `EXPIRED_BOUND`, refuses new input, and drains only
+already-durable work. It does not invalidate an accepted transition or exact
+transport ACK bookkeeping already in flight. A provider disconnect latches
+without renewing. Ambiguous ACK retains binding and dedupe for exact retry.
+Kill/latch forbids receive and delivery; corruption fails closed, with
+cross-profile/global contradictions engaging the global latch.
 
 A receipt/dedupe crash before the required binding/consumption/rejection is a
-durable `PREACK_PENDING` state. Replay may complete only that already-decided
-transition from the exact stored bytes and expected state. It does not
-materialize intake or claim an ACK. If exclusive receive-grant expiry occurs
-before the missing transition, replay records expiry rejection and cannot bind
-a late root. Contradictory partial state latches.
+durable `PREACK_PENDING` state. Replay first detects whether an exact accepted
+transition is already committed. If so, it resumes from the stored
+`boundAt`/`consumedAt < expiresAt` decision without repeating it. If none is
+committed, replay enters the same serialized transition and uses its new trusted
+local linearization time; a pre-expiry receipt grants nothing, and a transition
+linearizing at or after expiry records only terminal expiry rejection. This
+recovery does not materialize intake or claim an ACK. Contradictory partial
+state latches.
+
+Post-ACK materialization has a separate predicate. It starts only from durable
+`TRANSPORT_ACK_RECORDED` state naming the accepted binding or question
+consumption and verifies immutable hashes, exact profile, integrity, kill/latch,
+and ambiguity state. It never reuses the pre-ACK eligibility function or checks
+current receive-grant expiry. Expiry closes new receive and Socket reopen but
+does not revoke or drop this exact local accepted decision; an expired-grant
+restart may drain it once without authenticating or reconnecting.
 
 ### 8.3 Post-intake pointer-delivery grant
 
@@ -453,6 +481,8 @@ durable immutable receipt + durable dedupe decision
   happens-before
 Socket ACK write
   happens-before
+durable TRANSPORT_ACK_RECORDED
+  happens-before
 asynchronous intake/pointer materialization
 ```
 
@@ -461,7 +491,9 @@ needed to bind/reject a root occurs before ACK; no untrusted content becomes
 authority. A receipt, dedupe, binding, question-consumption, or terminal-state
 write failure results in no ACK. A process crash between persistence and ACK
 produces a safe Slack retry, which finds identical durable bytes and cannot
-create a second binding, intake, or question consumption.
+create a second binding, intake, or question consumption. Materialization uses
+only the durable ACK-recorded decision and never a current-time receive-expiry
+check.
 
 ### 9.3 Identity filter
 
@@ -517,8 +549,9 @@ and only a valid receive-state `UNBOUND -> ROOT_BOUND` transition can seed it.
 
 Question correlation binds root, question ID, expected response kind, evidence
 ref/hash, and consumption state. Reply acceptance atomically changes
-`OPEN -> CONSUMED` under expected version. Concurrent or repeated replies lose
-the compare-and-append and are rejected.
+`OPEN -> CONSUMED` under expected version with trusted-local
+`consumedAt < expiresAt` at the serialized linearization point. Concurrent or
+repeated replies lose the compare-and-append and are rejected.
 
 A Slack retry never refreshes time-to-live, reopens a question, or resets an
 attempt counter. It never renews a receive grant, reopens its root slot, or
@@ -707,9 +740,17 @@ timestamp parser requires canonical UTC or exact Slack timestamp grammar.
 Future skew, non-monotonic journal time, expired receive grant,
 pointer-delivery grant, lease/capability, and evidence recorded before its
 predecessor fail closed. Restart, retry, root binding, and reply do not extend
-an expiry. Slack event time never determines Team, Actor, or Mission authority;
-trusted durable receive time decides whether the receive-grant expiry was
-exclusive.
+an expiry. Slack event time and durable receipt time never determine Team,
+Actor, Mission, or receive eligibility. For a new root or continuation, the
+sole expiry comparison is trusted-local `boundAt` or `consumedAt` at the
+serialized atomic state-transition linearization point, and acceptance requires
+that value to be strictly earlier than `expiresAt`.
+
+Current receive-grant time is not consulted after exact
+`TRANSPORT_ACK_RECORDED`. The post-ACK materializer is driven by that immutable
+accepted decision; expiry can close receive/reconnect while bounded local drain
+finishes exactly once. Kill, latch, corruption, and ambiguity controls remain
+fail closed.
 
 ## 17. Logging, status, and review evidence
 
@@ -752,10 +793,14 @@ profile/field category and stable reason code.
 | gateway mints authority from received bytes | grants must be Advisor-created committed/pushed first-add Git artifacts | global latch/no authority |
 | concurrent first roots consume one grant | expected-version `UNBOUND -> ROOT_BOUND`, rootLimit=1 before ACK | one winner; other root rejected |
 | Slack retry creates duplicate | two durable profile-local dedupe keys | ACK only, no second intake |
-| crash before ACK | receipt/dedupe/root binding before ACK | provider retry, same binding/intake |
-| crash after ACK before classify | durable receipt replay | async resume, same intake |
+| receipt before expiry, transition missing until after expiry | expiry checked at new transition linearization point, not receipt time | terminal expiry rejection; no root/question/intake |
+| root transition committed before expiry, crash before ACK | stored `boundAt < expiresAt` binding is replayed without a second transition | exact transport replay; no second intake |
+| ACK recorded before expiry, materialization after expiry | post-ACK predicate uses immutable accepted decision, not current expiry | exactly one intake/pointer |
+| ACK recorded before expiry, restart after expiry | expired grant cannot reopen Socket; local ACK-recorded drain is separate | exactly one intake/pointer, remain disconnected |
+| grant expires before new root/question transition | strict transition-time comparison | terminal rejection; no binding/consumption/intake |
+| duplicate retry after expiry | exact receipt/dedupe/transition/transport state only | ACK reproduction only; no business-state replay |
 | second top-level after binding | consumed root slot and immutable root | durable rejection, no intake |
-| receive expiry/restart ambiguity | exclusive persisted expiry; no extension | no new receive; drain durable work only |
+| receive expiry/restart ambiguity | one transition-time decision plus separate ACK-recorded materializer predicate | no new receive; drain exact accepted local work only |
 | root/thread confusion | immutable root plus single pending question | reject continuation |
 | content names a Worker/pane/command | opaque body; closed route union | no routing effect |
 | path traversal | paths derived from validated IDs and fixed roots | schema rejection/latch |
@@ -788,21 +833,27 @@ It must prove:
    no/expired/wrong-profile grant fails before connection, and no gateway code
    path creates a grant;
 7. exact atomic first-root binding before ACK plus identical retry, correlated
-   reply, second root, restart, expiry before/after root, disconnect, ambiguous
-   ACK, kill, corruption, and profile-isolation traces;
-8. pointer-delivery grant is impossible before exact immutable
+   reply, second root, disconnect, ambiguous ACK, kill, corruption, and
+   profile-isolation traces;
+8. receipt before expiry with missing transition recovered after expiry rejects;
+   a pre-expiry committed root transition survives pre-ACK crash without a
+   second transition/intake; ACK-recorded work materializes once after expiry
+   and after an expired-grant restart without Socket reopen; expiry before a new
+   root/question transition rejects; duplicate retry after expiry reproduces
+   only its durable ACK decision;
+9. pointer-delivery grant is impossible before exact immutable
    sourceEventId/intakeId/root/pointer/binding facts, and gateway output cannot
    substitute for the Advisor-created Git grant;
-9. exact root/question concurrency and restart behavior;
-10. one-use delivery-grant/lease/capability and every tmux journal boundary for
+10. exact root/question concurrency and restart behavior;
+11. one-use delivery-grant/lease/capability and every tmux journal boundary for
     both profiles;
-11. evidence wrong-lineage, wrong-prefix, premature, rewritten, removed, dirty,
+12. evidence wrong-lineage, wrong-prefix, premature, rewritten, removed, dirty,
    and non-ancestral negatives;
-12. exact outbound request plus all safe/ambiguous retry classes;
-13. global/profile latch separation and no reset;
-14. clean stop, forced drain timeout, lock contention, and restart;
-15. unchanged Exact Delivery v2 focused tests;
-16. secret/static scan over changed files and generated test artifacts.
+13. exact outbound request plus all safe/ambiguous retry classes;
+14. global/profile latch separation and no reset;
+15. clean stop, forced drain timeout, lock contention, and restart;
+16. unchanged Exact Delivery v2 focused tests;
+17. secret/static scan over changed files and generated test artifacts.
 
 Any test seam that accepts a caller-supplied production capability, generic
 Slack method, generic route, or raw tmux target must remain test-only and be
@@ -832,7 +883,9 @@ Never recover by deleting a journal, clearing a latch, resetting dedupe,
 rewriting Git evidence, reopening a receive-grant root slot, reusing a
 retired/expired/latched receive grant or any consumed pointer-delivery
 grant/lease/capability, or switching to the other profile. The only receive
-grant resume is the exact same-pilot clean-restart case defined above.
+grant resume is the exact same-pilot unexpired clean-restart case defined above.
+Bounded offline materialization of exact ACK-recorded work is not receive-grant
+resume and cannot open a Socket.
 
 ## 21. Residual risks and explicit safe defaults
 
@@ -863,7 +916,8 @@ of:
 - startup pair proof and swapped-token tests;
 - persist-before-ACK ordering and dedupe replay;
 - pre-event receive-grant field exclusion, atomic one-root binding, expiry, and
-  restart/retry/second-root behavior;
+  restart/retry/second-root behavior, including transition-time expiry and
+  separate ACK-recorded materialization;
 - post-intake pointer-delivery grant provenance and exact intake/pointer binding;
 - pre-Mission and thread contracts;
 - v2 non-regression boundary;

@@ -188,20 +188,27 @@ Command semantics after implementation:
   disengaged, the reviewed Phase A gate is present, no instance is running, and
   exactly one separately Advisor-created committed/pushed
   `As1PilotReceiveGrantV1` authority ref is fixed by the reviewed start gate.
-  The grant must be unexpired, select one literal profile, match the exact
-  workspace/App/channel/Leo IDs and governance/registry/latch snapshots, bind
-  one profile-local state root and one root/conversation limit, and contain no
-  event, root timestamp, intake, pointer, tmux destination, lease, capability,
-  or delivery-grant authority. With no exact grant ref, the default remains
-  disconnected. The CLI cannot select a profile or mint/complete a grant.
-- `stop` stops inbound acceptance, drains only already durable work to a bounded
-  deadline, closes both Socket Mode clients, and leaves unresolved work for
-  restart-safe replay. It preserves the receive-grant root binding and all
-  pointer-delivery-grant/lease consumption.
-- `restart` is exactly a successful clean `stop` followed by a fresh `start`;
-  it may resume only the same still-unexpired receive grant and exact durable
-  state. It never renews a grant/root slot or clears dedupe, journal, outbox,
-  delivery-grant/lease/capability consumption, or failure latches.
+  The grant must be unexpired at the live connection gate, select one literal
+  profile, match the exact workspace/App/channel/Leo IDs and governance/
+  registry/latch snapshots, bind one profile-local state root and one root/
+  conversation limit, and contain no event, root timestamp, intake, pointer,
+  tmux destination, lease, capability, or delivery-grant authority. With no
+  exact grant ref, the default remains disconnected. The CLI cannot select a
+  profile or mint/complete a grant.
+- `stop` stops inbound acceptance, drains exact already-durable work to a
+  bounded deadline, closes both Socket Mode clients, and leaves unresolved work
+  for restart-safe replay. An exact `TRANSPORT_ACK_RECORDED` decision may
+  materialize locally without rechecking current receive-grant expiry. Stop
+  preserves the receive-grant root binding and all pointer-delivery-grant/lease
+  consumption.
+- `restart` performs a successful clean `stop`, exact state recovery, and then
+  evaluates the fresh live-start gate. Only the same still-unexpired receive
+  grant may reauthenticate and reopen its Socket. If that grant is expired,
+  restart must remain disconnected but may run a bounded offline drain that
+  materializes each exact `TRANSPORT_ACK_RECORDED` decision once; it cannot
+  bind/consume new receive state. This local drain is not grant renewal or
+  reuse. Restart never renews a grant/root slot or clears dedupe, journal,
+  outbox, delivery-grant/lease/capability consumption, or failure latches.
 - `status` reports process/profile states and stable reason codes only. It never
   prints configuration values, Slack payloads, or raw grant identity values.
 
@@ -211,7 +218,9 @@ an actor; or overrides a latch. The gateway cannot create either grant. Real
 pilot start remains an Advisor-owned, separately authorized sequential action
 after all preceding gates, and every later pointer attempt requires a separate
 Advisor-created `As1PointerDeliveryGrantV1` after its exact intake/pointer
-exists.
+exists. Kill, latch, corruption, or ambiguous durable state stops both live
+receive and offline materialization; expiry alone stops new receive/Socket
+reopen but does not revoke an exact ACK-recorded local decision.
 
 ## 8. Owner gate evidence
 
