@@ -639,6 +639,43 @@ export class As1ProfileInboundStore {
     return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
   }
 
+  // ── Advisor evidence ingress log (design §13) ─────────────────────────────
+  public async appendAcceptedEvidence(entry: {
+    readonly evidenceKind: string;
+    readonly evidenceId: string;
+    readonly intakeId: string;
+    readonly blobSha256: string;
+    readonly sourceCommit: string;
+  }): Promise<number> {
+    return this.mutex.run(async () => {
+      const records = await this.readJsonArray<{ evidenceId: string; blobSha256: string }>(
+        this.indexPath('evidence-ingress-checkpoint.json'),
+      );
+      const existing = records.find((r) => r.evidenceId === entry.evidenceId);
+      if (existing !== undefined) {
+        if (existing.blobSha256 !== entry.blobSha256) {
+          throw new DomainError('STORE_QUARANTINED', 'evidence re-accepted with different bytes');
+        }
+        return records.length;
+      }
+      if (records.length >= LIMITS.EVIDENCE_INGRESS_PER_PROFILE) {
+        throw new DomainError('STORE_QUARANTINED', 'evidence ingress capacity exhausted; no silent eviction');
+      }
+      const sequence = records.length + 1;
+      await this.writeJsonArray(this.indexPath('evidence-ingress-checkpoint.json'), [
+        ...records,
+        { ...entry, sequence, acceptedAt: this.clock.now() },
+      ]);
+      return sequence;
+    });
+  }
+
+  public async readAcceptedEvidence(): Promise<{ evidenceKind: string; evidenceId: string; intakeId: string }[]> {
+    return this.readJsonArray<{ evidenceKind: string; evidenceId: string; intakeId: string }>(
+      this.indexPath('evidence-ingress-checkpoint.json'),
+    );
+  }
+
   /** Consume the delivery grant + lease exactly once. Permanent; reuse of either returns false. */
   public async consumeDeliveryAuthority(pointerDeliveryGrantId: string, leaseId: string): Promise<boolean> {
     return this.mutex.run(async () => {

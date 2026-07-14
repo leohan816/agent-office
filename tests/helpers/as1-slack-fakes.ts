@@ -21,6 +21,11 @@ import type {
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import type { As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
 import type { As1TmuxPort, As1TmuxPreflight } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
+import type {
+  As1EvidenceProvenance,
+  As1EvidenceRef,
+  As1GitProvenanceVerifier,
+} from '../../src/application/slack-pilot/evidence-ingress.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
 import { uuidV7 } from './fixtures.js';
 
@@ -562,4 +567,96 @@ export function matchingPreflight(overrides: Partial<As1TmuxPreflight> = {}): As
     synchronizePanes: false,
     ...overrides,
   };
+}
+
+// ── Advisor evidence fixtures + fake Git provenance verifier ──────────────────
+const AO_LINEAGE = {
+  profileId: 'AGENT_OFFICE_ADVISOR',
+  advisorTeam: 'AGENT_OFFICE_ADVISOR_TEAM',
+  actorId: 'agent-office-advisor',
+  roleInstanceId: 'foundation-advisor',
+};
+
+export const AO_EVIDENCE_PREFIX = 'advisor/jobs/20260714_as1/runtime-evidence/agent-office-advisor';
+
+export function validAdvisorAck(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schemaVersion: 'agent-office.as1-advisor-ack.v1',
+    evidenceId: 'ev-ack-0001',
+    ...AO_LINEAGE,
+    intakeId: 'as1-intake-0001',
+    sourceEventId: 'Ev0AGENTOFFICE01',
+    pointerHash: HASH_4,
+    advisorAckId: 'ack-0001',
+    acknowledgedAt: '2026-07-14T22:06:00.000Z',
+    ...overrides,
+  };
+}
+
+export function validAdvisorIntake(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schemaVersion: 'agent-office.as1-advisor-intake.v1',
+    evidenceId: 'ev-intake-0001',
+    ...AO_LINEAGE,
+    intakeId: 'as1-intake-0001',
+    advisorAckId: 'ack-0001',
+    classification: 'ACCEPTED_NEW_MISSION',
+    recordedAt: '2026-07-14T22:06:10.000Z',
+    ...overrides,
+  };
+}
+
+export function validAdvisorQuestion(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schemaVersion: 'agent-office.as1-advisor-outbound.v1',
+    evidenceId: 'ev-question-0001',
+    ...AO_LINEAGE,
+    intakeId: 'as1-intake-0001',
+    questionId: 'q-0001',
+    expectedResponseKind: 'CLARIFICATION',
+    recordedAt: '2026-07-14T22:06:20.000Z',
+    ...overrides,
+  };
+}
+
+export function validAdvisorResult(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schemaVersion: 'agent-office.as1-advisor-result.v1',
+    evidenceId: 'ev-result-0001',
+    ...AO_LINEAGE,
+    intakeId: 'as1-intake-0001',
+    resultId: 'result-0001',
+    terminalStatus: 'COMPLETED',
+    resultArtifactRef: `${AO_EVIDENCE_PREFIX}/as1-intake-0001/result.json`,
+    recordedAt: '2026-07-14T22:06:30.000Z',
+    ...overrides,
+  };
+}
+
+export function evidenceRef(fileName: string, overrides: Partial<As1EvidenceRef> = {}): As1EvidenceRef {
+  return {
+    repositoryId: 'agent-office',
+    sourceCommit: 'c'.repeat(40),
+    path: `${AO_EVIDENCE_PREFIX}/as1-intake-0001/${fileName}`,
+    blobSha256: `sha256:${'5'.repeat(64)}`,
+    ...overrides,
+  };
+}
+
+/** In-memory Git provenance verifier. Never runs git; provenance is scriptable per test. */
+export class FakeGitVerifier implements As1GitProvenanceVerifier {
+  private provenance: As1EvidenceProvenance = {
+    upstreamAncestral: true,
+    firstAddition: true,
+    dirty: false,
+    byteStable: true,
+  };
+
+  public set(partial: Partial<As1EvidenceProvenance>): void {
+    this.provenance = { ...this.provenance, ...partial };
+  }
+
+  public verify(): Promise<As1EvidenceProvenance> {
+    return Promise.resolve(this.provenance);
+  }
 }
