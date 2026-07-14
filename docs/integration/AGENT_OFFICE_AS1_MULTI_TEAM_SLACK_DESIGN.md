@@ -110,11 +110,13 @@ route validation.
 
 The intake observed Agent Office at `$26/@26/%26` and Foundation at
 `$27/@27/%27`. Those locator values are evidence at one time, not permanent
-configuration. Each real pilot requires a fresh exact lease that records and
-binds the then-current session ID, window ID/index, pane ID/index, pane PID,
-window name, workspace, current command, synchronized-panes state, activity
-time, observation time, and registry/authority hashes. Any mismatch fails
-closed. Slack content can never supply or override a locator.
+configuration. Only after an exact post-intake pointer-delivery grant exists,
+each pointer attempt requires a fresh exact lease that records and binds the
+then-current session ID, window ID/index, pane ID/index, pane PID, window name,
+workspace, current command, synchronized-panes state, activity time,
+observation time, and registry/authority hashes. No lease exists at pre-event
+receive time. Any mismatch fails closed. Slack content can never supply or
+override a locator.
 
 The only external values admitted into a profile are the exact ten keys in
 `config/slack/as1-slack-pilot.env.example`. The parser assigns each value to its
@@ -124,25 +126,33 @@ already-selected union member; it never builds a route from text.
 
 ```text
 owner-only exact-key secret file
+        +
+committed/pushed expiring pilot receive grant
         |
         v
-strict data parser + startup identity verifier
+strict data parser + grant/startup identity verifier
         |
         v
 AS1 Slack Gateway (one process, global kill switch)
         |
-        +-- Agent Office client slot -- profile-local durable state
+        +-- selected Agent Office client slot -- profile-local durable state
         |
-        +-- Foundation client slot ---- profile-local durable state
+        +-- selected Foundation client slot ---- profile-local durable state
                  |
                  v
-persisted Socket envelope -> transport ACK -> async classifier
+persisted Socket envelope + atomic one-root grant binding
+                 |
+                 v
+transport ACK -> async intake/pointer materialization
                  |
                  v
 immutable NEW_MISSION / thread-continuation intake
                  |
                  v
-fresh profile lease + in-memory capability + exact tmux pointer
+committed/pushed post-intake pointer-delivery grant
+                 |
+                 v
+fresh profile lease + in-memory capability + one exact tmux pointer
                  |
                  v
 responsible Advisor -> committed structured evidence
@@ -153,15 +163,16 @@ profile evidence ingress -> durable Slack outbox -> exact thread reply
 
 There is one lifecycle owner and one global kill switch, but no shared mutable
 profile data. Client, token references, receipt artifacts, dedupe indexes,
-intakes, root correlations, pending questions, activation, capability
-consumption, tmux journal, evidence checkpoint, outbound journal, and failure
-latch are profile-local.
+intakes, root correlations, pending questions, receive-grant binding,
+pointer-delivery-grant/lease/capability consumption, tmux journal, evidence
+checkpoint, outbound journal, and failure latch are profile-local.
 
 The service has two statically constructed client slots. A fresh pilot
-activation selects exactly one slot for live connection. The second real pilot
-uses a separate activation after the first is cleanly stopped and reconciled.
-No command-line or Slack-supplied profile selector exists; the reviewed
-activation artifact names one literal `profileId`.
+receive grant selects exactly one slot for a bounded live receive window. The
+second real pilot uses a different receive grant after the first is cleanly
+stopped and reconciled. No command-line or Slack-supplied profile selector
+exists; the reviewed receive grant names one literal `profileId`. A receive
+grant authorizes no tmux destination or pointer delivery.
 
 ## 5. Setup and secret parsing
 
@@ -209,31 +220,39 @@ scope.
 
 ## 6. Startup authentication and pair verification
 
-No profile becomes `READY` on token shape alone. For the activated profile,
-startup executes this exact sequence with bounded time/output and redacted
-errors:
+No profile authenticates or opens Socket Mode on token shape alone. For the
+receive-granted profile, startup executes this exact sequence with bounded
+time/output and redacted errors:
 
-1. Parse both profile records and require different App IDs, channel IDs, bot
+1. Load exactly one Advisor-created `As1PilotReceiveGrantV1`; require its exact
+   Git blob/path/commit/hash to be committed, pushed, clean, upstream-ancestral,
+   unexpired, and byte-stable. Validate its one literal profile, pilot,
+   workspace/App/channel/Leo identity, governance/registry snapshots,
+   profile-local state root, one-root limit, and clean kill/latch snapshots.
+   Reject any event, root, intake, pointer, destination, lease, or capability
+   field. The gateway cannot create or complete this grant.
+2. Parse both profile records and require different App IDs, channel IDs, bot
    tokens, and app tokens. Require the same configured workspace and the exact
    approved Leo user ID.
-2. Call `auth.test` with the selected profile's bot token. Require `ok: true`,
+3. Call `auth.test` with the selected profile's bot token. Require `ok: true`,
    exact configured workspace ID, bounded bot user ID, and bounded bot ID.
-3. Call `bots.info` with that bot token and the returned bot ID. Require
+4. Call `bots.info` with that bot token and the returned bot ID. Require
    `ok: true`, the same bot ID/user ID, `deleted: false`, and `bot.app_id` equal
    to the selected profile's configured App ID.
-4. Call `apps.connections.open` with the selected profile's app-level token and
+5. Call `apps.connections.open` with the selected profile's app-level token and
    connect the returned ephemeral WebSocket URL without logging it.
-5. Require the first bounded Socket message to be `hello` and require
+6. Require the first bounded Socket message to be `hello` and require
    `connection_info.app_id` to equal the selected profile's configured App ID.
-6. Mark the client `AUTHENTICATED_QUARANTINE`; it still cannot accept a message
-   until its profile activation, global control, state store, registry lineage,
-   and exact destination authority all validate.
-7. On the first Events API callback, additionally require `team_id`,
+7. Mark the client `AUTHENTICATED_QUARANTINE`; it still cannot accept a message
+   until the receive grant, its profile-local unbound-or-consistently-bound
+   state, global control, state store, and registry lineage all validate. Tmux
+   destination authority is intentionally absent at this stage.
+8. On every Events API callback, additionally require `team_id`,
    `api_app_id`, and bot authorization identity to agree with the startup facts
-   before the event can enter policy classification.
+   before the event can enter the pre-ACK eligibility decision.
 
-Swapped bot tokens fail step 3. Swapped app tokens fail step 5. A token from a
-different workspace fails step 2 or event validation. Any credential or identity
+Swapped bot tokens fail step 4. Swapped app tokens fail step 6. A token from a
+different workspace fails step 3 or event validation. Any credential or identity
 mismatch fails the complete start before message acceptance; it is not a
 profile-local transient retry.
 
@@ -252,7 +271,8 @@ but a new root namespace. It does not introduce a database.
   indexes/as1-slack-pilot/global-control.json
   indexes/as1-slack-pilot/active-pilot.json
   indexes/as1-slack-pilot/profiles/agent-office-advisor/
-    activation.json
+    receive-grant-state.json
+    pointer-delivery-grant-consumption.json
     failure-latch.json
     inbound-dedupe.json
     root-correlations.json
@@ -265,6 +285,7 @@ but a new root namespace. It does not introduce a database.
     <same names, independent bytes and hash chains>
   artifacts/as1-slack-pilot/agent-office-advisor/
     inbound/<eventId>/<sha256>.json
+    receive-grant-bindings/<receiveGrantId>/<sha256>.json
     intake/<intakeId>/<sha256>.json
     pointers/<deliveryId>/<sha256>.json
     evidence/<evidenceId>/<sha256>.json
@@ -311,23 +332,46 @@ selected SDK documents them and the reviewed parser version adds them.
 
 ### 8.2 Required order
 
-For every syntactically valid envelope with a usable `envelope_id`:
+For every envelope, the gateway first performs the bounded outer parse. If it
+cannot safely recover a usable `envelope_id`, it cannot ACK. For a usable
+`envelope_id`, the required order is:
 
-1. validate the outer shape and selected client/profile binding;
-2. canonicalize the raw received object without token material;
-3. derive `envelopeHash` and Events API `eventIdentity`;
+1. validate the outer shape, selected client/profile binding, global control,
+   and receive-grant state without extending the grant expiry;
+2. validate the bounded callback/message identity and surface sufficiently to
+   decide one terminal pre-ACK class: eligible first root, eligible correlated
+   continuation, exact duplicate, or a stable rejection reason;
+3. canonicalize the raw received object without token material and derive
+   `envelopeHash` plus Events API `eventIdentity`;
 4. write the immutable owner-only envelope artifact;
 5. atomically insert/check both profile-local dedupe identities;
-6. durably record `RECEIPT_PERSISTED`;
-7. only then send `{ "envelope_id": <exact received ID> }` on the same client;
-8. record `TRANSPORT_ACK_RECORDED`;
-9. schedule asynchronous policy classification.
+6. for the first eligible top-level Leo event only, compare-and-append the
+   receive-grant state from `UNBOUND` to `ROOT_BOUND`, binding exactly its
+   observed `sourceEventId`, `rootTs`, receipt/message hashes, and root key and
+   consuming the sole root slot; this durable transition happens before ACK;
+7. for an eligible continuation only, require that same bound root and
+   atomically consume exactly one compatible open Advisor question before ACK;
+8. durably record `RECEIPT_PERSISTED` plus the terminal pre-ACK class and the
+   receive-grant/question state hash, if any;
+9. only then send `{ "envelope_id": <exact received ID> }` on the same client;
+10. record `TRANSPORT_ACK_RECORDED`;
+11. schedule asynchronous materialization only for the already-bound root or
+    already-consumed continuation. That stage creates the immutable intake and
+    pointer; it cannot bind another root or mint authority.
 
-If steps 4-6 fail, send no ACK so Slack may retry. If the ACK write is
-ambiguous, retain the durable receipt and rely on dedupe when Slack retries; do
-not create a second intake. A replay with the same identity and bytes is ACKed
-again after verifying the durable receipt. The same identity with different
-bytes quarantines the profile.
+If any required persistence or compare-and-append through step 8 fails, send no
+ACK so Slack may retry. If the ACK write is ambiguous, retain the durable
+receipt, dedupe, root binding/question consumption, and rely on those records
+when Slack retries; do not create a second intake, bind a second root, or
+consume a second question. A replay with the same identity and bytes is ACKed
+again after verifying the complete durable state. The same identity with
+different bytes quarantines the profile.
+
+A syntactically valid but ineligible envelope is durably recorded with its
+stable rejection reason and may then be transport-ACKed; it never changes the
+receive-grant root slot, creates an intake/pointer, or creates delivery
+authority. An authenticated-profile identity contradiction also latches the
+profile after durable audit. Rejected input never mints a grant.
 
 This Socket ACK means only that the gateway durably received the envelope. It
 is not an Advisor ACK, intake decision, Mission creation, dispatch, or result.
@@ -342,15 +386,34 @@ Both keys are required:
 ```
 
 The record also binds raw hash, inner-event hash, first/last received time,
-retry attempt/reason, classification, intake ID if any, and terminal reason
-code. Neither profile can see, collide with, or satisfy the other's key.
+retry attempt/reason, pre-ACK class, receive-grant state hash, intake ID if later
+materialized, and terminal reason code. Neither profile can see, collide with,
+or satisfy the other's key.
+
+The dedupe/index phase is exact:
+
+```text
+PREACK_PENDING -> PREACK_ROOT_BOUND | PREACK_CONTINUATION_CONSUMED |
+                  PREACK_REJECTED
+               -> TRANSPORT_ACK_RECORDED
+               -> MATERIALIZED | TERMINAL_NO_INTAKE
+```
+
+A crash after receipt/dedupe but before root binding, question consumption, or
+terminal rejection leaves `PREACK_PENDING`. Startup revalidates the same bytes
+and state and completes exactly one missing pre-ACK transition before reopening
+the Socket; it does not materialize or invent an ACK. If the receive grant has
+expired before that missing transition, the pending event becomes a durable
+expiry rejection, not a late root binding. A later identical Slack retry may be
+ACKed from the completed state. Any contradictory partial state latches.
 
 ## 9. Inbound policy matrix
 
-After transport ACK, asynchronous policy classification requires all common
-facts:
+The pre-ACK eligibility decision and later asynchronous materialization use the
+same exact policy function and require all common facts:
 
-- selected fixed profile is active and not latched;
+- selected fixed profile has one valid, unexpired receive grant and is not
+  killed or latched;
 - outer payload type is exactly `event_callback`;
 - exact configured workspace `team_id`;
 - exact configured `api_app_id`;
@@ -365,7 +428,8 @@ facts:
 
 | Input | Classification | Effect |
 |---|---|---|
-| Leo message with no `thread_ts` | `NEW_MISSION` | one immutable pre-Mission intake and root correlation |
+| Leo message with no `thread_ts` while receive grant is `UNBOUND` | `NEW_MISSION_ROOT_CANDIDATE` | persist and atomically bind the grant's sole root slot before ACK; later materialize one immutable pre-Mission intake |
+| Leo message with no `thread_ts` after root binding | `REJECTED_ROOT_SLOT_CONSUMED` | durable rejection and transport ACK only; no second intake/root |
 | Leo reply whose `thread_ts` equals a known root and exactly one compatible question is pending | question's fixed response kind | one `CLARIFICATION` or `DECISION_RESPONSE` continuation |
 | replay/retry with identical identities and bytes | `DUPLICATE` | no new intake; ACK transport receipt only |
 | `message_changed`, `message_deleted`, any subtype, or `hidden: true` | `REJECTED_MUTATION_OR_SUBTYPE` | minimal durable audit, no intake |
@@ -373,6 +437,7 @@ facts:
 | wrong workspace/app/channel/user or shared channel | `REJECTED_IDENTITY` | minimal durable audit and profile latch on authenticated-profile contradiction |
 | DM, MPIM, public channel, App Home, interactive, command, or unknown envelope type | `REJECTED_SURFACE` | minimal durable audit, no intake |
 | thread reply with no root, wrong root, no pending question, or already-consumed question | `REJECTED_THREAD_CORRELATION` | minimal durable audit, no intake |
+| any otherwise eligible input at or after receive-grant expiry | `REJECTED_RECEIVE_GRANT_EXPIRED` | no root/question transition or intake; drain/close per lifecycle |
 | exact deferred query command | `REJECTED_DEFERRED_QUERY` | minimal durable audit, no Mission/query behavior |
 
 The deferred-query matcher trims Unicode whitespace, applies Unicode
@@ -391,9 +456,14 @@ For an accepted top-level message, the root key is:
 (profileId, workspaceId, appId, channelId, rootTs)
 ```
 
-Exactly one immutable root-correlation record may bind that key to one
-`intakeId`, `eventId`, and message-artifact hash. The root's `ts` must equal the
-event's `ts`; a top-level event carrying `thread_ts` is not a root.
+Before ACK, one immutable receive-grant binding artifact binds that key to one
+`receiveGrantId`, binding-state hash, `eventId`, receipt hash, and
+message-artifact hash; it contains no future `intakeId`. After ACK,
+materialization may create exactly one immutable root-correlation record that
+adds one `intakeId` while referencing the unchanged binding artifact. The
+root's `ts` must equal the event's `ts`; a top-level event carrying `thread_ts`
+is not a root. The only source for root correlation is the durable
+`UNBOUND -> ROOT_BOUND` receive-grant transition before Socket ACK.
 
 A thread continuation is accepted only when:
 
@@ -420,6 +490,8 @@ As1NewMissionIntakeV1
   schemaVersion: agent-office.as1-new-mission-intake.v1
   intakeId: UUIDv7
   kind: NEW_MISSION
+  receiveGrantId
+  receiveGrantBindingHash
   profileId: closed union
   advisorTeam: exact profile value
   advisorActorId: exact profile value
@@ -449,39 +521,208 @@ Continuation records bind the original `intakeId`, root key, pending
 `questionId`, source event, immutable message ref/hash, and fixed continuation
 kind. They cannot alter the root profile or Advisor identity.
 
-## 12. Exact Advisor pointer transport
+Asynchronous materialization runs only from a durable bound-root or
+question-consumption record. It generates the exact `intakeId`, immutable
+pointer artifact, and pointer hash once. Those facts remain intake evidence,
+not delivery authority: the gateway must wait for a separate Advisor-created
+`As1PointerDeliveryGrantV1` before it may request a readiness lease or create a
+capability.
+
+## 12. Two-stage exact authority and Advisor pointer transport
 
 AS1 adds a separate exact transport implementation. It may reuse low-level
 atomic-file and hashing primitives, but it must not relax, overload, or branch
-inside Exact Delivery v2 schemas or state.
+inside Exact Delivery v2 schemas or state. AS1 has no undifferentiated
+`activation` contract: permission to receive one bounded conversation and
+permission to deliver one already-created pointer are different authority
+artifacts with different identities, fields, state, and expiries.
 
-### 12.1 Activation
+### 12.1 Pre-event pilot receive grant
 
-Each pilot activation is an exact, committed, pushed authority artifact that
-binds:
+Before `apps.connections.open`, the responsible Advisor supplies exactly one
+committed and pushed authority artifact:
 
-- schema and activation IDs;
-- one literal profile ID;
-- one pilot ID and one intake/event identity;
-- exact organization-registry row and hash;
-- exact profile evidence prefix;
-- global kill state and profile-local activation state;
-- exact authority repository/root/source IDs;
-- capability/preflight TTLs and tool limits;
-- use limit `1`;
-- no second route and no fallback route.
+```text
+As1PilotReceiveGrantV1
+  schemaVersion: agent-office.as1-pilot-receive-grant.v1
+  receiveGrantId
+  pilotId
+  profileId: AGENT_OFFICE_ADVISOR | FOUNDATION_ADVISOR
+  workspaceId
+  appId
+  channelId
+  leoUserId
+  profileStateRootRef
+  profileStateRootHash
+  rootLimit: 1
+  conversationLimit: 1
+  governanceSnapshotHash
+  registrySnapshotHash
+  ownerSetupGateHash
+  implementationReviewGateHash
+  globalControlSnapshotHash
+  profileLatchSnapshotHash
+  authorityRepositoryId
+  authorityRootId
+  authoritySourceCommit
+  issuedAt
+  expiresAt
+```
 
-The two real pilots use different activation IDs and never coexist as active.
+The grant names one literal profile and no fallback. Its exact workspace, App,
+channel, and Leo IDs must equal the selected static profile and external secret
+record. `profileStateRootRef` resolves to exactly that profile's contained
+owner-only root and cannot alias the other profile. Expiry is exclusive, is
+checked before connection and every receive decision, and is never extended by
+a retry, reconnect, restart, root binding, or thread reply.
 
-### 12.2 Readiness lease
+The receive-grant schema rejects every field or wildcard for a future
+`sourceEventId`, envelope/event ID, `rootTs`, `intakeId`, message/pointer ref or
+hash, tmux session/pane/destination, readiness lease, capability, delivery
+grant, or evidence path. It authorizes only opening/authenticating the selected
+Socket and durably receiving at most one root conversation before expiry. It
+does not authorize tmux or outbound Slack side effects.
 
-The responsible Advisor supplies a fresh, committed, pushed, single-use lease:
+The grant is created outside the gateway under the Advisor authority chain.
+The gateway may validate an exact grant and record its state; it cannot derive,
+fill, mint, renew, clone, or select a grant from Slack/config bytes.
+
+### 12.2 Atomic receive-grant state and root binding
+
+The immutable Git grant is never rewritten. Its profile-local mutable state is
+an exact, hash-chained compare-and-append record:
+
+```text
+As1PilotReceiveGrantStateV1
+  schemaVersion: agent-office.as1-pilot-receive-grant-state.v1
+  receiveGrantId
+  pilotId
+  profileId
+  phase:
+    UNBOUND | ROOT_BOUND | EXPIRED_UNBOUND | EXPIRED_BOUND |
+    RETIRED_UNBOUND | RETIRED_BOUND | LATCHED
+  rootLimit: 1
+  rootSlotConsumed: boolean
+  boundSourceEventId: null | exact Slack event ID
+  boundRootTs: null | exact Slack root timestamp
+  boundRootKeyHash: null | SHA-256
+  boundReceiptArtifactRef: null | profile-local immutable ref
+  boundReceiptArtifactHash: null | SHA-256
+  boundMessageArtifactHash: null | SHA-256
+  boundAt: null | UTC
+  previousStateHash
+  stateHash
+  version
+```
+
+`UNBOUND -> ROOT_BOUND` is one atomic expected-version transition after the
+eligible envelope, message, and dedupe records are durable and before the
+Socket ACK write. It stores only the observed event/root facts in the mutable
+state and immutable binding artifact; those facts were not and could not be in
+the pre-event grant. The compare-and-append loser re-reads durable state and is
+classified as duplicate or `REJECTED_ROOT_SLOT_CONSUMED`; it never creates a
+second root.
+
+`ROOT_BOUND` permits only replies whose `thread_ts` equals that exact root while
+the receive grant remains unexpired and exactly one compatible Advisor question
+is open. A reply atomically consumes that question before ACK. It cannot alter
+the root slot or create a new root. No rejected event changes receive-grant
+state or creates authority.
+
+### 12.3 Receive lifecycle decision table
+
+| Condition | Required durable action before ACK | Later effect |
+|---|---|---|
+| first eligible exact-identity top-level Leo event while `UNBOUND` and unexpired | receipt + both dedupe keys + atomic `ROOT_BOUND` record | ACK, then materialize exactly one `NEW_MISSION` intake/pointer |
+| identical envelope/event retry, including after receive-grant expiry | verify exact receipt, dedupe, and binding bytes from the earlier decision | reproduce transport ACK only; no second binding/intake or expiry extension |
+| eligible correlated reply | persist receipt/dedupe and atomically consume the one open question under the bound root | ACK, then materialize one fixed-kind continuation/pointer |
+| second top-level event after `ROOT_BOUND` | persist `REJECTED_ROOT_SLOT_CONSUMED` without changing grant state | ACK only; no intake or delivery authority |
+| malformed input without a safely parsed envelope ID | no state mutation | no ACK and no authority |
+| valid-envelope wrong surface, bot echo, edit/delete, hidden/subtype, deferred query, or uncorrelated reply | persist exact rejection/dedupe; never bind/consume | ACK only after durability; no authority |
+| authenticated-profile identity contradiction | persist audit/reason and latch profile | close/refuse; no root or grant creation |
+| crash/restart with an unexpired valid grant | revalidate immutable grant and complete state tree before network; keep original expiry | resume `UNBOUND` or `ROOT_BOUND` without a new slot |
+| receive-grant expiry before root | atomically record `EXPIRED_UNBOUND` | refuse input and close; no root/intake |
+| receive-grant expiry after root | atomically record `EXPIRED_BOUND` | refuse new input and drain already-durable work; do not revoke a separately valid delivery grant |
+| provider disconnect | persist profile latch with grant/binding state unchanged | no automatic reconnect or grant renewal |
+| ACK write ambiguous | retain receipt/dedupe/binding or question consumption | exact retry may be ACKed; never repeat business state |
+| global kill or profile latch | persist killed/latched control before close where possible | no receive, delivery grant acceptance, lease, capability, or side effect |
+| other-profile grant, event state, binding, pointer, lease, or evidence ref | never read/write it through the selected profile; persist cross-profile contradiction under global control | global latch; no fallback, copied state, ACK-derived authority, or delivery |
+| state corruption or cross-profile ref | profile latch, or global latch for cross-profile/global contradiction | no ACK/authority based on unverifiable state |
+
+A clean process restart is not a new authority. It may resume the same
+unexpired receive grant only after exact state replay. A clean stop preserves
+the grant phase while process/profile lifecycle becomes stopped. Before a later
+sequential pilot, the Advisor-controlled close step records `RETIRED_UNBOUND` or
+`RETIRED_BOUND`; that pilot requires a different Advisor-created receive grant.
+A retired, expired, or latched grant is never reused.
+
+### 12.4 Post-intake pointer-delivery grant
+
+Only after asynchronous materialization has committed the exact intake and
+pointer artifact may the responsible Advisor create and push:
+
+```text
+As1PointerDeliveryGrantV1
+  schemaVersion: agent-office.as1-pointer-delivery-grant.v1
+  pointerDeliveryGrantId
+  receiveGrantId
+  receiveGrantBindingHash
+  pilotId
+  profileId
+  intakeId
+  sourceEventId
+  rootCorrelationHash
+  pointerArtifactRef
+  pointerHash
+  advisorTeam
+  actorId
+  roleInstanceId
+  evidencePrefix
+  governanceSnapshotHash
+  registrySnapshotHash
+  globalControlSnapshotHash
+  profileLatchSnapshotHash
+  authorityRepositoryId
+  authorityRootId
+  authoritySourceCommit
+  issuedAt
+  expiresAt
+  useLimit: 1
+```
+
+This is the only AS1 authority stage permitted to bind `sourceEventId`,
+`intakeId`, root correlation, pointer ref/hash, and permission to request one
+fresh readiness lease and create one in-memory capability. Every value must
+equal the immutable receive binding/intake/pointer artifacts. The grant is an
+Advisor-created, committed, pushed, clean, upstream-ancestral, newly added
+artifact; the gateway cannot synthesize it from its own output or from Slack.
+
+The delivery grant authorizes neither another receive/root nor a direct tmux
+target. It is profile-local, expires exclusively, has permanent one-use
+consumption, and has no alternate/fallback profile. A root conversation with
+later accepted continuations requires a distinct delivery grant for each exact
+pointer attempt.
+
+Grant creation is a separate Advisor authority operation, not an automatic
+gateway transition. The Advisor independently reads the immutable
+intake/pointer through the fixed profile authority root and commits the exact
+grant under its normal controlled Git workflow. Until that artifact appears and
+validates, the profile remains `AWAITING_POINTER_DELIVERY_GRANT`; the pointer is
+durable but no lease, capability, tmux journal, or delivery attempt exists.
+Fixed-prefix polling may observe a grant; it cannot accept a path/ref from
+Slack, infer approval from absence/presence alone, or create the grant.
+
+### 12.5 Readiness lease
+
+Under one valid unconsumed pointer-delivery grant, the responsible Advisor
+supplies a fresh, committed, pushed, single-use lease:
 
 ```text
 As1AdvisorReadinessLeaseV1
   schemaVersion
   leaseId
-  activationId
+  pointerDeliveryGrantId
+  receiveGrantId
   pilotId
   profileId
   intakeId
@@ -498,27 +739,32 @@ As1AdvisorReadinessLeaseV1
   readiness: IDLE_FOR_ONE_AS1_POINTER
   useLimit: 1
   observedAt, issuedAt, expiresAt
-  authoritySnapshotHash, registrySnapshotHash, activationSnapshotHash
+  authoritySnapshotHash, registrySnapshotHash,
+  receiveGrantBindingHash, pointerDeliveryGrantSnapshotHash
   evidenceRefs
 ```
 
-All identity fields must equal the selected static profile. Exact live fields
-must match two bounded structured tmux preflights. The lease is consumed and
-fsynced before the first tmux mutation. A consumed lease can never be reused,
-even when the attempt fails before paste.
+All identity fields must equal the selected static profile and delivery grant.
+Exact live fields must match two bounded structured tmux preflights. The lease
+and pointer-delivery grant are consumed and fsynced before the first tmux
+mutation. Either consumed record can never be reused, even when the attempt
+fails before paste.
 
-### 12.3 Capability and pointer
+### 12.6 Capability and pointer
 
 After static validation and first preflight, the service creates an in-memory
-capability bound to activation, lease, pilot, profile, intake, Slack event,
-pointer hash, destination fingerprint, authority hashes, issue time, and
-exclusive expiry. It is not serialized into config, Slack, or a browser.
+capability bound to receive-grant binding, pointer-delivery grant, lease, pilot,
+profile, intake, Slack event, pointer hash, destination fingerprint, authority
+hashes, issue time, and exclusive expiry. It is not serialized into config,
+Slack, or a browser and it is never accepted from a caller.
 
 Pointer bytes use an exact schema and contain no body or target selector:
 
 ```text
 As1AdvisorPointerV1
   schemaVersion
+  receiveGrantId
+  receiveGrantBindingHash
   pilotId
   profileId
   intakeId
@@ -531,9 +777,9 @@ As1AdvisorPointerV1
 ```
 
 The transport destination is derived solely from the validated profile lease,
-never from pointer or Slack bytes.
+never from receive grant, delivery grant, pointer, or Slack bytes.
 
-### 12.4 Journal and ambiguity
+### 12.7 Journal and ambiguity
 
 Each profile has the phases:
 
@@ -545,14 +791,14 @@ PREPARED -> BUFFER_LOADED -> PASTE_STARTED -> PASTE_CONFIRMED
 Any interrupted nonterminal journal becomes
 `MANUAL_RECONCILIATION_REQUIRED`. Paste or Enter is never repeated after
 `PASTE_STARTED`. Buffer cleanup is allowed only when the journal proves paste
-did not start and a fresh preflight proves the same destination. Capability,
-lease, profile, pointer, destination, and authority hashes are invariant across
-the hash chain.
+did not start and a fresh preflight proves the same destination. Receive-grant
+binding, pointer-delivery grant, capability, lease, profile, pointer,
+destination, and authority hashes are invariant across the hash chain.
 
 ## 13. Advisor evidence source and contracts
 
 AS1 evidence is committed, pushed Git evidence under two non-overlapping
-prefixes derived from the selected activation, for example:
+prefixes fixed by the selected pointer-delivery grant, for example:
 
 ```text
 advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/
@@ -560,19 +806,21 @@ advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/
   runtime-evidence/foundation-advisor/<intakeId>/
 ```
 
-The exact authority repository, root, Git source, prefix, and activation commit
-are reviewed inputs. A Slack field cannot supply a repository or path. Each new
-evidence path must have exactly one Git-addition history, be upstream-ancestral,
-descend from the activation snapshots, and remain byte-identical after first
-acceptance. Rewrite, deletion, dirty state, wrong ancestry, premature stage, or
-cross-profile reference quarantines that profile.
+The exact authority repository, root, Git source, prefix, receive-grant commit,
+binding hash, and pointer-delivery-grant commit are reviewed inputs. A Slack
+field cannot supply a repository or path. Each new evidence path must have
+exactly one Git-addition history, be upstream-ancestral, descend from both grant
+snapshot chains, and remain byte-identical after first acceptance. Rewrite,
+deletion, dirty state, wrong ancestry, premature stage, or cross-profile
+reference quarantines that profile.
 
 ### 13.1 Advisor ACK
 
-`agent-office.as1-advisor-ack.v1` binds profile, pilot, intake, source event,
-root correlation, pointer ref/hash, transport journal ref/hash, consumed lease,
-exact Actor/roleInstanceId/Team, Advisor acknowledgement ID/time, and evidence
-refs. It proves the responsible Advisor read the pointer artifact. It is not the
+`agent-office.as1-advisor-ack.v1` binds profile, pilot, receive grant/binding,
+pointer-delivery grant, intake, source event, root correlation, pointer ref/hash,
+transport journal ref/hash, consumed delivery grant and lease, exact
+Actor/roleInstanceId/Team, Advisor acknowledgement ID/time, and evidence refs.
+It proves the responsible Advisor read the pointer artifact. It is not the
 Socket transport ACK.
 
 ### 13.2 Advisor intake
@@ -667,23 +915,32 @@ reply.
 
 On startup, before opening Socket Mode:
 
-1. validate global control and both profile state trees;
+1. validate global control, the exact receive-grant authority ref, and both
+   profile state trees;
 2. quarantine corruption before network access;
-3. convert interrupted inbound receipt after persistence into replayable async
-   work without a second intake;
+3. complete any exact `PREACK_PENDING` binding, question-consumption, or
+   terminal-rejection transition from its immutable bytes and expected state,
+   subject to the original receive-grant expiry; do not claim an ACK or start
+   materialization from this recovery step;
 4. convert interrupted tmux or outbound network phases into manual
    reconciliation as specified above;
-5. resume only durable `RECEIPT_PERSISTED`/`TRANSPORT_ACK_RECORDED` async
-   classifications and definitely-unsent outbox entries;
-6. preserve dedupe, consumed leases, root correlations, question consumption,
-   evidence checkpoints, and latches.
+5. resume asynchronous materialization only from a durable
+   `TRANSPORT_ACK_RECORDED` bound-root or consumed-continuation decision, plus
+   definitely-unsent outbox entries; a pre-ACK or ACK-ambiguous record waits
+   for exact transport retry and cannot create an intake;
+6. preserve receive-grant phase/root binding, pointer-delivery-grant and lease
+   consumption, dedupe, root correlations, question consumption, evidence
+   checkpoints, and latches;
+7. open/reopen a client only when the same receive grant remains unexpired and
+   its state is exactly `UNBOUND` or consistently `ROOT_BOUND`; restart never
+   changes its expiry or root slot.
 
 ### 15.2 Failure isolation
 
 A profile-local state failure, Slack disconnect, rate limit, exact-destination
 mismatch, transport ambiguity, evidence defect, or outbound ambiguity latches
 that profile. The other profile retains its prior state and may operate only if
-it has a separate valid activation and the global switch remains disengaged.
+it has a separate valid receive grant and the global switch remains disengaged.
 
 Credential cross-pairing, shared state/path identity, cross-profile evidence,
 global-control corruption, secret-parser failure, or impossible profile union
@@ -752,8 +1009,9 @@ convert the reviewed proposal into an exact implementation handoff.
   port; manual ACK only.
 - `src/adapters/gateways/slack-pilot/web-client.ts` — fixed `auth.test`,
   `bots.info`, and `chat.postMessage` calls only.
-- `src/adapters/gateways/slack-pilot/exact-authority.ts` — AS1 activation,
-  readiness lease, capability, Git authority, and consumption.
+- `src/adapters/gateways/slack-pilot/exact-authority.ts` — AS1 receive-grant,
+  pointer-delivery-grant, readiness-lease, capability, Git authority, and
+  consumption validation.
 - `src/adapters/gateways/slack-pilot/exact-transport.ts` — separate exact tmux
   journal/runner.
 - `src/operations/readiness/as1-slack-control.ts` — global and profile latches,
@@ -764,7 +1022,8 @@ convert the reviewed proposal into an exact implementation handoff.
 ### Proposed configuration/package changes
 
 - one committed, default-disabled, non-secret AS1 runtime descriptor whose live
-  activation refs remain unset;
+  receive-grant authority ref remains unset and which cannot represent a
+  pointer-delivery grant, lease, or capability;
 - one exact `as1:slack-pilot` package script;
 - pinned official Slack Socket Mode/Web API packages and lockfile changes only
   after design PASS and package/security review;
@@ -775,6 +1034,7 @@ convert the reviewed proposal into an exact implementation handoff.
 - `tests/contract/as1-slack-profiles.test.ts`;
 - `tests/security/as1-slack-secret-config.test.ts`;
 - `tests/integration/as1-slack-startup-auth.test.ts`;
+- `tests/security/as1-slack-authority-lifecycle.test.ts`;
 - `tests/integration/as1-slack-inbound.test.ts`;
 - `tests/integration/as1-slack-thread-correlation.test.ts`;
 - `tests/integration/as1-slack-exact-transport.test.ts`;
@@ -788,11 +1048,11 @@ convert the reviewed proposal into an exact implementation handoff.
 
 | WorkUnit | Scope | Depends on | Completion evidence |
 |---|---|---|---|
-| `AS1-WU-01` | closed profiles, contracts, strict parsers, redaction primitives | design PASS | contract/security tests |
-| `AS1-WU-02` | profile state roots, receipt/dedupe/root/question stores | WU-01 | corruption, atomicity, replay tests |
-| `AS1-WU-03` | narrow Socket/Web clients and startup pair verification | WU-01 | all swap/wrong-workspace fakes fail closed |
-| `AS1-WU-04` | persist-before-ACK and inbound classifier/thread correlation | WU-02, WU-03 | ordering/retry/rejection tests |
-| `AS1-WU-05` | AS1 exact activation, lease, capability, and tmux journal | WU-01, WU-02 | single-use and ambiguity tests |
+| `AS1-WU-01` | closed profiles, two-stage grant schemas, strict parsers, redaction primitives | design PASS | receive-grant forbidden-field and delivery-grant required-field contract/security tests |
+| `AS1-WU-02` | profile state roots, receive-grant binding, receipt/dedupe/root/question stores | WU-01 | atomic first-root, corruption, expiry, isolation, and replay tests |
+| `AS1-WU-03` | narrow Socket/Web clients, receive-grant startup gate, and pair verification | WU-01, WU-02 | no-grant/expired-grant and all swap/wrong-workspace fakes fail closed |
+| `AS1-WU-04` | persist/bind-before-ACK, inbound materializer, and thread correlation | WU-02, WU-03 | first-root/retry/second-root/reply ordering and rejection tests |
+| `AS1-WU-05` | post-intake pointer-delivery grant, lease, capability, and tmux journal | WU-01, WU-02, WU-04 | exact-after-intake, no-gateway-mint, single-use, and ambiguity tests |
 | `AS1-WU-06` | ACK/intake/outbound/result evidence ingress | WU-02, WU-05 | ancestry/rewrite/profile tests |
 | `AS1-WU-07` | rendered outbox and no-blind-resend Web API adapter | WU-02, WU-03, WU-06 | retry/ambiguity/thread tests |
 | `AS1-WU-08` | global/profile control, startup replay, shutdown, rollback | WU-04, WU-05, WU-07 | latch/restart/shutdown tests |
@@ -811,23 +1071,32 @@ The exact Worker handoff should include:
    size, UTF-8, duplicate/unknown key, and redaction tests;
 2. compile-time and runtime proof that only two profile literals exist;
 3. all bot/app-token swap combinations and wrong workspace/App/hello failures;
-4. receipt persistence failure sends no Socket ACK;
-5. persisted retry ACKs without a second intake;
-6. top-level and thread classification plus every rejection row in section 9;
-7. root/question single-consumption under concurrency and restart;
-8. lease/capability one-use, two preflights, target mismatch, consumed replay,
-   and every journal crash boundary for each profile;
-9. evidence wrong-profile, historical Foundation identity, rewrite, removal,
+4. receive grants accept exactly their bounded pre-event fields and reject every
+   event/root/intake/pointer/destination/lease/capability field or wildcard;
+5. no receive grant, expired grant, kill/latch mismatch, or gateway-created
+   grant can open/arm message acceptance;
+6. receipt/dedupe plus atomic first-root binding happen before Socket ACK, and
+   any persistence/binding failure sends no ACK;
+7. identical retry ACKs without a second binding/intake; correlated reply,
+   second root, restart, expiry before/after root, disconnect, ambiguous ACK,
+   kill, corruption, and profile-isolation traces match section 12.3;
+8. post-intake delivery grants are impossible before exact source event,
+   intake, root correlation, pointer ref/hash, and receive-binding hash exist;
+9. top-level/thread classification and root/question single-consumption plus
+   every rejection row in section 9 under concurrency and restart;
+10. delivery-grant/lease/capability one-use, two preflights, target mismatch,
+   consumed replay, and every journal crash boundary for each profile;
+11. evidence wrong-profile, historical Foundation identity, rewrite, removal,
    dirty, ancestry, ordering, and final-result cases;
-10. outbound exact request, redaction, same-thread binding, explicit safe retry,
+12. outbound exact request, redaction, same-thread binding, explicit safe retry,
     ambiguous response, and bot echo rejection;
-11. global kill, profile isolation, corruption, lock, SIGTERM, bounded drain,
+13. global kill, profile isolation, corruption, lock, SIGTERM, bounded drain,
     restart, and rollback tests;
-12. existing `organization-registry`, `advisor-inbox`, and
+14. existing `organization-registry`, `advisor-inbox`, and
     `exact-advisor-delivery` focused tests unchanged and passing;
-13. typecheck, changed-file lint, dependency audit, secret scan, and `git
+15. typecheck, changed-file lint, dependency audit, secret scan, and `git
     diff --check`;
-14. no Living Office, broad browser E2E, VibeNews, live Slack, real token, real
+16. no Living Office, broad browser E2E, VibeNews, live Slack, real token, real
     tmux input, or unrelated suite.
 
 All Slack calls use fakes in Phase A. Tests must make an attempted real network
@@ -841,13 +1110,21 @@ following directly:
 - exactly two fixed profiles and no generic target path;
 - strict external secret parsing and fully redacted errors/status;
 - exact bot workspace/App and app-token App verification, including swaps;
-- durable receipt and dedupe before Socket ACK;
-- one top-level event produces at most one pre-Mission `NEW_MISSION` intake;
+- an Advisor-created committed/pushed expiring receive grant is required before
+  connection, contains no future event/intake/pointer/destination authority,
+  and is bounded to one literal profile/root conversation;
+- durable receipt/dedupe and atomic first-root receive-grant binding happen
+  before Socket ACK;
+- retry, second root, restart, expiry, disconnect, kill, corruption, and
+  profile-isolation behavior preserves one root and at-most-one intake;
+- a separate Advisor-created post-intake pointer-delivery grant binds the exact
+  source event, intake, root, pointer, and receive binding before it can
+  authorize one fresh lease/capability/pointer attempt;
 - thread replies are root/question bound and cannot create a second Mission;
 - all forbidden message/surface/identity cases fail closed;
 - existing Exact Delivery v2 remains byte-compatible and behavior-compatible;
-- activation, consumption, journal, ingress, dedupe, and latch are physically
-  separate per profile;
+- receive-grant binding, pointer-delivery-grant/lease/capability consumption,
+  journal, ingress, dedupe, and latch are physically separate per profile;
 - Foundation uses its fresh roleInstanceId and no Agent Office historical
   evidence;
 - ACK/intake/question/result evidence is exact, immutable, ordered, and
@@ -868,8 +1145,8 @@ These remain deliberately unset:
 - both immutable private channel IDs;
 - both bot tokens and both app-level tokens;
 - final reviewed Slack SDK package versions;
-- exact live pilot activation refs, fresh destination locators, and one-use
-  readiness leases;
+- exact live pilot receive-grant refs, post-intake pointer-delivery grants,
+  fresh destination locators, and one-use readiness leases;
 - exact state root and authority snapshot hashes selected by the later
   implementation/pilot handoff.
 

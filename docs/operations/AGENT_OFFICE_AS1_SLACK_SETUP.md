@@ -5,11 +5,13 @@ Status: `SETUP_PACK_ONLY__RUNTIME_COMMANDS_NOT_YET_AVAILABLE`
 Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
 This is the non-secret owner Setup Pack for two private Slack Socket Mode apps.
-It does not activate a client, connect to Slack, create a runtime capability,
-start Agent Office, or authorize a real pilot. The commands in section 7 are a
-Phase A contract and remain unavailable until Phase A implementation lands.
-Even after they exist, live connection remains disabled until independent
-implementation/security review passes and the Advisor records the owner gate.
+It does not create a pilot receive grant, activate a client, connect to Slack,
+create pointer-delivery authority or a runtime capability, start Agent Office,
+or authorize a real pilot. The commands in section 7 are a Phase A contract and
+remain unavailable until Phase A implementation lands. Even after they exist,
+live connection remains disabled until independent implementation/security
+review passes, the Advisor records the owner gate, and the Advisor supplies one
+exact committed/pushed unexpired `As1PilotReceiveGrantV1` for one profile.
 
 ## 1. Fixed pilot boundary
 
@@ -183,20 +185,33 @@ Command semantics after implementation:
 
 - `redacted-check` performs validation without opening a Slack connection.
 - `start` fails closed unless both profiles validate, the global kill switch is
-  disengaged, the reviewed Phase A gate is present, and no instance is running.
+  disengaged, the reviewed Phase A gate is present, no instance is running, and
+  exactly one separately Advisor-created committed/pushed
+  `As1PilotReceiveGrantV1` authority ref is fixed by the reviewed start gate.
+  The grant must be unexpired, select one literal profile, match the exact
+  workspace/App/channel/Leo IDs and governance/registry/latch snapshots, bind
+  one profile-local state root and one root/conversation limit, and contain no
+  event, root timestamp, intake, pointer, tmux destination, lease, capability,
+  or delivery-grant authority. With no exact grant ref, the default remains
+  disconnected. The CLI cannot select a profile or mint/complete a grant.
 - `stop` stops inbound acceptance, drains only already durable work to a bounded
   deadline, closes both Socket Mode clients, and leaves unresolved work for
-  restart-safe replay.
+  restart-safe replay. It preserves the receive-grant root binding and all
+  pointer-delivery-grant/lease consumption.
 - `restart` is exactly a successful clean `stop` followed by a fresh `start`;
-  it never clears dedupe, journal, outbox, capability consumption, or failure
-  latches.
+  it may resume only the same still-unexpired receive grant and exact durable
+  state. It never renews a grant/root slot or clears dedupe, journal, outbox,
+  delivery-grant/lease/capability consumption, or failure latches.
 - `status` reports process/profile states and stable reason codes only. It never
-  prints configuration values or Slack payloads.
+  prints configuration values, Slack payloads, or raw grant identity values.
 
-No lifecycle command creates a Mission, issues an Advisor/tmux capability,
-dispatches an actor, or overrides a latch. Real pilot start remains an
-Advisor-owned, separately authorized sequential action after all preceding
-gates.
+No lifecycle command creates a Mission, pilot receive grant, post-intake
+pointer-delivery grant, readiness lease, or Advisor/tmux capability; dispatches
+an actor; or overrides a latch. The gateway cannot create either grant. Real
+pilot start remains an Advisor-owned, separately authorized sequential action
+after all preceding gates, and every later pointer attempt requires a separate
+Advisor-created `As1PointerDeliveryGrantV1` after its exact intake/pointer
+exists.
 
 ## 8. Owner gate evidence
 
@@ -214,7 +229,9 @@ Return only the following non-secret facts to the Advisor:
 
 Owner setup does not itself authorize a connection or pilot. The Advisor records
 `OWNER_SETUP_COMPLETE` only after reviewing this redacted evidence and all
-required design, implementation, and independent-review gates.
+required design, implementation, and independent-review gates. Owner setup does
+not create either authority grant, select the live profile, or authorize tmux
+delivery.
 
 ## 9. Removal and rollback
 
@@ -227,4 +244,5 @@ replaces it.
 After Phase A exists, run the planned `stop` command before revocation. If stop
 is ambiguous, engage the global kill switch, revoke both app-level tokens, and
 require manual reconciliation. Rollback never edits Exact Delivery v2 history,
-reuses a consumed capability, or silently clears durable evidence.
+reuses a retired/expired/latched receive grant, pointer-delivery grant, lease,
+or consumed capability, or silently clears durable evidence.
