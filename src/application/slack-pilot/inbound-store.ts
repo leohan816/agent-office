@@ -19,7 +19,7 @@ import { DomainError } from '../../contracts/types.js';
 import { writeAtomicCanonicalJson } from '../../persistence/file-store/atomic-file.js';
 import { GENESIS_EVENT_HASH, hashCanonical, isSha256 } from '../../persistence/file-store/hashing.js';
 import { ensurePrivateDirectory, isNodeError, resolveContainedPath } from '../../persistence/file-store/path-safety.js';
-import { ImmutableArtifactStore } from '../../persistence/file-store/artifact-store.js';
+import { ImmutableArtifactStore, type ImmutableArtifactReceipt } from '../../persistence/file-store/artifact-store.js';
 import type { AgentOfficeRuntimeIdentity } from '../../runtime/identity.js';
 import { LIMITS } from './contracts.js';
 import type { As1PilotReceiveGrantV1 } from './contracts.js';
@@ -109,6 +109,54 @@ export interface DedupeInput {
 
 export type DedupeOutcome = 'inserted' | 'duplicate';
 
+// ── Question, root-correlation, transport journal, and audit records (design §8.2, §10) ──────────────
+export interface As1PendingQuestionV1 {
+  readonly schemaVersion: 'agent-office.as1-pending-question.v1';
+  readonly questionId: string;
+  readonly rootTs: string;
+  readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE';
+  readonly evidenceRef: string;
+  readonly evidenceHash: string;
+  readonly state: 'OPEN' | 'CONSUMED';
+  readonly openedAt: string;
+  readonly expiresAt: string;
+  readonly consumedAt: string | null;
+  readonly consumedBySourceEventId: string | null;
+}
+
+export interface As1RootCorrelationV1 {
+  readonly schemaVersion: 'agent-office.as1-root-correlation.v1';
+  readonly rootTs: string;
+  readonly rootKeyHash: string;
+  readonly sourceEventId: string;
+  readonly receiveGrantId: string;
+  readonly bindingStateHash: string;
+  readonly intakeId: string;
+  readonly createdAt: string;
+}
+
+export interface As1TransportRecordV1 {
+  readonly schemaVersion: 'agent-office.as1-transport-record.v1';
+  readonly eventId: string;
+  readonly envelopeId: string;
+  readonly preAckClass: string;
+  readonly receiveGrantStateHash: string | null;
+  readonly transportAckRecorded: boolean;
+  readonly intakeId: string | null;
+  readonly pointerArtifactRef: string | null;
+  readonly terminalReason: string | null;
+  readonly recordedAt: string;
+  readonly ackedAt: string | null;
+  readonly materializedAt: string | null;
+}
+
+export type ConsumeQuestionOutcome = 'CONSUMED' | 'REJECTED_RECEIVE_GRANT_EXPIRED' | 'REJECTED_NO_OPEN_QUESTION';
+
+export interface ConsumeQuestionResult {
+  readonly outcome: ConsumeQuestionOutcome;
+  readonly question: As1PendingQuestionV1 | null;
+}
+
 /** Serialize all per-profile mutations to one linearizable sequence (security §15). */
 class AsyncMutex {
   private tail: Promise<void> = Promise.resolve();
@@ -161,7 +209,12 @@ export class As1ProfileInboundStore {
     eventId: string,
     envelopeCanonical: unknown,
     rawText: string,
-  ): Promise<{ readonly receiptArtifactRef: string; readonly receiptArtifactHash: string; readonly messageArtifactHash: string }> {
+  ): Promise<{
+    readonly receiptArtifactRef: string;
+    readonly receiptArtifactHash: string;
+    readonly messageArtifactRef: string;
+    readonly messageArtifactHash: string;
+  }> {
     const receipt = await this.artifacts.putScopedCanonicalJson(
       ARTIFACT_KIND,
       [this.profile.profileStateSlug, 'inbound', eventId],
@@ -177,6 +230,7 @@ export class As1ProfileInboundStore {
     return {
       receiptArtifactRef: receipt.relativePath,
       receiptArtifactHash: receipt.sha256,
+      messageArtifactRef: message.relativePath,
       messageArtifactHash: message.sha256,
     };
   }
@@ -356,6 +410,207 @@ export class As1ProfileInboundStore {
   public async readReceiveGrantState(receiveGrantId: string): Promise<As1PilotReceiveGrantStateV1 | null> {
     const chain = await this.loadReceiveChain(receiveGrantId);
     return chain.at(-1) ?? null;
+  }
+
+  // ── Question state (design §10) ───────────────────────────────────────────
+  /** Open exactly one pending question per root (design §9: one open pending question per root). */
+  public async openQuestion(question: {
+    readonly questionId: string;
+    readonly rootTs: string;
+    readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE';
+    readonly evidenceRef: string;
+    readonly evidenceHash: string;
+    readonly expiresAt: string;
+  }): Promise<As1PendingQuestionV1> {
+    return this.mutex.run(async () => {
+      const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
+      const openForRoot = questions.filter((q) => q.rootTs === question.rootTs && q.state === 'OPEN');
+      if (openForRoot.length >= LIMITS.OPEN_QUESTIONS_PER_ROOT) {
+        throw new DomainError('INVALID_TRANSITION', 'a root already has an open pending question');
+      }
+      if (questions.length >= LIMITS.QUESTION_HISTORY_PER_PROFILE) {
+        throw new DomainError('STORE_QUARANTINED', 'question history capacity exhausted; no silent eviction');
+      }
+      const record: As1PendingQuestionV1 = {
+        schemaVersion: 'agent-office.as1-pending-question.v1',
+        questionId: question.questionId,
+        rootTs: question.rootTs,
+        expectedResponseKind: question.expectedResponseKind,
+        evidenceRef: question.evidenceRef,
+        evidenceHash: question.evidenceHash,
+        state: 'OPEN',
+        openedAt: this.clock.now(),
+        expiresAt: question.expiresAt,
+        consumedAt: null,
+        consumedBySourceEventId: null,
+      };
+      await this.writeJsonArray(this.indexPath('pending-questions.json'), [...questions, record]);
+      return record;
+    });
+  }
+
+  public async findOpenQuestionForRoot(rootTs: string): Promise<As1PendingQuestionV1 | null> {
+    const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
+    return questions.find((q) => q.rootTs === rootTs && q.state === 'OPEN') ?? null;
+  }
+
+  /**
+   * Atomically consume the single open question for a root before ACK (design §10/§12.2). The trusted-local
+   * consumedAt is read at the serialized linearization point and the transition commits only when
+   * consumedAt < grant.expiresAt; otherwise a terminal expiry rejection is returned and nothing consumed.
+   */
+  public async consumeQuestion(
+    grant: As1PilotReceiveGrantV1,
+    rootTs: string,
+    sourceEventId: string,
+  ): Promise<ConsumeQuestionResult> {
+    return this.mutex.run(async () => {
+      this.assertGrantBelongsToProfile(grant);
+      const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
+      const index = questions.findIndex((q) => q.rootTs === rootTs && q.state === 'OPEN');
+      const open = index >= 0 ? questions[index] : undefined;
+      if (open === undefined) {
+        return { outcome: 'REJECTED_NO_OPEN_QUESTION', question: null };
+      }
+      const consumedAt = this.clock.now();
+      if (!(Date.parse(consumedAt) < Date.parse(grant.expiresAt))) {
+        return { outcome: 'REJECTED_RECEIVE_GRANT_EXPIRED', question: open };
+      }
+      const consumed: As1PendingQuestionV1 = {
+        ...open,
+        state: 'CONSUMED',
+        consumedAt,
+        consumedBySourceEventId: sourceEventId,
+      };
+      const next = [...questions];
+      next[index] = consumed;
+      await this.writeJsonArray(this.indexPath('pending-questions.json'), next);
+      return { outcome: 'CONSUMED', question: consumed };
+    });
+  }
+
+  // ── Root correlation (design §10) ─────────────────────────────────────────
+  public async recordRootCorrelation(record: Omit<As1RootCorrelationV1, 'schemaVersion' | 'createdAt'>): Promise<void> {
+    await this.mutex.run(async () => {
+      const records = await this.readJsonArray<As1RootCorrelationV1>(this.indexPath('root-correlations.json'));
+      if (records.some((r) => r.rootTs === record.rootTs)) return;
+      if (records.length >= LIMITS.INTAKE_CORRELATIONS_PER_PROFILE) {
+        throw new DomainError('STORE_QUARANTINED', 'root-correlation capacity exhausted; no silent eviction');
+      }
+      const next: As1RootCorrelationV1 = {
+        schemaVersion: 'agent-office.as1-root-correlation.v1',
+        createdAt: this.clock.now(),
+        ...record,
+      };
+      await this.writeJsonArray(this.indexPath('root-correlations.json'), [...records, next]);
+    });
+  }
+
+  public async findRootByThreadTs(threadTs: string): Promise<As1RootCorrelationV1 | null> {
+    const records = await this.readJsonArray<As1RootCorrelationV1>(this.indexPath('root-correlations.json'));
+    return records.find((r) => r.rootTs === threadTs) ?? null;
+  }
+
+  // ── Transport journal (design §8.2) ───────────────────────────────────────
+  public async recordPreAck(
+    eventId: string,
+    envelopeId: string,
+    preAckClass: string,
+    receiveGrantStateHash: string | null,
+    terminalReason: string | null,
+  ): Promise<void> {
+    await this.upsertTransport(eventId, (existing) => ({
+      schemaVersion: 'agent-office.as1-transport-record.v1',
+      eventId,
+      envelopeId,
+      preAckClass,
+      receiveGrantStateHash,
+      transportAckRecorded: existing?.transportAckRecorded ?? false,
+      intakeId: existing?.intakeId ?? null,
+      pointerArtifactRef: existing?.pointerArtifactRef ?? null,
+      terminalReason,
+      recordedAt: existing?.recordedAt ?? this.clock.now(),
+      ackedAt: existing?.ackedAt ?? null,
+      materializedAt: existing?.materializedAt ?? null,
+    }));
+  }
+
+  public async recordTransportAck(eventId: string): Promise<void> {
+    await this.upsertTransport(eventId, (existing) => {
+      if (existing === null) {
+        throw new DomainError('INVALID_TRANSITION', 'cannot record TRANSPORT_ACK before a pre-ACK decision');
+      }
+      return { ...existing, transportAckRecorded: true, ackedAt: existing.ackedAt ?? this.clock.now() };
+    });
+  }
+
+  public async recordMaterialized(eventId: string, intakeId: string, pointerArtifactRef: string): Promise<void> {
+    await this.upsertTransport(eventId, (existing) => {
+      if (!existing?.transportAckRecorded) {
+        throw new DomainError('INVALID_TRANSITION', 'materialization requires a durable TRANSPORT_ACK_RECORDED');
+      }
+      return { ...existing, intakeId, pointerArtifactRef, materializedAt: existing.materializedAt ?? this.clock.now() };
+    });
+  }
+
+  public async readTransport(eventId: string): Promise<As1TransportRecordV1 | null> {
+    const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+    return records.find((r) => r.eventId === eventId) ?? null;
+  }
+
+  private async upsertTransport(
+    eventId: string,
+    update: (existing: As1TransportRecordV1 | null) => As1TransportRecordV1,
+  ): Promise<void> {
+    await this.mutex.run(async () => {
+      const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+      const index = records.findIndex((r) => r.eventId === eventId);
+      const existing = index >= 0 ? (records[index] ?? null) : null;
+      const next = update(existing);
+      if (index >= 0) {
+        const copy = [...records];
+        copy[index] = next;
+        await this.writeJsonArray(this.indexPath('transport-journal.json'), copy);
+      } else {
+        if (records.length >= LIMITS.RECEIPT_RECORDS_PER_PROFILE) {
+          throw new DomainError('STORE_QUARANTINED', 'transport journal capacity exhausted; no silent eviction');
+        }
+        await this.writeJsonArray(this.indexPath('transport-journal.json'), [...records, next]);
+      }
+    });
+  }
+
+  // ── Minimal denial audit (design §9) ──────────────────────────────────────
+  public async recordDenialAudit(reason: string, eventId: string | null, envelopeId: string | null): Promise<void> {
+    await this.mutex.run(async () => {
+      const records = await this.readJsonArray<unknown>(this.indexPath('denial-audit.json'));
+      if (records.length >= LIMITS.DENIAL_AUDIT_PER_PROFILE) {
+        throw new DomainError('STORE_QUARANTINED', 'denial-audit capacity exhausted; no silent eviction');
+      }
+      await this.writeJsonArray(this.indexPath('denial-audit.json'), [
+        ...records,
+        {
+          schemaVersion: 'agent-office.as1-denial-audit.v1',
+          reason,
+          eventId,
+          envelopeId,
+          recordedAt: this.clock.now(),
+        },
+      ]);
+    });
+  }
+
+  // ── Immutable intake / pointer artifacts (design §11, §12.6) ──────────────
+  public async persistIntakeArtifact(intakeId: string, intake: unknown): Promise<ImmutableArtifactReceipt> {
+    return this.artifacts.putScopedCanonicalJson(ARTIFACT_KIND, [this.profile.profileStateSlug, 'intake', intakeId], intake);
+  }
+
+  public async persistPointerArtifact(deliveryId: string, pointer: unknown): Promise<ImmutableArtifactReceipt> {
+    return this.artifacts.putScopedCanonicalJson(
+      ARTIFACT_KIND,
+      [this.profile.profileStateSlug, 'pointers', deliveryId],
+      pointer,
+    );
   }
 
   private assertGrantBelongsToProfile(grant: As1PilotReceiveGrantV1): void {

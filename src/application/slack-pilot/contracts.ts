@@ -136,6 +136,59 @@ export function requireUtc(value: unknown, label: string): string {
   return value;
 }
 
+const SLACK_TS = /^\d{1,12}\.\d{1,6}$/u;
+
+/** Bounded Slack timestamp string (design §8: <= 32 ASCII bytes). Correlation data only. */
+export function requireSlackTs(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.length > LIMITS.SLACK_TIMESTAMP_MAX_BYTES || !SLACK_TS.test(value)) {
+    throw new DomainError('INVALID_SCHEMA', `${label} is not a bounded Slack timestamp`);
+  }
+  return value;
+}
+
+/** Count Unicode scalar values (code points), not UTF-16 units. */
+export function unicodeScalarCount(text: string): number {
+  return Array.from(text).length;
+}
+
+/**
+ * Bounded Leo message text (design §8.1): <= 16 KiB UTF-8 and <= 4,000 scalars. Content stays opaque; the
+ * only structural check is bounds + rejection of C0/C1 control characters other than tab/newline (§9.5).
+ */
+export function requireBoundedMessageText(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new DomainError('INVALID_SCHEMA', `${label} must be a non-empty string`);
+  }
+  if (Buffer.byteLength(value, 'utf8') > LIMITS.MESSAGE_TEXT_MAX_BYTES) {
+    throw new DomainError('INVALID_SCHEMA', `${label} exceeds the message byte bound`);
+  }
+  if (unicodeScalarCount(value) > LIMITS.MESSAGE_TEXT_MAX_SCALARS) {
+    throw new DomainError('INVALID_SCHEMA', `${label} exceeds the message scalar bound`);
+  }
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    if ((code < 0x20 && code !== 0x09 && code !== 0x0a) || (code >= 0x7f && code <= 0x9f)) {
+      throw new DomainError('INVALID_SCHEMA', `${label} contains a forbidden control character`);
+    }
+  }
+  return value;
+}
+
+const DEFERRED_QUERY_TOKENS = new Set(['status', 'agents', 'missions']);
+
+/**
+ * Deferred-query matcher (design §9): trims Unicode whitespace, case-folds, and rejects when the first
+ * token is exactly `status`, `agents`, or `missions`, with or without a leading slash. It never executes
+ * or parses the remaining text. `status`/`agents`/`missions` are NOT Slack commands and create no Mission.
+ */
+export function isDeferredQueryText(text: string): boolean {
+  const trimmed = text.trimStart();
+  const firstToken = trimmed.split(/\s/u)[0] ?? '';
+  const normalized = firstToken.toLowerCase();
+  const withoutSlash = normalized.startsWith('/') ? normalized.slice(1) : normalized;
+  return DEFERRED_QUERY_TOKENS.has(withoutSlash);
+}
+
 function requireExactInteger(value: unknown, expected: number, label: string): number {
   const parsed = requireInteger(value, label);
   if (parsed !== expected) {
@@ -433,5 +486,117 @@ export function parsePointerDeliveryGrant(value: unknown): As1PointerDeliveryGra
     issuedAt,
     expiresAt,
     useLimit: requireExactInteger(value.useLimit, 1, 'as1 pointer-delivery grant useLimit') as 1,
+  };
+}
+
+// ── Pre-Mission intake and Advisor pointer (design §11, §12.6) ────────────────
+export interface As1NewMissionIntakeV1 {
+  readonly schemaVersion: 'agent-office.as1-new-mission-intake.v1';
+  readonly intakeId: string;
+  readonly kind: 'NEW_MISSION';
+  readonly receiveGrantId: string;
+  readonly receiveGrantBindingHash: string;
+  readonly profileId: As1ProfileId;
+  readonly advisorTeam: string;
+  readonly advisorActorId: string;
+  readonly advisorRoleInstanceId: string;
+  readonly sourceEventId: string;
+  readonly rootTs: string;
+  readonly messageArtifactRef: string;
+  readonly messageArtifactHash: string;
+  readonly receiptArtifactRef: string;
+  readonly receivedAt: string;
+  readonly recordedAt: string;
+  readonly authorityState: 'INTAKE_ONLY';
+  readonly canonicalMissionCreated: false;
+  readonly canonicalMissionRef: null;
+}
+
+export interface BuildIntakeInput {
+  readonly intakeId: string;
+  readonly profileId: As1ProfileId;
+  readonly advisorTeam: string;
+  readonly advisorActorId: string;
+  readonly advisorRoleInstanceId: string;
+  readonly receiveGrantId: string;
+  readonly receiveGrantBindingHash: string;
+  readonly sourceEventId: string;
+  readonly rootTs: string;
+  readonly messageArtifactRef: string;
+  readonly messageArtifactHash: string;
+  readonly receiptArtifactRef: string;
+  readonly receivedAt: string;
+  readonly recordedAt: string;
+}
+
+/** Build the immutable pre-Mission intake. It never asserts a canonical Mission (authority INTAKE_ONLY). */
+export function buildNewMissionIntake(input: BuildIntakeInput): As1NewMissionIntakeV1 {
+  return {
+    schemaVersion: 'agent-office.as1-new-mission-intake.v1',
+    intakeId: requireOpaqueId(input.intakeId, 'intake intakeId'),
+    kind: 'NEW_MISSION',
+    receiveGrantId: requireOpaqueId(input.receiveGrantId, 'intake receiveGrantId'),
+    receiveGrantBindingHash: requireSha256(input.receiveGrantBindingHash, 'intake receiveGrantBindingHash'),
+    profileId: input.profileId,
+    advisorTeam: input.advisorTeam,
+    advisorActorId: input.advisorActorId,
+    advisorRoleInstanceId: input.advisorRoleInstanceId,
+    sourceEventId: requireOpaqueId(input.sourceEventId, 'intake sourceEventId'),
+    rootTs: requireSlackTs(input.rootTs, 'intake rootTs'),
+    messageArtifactRef: requireArtifactRef(input.messageArtifactRef, 'intake messageArtifactRef'),
+    messageArtifactHash: requireSha256(input.messageArtifactHash, 'intake messageArtifactHash'),
+    receiptArtifactRef: requireArtifactRef(input.receiptArtifactRef, 'intake receiptArtifactRef'),
+    receivedAt: requireUtc(input.receivedAt, 'intake receivedAt'),
+    recordedAt: requireUtc(input.recordedAt, 'intake recordedAt'),
+    authorityState: 'INTAKE_ONLY',
+    canonicalMissionCreated: false,
+    canonicalMissionRef: null,
+  };
+}
+
+export interface As1AdvisorPointerV1 {
+  readonly schemaVersion: 'agent-office.as1-advisor-pointer.v1';
+  readonly receiveGrantId: string;
+  readonly receiveGrantBindingHash: string;
+  readonly pilotId: string;
+  readonly profileId: As1ProfileId;
+  readonly intakeId: string;
+  readonly intakeKind: 'NEW_MISSION' | 'CLARIFICATION' | 'DECISION_RESPONSE';
+  readonly sourceEventId: string;
+  readonly rootCorrelationHash: string;
+  readonly intakeArtifactRef: string;
+  readonly intakeArtifactHash: string;
+  readonly recordedAt: string;
+}
+
+export interface BuildPointerInput {
+  readonly profileId: As1ProfileId;
+  readonly pilotId: string;
+  readonly receiveGrantId: string;
+  readonly receiveGrantBindingHash: string;
+  readonly intakeId: string;
+  readonly intakeKind: 'NEW_MISSION' | 'CLARIFICATION' | 'DECISION_RESPONSE';
+  readonly sourceEventId: string;
+  readonly rootCorrelationHash: string;
+  readonly intakeArtifactRef: string;
+  readonly intakeArtifactHash: string;
+  readonly recordedAt: string;
+}
+
+/** Build the immutable Advisor pointer. It carries no body and no target selector (design §12.6). */
+export function buildAdvisorPointer(input: BuildPointerInput): As1AdvisorPointerV1 {
+  return {
+    schemaVersion: 'agent-office.as1-advisor-pointer.v1',
+    receiveGrantId: requireOpaqueId(input.receiveGrantId, 'pointer receiveGrantId'),
+    receiveGrantBindingHash: requireSha256(input.receiveGrantBindingHash, 'pointer receiveGrantBindingHash'),
+    pilotId: requireOpaqueId(input.pilotId, 'pointer pilotId'),
+    profileId: input.profileId,
+    intakeId: requireOpaqueId(input.intakeId, 'pointer intakeId'),
+    intakeKind: input.intakeKind,
+    sourceEventId: requireOpaqueId(input.sourceEventId, 'pointer sourceEventId'),
+    rootCorrelationHash: requireSha256(input.rootCorrelationHash, 'pointer rootCorrelationHash'),
+    intakeArtifactRef: requireArtifactRef(input.intakeArtifactRef, 'pointer intakeArtifactRef'),
+    intakeArtifactHash: requireSha256(input.intakeArtifactHash, 'pointer intakeArtifactHash'),
+    recordedAt: requireUtc(input.recordedAt, 'pointer recordedAt'),
   };
 }

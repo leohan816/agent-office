@@ -19,9 +19,11 @@ import type {
   As1SocketConnectResult,
   As1SocketPort,
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
+import type { As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
+import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
 import { uuidV7 } from './fixtures.js';
 
-/** Deterministic, advanceable trusted-local clock + UUIDv7 source for AS1 synthetic tests. */
+/** Deterministic, advanceable trusted-local clock + UUIDv7 generator for AS1 synthetic tests. */
 export class FakeClock implements AgentOfficeRuntimeIdentity {
   private ms: number;
   private seq = 0;
@@ -369,4 +371,71 @@ export function fakeWireWorld(): {
   socket.register(world.agentOffice.appToken, world.agentOffice.appId);
   socket.register(world.foundation.appToken, world.foundation.appId);
   return { world, web, socket };
+}
+
+// ── Inbound envelope builder + runtime context ────────────────────────────────
+export interface EnvelopeOptions {
+  readonly envelopeId?: string;
+  readonly eventId?: string;
+  readonly teamId?: string;
+  readonly apiAppId?: string;
+  readonly channel?: string;
+  readonly channelType?: string;
+  readonly user?: string;
+  readonly ts?: string;
+  readonly text?: string;
+  readonly threadTs?: string;
+  readonly subtype?: string;
+  readonly hidden?: boolean;
+  readonly botId?: string;
+  readonly isExtSharedChannel?: boolean;
+  readonly onAck?: () => Promise<void>;
+}
+
+/** Build a synthetic Socket envelope. Defaults to a valid top-level Leo message for the Agent Office room. */
+export function slackEnvelope(options: EnvelopeOptions = {}): As1InboundEnvelope {
+  const event: Record<string, unknown> = {
+    type: 'message',
+    channel: options.channel ?? 'CAGENTOFFICE01',
+    channel_type: options.channelType ?? 'group',
+    user: options.user ?? APPROVED_LEO_USER_ID,
+    ts: options.ts ?? '1720000000.000100',
+    event_ts: options.ts ?? '1720000000.000100',
+    text: options.text ?? 'please start a new mission',
+  };
+  if (options.threadTs !== undefined) event.thread_ts = options.threadTs;
+  if (options.subtype !== undefined) event.subtype = options.subtype;
+  if (options.hidden !== undefined) event.hidden = options.hidden;
+  if (options.botId !== undefined) event.bot_id = options.botId;
+  if (options.isExtSharedChannel !== undefined) event.is_ext_shared_channel = options.isExtSharedChannel;
+  const payload: Record<string, unknown> = {
+    type: 'event_callback',
+    team_id: options.teamId ?? 'TWORKSPACE001',
+    api_app_id: options.apiAppId ?? 'AAGENTOFFICE01',
+    event_id: options.eventId ?? 'Ev0AGENTOFFICE01',
+    event_time: 1_720_000_000,
+    event,
+  };
+  return {
+    envelopeId: options.envelopeId ?? 'Env0AGENTOFFICE1',
+    payload,
+    retryAttempt: null,
+    retryReason: null,
+    acknowledge: async (): Promise<void> => {
+      if (options.onAck !== undefined) await options.onAck();
+    },
+  };
+}
+
+/** Runtime context for the Agent Office profile using the synthetic wire world identities. */
+export function agentOfficeContext(): As1ProfileRuntimeContext {
+  const world = fakeWireWorld().world;
+  return {
+    profile: selectProfile('AGENT_OFFICE_ADVISOR'),
+    workspaceId: world.workspaceId,
+    appId: world.agentOffice.appId,
+    channelId: world.agentOffice.channelId,
+    leoUserId: world.agentOffice.leoUserId,
+    botUserId: world.agentOffice.botUserId,
+  };
 }
