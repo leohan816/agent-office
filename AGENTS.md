@@ -35,9 +35,11 @@ Scope: this file applies to the entire repository.
 - No actor here holds cross-project, canonical-policy, risk-acceptance,
   final-approval, or next-mission authority beyond what its role and the exact
   mission or handoff grant.
-- Every role result must be written as durable evidence and returned to
-  **Advisor**. Advisor owns routine routing and the mission audit and returns to
-  Leo/GPT for the decisions above.
+- Every **subordinate** result (Designer, Worker, Reviewer, Control) is written
+  as durable evidence and returned to the responsible **Advisor**. The Advisor
+  receives those results, owns routine routing, writes the mission audit, and
+  returns the mission result to **Leo/GPT**; the Advisor never returns its own
+  result to itself.
 
 ## Required Entry Reads
 
@@ -77,9 +79,11 @@ mission/handoff directly. Historical reports are evidence, not current permissio
 - Run terminal commands only when they are directly necessary for the approved
   repo-local mission. Never execute caller-supplied arbitrary commands or create
   a general command-execution path.
-- Do not self-review, issue an independent-review verdict, accept risk, grant
-  final approval, merge to `main`, push to `main`, force push, or select or start
-  the next mission automatically.
+- Do not self-review your own work or falsely claim independent review; only the
+  separately assigned independent Reviewer may issue a verdict on another actor's
+  work, and that Reviewer never patches, accepts risk, or grants final approval.
+  Do not accept risk, grant final approval, merge to `main`, push to `main`, force
+  push, or select or start the next mission automatically.
 - Do not broaden allowed files, product behavior, repositories, branches, or
   external systems beyond the exact mission or handoff.
 

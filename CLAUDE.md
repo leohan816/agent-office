@@ -33,15 +33,20 @@ or self-review; the **Designer** designs only within an exact handoff and does
 not implement; the **Worker** implements or designs only an exact handoff and
 returns evidence; the independent **Reviewer** (**Fable5** or a dedicated SOL
 Reviewer) is read-only and never patches, commits, or approves; **Leo/GPT** owns
-material decisions, risk acceptance, final closure, and the next mission. All
-role results return to **Advisor**. The Worker-specific execution, Git, result,
-and STOP rules below apply whenever this session is running a Worker assignment.
+material decisions, risk acceptance, final closure, and the next mission. Every
+**subordinate** result returns to the responsible **Advisor**; the Advisor writes
+the mission audit and returns the mission result to **Leo/GPT**, and never returns
+its own result to itself. The Worker-specific execution, Git, result, and STOP
+rules below apply whenever this session is running a Worker assignment.
 
 ## Fail-Closed Rules
 
 - Never create or use an agent, sub-agent, delegated context, temporary session,
   substitute actor, or unapproved parallel context.
-- Never self-review or claim independent review or final approval.
+- Never self-review your own work or falsely claim independent review. Only the
+  separately assigned independent Reviewer may issue a verdict on another actor's
+  work; the Reviewer never patches, accepts risk, or grants final approval. Risk
+  acceptance and final approval remain with Leo/GPT.
 - Never access a database, schema, migration, secret, credential, environment
   value, production/live system, or public deployment without exact later
   authorization. None is authorized during bootstrap.
