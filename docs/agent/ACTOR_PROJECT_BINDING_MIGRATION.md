@@ -24,9 +24,16 @@ or Slack.
   schema, or registry code is changed by this mission.
 - **Accidental top-level role folders removed.** The accidental top-level role
   folders `agent-office-advisor`, `agent-office-reviewer`, `foundation-advisor`,
-  and `foundation-designer` (sibling directories under `/home/leo/Project/`) were
-  removed after preservation checks. The preserved workspaces `agent-office`,
-  `foundation-control`, `FOUNDATION`, `SIASIU`, and `Cosmile` remain.
+  and `foundation-designer` (sibling directories under `/home/leo/Project/`) are
+  now directly observed absent, while `agent-office`, `foundation-control`,
+  `FOUNDATION`, `SIASIU`, and `Cosmile` remain. Their useful role content was
+  durably preserved beforehand in foundation-docs commit
+  `076f0f4f7594ada02759f76c8239877dc99a100c` (role instructions, README, and
+  templates under `advisor/_system/roles/`), and the mission intake
+  (`advisor/jobs/20260714_agent_office_actor_project_binding_normalization_001/00_INTAKE.md`)
+  records the folders as empty after that content preservation. Durable content
+  preservation (the committed `076f0f4` evidence) and the current folder absence
+  (direct path check) are distinct facts.
 
 ## 2. Canonical Locations
 
@@ -99,18 +106,23 @@ and `foundation-docs/runs/`, per the Advisor role document.
 ### Final observed runtime bindings (mission close)
 
 During mission completion the Advisor normalized live actor paths and
-recreated/rebound the affected existing actor sessions. The bindings observed at
-close (read-only `tmux list-sessions`; session names are evidence only):
+recreated/rebound the affected existing actor sessions. The exact per-pane
+`pane_current_path` evidence is the committed Advisor observation
+`foundation-docs/advisor/jobs/20260714_agent_office_actor_project_binding_normalization_001/58_FINAL_RUNTIME_BINDING_OBSERVATION.md`,
+captured with `tmux list-panes -a -F '...#{pane_current_path}...'`. Session and
+process names remain non-authoritative for actor, model, effort, readiness, or
+work state; the workspace facts below come from that `pane_current_path` capture,
+not from session names:
 
 - `agent-office-advisor`, `agent-office-designer`, `agent-office-opus`,
-  `agent-office-reviewer`, and the preserved `agent-office-sol` run from
+  `agent-office-reviewer`, and the preserved `agent-office-sol` at
   `/home/leo/Project/agent-office`;
-- `foundation-advisor` and `foundation-designer` are idle/default at
+- `foundation-advisor` — its tmux container recreated at the already-registered
+  session name, resuming its existing Codex thread — and `foundation-designer` at
   `/home/leo/Project/FOUNDATION`;
-- `foundation-control` remains unchanged at `/home/leo/Project/foundation-control`;
-- `foundation`, `siasiu`, and `cosmile` remain in their canonical project folders
-  `/home/leo/Project/FOUNDATION`, `/home/leo/Project/SIASIU`, and
-  `/home/leo/Project/Cosmile`.
+- `foundation-control` unchanged at `/home/leo/Project/foundation-control`;
+- `foundation`, `siasiu`, and `cosmile` at `/home/leo/Project/FOUNDATION`,
+  `/home/leo/Project/SIASIU`, and `/home/leo/Project/Cosmile`.
 
 ## 5. What Did Not Run
 
@@ -138,6 +150,11 @@ not start AS1; Slack remains forbidden here.
 
 ## 7. Rollback
 
-This mission adds documentation and concise root pointers only. Reverting the
-mission commits on each affected branch fully restores the prior state; no
-runtime, data, or product surface is affected.
+Reverting the mission's committed documentation and pointer commits on each
+affected branch restores only that committed documentation and those pointers; it
+changes no runtime, data, or product surface. It does **not** automatically
+recreate the removed top-level role folders or reverse the live tmux/session path
+normalization the Advisor performed. A complete operational rollback of that
+non-Git state (recreating folders, reversing session/path normalization) would be
+separate, manually authorized work; it is neither performed nor authorized by
+this record.
