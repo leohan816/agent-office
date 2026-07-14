@@ -5,8 +5,10 @@ Status: `ACTIVE`
 Mission: `AGENT_OFFICE_ACTOR_PROJECT_BINDING_NORMALIZATION_001`
 (documentation-only role/relationship normalization).
 
-This record documents the normalization. It assigns roles and relationships
-only; it implements no runtime behavior, transport, delivery, schema, or Slack.
+This record documents the normalization. It assigns roles and relationships and
+records the actor-runtime normalization the Advisor performed during the mission;
+it implements no product runtime behavior, transport authority, delivery, schema,
+or Slack.
 
 ## 1. What Was Cleaned Up
 
@@ -20,6 +22,11 @@ only; it implements no runtime behavior, transport, delivery, schema, or Slack.
   `src/application/organization/` in the working checkout were removed before
   this mission; they were not copied or adapted. No source, test, fixture,
   schema, or registry code is changed by this mission.
+- **Accidental top-level role folders removed.** The accidental top-level role
+  folders `agent-office-advisor`, `agent-office-reviewer`, `foundation-advisor`,
+  and `foundation-designer` (sibling directories under `/home/leo/Project/`) were
+  removed after preservation checks. The preserved workspaces `agent-office`,
+  `foundation-control`, `FOUNDATION`, `SIASIU`, and `Cosmile` remain.
 
 ## 2. Canonical Locations
 
@@ -79,6 +86,7 @@ repositories or authorized mission worktrees, never role-named folders:
 | Agent Office Worker | `agent-office-opus` | `/home/leo/Project/agent-office` or a mission worktree under `/home/leo/Project/.worktrees/agent-office/<MISSION>` |
 | Agent Office Designer | `agent-office-designer` | `/home/leo/Project/agent-office` or an authorized Agent Office mission worktree |
 | Agent Office Reviewer | `agent-office-reviewer` | `/home/leo/Project/agent-office` or an authorized Agent Office mission worktree |
+| Agent Office SOL (preserved) | `agent-office-sol` | `/home/leo/Project/agent-office` |
 | Foundation Advisor | `foundation-advisor` | the exact mission target among `/home/leo/Project/FOUNDATION`, `/home/leo/Project/SIASIU`, `/home/leo/Project/Cosmile` (idle/default `/home/leo/Project/FOUNDATION`) |
 | Foundation Designer | `foundation-designer` | the exact active Foundation-Team project or its mission worktree (idle/default `/home/leo/Project/FOUNDATION`) |
 | Foundation Control | `foundation-control` | `/home/leo/Project/foundation-control` |
@@ -88,14 +96,38 @@ repositories or authorized mission worktrees, never role-named folders:
 Durable Advisor artifacts and role results live under `foundation-docs/advisor/`
 and `foundation-docs/runs/`, per the Advisor role document.
 
+### Final observed runtime bindings (mission close)
+
+During mission completion the Advisor normalized live actor paths and
+recreated/rebound the affected existing actor sessions. The bindings observed at
+close (read-only `tmux list-sessions`; session names are evidence only):
+
+- `agent-office-advisor`, `agent-office-designer`, `agent-office-opus`,
+  `agent-office-reviewer`, and the preserved `agent-office-sol` run from
+  `/home/leo/Project/agent-office`;
+- `foundation-advisor` and `foundation-designer` are idle/default at
+  `/home/leo/Project/FOUNDATION`;
+- `foundation-control` remains unchanged at `/home/leo/Project/foundation-control`;
+- `foundation`, `siasiu`, and `cosmile` remain in their canonical project folders
+  `/home/leo/Project/FOUNDATION`, `/home/leo/Project/SIASIU`, and
+  `/home/leo/Project/Cosmile`.
+
 ## 5. What Did Not Run
 
 - No Slack implementation, connection, transport, or delivery was started.
 - No product / Living Office / browser / visual / full test suite was run.
 - No source, test, fixture, schema, registry, DB, secret, environment, remote,
   or production change was made.
-- No tmux session was created, modified, or dispatched by this mission; the
-  session list above is read-only evidence of intended bindings.
+- The **initial documentation Worker delta** created, modified, or dispatched no
+  tmux session; its session list was read-only evidence of intended bindings.
+- **Actor-runtime normalization is not a product/runtime capability change.**
+  Later in the completed mission the Advisor normalized live actor paths,
+  recreated/rebound the affected existing actor sessions, and routed the
+  authorized Worker/Reviewer patch loops (see §4). That actor-runtime
+  normalization and authorized tmux routing changed no Agent Office product
+  behavior and activated no transport authority, Slack/AS1, DB/schema, secret,
+  remote, production, or public capability; those remain unimplemented and
+  unactivated.
 
 ## 6. Machine Registry Deferral (Pre-AS1)
 
