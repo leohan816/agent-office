@@ -21,9 +21,21 @@ Scope: this file applies to the entire repository.
 ## Required Entry Reads
 
 Before work, read the exact active Advisor handoff, this file, `CLAUDE.md`,
-`docs/agent/RUN_PROTOCOL.md`, and
+`docs/agent/TEAM_OPERATING_MODEL.md`, the actor's matching role document under
+`docs/agent/roles/`, `docs/agent/RUN_PROTOCOL.md`, and
 `docs/agent/RESULT_REPORTING_PROTOCOL.md`. Read any canonical authority named by
 the handoff directly. Historical reports are evidence, not current permission.
+
+## Team Binding and Common Role Docs
+
+- Responsible Advisor: `agent-office-advisor` (Agent Office Team).
+- Participating roles: Agent Office Designer, Worker (`agent-office-opus`), and
+  the independent Agent Office Reviewer.
+- Reporting path: actor -> `agent-office-advisor` -> Leo/GPT.
+- Common operating model and role definitions are canonical here in
+  `docs/agent/` (see `docs/agent/TEAM_OPERATING_MODEL.md` and
+  `docs/agent/roles/`); the runtime session registry is
+  `../foundation-docs/advisor/_system/tmux_transport/SESSION_REGISTRY.md`.
 
 ## Non-Negotiable Boundaries
 
