@@ -5,7 +5,7 @@ MISSION_ID: `AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001`
 REVIEW_TYPE: `NARROW_IMPLEMENTATION_SECURITY_IDENTITY_LINEAGE_REVIEW`
 
 REVIEWER: existing `agent-office-reviewer` session, GPT-5.6 SOL, xhigh,
-`/fable-sentinel`
+`fable-sentinel` protocol
 
 IMPLEMENTATION_BASELINE: `5df16b311b8e7835b5b621ce2181509a445602c6`
 
@@ -15,6 +15,28 @@ WORKTREE:
 `/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_PRE_AS1_MACHINE_REGISTRY_BINDING_RECONCILIATION_001`
 
 BRANCH: `config/pre-as1-machine-registry-binding-reconciliation-001`
+
+## Sentinel protocol loading
+
+This Codex CLI runtime does not expose `fable-sentinel` as a slash command. The
+attempted `/fable-sentinel` invocation returned `Unrecognized command`; that is
+a CLI registration limitation, not permission to omit the protocol. Before
+reviewing, read and follow these exact canonical files directly:
+
+- `/home/leo/Project/skill/fable-sentinel/SKILL.md`
+  (`sha256:429aa2397e917e89e7b8770c3a22bf26a60d1337401760db3010fbcaa3b489d7`)
+- `/home/leo/Project/skill/fable-sentinel/references/contract-review.md`
+  (`sha256:344ac717c4279ce0f98914babac5e26c32700827bb545e8dd24182bb3e0d16f1`)
+- `/home/leo/Project/skill/fable-sentinel/references/provenance-review.md`
+  (`sha256:d655a42de1fe2e1a2284766abefb33182a5d9234d21da6f75c2110a1c98023fe`)
+- `/home/leo/Project/skill/fable-sentinel/references/review-classification.md`
+  (`sha256:23f8a56c59f2a32f076998bad81ab59c85279b38f1f7b9275c5bcd9e9ab0759e`)
+- `/home/leo/Project/foundation-docs/설계문서/shared/AGENT_ROLE_BOUNDARY_AND_RELEASE_TRAIN_PROTOCOL_V2.md`
+  (`sha256:9bdd36ddd3f0d718da7adc3c2f0d0204c53d1191f0119f2a6e56c5160dc37b7b`)
+
+Verify each hash and state in the result that the Sentinel protocol and named
+references were loaded. This compatibility correction changes no review scope,
+candidate, criteria, verdict contract, or independence boundary.
 
 ## Independence and conduct
 
