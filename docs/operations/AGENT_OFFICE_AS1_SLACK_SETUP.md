@@ -35,10 +35,14 @@ dispatch.
 - `config/slack/as1-slack-pilot.env.example`
 
 Each manifest enables Socket Mode, declares only the `message.groups` bot event,
-and requests only `groups:history` and `chat:write` bot scopes. App-level tokens
-are owner-created separately with only `connections:write`. Neither manifest
-declares a Request URL, DM event, App Home surface, slash command, shortcut, or
-interactive action. The two apps and bot display names remain distinct.
+and requests `groups:history`, `chat:write`, and `users:read` bot scopes.
+`users:read` is used only for the startup `bots.info` App-ID check that rejects a
+bot token paired with the other app; the pilot must not list users or read user
+profiles. App-level tokens are owner-created separately with only
+`connections:write`. Neither manifest declares a Request URL, DM event, App
+Home command or message surface: both Home and Messages tabs are explicitly
+disabled. Neither manifest declares a slash command, shortcut, or interactive
+action. The two apps and bot display names remain distinct.
 
 ## 3. Owner app creation
 
@@ -53,8 +57,8 @@ artifact.
 2. Confirm the app is named **Agent Office Advisor Pilot** and its bot is named
    **Agent Office Advisor**.
 3. Confirm Socket Mode is enabled and no public Request URL exists.
-4. Confirm the bot scopes are exactly `groups:history` and `chat:write`, and the
-   only subscribed bot event is `message.groups`.
+4. Confirm the bot scopes are exactly `groups:history`, `chat:write`, and
+   `users:read`, and the only subscribed bot event is `message.groups`.
 5. Create one app-level token with exactly `connections:write`. Store it only in
    the external secret file described in section 5.
 6. Install the app to the private workspace and store the resulting bot token
@@ -91,8 +95,9 @@ the other App ID must fail startup rather than swap routes.
 - The Agent Office and Foundation private channel IDs are present and different.
 - Each app is installed in the intended workspace and invited only to its own
   fixed private channel.
-- Each bot token authenticates the bot for its declared App ID; each app token
-  authenticates the same app and has only `connections:write`.
+- Each bot token passes `auth.test` for the intended workspace and `bots.info`
+  returns its declared App ID; each app token's Socket Mode `hello` names that
+  same App ID and the app token has only `connections:write`.
 
 Names and icons are never substitutes for these immutable checks.
 
@@ -133,8 +138,9 @@ file.
 
 The future redacted check must validate file type, owner, modes, exact key set,
 nonempty values, immutable ID syntax, token class, two distinct App IDs, two
-distinct channel IDs, per-profile token/App identity, intended workspace, and
-the approved Leo user ID. It must never print a token, token prefix, token
+distinct channel IDs, `auth.test` workspace/bot identity, `bots.info` App ID,
+Socket Mode `hello` App ID, per-profile token/App identity, intended workspace,
+and the approved Leo user ID. It must never print a token, token prefix, token
 length, raw ID, file contents, Slack response body, or reconstructable hash.
 
 Successful output is limited to this shape:

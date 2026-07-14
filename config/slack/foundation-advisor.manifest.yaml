@@ -7,6 +7,10 @@ display_information:
   description: Private Socket Mode transport for the Foundation Advisor pilot
   background_color: "#14532D"
 features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: false
+    messages_tab_read_only_enabled: false
   bot_user:
     display_name: Foundation Advisor
     always_online: false
@@ -15,6 +19,7 @@ oauth_config:
     bot:
       - chat:write
       - groups:history
+      - users:read
 settings:
   event_subscriptions:
     bot_events:
