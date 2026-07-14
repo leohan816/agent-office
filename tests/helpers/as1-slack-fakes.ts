@@ -20,6 +20,7 @@ import type {
   As1SocketPort,
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import type { As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
+import type { As1TmuxPort, As1TmuxPreflight } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
 import { uuidV7 } from './fixtures.js';
 
@@ -437,5 +438,128 @@ export function agentOfficeContext(): As1ProfileRuntimeContext {
     channelId: world.agentOffice.channelId,
     leoUserId: world.agentOffice.leoUserId,
     botUserId: world.agentOffice.botUserId,
+  };
+}
+
+// ── Delivery authority fixtures + fake tmux port ──────────────────────────────
+export function validDestination(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    sessionName: 'agent-office-advisor',
+    sessionId: '$26',
+    windowName: 'main',
+    windowId: '@26',
+    windowIndex: 0,
+    paneId: '%26',
+    paneIndex: 0,
+    panePid: 12_345,
+    workspace: '/home/leo/Project/agent-office',
+    currentCommand: 'codex',
+    paneDead: false,
+    paneInMode: false,
+    inputOff: false,
+    synchronizePanes: false,
+    activityTime: '1720000000',
+    ...overrides,
+  };
+}
+
+export function validReadinessLease(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schemaVersion: 'agent-office.as1-advisor-readiness-lease.v1',
+    leaseId: 'as1-lease-0001',
+    pointerDeliveryGrantId: 'as1-pdg-0001',
+    receiveGrantId: 'as1-receive-grant-0001',
+    pilotId: 'as1-pilot-0001',
+    profileId: 'AGENT_OFFICE_ADVISOR',
+    intakeId: 'as1-intake-0001',
+    sourceEventId: 'Ev0AGENTOFFICE01',
+    pointerHash: HASH_4,
+    advisorTeam: 'AGENT_OFFICE_ADVISOR_TEAM',
+    actorId: 'agent-office-advisor',
+    roleInstanceId: 'foundation-advisor',
+    destination: validDestination(),
+    readiness: 'IDLE_FOR_ONE_AS1_POINTER',
+    useLimit: 1,
+    observedAt: '2026-07-14T22:03:00.000Z',
+    issuedAt: '2026-07-14T22:03:00.000Z',
+    expiresAt: '2026-07-14T22:03:25.000Z',
+    authoritySnapshotHash: HASH_B,
+    registrySnapshotHash: HASH_C,
+    receiveGrantBindingHash: HASH_2,
+    pointerDeliveryGrantSnapshotHash: HASH_A,
+    ...overrides,
+  };
+}
+
+/** In-memory tmux port. Never touches a real tmux server. Preflight results are scriptable. */
+export class FakeTmuxPort implements As1TmuxPort {
+  public preflightCalls = 0;
+  public loadCalls = 0;
+  public pasteCalls = 0;
+  public enterCalls = 0;
+  public deleteCalls = 0;
+  private readonly preflightQueue: As1TmuxPreflight[] = [];
+  private pasteThrows = false;
+  private bufferPresent = false;
+
+  public constructor(private readonly base: As1TmuxPreflight) {}
+
+  public setPreflightSequence(results: readonly As1TmuxPreflight[]): void {
+    this.preflightQueue.push(...results);
+  }
+
+  public setPasteThrows(): void {
+    this.pasteThrows = true;
+  }
+
+  public setBufferPresent(): void {
+    this.bufferPresent = true;
+  }
+
+  public preflight(): Promise<As1TmuxPreflight> {
+    this.preflightCalls += 1;
+    return Promise.resolve(this.preflightQueue.shift() ?? this.base);
+  }
+
+  public bufferExists(): Promise<boolean> {
+    return Promise.resolve(this.bufferPresent);
+  }
+
+  public loadBuffer(): Promise<void> {
+    this.loadCalls += 1;
+    return Promise.resolve();
+  }
+
+  public pasteBuffer(): Promise<void> {
+    this.pasteCalls += 1;
+    if (this.pasteThrows) return Promise.reject(new Error('tmux paste ambiguous'));
+    return Promise.resolve();
+  }
+
+  public sendEnter(): Promise<void> {
+    this.enterCalls += 1;
+    return Promise.resolve();
+  }
+
+  public deleteBuffer(): Promise<void> {
+    this.deleteCalls += 1;
+    return Promise.resolve();
+  }
+}
+
+/** A preflight matching validDestination(). */
+export function matchingPreflight(overrides: Partial<As1TmuxPreflight> = {}): As1TmuxPreflight {
+  return {
+    sessionId: '$26',
+    windowId: '@26',
+    paneId: '%26',
+    panePid: 12_345,
+    workspace: '/home/leo/Project/agent-office',
+    currentCommand: 'codex',
+    paneDead: false,
+    paneInMode: false,
+    inputOff: false,
+    synchronizePanes: false,
+    ...overrides,
   };
 }

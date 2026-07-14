@@ -613,6 +613,57 @@ export class As1ProfileInboundStore {
     );
   }
 
+  // ── Tmux delivery journal + one-use delivery-authority consumption (design §12.5/§12.7) ────────────
+  public async recordTmuxPhase(deliveryId: string, phase: string): Promise<void> {
+    await this.mutex.run(async () => {
+      const records = await this.readJsonArray<{ deliveryId: string; phase: string; recordedAt: string }>(
+        this.indexPath('tmux-delivery.json'),
+      );
+      const index = records.findIndex((r) => r.deliveryId === deliveryId);
+      const record = { deliveryId, phase, recordedAt: this.clock.now() };
+      if (index >= 0) {
+        const copy = [...records];
+        copy[index] = record;
+        await this.writeJsonArray(this.indexPath('tmux-delivery.json'), copy);
+      } else {
+        if (records.length >= LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE) {
+          throw new DomainError('STORE_QUARANTINED', 'tmux delivery journal capacity exhausted; no silent eviction');
+        }
+        await this.writeJsonArray(this.indexPath('tmux-delivery.json'), [...records, record]);
+      }
+    });
+  }
+
+  public async readTmuxPhase(deliveryId: string): Promise<string | null> {
+    const records = await this.readJsonArray<{ deliveryId: string; phase: string }>(this.indexPath('tmux-delivery.json'));
+    return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
+  }
+
+  /** Consume the delivery grant + lease exactly once. Permanent; reuse of either returns false. */
+  public async consumeDeliveryAuthority(pointerDeliveryGrantId: string, leaseId: string): Promise<boolean> {
+    return this.mutex.run(async () => {
+      const grants = await this.readJsonArray<{ id: string; consumedAt: string }>(
+        this.indexPath('pointer-delivery-grant-consumption.json'),
+      );
+      const leases = await this.readJsonArray<{ id: string; consumedAt: string }>(
+        this.indexPath('readiness-lease-consumption.json'),
+      );
+      if (grants.some((r) => r.id === pointerDeliveryGrantId) || leases.some((r) => r.id === leaseId)) {
+        return false;
+      }
+      const now = this.clock.now();
+      await this.writeJsonArray(this.indexPath('pointer-delivery-grant-consumption.json'), [
+        ...grants,
+        { id: pointerDeliveryGrantId, consumedAt: now },
+      ]);
+      await this.writeJsonArray(this.indexPath('readiness-lease-consumption.json'), [
+        ...leases,
+        { id: leaseId, consumedAt: now },
+      ]);
+      return true;
+    });
+  }
+
   private assertGrantBelongsToProfile(grant: As1PilotReceiveGrantV1): void {
     if (grant.profileId !== this.profile.profileId) {
       // A cross-profile grant must never be read through the selected profile (security §14.2).
