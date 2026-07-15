@@ -45,6 +45,12 @@ export const LIMITS = {
   DENIAL_AUDIT_PER_PROFILE: 256,
   INMEMORY_QUEUE_PER_PROFILE: 32,
   INFLIGHT_SIDE_EFFECTS_PER_PROFILE: 1,
+  // Fixed durable-file byte ceiling (review B08). Enforced BEFORE allocation/read/JSON-parse for every durable
+  // per-profile index and the global-control files, so a tampered file with arbitrarily large whitespace or one
+  // overlarge encoded record fails closed before it is loaded. The largest legitimate index (RECEIPT_RECORDS
+  // 128 transport records or ENVELOPE_DEDUPE 256 dedupe records at their bounded field sizes) stays well under
+  // this ceiling; the per-index count bound is still enforced after parse.
+  DURABLE_FILE_MAX_BYTES: 1_048_576,
   RETENTION_FLOOR_MS: 90 * 24 * 60 * MINUTE_MS,
   RECEIVE_GRANT_MAX_LIFETIME_MS: 15 * MINUTE_MS,
   POINTER_DELIVERY_GRANT_MAX_LIFETIME_MS: 5 * MINUTE_MS,

@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -439,5 +439,123 @@ describe('AS1 strict on-read parsing (B08)', () => {
     const bytes = await readFile(path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/denial-audit.json'), 'utf8');
     expect(bytes).toContain('reason-old'); // aged record retained, never auto-evicted
     expect(bytes).toContain('reason-new');
+  });
+});
+
+// B08 re-review (AS1-PATCH-V3-08): each of these fails on 0e4274f — which parses every field in isolation, reads
+// unbounded bytes, and treats a matching rootTs as idempotent — and must fail closed here. A syntactically valid
+// but semantically impossible durable record, an oversized file, and a divergent duplicate all quarantine.
+describe('AS1 relational + byte durable invariants (B08 re-review)', () => {
+  const DIR = 'indexes/as1-slack-pilot/profiles/agent-office-advisor';
+  const H = `sha256:${'a'.repeat(64)}`;
+  const OBSERVED = {
+    candidateKind: 'ROOT',
+    sourceEventId: EVENT_ID,
+    rootTs: ROOT_TS,
+    rootKeyHash: H,
+    receiptArtifactRef: 'advisor/jobs/x/receipt.json',
+    receiptArtifactHash: H,
+    messageArtifactRef: 'advisor/jobs/x/message.json',
+    messageArtifactHash: H,
+  };
+  const BASE_TRANSPORT = {
+    schemaVersion: 'agent-office.as1-transport-record.v1',
+    eventId: EVENT_ID,
+    envelopeId: 'Env1',
+    state: 'PREACK_PENDING',
+    rawEnvelopeHash: H,
+    innerEventHash: H,
+    observed: OBSERVED,
+    preAckDecision: null as string | null,
+    terminalReason: null as string | null,
+    bindingStateHash: null as string | null,
+    continuation: null as unknown,
+    transportAckRecorded: false,
+    intakeId: null as string | null,
+    pointerArtifactRef: null as string | null,
+    recordedAt: '2026-07-14T22:06:00.000Z',
+    ackedAt: null as string | null,
+    materializedAt: null as string | null,
+  };
+
+  async function freshStore() {
+    const root = await makeStateRoot();
+    const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2026-07-14T22:06:00.000Z'));
+    await mkdir(path.join(root, DIR, 'receive-grant-state'), { recursive: true });
+    return { root, store };
+  }
+
+  async function writeIndex(root: string, name: string, value: unknown): Promise<void> {
+    await writeFile(path.join(root, DIR, name), JSON.stringify(value));
+  }
+
+  it('rejects a ROOT_BOUND receive-grant state that carries no bound root (impossible relation)', async () => {
+    const { root, store } = await freshStore();
+    const impossible = {
+      schemaVersion: 'agent-office.as1-pilot-receive-grant-state.v1',
+      receiveGrantId: 'as1-receive-grant-0001', pilotId: 'as1-pilot-0001', profileId: 'AGENT_OFFICE_ADVISOR',
+      phase: 'ROOT_BOUND', rootLimit: 1, rootSlotConsumed: true, // claims a consumed, bound root...
+      boundSourceEventId: null, boundRootTs: null, boundRootKeyHash: null, boundReceiptArtifactRef: null,
+      boundReceiptArtifactHash: null, boundMessageArtifactHash: null, boundAt: null, // ...but no bound fields
+      previousStateHash: H, stateHash: H, version: 1,
+    };
+    await writeFile(path.join(root, DIR, 'receive-grant-state', 'as1-receive-grant-0001.json'), JSON.stringify([impossible]));
+    await expect(store.readReceiveGrantState('as1-receive-grant-0001')).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects a MATERIALIZED transport record with no intake, and a TERMINAL_NO_INTAKE with a non-rejected decision', async () => {
+    for (const corrupt of [
+      { ...BASE_TRANSPORT, state: 'MATERIALIZED', preAckDecision: 'ROOT_BOUND', transportAckRecorded: true, ackedAt: '2026-07-14T22:06:01.000Z', intakeId: null }, // MATERIALIZED but no intake
+      { ...BASE_TRANSPORT, state: 'TERMINAL_NO_INTAKE', preAckDecision: 'ROOT_BOUND', transportAckRecorded: true, ackedAt: '2026-07-14T22:06:01.000Z' }, // terminal without a rejection
+    ]) {
+      const { root, store } = await freshStore();
+      await writeIndex(root, 'transport-journal.json', [corrupt]);
+      await expect(store.readTransport(EVENT_ID), JSON.stringify(corrupt.state)).rejects.toBeInstanceOf(DomainError);
+    }
+  });
+
+  it('rejects a CONSUMED pending question that is missing its consumption fields', async () => {
+    const { root, store } = await freshStore();
+    await writeIndex(root, 'pending-questions.json', [
+      {
+        schemaVersion: 'agent-office.as1-pending-question.v1', questionId: 'q1', rootTs: ROOT_TS,
+        expectedResponseKind: 'CLARIFICATION', evidenceRef: 'advisor/jobs/x/q.json', evidenceHash: H,
+        state: 'CONSUMED', openedAt: '2026-07-14T22:06:00.000Z', expiresAt: '2026-07-14T22:10:00.000Z',
+        consumedAt: null, consumedBySourceEventId: null, // CONSUMED must carry both
+      },
+    ]);
+    await expect(store.findOpenQuestionForRoot(ROOT_TS)).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects a dedupe record whose preAckClass is not a closed durable transport phase', async () => {
+    const { root, store } = await freshStore();
+    await writeIndex(root, 'inbound-dedupe.json', [
+      {
+        schemaVersion: 'agent-office.as1-inbound-dedupe.v1', profileId: 'AGENT_OFFICE_ADVISOR', envelopeId: 'Env1',
+        teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: EVENT_ID, rawEnvelopeHash: H, innerEventHash: H,
+        firstReceivedAt: '2026-07-14T22:06:00.000Z', lastReceivedAt: '2026-07-14T22:06:00.000Z',
+        preAckClass: 'NOT_A_TRANSPORT_PHASE', receiveGrantStateHash: null, intakeId: null, terminalReason: null,
+      },
+    ]);
+    await expect(
+      store.insertDedupe({ envelopeId: 'Env2', teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: 'Ev0X', rawEnvelopeHash: H, innerEventHash: H, preAckClass: 'PREACK_PENDING' }),
+    ).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects an oversized durable index before it is read/parsed (fixed byte bound)', async () => {
+    const { root, store } = await freshStore();
+    // A > 1 MiB file fails the byte bound before allocation/JSON.parse, regardless of its (in)validity.
+    await writeFile(path.join(root, DIR, 'pending-questions.json'), ' '.repeat(1_100_000));
+    await expect(store.findOpenQuestionForRoot(ROOT_TS)).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('treats a matching-rootTs root correlation as idempotent ONLY on exact equality; a divergent duplicate fails closed', async () => {
+    const { store } = await freshStore();
+    const base = { rootTs: ROOT_TS, rootKeyHash: H, sourceEventId: EVENT_ID, receiveGrantId: 'as1-receive-grant-0001', bindingStateHash: H, intakeId: 'as1-intake-0001' };
+    await store.recordRootCorrelation(base);
+    await store.recordRootCorrelation({ ...base }); // exact duplicate — idempotent, no throw
+    await expect(
+      store.recordRootCorrelation({ ...base, sourceEventId: 'Ev0DIFFERENT' }), // same rootTs, divergent identity
+    ).rejects.toBeInstanceOf(DomainError);
   });
 });

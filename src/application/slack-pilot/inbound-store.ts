@@ -434,6 +434,105 @@ function requireOwningProfileId(value: unknown, profile: As1Profile, label: stri
   return profileId;
 }
 
+// ── Relational durable-state invariants (review B08) ─────────────────────────
+// A strict per-field parse still accepts records whose individual fields are well-typed but whose combination
+// is a semantically impossible durable state (e.g. a ROOT_BOUND receive state with no bound root, or a
+// MATERIALIZED transport record with no intake). These helpers reject such records so a tampered/corrupt index
+// is never trusted after restart. Each mirrors the exact writer that produces the record.
+
+/** Receive-grant state: bound fields move together and agree with phase and rootSlotConsumed. */
+function assertReceiveGrantStateInvariant(state: As1PilotReceiveGrantStateV1): void {
+  const boundFields = [
+    state.boundSourceEventId,
+    state.boundRootTs,
+    state.boundRootKeyHash,
+    state.boundReceiptArtifactRef,
+    state.boundReceiptArtifactHash,
+    state.boundMessageArtifactHash,
+    state.boundAt,
+  ];
+  const allNull = boundFields.every((field) => field === null);
+  const allSet = boundFields.every((field) => field !== null);
+  if (!allNull && !allSet) {
+    throw new DomainError('STORE_QUARANTINED', 'receive-grant state has a partial root binding');
+  }
+  if (state.rootSlotConsumed !== allSet) {
+    throw new DomainError('STORE_QUARANTINED', 'receive-grant rootSlotConsumed disagrees with the bound fields');
+  }
+  const unboundPhases: readonly As1ReceivePhase[] = ['UNBOUND', 'EXPIRED_UNBOUND', 'RETIRED_UNBOUND'];
+  const boundPhases: readonly As1ReceivePhase[] = ['ROOT_BOUND', 'EXPIRED_BOUND', 'RETIRED_BOUND'];
+  if (unboundPhases.includes(state.phase) && !allNull) {
+    throw new DomainError('STORE_QUARANTINED', `receive-grant phase ${state.phase} must carry no root binding`);
+  }
+  if (boundPhases.includes(state.phase) && !allSet) {
+    throw new DomainError('STORE_QUARANTINED', `receive-grant phase ${state.phase} must carry a complete root binding`);
+  }
+}
+
+/** Pending question: OPEN has no consumption fields; CONSUMED has both. */
+function assertPendingQuestionInvariant(question: As1PendingQuestionV1): void {
+  if (question.state === 'OPEN') {
+    if (question.consumedAt !== null || question.consumedBySourceEventId !== null) {
+      throw new DomainError('STORE_QUARANTINED', 'OPEN pending question must not carry consumption fields');
+    }
+    return;
+  }
+  if (question.consumedAt === null || question.consumedBySourceEventId === null) {
+    throw new DomainError('STORE_QUARANTINED', 'CONSUMED pending question must carry both consumption fields');
+  }
+}
+
+/** Transport record: the closed state correlates with the pre-ACK decision, ACK flag/timestamp, continuation,
+ * terminal reason, and intake/pointer/materialization fields (design §8.2/§8.3; matches the transition writers). */
+function assertTransportRecordInvariant(record: As1TransportRecordV1): void {
+  if (record.transportAckRecorded !== (record.ackedAt !== null)) {
+    throw new DomainError('STORE_QUARANTINED', 'transport ACK flag and ackedAt disagree');
+  }
+  const acked = record.state === 'TRANSPORT_ACK_RECORDED' || record.state === 'MATERIALIZED' || record.state === 'TERMINAL_NO_INTAKE';
+  if (record.transportAckRecorded !== acked) {
+    throw new DomainError('STORE_QUARANTINED', `transport state ${record.state} disagrees with the ACK flag`);
+  }
+  if (record.state === 'PREACK_PENDING' && record.preAckDecision !== null) {
+    throw new DomainError('STORE_QUARANTINED', 'PREACK_PENDING must carry no pre-ACK decision');
+  }
+  const requiredDecisionByState: Partial<Record<As1TransportState, As1PreAckDecision>> = {
+    PREACK_ROOT_BOUND: 'ROOT_BOUND',
+    PREACK_CONTINUATION_CONSUMED: 'CONTINUATION_CONSUMED',
+    PREACK_REJECTED: 'REJECTED',
+  };
+  const requiredDecision = requiredDecisionByState[record.state];
+  if (requiredDecision !== undefined && record.preAckDecision !== requiredDecision) {
+    throw new DomainError('STORE_QUARANTINED', `transport state ${record.state} disagrees with its pre-ACK decision`);
+  }
+  if (acked && record.preAckDecision === null) {
+    throw new DomainError('STORE_QUARANTINED', `transport state ${record.state} requires a committed pre-ACK decision`);
+  }
+  if ((record.preAckDecision === 'CONTINUATION_CONSUMED') !== (record.continuation !== null)) {
+    throw new DomainError('STORE_QUARANTINED', 'transport continuation binding disagrees with the pre-ACK decision');
+  }
+  if (record.preAckDecision === 'REJECTED') {
+    if (record.terminalReason === null) {
+      throw new DomainError('STORE_QUARANTINED', 'a rejected transport decision requires a terminalReason');
+    }
+  } else if (record.terminalReason !== null) {
+    throw new DomainError('STORE_QUARANTINED', 'only a rejected transport decision may carry a terminalReason');
+  }
+  const hasMaterialization = record.intakeId !== null || record.pointerArtifactRef !== null || record.materializedAt !== null;
+  if (record.state === 'MATERIALIZED') {
+    if (record.intakeId === null || record.pointerArtifactRef === null || record.materializedAt === null) {
+      throw new DomainError('STORE_QUARANTINED', 'MATERIALIZED transport record must carry intake, pointer, and materializedAt');
+    }
+    if (record.preAckDecision === 'REJECTED') {
+      throw new DomainError('STORE_QUARANTINED', 'a rejected decision cannot be MATERIALIZED');
+    }
+  } else if (hasMaterialization) {
+    throw new DomainError('STORE_QUARANTINED', `transport state ${record.state} must not carry materialization fields`);
+  }
+  if (record.state === 'TERMINAL_NO_INTAKE' && record.preAckDecision !== 'REJECTED') {
+    throw new DomainError('STORE_QUARANTINED', 'TERMINAL_NO_INTAKE requires a rejected pre-ACK decision');
+  }
+}
+
 function parseDedupeRecord(profile: As1Profile): (value: unknown) => As1DedupeRecordV1 {
   return (value: unknown): As1DedupeRecordV1 => {
   assertRecord(value, 'as1 dedupe record');
@@ -453,7 +552,8 @@ function parseDedupeRecord(profile: As1Profile): (value: unknown) => As1DedupeRe
     innerEventHash: requireSha256(value.innerEventHash, 'dedupe.innerEventHash'),
     firstReceivedAt: requireUtc(value.firstReceivedAt, 'dedupe.firstReceivedAt'),
     lastReceivedAt: requireUtc(value.lastReceivedAt, 'dedupe.lastReceivedAt'),
-    preAckClass: requireOpaqueId(value.preAckClass, 'dedupe.preAckClass'),
+    // preAckClass is a closed durable transport phase, not an arbitrary opaque id (review B08).
+    preAckClass: requireEnum(value.preAckClass, AS1_TRANSPORT_STATES, 'dedupe.preAckClass'),
     receiveGrantStateHash: reqNullableSha256(value.receiveGrantStateHash, 'dedupe.receiveGrantStateHash'),
     intakeId: reqNullableOpaqueId(value.intakeId, 'dedupe.intakeId'),
     terminalReason: reqNullableOpaqueId(value.terminalReason, 'dedupe.terminalReason'),
@@ -468,7 +568,7 @@ function parseReceiveGrantState(value: unknown): As1PilotReceiveGrantStateV1 {
     ['schemaVersion', 'receiveGrantId', 'pilotId', 'profileId', 'phase', 'rootLimit', 'rootSlotConsumed', 'boundSourceEventId', 'boundRootTs', 'boundRootKeyHash', 'boundReceiptArtifactRef', 'boundReceiptArtifactHash', 'boundMessageArtifactHash', 'boundAt', 'previousStateHash', 'stateHash', 'version'],
     'as1 receive-grant state',
   );
-  return {
+  const state: As1PilotReceiveGrantStateV1 = {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-pilot-receive-grant-state.v1', 'as1 receive-grant state'),
     receiveGrantId: requireOpaqueId(value.receiveGrantId, 'state.receiveGrantId'),
     pilotId: requireOpaqueId(value.pilotId, 'state.pilotId'),
@@ -487,6 +587,8 @@ function parseReceiveGrantState(value: unknown): As1PilotReceiveGrantStateV1 {
     stateHash: requireSha256(value.stateHash, 'state.stateHash'),
     version: requireInteger(value.version, 'state.version', 0),
   };
+  assertReceiveGrantStateInvariant(state);
+  return state;
 }
 
 function parsePendingQuestion(value: unknown): As1PendingQuestionV1 {
@@ -496,7 +598,7 @@ function parsePendingQuestion(value: unknown): As1PendingQuestionV1 {
     ['schemaVersion', 'questionId', 'rootTs', 'expectedResponseKind', 'evidenceRef', 'evidenceHash', 'state', 'openedAt', 'expiresAt', 'consumedAt', 'consumedBySourceEventId'],
     'as1 pending question',
   );
-  return {
+  const question: As1PendingQuestionV1 = {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-pending-question.v1', 'as1 pending question'),
     questionId: requireOpaqueId(value.questionId, 'question.questionId'),
     rootTs: requireSlackTs(value.rootTs, 'question.rootTs'),
@@ -509,6 +611,8 @@ function parsePendingQuestion(value: unknown): As1PendingQuestionV1 {
     consumedAt: reqNullableUtc(value.consumedAt, 'question.consumedAt'),
     consumedBySourceEventId: reqNullableOpaqueId(value.consumedBySourceEventId, 'question.consumedBySourceEventId'),
   };
+  assertPendingQuestionInvariant(question);
+  return question;
 }
 
 function parseRootCorrelation(value: unknown): As1RootCorrelationV1 {
@@ -558,7 +662,7 @@ function parseTransportRecord(value: unknown): As1TransportRecordV1 {
     ['schemaVersion', 'eventId', 'envelopeId', 'state', 'rawEnvelopeHash', 'innerEventHash', 'observed', 'preAckDecision', 'terminalReason', 'bindingStateHash', 'continuation', 'transportAckRecorded', 'intakeId', 'pointerArtifactRef', 'recordedAt', 'ackedAt', 'materializedAt'],
     'as1 transport record',
   );
-  return {
+  const record: As1TransportRecordV1 = {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-transport-record.v1', 'as1 transport record'),
     eventId: requireOpaqueId(value.eventId, 'transport.eventId'),
     envelopeId: requireOpaqueId(value.envelopeId, 'transport.envelopeId'),
@@ -577,6 +681,8 @@ function parseTransportRecord(value: unknown): As1TransportRecordV1 {
     ackedAt: reqNullableUtc(value.ackedAt, 'transport.ackedAt'),
     materializedAt: reqNullableUtc(value.materializedAt, 'transport.materializedAt'),
   };
+  assertTransportRecordInvariant(record);
+  return record;
 }
 
 function parseDeliveryAuthorityConsumption(value: unknown): As1DeliveryAuthorityConsumptionV1 {
@@ -1113,7 +1219,22 @@ export class As1ProfileInboundStore {
   public async recordRootCorrelation(record: Omit<As1RootCorrelationV1, 'schemaVersion' | 'createdAt'>): Promise<void> {
     await this.mutex.run(async () => {
       const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation, LIMITS.INTAKE_CORRELATIONS_PER_PROFILE);
-      if (records.some((r) => r.rootTs === record.rootTs)) return;
+      const existing = records.find((r) => r.rootTs === record.rootTs);
+      if (existing !== undefined) {
+        // Idempotent ONLY on exact immutable equality (review B08). A divergent duplicate — the same rootTs with
+        // any different immutable correlation field — is corruption/attack and fails closed; matching rootTs
+        // alone is insufficient and must never be silently accepted.
+        if (
+          existing.rootKeyHash !== record.rootKeyHash ||
+          existing.sourceEventId !== record.sourceEventId ||
+          existing.receiveGrantId !== record.receiveGrantId ||
+          existing.bindingStateHash !== record.bindingStateHash ||
+          existing.intakeId !== record.intakeId
+        ) {
+          throw new DomainError('STORE_QUARANTINED', 'a divergent root correlation already exists for this rootTs');
+        }
+        return;
+      }
       if (records.length >= LIMITS.INTAKE_CORRELATIONS_PER_PROFILE) {
         throw new DomainError('STORE_QUARANTINED', 'root-correlation capacity exhausted; no silent eviction');
       }
@@ -1635,6 +1756,13 @@ export class As1ProfileInboundStore {
       throw error;
     }
     try {
+      // Enforce the fixed durable-file byte ceiling on the pinned fd BEFORE allocating/reading/parsing, so a
+      // tampered file with arbitrarily large whitespace or one overlarge record fails closed (review B08). The
+      // same open fd is stat'd and read, so there is no TOCTOU window.
+      const stat = await handle.stat();
+      if (stat.size > LIMITS.DURABLE_FILE_MAX_BYTES) {
+        throw new DomainError('STORE_QUARANTINED', `profile index ${relative} exceeds the ${String(LIMITS.DURABLE_FILE_MAX_BYTES)}-byte durable-file bound`);
+      }
       const bytes = await handle.readFile();
       const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
       if (!Array.isArray(parsed)) {

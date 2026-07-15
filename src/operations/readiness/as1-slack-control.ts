@@ -12,6 +12,7 @@ import { open } from 'node:fs/promises';
 
 import { DomainError } from '../../contracts/types.js';
 import { assertExactKeys, assertRecord, requireEnum } from '../../contracts/validation.js';
+import { LIMITS } from '../../application/slack-pilot/contracts.js';
 import { assertUtcTimestamp } from '../../domain/time/index.js';
 import { writeAtomicCanonicalJson } from '../../persistence/file-store/atomic-file.js';
 import {
@@ -561,6 +562,12 @@ async function readJsonRecord(target: string): Promise<Record<string, unknown> |
     throw error;
   }
   try {
+    // Enforce the fixed durable-file byte ceiling on the pinned fd before allocating/reading/parsing the global
+    // control file, so a tampered oversized file fails closed before it is loaded (review B08). Same fd, no TOCTOU.
+    const stat = await handle.stat();
+    if (stat.size > LIMITS.DURABLE_FILE_MAX_BYTES) {
+      throw new DomainError('STORE_QUARANTINED', `as1 control file exceeds the ${String(LIMITS.DURABLE_FILE_MAX_BYTES)}-byte durable-file bound`);
+    }
     const bytes = await handle.readFile();
     const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
