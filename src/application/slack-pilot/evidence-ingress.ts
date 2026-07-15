@@ -176,7 +176,7 @@ export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, pro
         pointerDeliveryGrantId: requireOpaqueId(value.pointerDeliveryGrantId, 'ACK.pointerDeliveryGrantId'),
         rootCorrelationHash: requireSha256(value.rootCorrelationHash, 'ACK.rootCorrelationHash'),
         pointerArtifactRef: requireArtifactRef(value.pointerArtifactRef, 'ACK.pointerArtifactRef'),
-        transportJournalRef: requireOpaqueId(value.transportJournalRef, 'ACK.transportJournalRef'),
+        transportJournalRef: requireArtifactRef(value.transportJournalRef, 'ACK.transportJournalRef'),
         transportJournalHash: requireSha256(value.transportJournalHash, 'ACK.transportJournalHash'),
         consumedDeliveryGrantId: requireOpaqueId(value.consumedDeliveryGrantId, 'ACK.consumedDeliveryGrantId'),
         consumedLeaseId: requireOpaqueId(value.consumedLeaseId, 'ACK.consumedLeaseId'),
