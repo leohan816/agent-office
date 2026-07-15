@@ -596,6 +596,65 @@ export function buildNewMissionIntake(input: BuildIntakeInput): As1NewMissionInt
   };
 }
 
+// ── Continuation intake (design §10/§11) — a reply persists ONLY its fixed kind, bound to the original ──
+export type As1ContinuationKind = 'CLARIFICATION' | 'DECISION_RESPONSE';
+
+export interface As1ContinuationIntakeV1 {
+  readonly schemaVersion: 'agent-office.as1-continuation-intake.v1';
+  readonly intakeId: string;
+  readonly kind: As1ContinuationKind;
+  readonly originalIntakeId: string;
+  readonly questionId: string;
+  readonly receiveGrantId: string;
+  readonly receiveGrantBindingHash: string;
+  readonly profileId: As1ProfileId;
+  readonly advisorTeam: string;
+  readonly advisorActorId: string;
+  readonly advisorRoleInstanceId: string;
+  readonly sourceEventId: string;
+  readonly rootTs: string;
+  readonly messageArtifactRef: string;
+  readonly messageArtifactHash: string;
+  readonly receiptArtifactRef: string;
+  readonly receivedAt: string;
+  readonly recordedAt: string;
+  readonly authorityState: 'CONTINUATION_ONLY';
+}
+
+export interface BuildContinuationInput extends BuildIntakeInput {
+  readonly kind: As1ContinuationKind;
+  readonly originalIntakeId: string;
+  readonly questionId: string;
+}
+
+/**
+ * Build the immutable continuation record. Its kind comes ONLY from the pending question (never Slack text),
+ * it binds the original intake/root/question, and it never asserts a new Mission or alters Advisor identity.
+ */
+export function buildContinuationIntake(input: BuildContinuationInput): As1ContinuationIntakeV1 {
+  return {
+    schemaVersion: 'agent-office.as1-continuation-intake.v1',
+    intakeId: requireOpaqueId(input.intakeId, 'continuation intakeId'),
+    kind: input.kind,
+    originalIntakeId: requireOpaqueId(input.originalIntakeId, 'continuation originalIntakeId'),
+    questionId: requireOpaqueId(input.questionId, 'continuation questionId'),
+    receiveGrantId: requireOpaqueId(input.receiveGrantId, 'continuation receiveGrantId'),
+    receiveGrantBindingHash: requireSha256(input.receiveGrantBindingHash, 'continuation receiveGrantBindingHash'),
+    profileId: input.profileId,
+    advisorTeam: input.advisorTeam,
+    advisorActorId: input.advisorActorId,
+    advisorRoleInstanceId: input.advisorRoleInstanceId,
+    sourceEventId: requireOpaqueId(input.sourceEventId, 'continuation sourceEventId'),
+    rootTs: requireSlackTs(input.rootTs, 'continuation rootTs'),
+    messageArtifactRef: requireArtifactRef(input.messageArtifactRef, 'continuation messageArtifactRef'),
+    messageArtifactHash: requireSha256(input.messageArtifactHash, 'continuation messageArtifactHash'),
+    receiptArtifactRef: requireArtifactRef(input.receiptArtifactRef, 'continuation receiptArtifactRef'),
+    receivedAt: requireUtc(input.receivedAt, 'continuation receivedAt'),
+    recordedAt: requireUtc(input.recordedAt, 'continuation recordedAt'),
+    authorityState: 'CONTINUATION_ONLY',
+  };
+}
+
 export interface As1AdvisorPointerV1 {
   readonly schemaVersion: 'agent-office.as1-advisor-pointer.v1';
   readonly receiveGrantId: string;

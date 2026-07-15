@@ -18,10 +18,12 @@ import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import type { AgentOfficeRuntimeIdentity } from '../../runtime/identity.js';
 import {
   buildAdvisorPointer,
+  buildContinuationIntake,
   buildNewMissionIntake,
   isDeferredQueryText,
   requireBoundedMessageText,
   requireSlackTs,
+  type As1ContinuationKind,
   type As1PilotReceiveGrantV1,
 } from './contracts.js';
 import { As1ProfileInboundStore, rootKeyHash } from './inbound-store.js';
@@ -62,6 +64,15 @@ type Classification =
   | { readonly kind: 'ROOT_CANDIDATE'; readonly extracted: ExtractedEvent }
   | { readonly kind: 'CONTINUATION_CANDIDATE'; readonly extracted: ExtractedEvent }
   | { readonly kind: 'REJECTED'; readonly reason: string; readonly latch: boolean };
+
+/**
+ * The materializer intake spec (design §11). A new-mission root persists an INTAKE_ONLY record; a
+ * continuation persists a CONTINUATION_ONLY record whose fixed kind comes ONLY from the durable pending
+ * question and which binds the original intake and question. Slack text can never choose the kind.
+ */
+type MaterializeSpec =
+  | { readonly kind: 'NEW_MISSION' }
+  | { readonly kind: As1ContinuationKind; readonly originalIntakeId: string; readonly questionId: string };
 
 function readBoundedString(record: Record<string, unknown>, key: string, max = 256): string | null {
   const value = record[key];
@@ -230,7 +241,7 @@ export class As1InboundService {
     await this.store.recordPreAck(extracted.eventId, envelope.envelopeId, 'PREACK_ROOT_BOUND', bind.state.stateHash, null);
     await envelope.acknowledge();
     await this.store.recordTransportAck(extracted.eventId);
-    const intakeId = await this.materialize(extracted, receipt, bind.state.stateHash, rootKey, 'NEW_MISSION');
+    const intakeId = await this.materialize(extracted, receipt, bind.state.stateHash, rootKey, { kind: 'NEW_MISSION' });
     return { acked: true, classification: 'NEW_MISSION_ROOT', intakeId, latched: false };
   }
 
@@ -275,13 +286,11 @@ export class As1InboundService {
       this.context.channelId,
       threadTs,
     );
-    const intakeId = await this.materialize(
-      { ...extracted, ts: threadTs },
-      receipt,
-      root.bindingStateHash,
-      rootKey,
-      openQuestion.expectedResponseKind,
-    );
+    const intakeId = await this.materialize({ ...extracted, ts: threadTs }, receipt, root.bindingStateHash, rootKey, {
+      kind: openQuestion.expectedResponseKind,
+      originalIntakeId: root.intakeId,
+      questionId: openQuestion.questionId,
+    });
     return { acked: true, classification: 'CONTINUATION', intakeId, latched: false };
   }
 
@@ -295,7 +304,7 @@ export class As1InboundService {
     },
     bindingStateHash: string,
     rootKey: string,
-    kind: 'NEW_MISSION' | 'CLARIFICATION' | 'DECISION_RESPONSE',
+    spec: MaterializeSpec,
   ): Promise<string> {
     const transport = await this.store.readTransport(extracted.eventId);
     if (!transport?.transportAckRecorded) {
@@ -304,7 +313,7 @@ export class As1InboundService {
     const { profile } = this.context;
     const intakeId = this.clock.nextId();
     const recordedAt = this.clock.now();
-    const intake = buildNewMissionIntake({
+    const common = {
       intakeId,
       profileId: profile.profileId,
       advisorTeam: profile.advisorTeam,
@@ -319,7 +328,13 @@ export class As1InboundService {
       receiptArtifactRef: receipt.receiptArtifactRef,
       receivedAt: recordedAt,
       recordedAt,
-    });
+    } as const;
+    // The persisted intake artifact carries the fixed kind itself — a continuation is NEVER stored as a
+    // new-mission record, and its kind is bound to the durable question, not to any Slack text (design §11).
+    const intake =
+      spec.kind === 'NEW_MISSION'
+        ? buildNewMissionIntake(common)
+        : buildContinuationIntake({ ...common, kind: spec.kind, originalIntakeId: spec.originalIntakeId, questionId: spec.questionId });
     const intakeReceipt = await this.store.persistIntakeArtifact(intakeId, intake);
     const rootCorrelationHash = hashCanonical({
       rootKeyHash: rootKey,
@@ -335,7 +350,7 @@ export class As1InboundService {
       receiveGrantId: this.grant.receiveGrantId,
       receiveGrantBindingHash: bindingStateHash,
       intakeId,
-      intakeKind: kind,
+      intakeKind: spec.kind,
       sourceEventId: extracted.eventId,
       rootCorrelationHash,
       intakeArtifactRef: intakeReceipt.relativePath,
@@ -343,7 +358,7 @@ export class As1InboundService {
       recordedAt,
     });
     const pointerReceipt = await this.store.persistPointerArtifact(deliveryId, pointer);
-    if (kind === 'NEW_MISSION') {
+    if (spec.kind === 'NEW_MISSION') {
       await this.store.recordRootCorrelation({
         rootTs: extracted.ts,
         rootKeyHash: rootKey,
