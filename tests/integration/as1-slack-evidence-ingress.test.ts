@@ -451,6 +451,19 @@ describe('AS1 evidence ingress — §13.3 option-A bindings (B06)', () => {
     expect(verifier.calls[0]?.snapshotCommits).toEqual(['a'.repeat(40), 'b'.repeat(40)]);
   });
 
+  it('derives a BOUNDED deterministic outbound id even from a max-length (128-byte) evidence id (B07)', async () => {
+    const { ingress } = await makeIngress();
+    await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+    const bigId = 'e'.repeat(128); // the maximum legal opaque-id length
+    const intake = await ingress.ingest('INTAKE', validAdvisorIntake({ evidenceId: bigId }), evidenceRef('intake.json'));
+    expect(intake.outcome).toBe('ACCEPTED');
+    const outboundId = intake.accepted?.outboundId ?? '';
+    // A bounded, colon-free id (valid opaque id AND artifact path segment) — never `as1out-<128 bytes>`, so
+    // restart parsing cannot quarantine it.
+    expect(outboundId).toMatch(/^as1out-[0-9a-f]{64}$/u);
+    expect(Buffer.byteLength(outboundId, 'utf8')).toBeLessThanOrEqual(128);
+  });
+
   it('maps a canonical SourceArtifactRef into the verifier As1EvidenceRef with exact field equality', () => {
     const ref = { repository: 'agent-office', commit: 'c'.repeat(40), path: 'a/b/c.json', sha256: `sha256:${'6'.repeat(64)}` };
     expect(sourceArtifactRefToEvidenceRef(ref)).toEqual({

@@ -662,7 +662,11 @@ function sealAcceptedOutbound(evidenceId: string, record: As1OutboundRecord): As
   const sealed: As1AcceptedOutbound = {
     [ACCEPTED_OUTBOUND_BRAND]: ACCEPTED_OUTBOUND_BRAND,
     evidenceId,
-    outboundId: `as1out-${evidenceId}`,
+    // A BOUNDED deterministic id: a raw `as1out-<evidenceId>` could exceed the 128-byte opaque-id bound because
+    // evidenceId may legally be 128 bytes. The canonical hash gives a fixed 64-hex digest; prefixed it is a
+    // 71-byte id that is BOTH a valid opaque id and a valid artifact path segment (no colon), so a valid accepted
+    // outbound never quarantines on restart parsing (review B07).
+    outboundId: `as1out-${hashCanonical({ schemaVersion: 'agent-office.as1-outbound-identity.v1', evidenceId }).slice('sha256:'.length)}`,
     record,
   };
   return Object.freeze(sealed);
