@@ -1,4 +1,4 @@
-import { readdir, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -397,5 +397,18 @@ describe('AS1 strict on-read parsing (B08)', () => {
     await store.recordOutboxPhase('o1', 'PREPARED', { requestHash: `sha256:${'1'.repeat(64)}` });
     // Re-recording PREPARED with a DIFFERENT request hash is corruption, not a silent replace.
     await expect(store.recordOutboxPhase('o1', 'PREPARED', { requestHash: `sha256:${'2'.repeat(64)}` })).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('never auto-deletes or compacts durable state — the retention floor cannot be bypassed (B08)', async () => {
+    const root = await makeStateRoot();
+    const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2026-07-14T22:06:00.000Z'));
+    await store.recordDenialAudit('reason-old', 'Ev0OLD', 'Env0OLD');
+    // Reopen far in the future (well beyond RETENTION_FLOOR_MS) and write again: the old record must persist —
+    // there is no time-based deletion or compaction surface to bypass (writes only ever append or fail closed).
+    const future = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2030-01-01T00:00:00.000Z'));
+    await future.recordDenialAudit('reason-new', 'Ev0NEW', 'Env0NEW');
+    const bytes = await readFile(path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/denial-audit.json'), 'utf8');
+    expect(bytes).toContain('reason-old'); // aged record retained, never auto-evicted
+    expect(bytes).toContain('reason-new');
   });
 });

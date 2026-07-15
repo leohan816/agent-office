@@ -10,7 +10,7 @@
 // URL, token, App ID, host, or provider error. After App-ID proof, the general JSON path parses to
 // `unknown`, walks bounded structure, and accepts only the exact events-api outer keys.
 import { DomainError } from '../../../contracts/types.js';
-import { assertRecord } from '../../../contracts/validation.js';
+import { assertRecord, isRecord } from '../../../contracts/validation.js';
 import { LIMITS, SLACK_ID_GRAMMARS, assertBoundedJsonStructure } from '../../../application/slack-pilot/contracts.js';
 
 const APP_ID = SLACK_ID_GRAMMARS.appId;
@@ -224,7 +224,7 @@ export interface As1ParsedEnvelope {
 
 /** Detect a bounded provider `disconnect` control object (transport control, never delivered to the app). */
 export function isDisconnectFrame(value: unknown): boolean {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) && (value as { type?: unknown }).type === 'disconnect';
+  return isRecord(value) && value.type === 'disconnect';
 }
 
 /**
@@ -281,7 +281,8 @@ export function parseEventsApiValue(value: unknown): As1ParsedEnvelope {
     retryReason = raw;
   }
   const callback = value.payload;
-  if (typeof callback !== 'object' || callback === null || Array.isArray(callback)) {
+  // Strict narrowing (no post-check cast): assertRecord both validates and narrows to Record<string, unknown>.
+  if (!isRecord(callback)) {
     throw frameError('event frame payload is not a callback object');
   }
   return {
@@ -289,6 +290,6 @@ export function parseEventsApiValue(value: unknown): As1ParsedEnvelope {
     retryAttempt,
     retryReason,
     acceptsResponsePayload: false,
-    callback: callback as Record<string, unknown>,
+    callback,
   };
 }
