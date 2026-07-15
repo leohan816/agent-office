@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
-import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
-import { As1EvidenceIngress } from '../../src/application/slack-pilot/evidence-ingress.js';
+import { parsePointerDeliveryGrant, parseReceiveGrant } from '../../src/application/slack-pilot/contracts.js';
+import {
+  As1ProfileInboundStore,
+  type As1PilotReceiveGrantStateV1,
+  type As1TmuxDeliveryFacts,
+} from '../../src/application/slack-pilot/inbound-store.js';
+import {
+  As1EvidenceIngress,
+  buildEvidenceAuthority,
+  type As1AcceptedAuthorityRecords,
+} from '../../src/application/slack-pilot/evidence-ingress.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
+import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
 import {
   AO_ACK_BINDINGS,
   AO_EVIDENCE_PREFIX,
@@ -15,11 +25,14 @@ import {
   validAdvisorIntake,
   validAdvisorQuestion,
   validAdvisorResult,
+  validPointerDeliveryGrant,
+  validReceiveGrant,
 } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
 const AUTHORITY = {
   authorityRepositoryId: 'agent-office',
+  evidencePrefix: AO_EVIDENCE_PREFIX,
   intakeId: 'as1-intake-0001',
   sourceEventId: 'Ev0AGENTOFFICE01',
   pointerHash: `sha256:${'4'.repeat(64)}`,
@@ -35,7 +48,7 @@ async function makeIngress() {
   const store = await As1ProfileInboundStore.open(root, profile, clock);
   const verifier = new FakeGitVerifier();
   const latch = new FakeEvidenceLatch();
-  const ingress = new As1EvidenceIngress(profile, store, verifier, AO_EVIDENCE_PREFIX, AUTHORITY, latch.latch);
+  const ingress = new As1EvidenceIngress(profile, store, verifier, AUTHORITY, latch.latch);
   return { store, verifier, ingress, latch };
 }
 
@@ -90,8 +103,7 @@ describe('AS1 evidence ingress — lineage and provenance', () => {
       profile,
       store,
       new FakeGitVerifier(),
-      'advisor/jobs/20260714_as1/runtime-evidence/foundation-advisor',
-      { ...AUTHORITY },
+      { ...AUTHORITY, evidencePrefix: 'advisor/jobs/20260714_as1/runtime-evidence/foundation-advisor' },
       new FakeEvidenceLatch().latch,
     );
     const foundationAck = validAdvisorAck({
@@ -167,6 +179,7 @@ describe('AS1 evidence ingress — lineage and provenance', () => {
       repositoryId: 'agent-office',
       path: 'advisor/jobs/20260714_as1/runtime-evidence/agent-office-advisor/as1-intake-0001/ack.json',
       envelopeHash: `sha256:${'e'.repeat(64)}`,
+      correlation: { advisorAckId: 'ack-0001', sourceEventId: 'Ev0AGENTOFFICE01', pointerHash: `sha256:${'4'.repeat(64)}` },
     };
     await store.appendAcceptedEvidence(base);
     // A re-accepted id must match on EVERY field, not a partial tuple; any divergence quarantines.
@@ -210,6 +223,175 @@ describe('AS1 evidence ingress — lineage and provenance', () => {
       expect(result.outcome, JSON.stringify(override)).toBe('QUARANTINED');
       expect(result.reason, JSON.stringify(override)).toContain('EVIDENCE_ACK_BINDING_');
       expect(latch.latched, JSON.stringify(override)).toBe(true);
+    }
+  });
+});
+
+describe('AS1 evidence ingress — cross-stage binding (not mere stage presence) (B06)', () => {
+  it('quarantines and latches an INTAKE whose advisorAckId is not the exact accepted ACK', async () => {
+    const { ingress, latch } = await makeIngress();
+    expect((await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'))).outcome).toBe('ACCEPTED');
+    // A prior ACK exists, but the INTAKE binds a DIFFERENT advisorAckId — presence is not enough.
+    const bad = await ingress.ingest('INTAKE', validAdvisorIntake({ advisorAckId: 'ack-9999' }), evidenceRef('intake.json'));
+    expect(bad.outcome).toBe('QUARANTINED');
+    expect(bad.reason).toBe('EVIDENCE_INTAKE_ACK_MISMATCH');
+    expect(latch.latched).toBe(true);
+  });
+
+  it('quarantines and latches a QUESTION that re-uses an accepted questionId with a divergent expected response', async () => {
+    const { ingress, latch } = await makeIngress();
+    await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+    await ingress.ingest('INTAKE', validAdvisorIntake(), evidenceRef('intake.json'));
+    expect((await ingress.ingest('QUESTION', validAdvisorQuestion(), evidenceRef('question.json'))).outcome).toBe('ACCEPTED');
+    // Same questionId, new evidenceId, different expected response — a divergent re-issue of an accepted question.
+    const diverged = await ingress.ingest(
+      'QUESTION',
+      validAdvisorQuestion({ evidenceId: 'ev-question-0002', expectedResponseKind: 'DECISION_RESPONSE' }),
+      evidenceRef('question2.json'),
+    );
+    expect(diverged.outcome).toBe('QUARANTINED');
+    expect(diverged.reason).toBe('EVIDENCE_QUESTION_DIVERGENT');
+    expect(latch.latched).toBe(true);
+  });
+
+  it('quarantines and latches a RESULT that closes an intake the Advisor rejected', async () => {
+    const { ingress, latch } = await makeIngress();
+    await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+    // A prior INTAKE exists, but it was REJECTED_BY_ADVISOR — a RESULT may not close it.
+    expect(
+      (await ingress.ingest('INTAKE', validAdvisorIntake({ classification: 'REJECTED_BY_ADVISOR' }), evidenceRef('intake.json'))).outcome,
+    ).toBe('ACCEPTED');
+    const bad = await ingress.ingest('RESULT', validAdvisorResult(), evidenceRef('result.json'));
+    expect(bad.outcome).toBe('QUARANTINED');
+    expect(bad.reason).toBe('EVIDENCE_RESULT_INTAKE_NOT_ACCEPTED');
+    expect(latch.latched).toBe(true);
+  });
+});
+
+describe('AS1 evidence authority — production derivation from typed artifacts (B06)', () => {
+  const H = (c: string): string => `sha256:${c.repeat(64)}`;
+
+  function makeRecords(): As1AcceptedAuthorityRecords {
+    const receiveGrant = parseReceiveGrant(validReceiveGrant());
+    // The service materialization formula: hashCanonical(rootKeyHash, bindingStateHash, sourceEventId, rootTs, intakeId).
+    const rootKeyHash = H('7');
+    const rootTs = '1720000000.000100';
+    const rootCorrelationHash = hashCanonical({
+      rootKeyHash,
+      bindingStateHash: H('2'),
+      sourceEventId: 'Ev0AGENTOFFICE01',
+      rootTs,
+      intakeId: 'as1-intake-0001',
+    });
+    const pointerDeliveryGrant = parsePointerDeliveryGrant(validPointerDeliveryGrant({ rootCorrelationHash }));
+    const boundFacts: As1TmuxDeliveryFacts = {
+      receiveGrantId: 'as1-receive-grant-0001',
+      receiveGrantBindingHash: H('2'),
+      pointerDeliveryGrantId: 'as1-pdg-0001',
+      leaseId: 'as1-lease-0001',
+      pilotId: 'as1-pilot-0001',
+      profileId: 'AGENT_OFFICE_ADVISOR',
+      advisorTeam: 'AGENT_OFFICE_ADVISOR_TEAM',
+      actorId: 'agent-office-advisor',
+      roleInstanceId: 'foundation-advisor',
+      intakeId: 'as1-intake-0001',
+      sourceEventId: 'Ev0AGENTOFFICE01',
+      pointerHash: H('4'),
+      destinationHash: H('a'),
+      governanceSnapshotHash: H('b'),
+      registrySnapshotHash: H('c'),
+      globalControlSnapshotHash: H('f'),
+      profileLatchSnapshotHash: H('1'),
+      pointerDeliveryGrantSnapshotHash: hashCanonical(pointerDeliveryGrant),
+    };
+    const receiveGrantState: As1PilotReceiveGrantStateV1 = {
+      schemaVersion: 'agent-office.as1-pilot-receive-grant-state.v1',
+      receiveGrantId: 'as1-receive-grant-0001',
+      pilotId: 'as1-pilot-0001',
+      profileId: 'AGENT_OFFICE_ADVISOR',
+      phase: 'ROOT_BOUND',
+      rootLimit: 1,
+      rootSlotConsumed: true,
+      boundSourceEventId: 'Ev0AGENTOFFICE01',
+      boundRootTs: rootTs,
+      boundRootKeyHash: rootKeyHash,
+      boundReceiptArtifactRef: 'indexes/as1-slack-pilot/profiles/agent-office-advisor/receipts/r1.json',
+      boundReceiptArtifactHash: H('8'),
+      boundMessageArtifactHash: H('9'),
+      boundAt: '2026-07-14T22:05:00.000Z',
+      previousStateHash: H('0'),
+      stateHash: H('2'),
+      version: 2,
+    };
+    return {
+      receiveGrant,
+      receiveGrantState,
+      pointerDeliveryGrant,
+      terminalDelivery: {
+        schemaVersion: 'agent-office.as1-tmux-delivery.v1',
+        deliveryId: 'as1p-0001',
+        phase: 'TRANSPORT_RECORDED',
+        boundFacts,
+        recordedAt: '2026-07-14T22:05:30.000Z',
+      },
+      rootCorrelation: {
+        schemaVersion: 'agent-office.as1-root-correlation.v1',
+        rootTs,
+        rootKeyHash,
+        sourceEventId: 'Ev0AGENTOFFICE01',
+        receiveGrantId: 'as1-receive-grant-0001',
+        bindingStateHash: H('2'),
+        intakeId: 'as1-intake-0001',
+        createdAt: '2026-07-14T22:05:10.000Z',
+      },
+      transportJournalRef: AO_ACK_BINDINGS.transportJournalRef,
+      consumption: {
+        schemaVersion: 'agent-office.as1-delivery-authority-consumption.v1',
+        pointerDeliveryGrantId: 'as1-pdg-0001',
+        leaseId: 'as1-lease-0001',
+        consumedAt: '2026-07-14T22:05:40.000Z',
+      },
+    };
+  }
+
+  it('derives the authority + §13.1 acceptedAck entirely from the typed accepted artifacts', () => {
+    const records = makeRecords();
+    const authority = buildEvidenceAuthority(records);
+    expect(authority.authorityRepositoryId).toBe('agent-office');
+    expect(authority.evidencePrefix).toBe(AO_EVIDENCE_PREFIX);
+    expect(authority.intakeId).toBe('as1-intake-0001');
+    expect(authority.sourceEventId).toBe('Ev0AGENTOFFICE01');
+    expect(authority.pointerHash).toBe(H('4'));
+    expect(authority.receiveGrantSourceCommit).toBe('a'.repeat(40));
+    expect(authority.pointerDeliveryGrantSourceCommit).toBe('b'.repeat(40));
+    // The derived acceptedAck matches the shared §13.1 fixture on every field EXCEPT the two values the factory
+    // recomputes from canonical bytes: the service-formula rootCorrelationHash and the journal-record hash.
+    expect(authority.acceptedAck).toEqual({
+      ...AO_ACK_BINDINGS,
+      rootCorrelationHash: records.pointerDeliveryGrant.rootCorrelationHash,
+      transportJournalHash: hashCanonical(records.terminalDelivery),
+    });
+    // The recomputed rootCorrelationHash is the service formula, NOT the raw rootKeyHash.
+    expect(authority.acceptedAck.rootCorrelationHash).not.toBe(records.rootCorrelation.rootKeyHash);
+  });
+
+  it('fails closed on any inconsistency between the typed artifacts', () => {
+    const base = makeRecords();
+    const facts = base.terminalDelivery.boundFacts;
+    const cases: As1AcceptedAuthorityRecords[] = [
+      // A non-terminal (not TRANSPORT_RECORDED) delivery journal.
+      { ...base, terminalDelivery: { ...base.terminalDelivery, phase: 'PREPARED' } },
+      // Delivery facts naming a different receive grant than the accepted grant.
+      { ...base, terminalDelivery: { ...base.terminalDelivery, boundFacts: { ...facts, receiveGrantId: 'as1-receive-grant-9999' } } },
+      // Delivery facts whose pointer-delivery grant snapshot hash is not the canonical grant bytes.
+      { ...base, terminalDelivery: { ...base.terminalDelivery, boundFacts: { ...facts, pointerDeliveryGrantSnapshotHash: H('9') } } },
+      // A pointer-delivery grant whose rootCorrelationHash is not the service-formula value (raw literal).
+      { ...base, pointerDeliveryGrant: parsePointerDeliveryGrant(validPointerDeliveryGrant()) },
+      // Consumption naming a different lease than the delivery facts.
+      { ...base, consumption: { ...base.consumption, leaseId: 'as1-lease-9999' } },
+    ];
+    for (const [index, records] of cases.entries()) {
+      expect(() => buildEvidenceAuthority(records), `case ${String(index)}`).toThrow(DomainError);
     }
   });
 });

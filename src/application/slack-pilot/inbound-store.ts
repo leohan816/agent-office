@@ -135,6 +135,28 @@ export interface As1RootCorrelationV1 {
   readonly createdAt: string;
 }
 
+/**
+ * The durable checkpoint of one accepted Advisor evidence artifact (design §13). Each record fixes the full
+ * canonical envelope identity (repository/path/commit/blob/hash) AND the per-kind canonical correlation facts
+ * a later stage must bind to — e.g. an ACK's advisorAckId, an INTAKE's bound advisorAckId, a QUESTION's
+ * bound intake/pending-question/expected-response, a RESULT's bound intake/consumed-questions/artifact hash.
+ * The correlation map is byte-derived from the reviewed envelope, so an equal envelopeHash implies an equal
+ * correlation; cross-stage checks read these persisted facts rather than re-deriving from a live envelope.
+ */
+export interface As1AcceptedEvidenceRecordV1 {
+  readonly evidenceKind: string;
+  readonly evidenceId: string;
+  readonly intakeId: string;
+  readonly blobSha256: string;
+  readonly sourceCommit: string;
+  readonly repositoryId: string;
+  readonly path: string;
+  readonly envelopeHash: string;
+  readonly correlation: Readonly<Record<string, string>>;
+  readonly sequence: number;
+  readonly acceptedAt: string;
+}
+
 // The single durable, hash-bound transport state machine (design §8.2/§8.3/§12.3/§15.1). Every inbound
 // event advances through exactly this closed chain; illegal transitions are rejected, never overwritten.
 export const AS1_TRANSPORT_STATES = [
@@ -913,18 +935,11 @@ export class As1ProfileInboundStore {
     readonly repositoryId: string;
     readonly path: string;
     readonly envelopeHash: string;
+    /** Per-kind canonical correlation facts exposed for cross-stage binding (review B06). */
+    readonly correlation: Readonly<Record<string, string>>;
   }): Promise<number> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray<{
-        evidenceKind: string;
-        evidenceId: string;
-        intakeId: string;
-        blobSha256: string;
-        sourceCommit: string;
-        repositoryId: string;
-        path: string;
-        envelopeHash: string;
-      }>(this.indexPath('evidence-ingress-checkpoint.json'));
+      const records = await this.readJsonArray<As1AcceptedEvidenceRecordV1>(this.indexPath('evidence-ingress-checkpoint.json'));
       const existing = records.find((r) => r.evidenceId === entry.evidenceId);
       if (existing !== undefined) {
         // Exact duplicate equality: the re-accepted evidence must match on the FULL canonical envelope hash
@@ -955,10 +970,8 @@ export class As1ProfileInboundStore {
     });
   }
 
-  public async readAcceptedEvidence(): Promise<{ evidenceKind: string; evidenceId: string; intakeId: string }[]> {
-    return this.readJsonArray<{ evidenceKind: string; evidenceId: string; intakeId: string }>(
-      this.indexPath('evidence-ingress-checkpoint.json'),
-    );
+  public async readAcceptedEvidence(): Promise<readonly As1AcceptedEvidenceRecordV1[]> {
+    return this.readJsonArray<As1AcceptedEvidenceRecordV1>(this.indexPath('evidence-ingress-checkpoint.json'));
   }
 
   /**

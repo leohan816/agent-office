@@ -13,9 +13,23 @@
 import { DomainError } from '../../contracts/types.js';
 import { assertExactKeys, assertRecord, requireEnum } from '../../contracts/validation.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
-import { requireArtifactRef, requireOpaqueId, requireSha256, requireUtc } from './contracts.js';
+import {
+  requireArtifactRef,
+  requireOpaqueId,
+  requireSha256,
+  requireUtc,
+  type As1PilotReceiveGrantV1,
+  type As1PointerDeliveryGrantV1,
+} from './contracts.js';
 import { FOUNDATION_FORBIDDEN_ROLE_INSTANCE_ID, type As1Profile } from './profiles.js';
-import type { As1ProfileInboundStore } from './inbound-store.js';
+import type {
+  As1AcceptedEvidenceRecordV1,
+  As1DeliveryAuthorityConsumptionV1,
+  As1PilotReceiveGrantStateV1,
+  As1ProfileInboundStore,
+  As1RootCorrelationV1,
+  As1TmuxDeliveryRecordV1,
+} from './inbound-store.js';
 
 export type As1EvidenceKind = 'ACK' | 'INTAKE' | 'QUESTION' | 'RESULT';
 
@@ -48,6 +62,8 @@ export interface As1GitProvenanceVerifier {
 /** The immutable authority chain the evidence must bind to — taken from the accepted pointer-delivery grant. */
 export interface As1EvidenceAuthority {
   readonly authorityRepositoryId: string;
+  /** The non-overlapping evidence prefix fixed by the selected pointer-delivery grant (design §13). */
+  readonly evidencePrefix: string;
   /** The exact accepted intake / source event / pointer hash the evidence must bind to (from the store state). */
   readonly intakeId: string;
   readonly sourceEventId: string;
@@ -233,6 +249,190 @@ function ackBindingMismatch(ack: As1AckBindings, accepted: As1AckBindings): stri
   return null;
 }
 
+/**
+ * The per-kind canonical correlation facts persisted with an accepted evidence record so a later stage can
+ * bind the EXACT referenced id/fact of its predecessor (review B06). Byte-derived from the reviewed envelope,
+ * so an equal envelopeHash implies an equal correlation — cross-stage checks read these persisted facts.
+ */
+function correlationOf(envelope: As1EvidenceEnvelope): Readonly<Record<string, string>> {
+  switch (envelope.kind) {
+    case 'ACK':
+      return { advisorAckId: envelope.advisorAckId, sourceEventId: envelope.sourceEventId, pointerHash: envelope.pointerHash };
+    case 'INTAKE':
+      return { advisorAckId: envelope.advisorAckId, classification: envelope.classification };
+    case 'QUESTION':
+      return { questionId: envelope.questionId, expectedResponseKind: envelope.expectedResponseKind };
+    case 'RESULT':
+      return { resultId: envelope.resultId, terminalStatus: envelope.terminalStatus, resultArtifactRef: envelope.resultArtifactRef };
+    default: {
+      const exhaustive: never = envelope;
+      throw new DomainError('INVALID_SCHEMA', `unknown evidence kind ${String(exhaustive)}`);
+    }
+  }
+}
+
+/**
+ * Bind a genuinely-new stage to the EXACT persisted facts of its accepted predecessors (review B06). This runs
+ * only after the closed stage order already proved the predecessors are present, so every branch here is a
+ * referenced-id/fact check, not a presence check:
+ *   • INTAKE  → its advisorAckId must equal the exact accepted ACK's advisorAckId.
+ *   • QUESTION → its questionId must not collide with an already-accepted, differing question.
+ *   • RESULT  → the accepted intake it closes must be one the Advisor accepted, never one it rejected.
+ * A wrong referenced fact returns a stable bounded code; the caller quarantines AND durably latches.
+ */
+function bindToAcceptedChain(
+  envelope: As1EvidenceEnvelope,
+  acceptedForIntake: readonly As1AcceptedEvidenceRecordV1[],
+): string | null {
+  switch (envelope.kind) {
+    case 'ACK':
+      return null;
+    case 'INTAKE': {
+      const ack = acceptedForIntake.find((e) => e.evidenceKind === 'ACK');
+      if (ack === undefined) return 'EVIDENCE_ORDER_INTAKE_NEEDS_ACK';
+      return envelope.advisorAckId === ack.correlation.advisorAckId ? null : 'EVIDENCE_INTAKE_ACK_MISMATCH';
+    }
+    case 'QUESTION': {
+      const clash = acceptedForIntake.find(
+        (e) => e.evidenceKind === 'QUESTION' && e.correlation.questionId === envelope.questionId && e.evidenceId !== envelope.evidenceId,
+      );
+      return clash === undefined ? null : 'EVIDENCE_QUESTION_DIVERGENT';
+    }
+    case 'RESULT': {
+      const intake = acceptedForIntake.find((e) => e.evidenceKind === 'INTAKE');
+      if (intake === undefined) return 'EVIDENCE_ORDER_RESULT_NEEDS_INTAKE';
+      return intake.correlation.classification === 'REJECTED_BY_ADVISOR' ? 'EVIDENCE_RESULT_INTAKE_NOT_ACCEPTED' : null;
+    }
+    default: {
+      const exhaustive: never = envelope;
+      throw new DomainError('INVALID_SCHEMA', `unknown evidence kind ${String(exhaustive)}`);
+    }
+  }
+}
+
+/**
+ * The ACTUAL typed accepted artifacts the production composition derives the immutable evidence authority from
+ * (review B06): the accepted receive grant AND its post-bind state, the accepted pointer-delivery grant, the
+ * terminal (`TRANSPORT_RECORDED`) tmux delivery journal record whose bound facts carry the delivery lineage, the
+ * accepted root correlation, the durable transport-journal artifact reference, and the single atomic
+ * delivery-authority consumption. No truncated shapes, no hand-assembled source-commit strings, no free
+ * authority snapshot: every authority field is read from one of these typed artifacts.
+ */
+export interface As1AcceptedAuthorityRecords {
+  readonly receiveGrant: As1PilotReceiveGrantV1;
+  readonly receiveGrantState: As1PilotReceiveGrantStateV1;
+  readonly pointerDeliveryGrant: As1PointerDeliveryGrantV1;
+  readonly terminalDelivery: As1TmuxDeliveryRecordV1;
+  readonly rootCorrelation: As1RootCorrelationV1;
+  /** The durable transport-journal artifact locator; its integrity HASH is recomputed here, never trusted. */
+  readonly transportJournalRef: string;
+  readonly consumption: As1DeliveryAuthorityConsumptionV1;
+}
+
+/**
+ * The concrete PRODUCTION derivation of the immutable evidence authority (including the §13.1 `acceptedAck`
+ * snapshot) from the ACTUAL typed accepted artifacts (review B06). It fails closed on ANY inconsistency between
+ * those artifacts, recomputes the root-correlation hash with the EXACT service materialization formula, verifies
+ * the pointer-delivery-grant snapshot hash and the transport-journal hash against the canonical bytes, and
+ * requires a terminal `TRANSPORT_RECORDED` delivery — so a mismatched or partial set can never yield an authority
+ * the ingress would then compare evidence against. This is the single source of the `acceptedAck` snapshot.
+ */
+export function buildEvidenceAuthority(records: As1AcceptedAuthorityRecords): As1EvidenceAuthority {
+  const { receiveGrant: rg, receiveGrantState: st, pointerDeliveryGrant: pdg, terminalDelivery: td, rootCorrelation: root, consumption: cons } = records;
+  const facts = td.boundFacts;
+  const requireEqual = (a: string, b: string, code: string): void => {
+    if (a !== b) throw new DomainError('STORE_QUARANTINED', `evidence authority derivation inconsistency: ${code}`);
+  };
+
+  // 1. The delivery journal must be terminally delivered (design §12.7), never a nonterminal/reconciled phase.
+  if (td.phase !== 'TRANSPORT_RECORDED') {
+    throw new DomainError('STORE_QUARANTINED', 'evidence authority derivation requires a TRANSPORT_RECORDED delivery journal');
+  }
+
+  // 2. Profile identity/lineage agree across receive grant, pointer-delivery grant, and delivery facts.
+  requireEqual(rg.profileId, pdg.profileId, 'grant/pdg profileId');
+  requireEqual(pdg.profileId, facts.profileId, 'pdg/facts profileId');
+  requireEqual(pdg.advisorTeam, facts.advisorTeam, 'pdg/facts advisorTeam');
+  requireEqual(pdg.actorId, facts.actorId, 'pdg/facts actorId');
+  requireEqual(pdg.roleInstanceId, facts.roleInstanceId, 'pdg/facts roleInstanceId');
+
+  // 3. Receive grant + its post-bind state + pointer-delivery grant + facts agree on the receive-grant binding.
+  requireEqual(st.receiveGrantId, rg.receiveGrantId, 'state/grant receiveGrantId');
+  requireEqual(st.pilotId, rg.pilotId, 'state/grant pilotId');
+  requireEqual(pdg.receiveGrantId, rg.receiveGrantId, 'pdg/grant receiveGrantId');
+  requireEqual(facts.receiveGrantId, rg.receiveGrantId, 'facts/grant receiveGrantId');
+  requireEqual(root.receiveGrantId, rg.receiveGrantId, 'root/grant receiveGrantId');
+  requireEqual(pdg.pilotId, rg.pilotId, 'pdg/grant pilotId');
+  requireEqual(facts.pilotId, rg.pilotId, 'facts/grant pilotId');
+  requireEqual(st.stateHash, pdg.receiveGrantBindingHash, 'state/pdg receiveGrantBindingHash');
+  requireEqual(facts.receiveGrantBindingHash, pdg.receiveGrantBindingHash, 'facts/pdg receiveGrantBindingHash');
+  requireEqual(root.bindingStateHash, pdg.receiveGrantBindingHash, 'root/pdg bindingStateHash');
+  if (st.boundSourceEventId !== null) requireEqual(st.boundSourceEventId, root.sourceEventId, 'state/root boundSourceEventId');
+
+  // 4. Intake and source event agree across root correlation, pointer-delivery grant, and delivery facts.
+  requireEqual(root.intakeId, pdg.intakeId, 'root/pdg intakeId');
+  requireEqual(facts.intakeId, pdg.intakeId, 'facts/pdg intakeId');
+  requireEqual(root.sourceEventId, pdg.sourceEventId, 'root/pdg sourceEventId');
+  requireEqual(facts.sourceEventId, pdg.sourceEventId, 'facts/pdg sourceEventId');
+
+  // 5. The root-correlation hash is recomputed with the EXACT service materialization formula (service.ts) and
+  //    must equal the pointer-delivery grant's committed value — the two are NOT interchangeable with rootKeyHash.
+  const rootCorrelationHash = hashCanonical({
+    rootKeyHash: root.rootKeyHash,
+    bindingStateHash: root.bindingStateHash,
+    sourceEventId: root.sourceEventId,
+    rootTs: root.rootTs,
+    intakeId: root.intakeId,
+  });
+  requireEqual(rootCorrelationHash, pdg.rootCorrelationHash, 'rootCorrelationHash service formula');
+
+  // 6. Pointer ref/hash and every governance/registry/global-control/profile-latch snapshot hash agree across
+  //    the receive grant, the pointer-delivery grant, and the delivery facts; the pointer-delivery-grant snapshot
+  //    hash the facts carry must equal the canonical bytes of THIS pointer-delivery grant (B04 lease invariant).
+  requireEqual(facts.pointerHash, pdg.pointerHash, 'facts/pdg pointerHash');
+  requireEqual(rg.governanceSnapshotHash, pdg.governanceSnapshotHash, 'grant/pdg governanceSnapshotHash');
+  requireEqual(rg.registrySnapshotHash, pdg.registrySnapshotHash, 'grant/pdg registrySnapshotHash');
+  requireEqual(rg.globalControlSnapshotHash, pdg.globalControlSnapshotHash, 'grant/pdg globalControlSnapshotHash');
+  requireEqual(rg.profileLatchSnapshotHash, pdg.profileLatchSnapshotHash, 'grant/pdg profileLatchSnapshotHash');
+  requireEqual(facts.governanceSnapshotHash, pdg.governanceSnapshotHash, 'facts/pdg governanceSnapshotHash');
+  requireEqual(facts.registrySnapshotHash, pdg.registrySnapshotHash, 'facts/pdg registrySnapshotHash');
+  requireEqual(facts.globalControlSnapshotHash, pdg.globalControlSnapshotHash, 'facts/pdg globalControlSnapshotHash');
+  requireEqual(facts.profileLatchSnapshotHash, pdg.profileLatchSnapshotHash, 'facts/pdg profileLatchSnapshotHash');
+  requireEqual(facts.pointerDeliveryGrantSnapshotHash, hashCanonical(pdg), 'facts pointerDeliveryGrantSnapshotHash');
+
+  // 7. The single atomic consumption binds THIS pointer-delivery grant and the lease the facts were bound to.
+  requireEqual(cons.pointerDeliveryGrantId, pdg.pointerDeliveryGrantId, 'consumption/pdg pointerDeliveryGrantId');
+  requireEqual(cons.pointerDeliveryGrantId, facts.pointerDeliveryGrantId, 'consumption/facts pointerDeliveryGrantId');
+  requireEqual(cons.leaseId, facts.leaseId, 'consumption/facts leaseId');
+
+  // 8. Both grants agree on the authority repository; the two frozen source commits come from the typed grants.
+  requireEqual(rg.authorityRepositoryId, pdg.authorityRepositoryId, 'grant/pdg authorityRepositoryId');
+
+  const acceptedAck: As1AckBindings = {
+    receiveGrantId: rg.receiveGrantId,
+    receiveGrantBindingHash: pdg.receiveGrantBindingHash,
+    pilotId: rg.pilotId,
+    pointerDeliveryGrantId: pdg.pointerDeliveryGrantId,
+    rootCorrelationHash,
+    pointerArtifactRef: pdg.pointerArtifactRef,
+    transportJournalRef: records.transportJournalRef,
+    // Recompute the journal hash from the canonical terminal-delivery record bytes — never a free hash input.
+    transportJournalHash: hashCanonical(td),
+    consumedDeliveryGrantId: cons.pointerDeliveryGrantId,
+    consumedLeaseId: cons.leaseId,
+  };
+  return {
+    authorityRepositoryId: pdg.authorityRepositoryId,
+    evidencePrefix: pdg.evidencePrefix,
+    intakeId: pdg.intakeId,
+    sourceEventId: pdg.sourceEventId,
+    pointerHash: pdg.pointerHash,
+    acceptedAck,
+    receiveGrantSourceCommit: rg.authoritySourceCommit,
+    pointerDeliveryGrantSourceCommit: pdg.authoritySourceCommit,
+  };
+}
+
 export type EvidenceIngestOutcome = 'ACCEPTED' | 'QUARANTINED';
 
 export interface EvidenceIngestResult {
@@ -248,7 +448,6 @@ export class As1EvidenceIngress {
     private readonly profile: As1Profile,
     private readonly store: As1ProfileInboundStore,
     private readonly verifier: As1GitProvenanceVerifier,
-    private readonly evidencePrefix: string,
     private readonly authority: As1EvidenceAuthority,
     private readonly latch: As1EvidenceLatch,
   ) {}
@@ -278,7 +477,7 @@ export class As1EvidenceIngress {
     if (ref.repositoryId !== this.authority.authorityRepositoryId) {
       return this.quarantine('EVIDENCE_WRONG_REPOSITORY');
     }
-    const expectedPrefix = `${this.evidencePrefix}/${envelope.intakeId}/`;
+    const expectedPrefix = `${this.authority.evidencePrefix}/${envelope.intakeId}/`;
     if (!ref.path.startsWith(expectedPrefix) || ref.path.includes('..')) {
       return this.quarantine('EVIDENCE_WRONG_PREFIX');
     }
@@ -292,7 +491,9 @@ export class As1EvidenceIngress {
     if (!provenance.contentVerified) return this.quarantine('EVIDENCE_CONTENT_MISMATCH');
     if (!provenance.descendsFromBothSnapshots) return this.quarantine('EVIDENCE_SNAPSHOT_DESCENT');
 
-    // The full canonical envelope hash is bound so a re-observation must match on EVERY field, not a partial tuple.
+    // The full canonical envelope hash is bound so a re-observation must match on EVERY field, not a partial
+    // tuple; the per-kind canonical correlation facts are persisted so a later stage can bind the EXACT
+    // referenced id/fact of an accepted predecessor rather than merely its presence (review B06).
     const entry = {
       evidenceKind: kind,
       evidenceId: envelope.evidenceId,
@@ -302,6 +503,7 @@ export class As1EvidenceIngress {
       repositoryId: ref.repositoryId,
       path: ref.path,
       envelopeHash: hashCanonical(value),
+      correlation: correlationOf(envelope),
     };
     const accepted = await this.store.readAcceptedEvidence();
 
@@ -318,8 +520,17 @@ export class As1EvidenceIngress {
     }
 
     // A genuinely new evidence id must satisfy the closed stage order for its intake.
-    const orderCode = this.checkStageOrder(kind, accepted.filter((e) => e.intakeId === envelope.intakeId).map((e) => e.evidenceKind));
+    const acceptedForIntake = accepted.filter((e) => e.intakeId === envelope.intakeId);
+    const orderCode = this.checkStageOrder(kind, acceptedForIntake.map((e) => e.evidenceKind));
     if (orderCode !== null) return this.quarantine(orderCode);
+
+    // Beyond mere stage PRESENCE, each new stage must bind the EXACT referenced facts of its accepted
+    // predecessors via their persisted canonical correlation (review B06): an INTAKE binds the exact accepted
+    // ACK's advisorAckId; a QUESTION may not diverge from an already-accepted question of the same id; a RESULT
+    // may only close an intake the Advisor actually accepted (never a rejected one). Existing-stage-presence is
+    // insufficient — a wrong referenced id/fact quarantines and latches even though the predecessor exists.
+    const bindingCode = bindToAcceptedChain(envelope, acceptedForIntake);
+    if (bindingCode !== null) return this.quarantine(bindingCode);
 
     try {
       const sequence = await this.store.appendAcceptedEvidence(entry);
