@@ -1,23 +1,27 @@
 WORKER_RESULT_POINTER
 MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 ACTOR: Agent Office Worker
-DELIVERABLE: V2 patch — blocking review findings B01–B09 closed
+DELIVERABLE: V2 patch — blocking review findings B01–B09 closed (evidence corrected)
 RESULT_FILE: artifacts/as1-multi-team-slack-pilot/WORKER_RESULT.md
-RESULT_SHA256: efd784f890e33e0a6541d2b4be247fe02d85ffd0266fde8394cd5d2f9f88bdb7
-REVIEW_SOURCE: 20_REVIEW_RESULT.md (SOL Sentinel, blocking B01–B09)
-GOVERNANCE_HEAD: 8b66a7337ae3813bebaa557e23dfe281915d2998
+RESULT_SHA256: 5974e18c83b4d17044ee003714d2236e74694fb12f223347d14699fa8c83ca8c
+REVIEW_RESULT_FILE: advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/20_IMPLEMENTATION_SECURITY_REVIEW_RESULT.md
+REVIEW_RESULT_COMMIT: 3100a717418d8a4dc17d0114aaa3daa8b14ac083
+V2_PATCH_HANDOFF_COMMIT: 8b66a7337ae3813bebaa557e23dfe281915d2998
+EVIDENCE_CORRECTION_HANDOFF_COMMIT: ab3aecc39df9f8c6d3cd9c6230ed2336b198ba34
 FOUNDATION_DOCS_COMMIT: not-applicable
 TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 TARGET_BRANCH: feature/as1-multi-team-slack-pilot-001
 BASE_PARENT: 81a8c3474380a7e427516d6f5e57c97ad88c6c9b
 ORIGINAL_SOURCE_CANDIDATE: aac3e515ca05b89545688f84a4c17e4be12fa29d
 PATCH_SOURCE_HEAD: 0e4274f427904302d67a0de1e78cde60512b94b3
-RESULT_COMMIT: d8d1719773fa18a17f4b95021e393dee461dbded
-TARGET_COMMIT: d8d1719773fa18a17f4b95021e393dee461dbded
+RESULT_COMMIT: 6bc5325d42d54e384aea64021a9806439e06c5d0
+TARGET_COMMIT: 6bc5325d42d54e384aea64021a9806439e06c5d0
+SUPERSEDES_EVIDENCE: prior result commit d8d1719773fa18a17f4b95021e393dee461dbded and pointer commit dba31c0d7dcc85539c57a9e2b33b33a426800f5f (retained in history as superseded evidence; not deleted or rewritten)
 PUSH_STATUS: non-force-pushed-upstream-equal (pointer commit is the immediate child of RESULT_COMMIT and the pushed branch tip)
 PATCH_STATUS: B01,B02,B03,B04,B05,B06,B07,B08,B09 all closed in per-finding order
+DEPENDENCY_DELTA: reviewed B01 change to package.json + package-lock.json — removed @slack/socket-mode@3.0.0, added runtime ws@8.21.1 + dev @types/ws@8.18.1, retained @slack/web-api@8.0.0; no Slack app manifest, env template, registry, or Exact Delivery v2 change
 PHASE_A_STATUS: implementation-candidate-default-disconnected-synthetic-only-PENDING-INDEPENDENT-IMPLEMENTATION-SECURITY-REVIEW
-CHECKS: typecheck PASS; changed-file eslint (33 .ts) 0 problems; 16 AS1 focused files 269 tests PASS + 4 protected regression suites 103 tests PASS (20 files / 372 total); build:core PASS; npm audit --audit-level=high 0 vulnerabilities; git diff --check clean; targeted static/secret scans clean; no @slack/socket-mode (raw ws@8.21.1); no package/manifest/env/registry/v2 change
-RETURN_TO: Advisor
-PROPOSED_NEXT_ACTOR: Advisor
+CHECKS: recorded at frozen PATCH_SOURCE_HEAD 0e4274f (not rerun for this evidence-only correction) — typecheck PASS; changed-file eslint (33 .ts) 0 problems; 16 AS1 focused files 269 tests PASS + 4 protected regression suites 103 tests PASS (20 files / 372 total); build:core PASS; npm audit --audit-level=high 0 vulnerabilities; git diff --check clean; targeted static/secret scans clean
+RETURN_TO: agent-office-advisor
+PROPOSED_NEXT_ACTOR: agent-office-advisor
 STOP
