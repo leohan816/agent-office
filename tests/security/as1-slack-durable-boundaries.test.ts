@@ -559,3 +559,74 @@ describe('AS1 relational + byte durable invariants (B08 re-review)', () => {
     ).rejects.toBeInstanceOf(DomainError);
   });
 });
+
+// B02 re-review (AS1-PATCH-V3-02): an ACKable rejection with a usable event identity is now driven through the
+// SAME durable transport state machine to an exactly-once TERMINAL_NO_INTAKE, so a crash/retry/restart reproduces
+// the immutable terminal decision. On 0e4274f these rejections left NO transport record (a bare denial-audit +
+// ACK), so every assertion on readTransport below is null there. Identity contradictions still latch, unACKed,
+// with no record.
+describe('AS1 ACKable rejection durability (B02 re-review)', () => {
+  it('drives a deferred-query rejection through the machine to a durable TERMINAL_NO_INTAKE', async () => {
+    const { store, service } = await newSession();
+    const result = await service.processEnvelope(slackEnvelope({ text: 'status please' }));
+    expect(result.classification).toBe('REJECTED_DEFERRED_QUERY');
+    expect(result.acked).toBe(true);
+    expect(result.latched).toBe(false);
+    const record = await store.readTransport(EVENT_ID);
+    expect(record?.state).toBe('TERMINAL_NO_INTAKE');
+    expect(record?.preAckDecision).toBe('REJECTED');
+    expect(record?.terminalReason).toBe('REJECTED_DEFERRED_QUERY');
+    expect(record?.transportAckRecorded).toBe(true);
+    expect(record?.intakeId).toBeNull();
+  });
+
+  it('drives a bot-echo rejection (a non-deferred policy reject) to a durable TERMINAL_NO_INTAKE', async () => {
+    const { store, service } = await newSession();
+    const result = await service.processEnvelope(slackEnvelope({ botId: 'BAGENTOFFICE01' }));
+    expect(result.classification).toBe('REJECTED_NON_LEO_OR_BOT');
+    expect(result.acked).toBe(true);
+    expect((await store.readTransport(EVENT_ID))?.state).toBe('TERMINAL_NO_INTAKE');
+  });
+
+  it('a rejection whose ACK crashes resumes at PREACK_REJECTED and retries to TERMINAL_NO_INTAKE exactly once', async () => {
+    const { store, service } = await newSession();
+    await expect(service.processEnvelope(crashingAck({ text: 'status please' }))).rejects.toThrow('simulated ACK crash');
+    const mid = await store.readTransport(EVENT_ID);
+    // Committed rejection decision, NOT PREACK_PENDING — so recovery/retry can never re-derive a root bind.
+    expect(mid?.state).toBe('PREACK_REJECTED');
+    expect(mid?.transportAckRecorded).toBe(false);
+    const retry = await service.processEnvelope(slackEnvelope({ text: 'status please' }));
+    expect(retry.classification).toBe('REJECTED_DEFERRED_QUERY');
+    expect(retry.acked).toBe(true);
+    expect((await store.readTransport(EVENT_ID))?.state).toBe('TERMINAL_NO_INTAKE');
+  });
+
+  it('after restart, an identical retry reproduces the durable rejection (DUPLICATE), never a fresh denial', async () => {
+    const { root, store, service } = await newSession();
+    await service.processEnvelope(slackEnvelope({ text: 'status please' }));
+    expect((await store.readTransport(EVENT_ID))?.state).toBe('TERMINAL_NO_INTAKE');
+    const { store: store2, service: service2 } = await reopen(root, '2026-07-14T22:07:00.000Z');
+    const retry = await service2.processEnvelope(slackEnvelope({ text: 'status please' }));
+    expect(retry.acked).toBe(true);
+    expect(retry.classification).toBe('DUPLICATE');
+    expect((await store2.readTransport(EVENT_ID))?.state).toBe('TERMINAL_NO_INTAKE');
+  });
+
+  it('a divergent re-delivery of a rejected event (same id, different bytes) fails closed', async () => {
+    const { service } = await newSession();
+    await service.processEnvelope(slackEnvelope({ text: 'status please' }));
+    // Same default event_id, different inner bytes (different deferred text). The rejection now persists a durable
+    // receipt/transport record, so the re-delivery fails closed at the immutable-identity guard (never a silent
+    // overwrite and never a fresh divergent ACK). On 0e4274f the first rejection persisted nothing, so the second
+    // delivery simply ACKed again — this assertion fails there.
+    await expect(service.processEnvelope(slackEnvelope({ text: 'status now' }))).rejects.toThrow();
+  });
+
+  it('an identity-contradiction rejection latches unACKed and creates NO transport record (separate policy kept)', async () => {
+    const { store, service } = await newSession();
+    const result = await service.processEnvelope(slackEnvelope({ teamId: 'TOTHERWORKSP01' }));
+    expect(result.latched).toBe(true);
+    expect(result.acked).toBe(false);
+    expect(await store.readTransport(EVENT_ID)).toBeNull();
+  });
+});

@@ -31,6 +31,7 @@ import {
   rootKeyHash,
   type As1TransportObserved,
   type As1TransportRecordV1,
+  type As1TransportState,
   type CommitPreAckInput,
 } from './inbound-store.js';
 import type { As1Profile } from './profiles.js';
@@ -281,9 +282,91 @@ export class As1InboundService {
       await this.latchProfile(reason);
       return { acked: false, classification: reason, intakeId: null, latched: true };
     }
+    // An ACKable rejection WITH a usable envelope and event identity is driven through the SAME durable transport
+    // state machine to an exactly-once TERMINAL_NO_INTAKE, so a crash/retry/restart reproduces the immutable
+    // terminal decision rather than re-ACKing a fresh denial (review B02). A rejection without a usable durable
+    // identity (malformed envelope/event, no valid ts/text) has no record a retry could diverge on, so it keeps
+    // the audited ACK path.
+    const extracted = this.tryExtractIdentity(envelope);
+    if (extracted !== null) {
+      return this.driveRejection(envelope, extracted, reason);
+    }
     await this.gate.assertReceiveActionable();
     await envelope.acknowledge();
     return { acked: true, classification: reason, intakeId: null, latched: false };
+  }
+
+  /**
+   * Structural (policy-free) extraction of a usable event identity from a raw envelope: an event_callback whose
+   * message event carries a valid bounded ts and text. Returns null when no durable identity is bindable. The
+   * reviewed policy (mutation/bot/surface/identity/deferred/thread) is decided separately by classify(); this only
+   * asks whether a durable transport record CAN be opened for the event (review B02).
+   */
+  private tryExtractIdentity(envelope: As1InboundEnvelope): ExtractedEvent | null {
+    const payload = envelope.payload;
+    if (!isRecord(payload) || payload.type !== 'event_callback') return null;
+    const teamId = readBoundedString(payload, 'team_id');
+    const apiAppId = readBoundedString(payload, 'api_app_id');
+    const eventId = readBoundedString(payload, 'event_id');
+    if (teamId === null || apiAppId === null || eventId === null) return null;
+    const event = payload.event;
+    if (!isRecord(event) || event.type !== 'message') return null;
+    const ts = readBoundedString(event, 'ts', 32);
+    const user = readBoundedString(event, 'user');
+    const channel = readBoundedString(event, 'channel');
+    if (ts === null || user === null || channel === null) return null;
+    let text: string;
+    try {
+      text = requireBoundedMessageText(event.text, 'event.text');
+      requireSlackTs(ts, 'event.ts');
+    } catch {
+      return null;
+    }
+    const threadTsRaw = event.thread_ts;
+    return {
+      eventId,
+      teamId,
+      apiAppId,
+      channel,
+      channelType: typeof event.channel_type === 'string' ? event.channel_type : '',
+      user,
+      ts,
+      text,
+      threadTs: typeof threadTsRaw === 'string' ? threadTsRaw : null,
+      event,
+    };
+  }
+
+  /**
+   * Drive an ACKable policy rejection through the durable transport state machine: persist the receipt, dedupe,
+   * open the record DIRECTLY in the committed PREACK_REJECTED state (no PENDING window, so recovery never
+   * re-derives a bind), then ACK and terminalize exactly once (review B02).
+   */
+  private async driveRejection(envelope: As1InboundEnvelope, extracted: ExtractedEvent, reason: string): Promise<ProcessResult> {
+    await this.gate.assertReceiveActionable();
+    const receipt = await this.store.persistReceipt(extracted.eventId, envelope.payload, extracted.text);
+    const rootTs = extracted.threadTs !== null && extracted.threadTs !== extracted.ts ? extracted.threadTs : extracted.ts;
+    const candidateKind: 'ROOT' | 'CONTINUATION' = rootTs === extracted.ts ? 'ROOT' : 'CONTINUATION';
+    const observed: As1TransportObserved = {
+      candidateKind,
+      sourceEventId: extracted.eventId,
+      rootTs,
+      rootKeyHash: this.rootKeyFor(rootTs),
+      receiptArtifactRef: receipt.receiptArtifactRef,
+      receiptArtifactHash: receipt.receiptArtifactHash,
+      messageArtifactRef: receipt.messageArtifactRef,
+      messageArtifactHash: receipt.messageArtifactHash,
+    };
+    await this.recordDedupe(envelope, extracted);
+    const record = await this.store.openRejectedTransport(
+      extracted.eventId,
+      envelope.envelopeId,
+      hashCanonical(envelope.payload),
+      hashCanonical(extracted.event),
+      observed,
+      reason,
+    );
+    return this.advanceCommittedTransport(envelope, extracted.eventId, record, record.state);
   }
 
   private rootKeyFor(rootTs: string): string {
@@ -403,23 +486,36 @@ export class As1InboundService {
     observed: As1TransportObserved,
     decide: () => Promise<CommitPreAckInput>,
   ): Promise<ProcessResult> {
-    let record = await this.store.openTransport(
+    const opened = await this.store.openTransport(
       extracted.eventId,
       envelope.envelopeId,
       hashCanonical(envelope.payload),
       hashCanonical(extracted.event),
       observed,
     );
-    const startState = record.state;
-
-    // Re-assert the control gate immediately before EACH side effect below (pre-ACK mutation, ACK,
-    // materialization) — a global kill or profile latch engaged after the entry check blocks the next step.
+    let record = opened;
+    // Re-assert the control gate immediately before EACH side effect (pre-ACK mutation, ACK, materialization) —
+    // a global kill or profile latch engaged after the entry check blocks the next step (review B05).
     // 1. PREACK_PENDING -> committed pre-ACK decision (the sole receive-expiry linearization is inside decide()).
     if (record.state === 'PREACK_PENDING') {
       await this.gate.assertReceiveActionable();
       record = await this.store.commitPreAckDecision(extracted.eventId, await decide());
     }
+    return this.advanceCommittedTransport(envelope, extracted.eventId, record, opened.state);
+  }
 
+  /**
+   * Advance a transport record that already carries a committed pre-ACK decision through the Socket ACK and the
+   * terminal step (materialize or TERMINAL_NO_INTAKE), reproducing only the durable decision on any resume. Shared
+   * by the root/continuation engine and the ACKable-rejection engine (review B02).
+   */
+  private async advanceCommittedTransport(
+    envelope: As1InboundEnvelope,
+    eventId: string,
+    initial: As1TransportRecordV1,
+    startState: As1TransportState,
+  ): Promise<ProcessResult> {
+    let record = initial;
     let acked = false;
     // 2. committed pre-ACK decision -> Socket ACK -> durable TRANSPORT_ACK_RECORDED.
     if (
@@ -430,7 +526,7 @@ export class As1InboundService {
       await this.gate.assertReceiveActionable();
       await envelope.acknowledge();
       acked = true;
-      record = await this.store.commitTransportAck(extracted.eventId);
+      record = await this.store.commitTransportAck(eventId);
     }
 
     // 3. TRANSPORT_ACK_RECORDED -> MATERIALIZED | TERMINAL_NO_INTAKE.
@@ -443,11 +539,11 @@ export class As1InboundService {
       }
       await this.gate.assertReceiveActionable();
       if (record.preAckDecision === 'REJECTED') {
-        await this.store.commitTerminalNoIntake(extracted.eventId);
+        await this.store.commitTerminalNoIntake(eventId);
       } else {
         await this.materializeFromTransport(record);
       }
-      record = (await this.store.readTransport(extracted.eventId)) ?? record;
+      record = (await this.store.readTransport(eventId)) ?? record;
     }
 
     // 4. Already terminal on entry (a fully processed prior delivery): reproduce only the durable ACK.

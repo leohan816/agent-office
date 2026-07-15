@@ -1317,6 +1317,74 @@ export class As1ProfileInboundStore {
     });
   }
 
+  /**
+   * Open a transport record for an ACKable POLICY rejection DIRECTLY in the committed `PREACK_REJECTED` state
+   * (review B02). Unlike `openTransport` there is no `PREACK_PENDING` window, so a crash before ACK is recovered
+   * by reproducing the exact durable rejection — recovery never re-derives a root/continuation bind for a policy-
+   * rejected event. Idempotent: a re-delivery returns the existing record only when every bound byte/fact and the
+   * committed rejection reason match; any divergence quarantines the profile.
+   */
+  public async openRejectedTransport(
+    eventId: string,
+    envelopeId: string,
+    rawEnvelopeHash: string,
+    innerEventHash: string,
+    observed: As1TransportObserved,
+    terminalReason: string,
+  ): Promise<As1TransportRecordV1> {
+    return this.mutex.run(async () => {
+      const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord, LIMITS.RECEIPT_RECORDS_PER_PROFILE);
+      const existing = records.find((r) => r.eventId === eventId);
+      if (existing !== undefined) {
+        if (
+          existing.envelopeId !== envelopeId ||
+          existing.rawEnvelopeHash !== rawEnvelopeHash ||
+          existing.innerEventHash !== innerEventHash ||
+          existing.observed.sourceEventId !== observed.sourceEventId ||
+          existing.observed.rootTs !== observed.rootTs ||
+          existing.observed.rootKeyHash !== observed.rootKeyHash ||
+          existing.observed.receiptArtifactHash !== observed.receiptArtifactHash ||
+          existing.observed.messageArtifactHash !== observed.messageArtifactHash ||
+          existing.observed.candidateKind !== observed.candidateKind
+        ) {
+          throw new DomainError('STORE_QUARANTINED', 'transport identity reused with different bytes or facts');
+        }
+        // A prior delivery already opened this event; it must be (or have advanced from) the SAME rejection.
+        if (existing.preAckDecision !== 'REJECTED') {
+          throw new DomainError('STORE_QUARANTINED', 'transport identity reused with a non-rejected decision');
+        }
+        if (existing.terminalReason !== terminalReason) {
+          throw new DomainError('STORE_QUARANTINED', 'transport rejection reason is immutable once bound');
+        }
+        return existing;
+      }
+      if (records.length >= LIMITS.RECEIPT_RECORDS_PER_PROFILE) {
+        throw new DomainError('STORE_QUARANTINED', 'transport journal capacity exhausted; no silent eviction');
+      }
+      const record: As1TransportRecordV1 = {
+        schemaVersion: 'agent-office.as1-transport-record.v1',
+        eventId,
+        envelopeId,
+        state: 'PREACK_REJECTED',
+        rawEnvelopeHash,
+        innerEventHash,
+        observed,
+        preAckDecision: 'REJECTED',
+        terminalReason,
+        bindingStateHash: null,
+        continuation: null,
+        transportAckRecorded: false,
+        intakeId: null,
+        pointerArtifactRef: null,
+        recordedAt: this.clock.now(),
+        ackedAt: null,
+        materializedAt: null,
+      };
+      await this.writeJsonArray(this.indexPath('transport-journal.json'), [...records, record]);
+      return record;
+    });
+  }
+
   /** `PREACK_PENDING -> PREACK_{ROOT_BOUND|CONTINUATION_CONSUMED|REJECTED}`. Idempotent on the same decision. */
   public async commitPreAckDecision(eventId: string, input: CommitPreAckInput): Promise<As1TransportRecordV1> {
     const target: As1TransportState =
