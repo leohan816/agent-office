@@ -771,9 +771,24 @@ export function validAdvisorAck(overrides: Record<string, unknown> = {}): Record
     pointerHash: HASH_4,
     advisorAckId: 'ack-0001',
     acknowledgedAt: '2026-07-14T22:06:00.000Z',
+    ...AO_ACK_BINDINGS,
     ...overrides,
   };
 }
+
+/** The accepted §13.1 ACK authority bindings snapshot the agent-office fixtures agree on. */
+export const AO_ACK_BINDINGS = {
+  receiveGrantId: 'as1-receive-grant-0001',
+  receiveGrantBindingHash: HASH_2,
+  pilotId: 'as1-pilot-0001',
+  pointerDeliveryGrantId: 'as1-pdg-0001',
+  rootCorrelationHash: HASH_3,
+  pointerArtifactRef: 'artifacts/as1-slack-pilot/agent-office-advisor/pointers/p1/pointer.json',
+  transportJournalRef: 'transport-Ev0AGENTOFFICE01',
+  transportJournalHash: HASH_1,
+  consumedDeliveryGrantId: 'as1-pdg-0001',
+  consumedLeaseId: 'as1-lease-0001',
+} as const;
 
 export function validAdvisorIntake(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

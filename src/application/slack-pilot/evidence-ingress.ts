@@ -52,6 +52,13 @@ export interface As1EvidenceAuthority {
   readonly intakeId: string;
   readonly sourceEventId: string;
   readonly pointerHash: string;
+  /**
+   * A typed, construction-trusted snapshot of the accepted immutable authority/store state (the accepted
+   * receive-grant binding, pilot, pointer-delivery grant, root correlation, pointer ref, terminal transport
+   * journal ref/hash, and the atomically-consumed delivery grant + lease). The composition derives it from
+   * those exact records; every ACK binding is compared against it (review B06).
+   */
+  readonly acceptedAck: As1AckBindings;
   /** The two grant source commits the evidence commit MUST descend from (bound into the verifier snapshots). */
   readonly receiveGrantSourceCommit: string;
   readonly pointerDeliveryGrantSourceCommit: string;
@@ -70,13 +77,34 @@ interface As1EvidenceCommon {
 }
 
 /** The full per-kind evidence envelope — every reviewed field is retained and validated (review B06). */
+/** The full §13.1 ACK authority bindings the evidence carries and the ingress correlates against accepted state. */
+export interface As1AckBindings {
+  readonly receiveGrantId: string;
+  readonly receiveGrantBindingHash: string;
+  readonly pilotId: string;
+  readonly pointerDeliveryGrantId: string;
+  readonly rootCorrelationHash: string;
+  readonly pointerArtifactRef: string;
+  readonly transportJournalRef: string;
+  readonly transportJournalHash: string;
+  readonly consumedDeliveryGrantId: string;
+  readonly consumedLeaseId: string;
+}
+
 export type As1EvidenceEnvelope =
-  | (As1EvidenceCommon & { readonly kind: 'ACK'; readonly sourceEventId: string; readonly pointerHash: string; readonly advisorAckId: string; readonly acknowledgedAt: string })
+  | (As1EvidenceCommon & As1AckBindings & { readonly kind: 'ACK'; readonly sourceEventId: string; readonly pointerHash: string; readonly advisorAckId: string; readonly acknowledgedAt: string })
   | (As1EvidenceCommon & { readonly kind: 'INTAKE'; readonly advisorAckId: string; readonly classification: string; readonly recordedAt: string })
   | (As1EvidenceCommon & { readonly kind: 'QUESTION'; readonly questionId: string; readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE'; readonly recordedAt: string })
   | (As1EvidenceCommon & { readonly kind: 'RESULT'; readonly resultId: string; readonly terminalStatus: string; readonly resultArtifactRef: string; readonly recordedAt: string });
 
-const ACK_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'sourceEventId', 'pointerHash', 'advisorAckId', 'acknowledgedAt'] as const;
+const ACK_KEYS = [
+  'schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'sourceEventId',
+  'pointerHash', 'advisorAckId', 'acknowledgedAt',
+  // The full reviewed §13.1 authority bindings (review B06): receive grant/binding, pilot, pointer-delivery
+  // grant, root correlation, pointer ref, transport journal ref/hash, and the consumed delivery grant + lease.
+  'receiveGrantId', 'receiveGrantBindingHash', 'pilotId', 'pointerDeliveryGrantId', 'rootCorrelationHash',
+  'pointerArtifactRef', 'transportJournalRef', 'transportJournalHash', 'consumedDeliveryGrantId', 'consumedLeaseId',
+] as const;
 const INTAKE_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'advisorAckId', 'classification', 'recordedAt'] as const;
 const QUESTION_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'questionId', 'expectedResponseKind', 'recordedAt'] as const;
 const RESULT_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'resultId', 'terminalStatus', 'resultArtifactRef', 'recordedAt'] as const;
@@ -142,6 +170,16 @@ export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, pro
         pointerHash: requireSha256(value.pointerHash, 'ACK.pointerHash'),
         advisorAckId: requireOpaqueId(value.advisorAckId, 'ACK.advisorAckId'),
         acknowledgedAt: requireUtc(value.acknowledgedAt, 'ACK.acknowledgedAt'),
+        receiveGrantId: requireOpaqueId(value.receiveGrantId, 'ACK.receiveGrantId'),
+        receiveGrantBindingHash: requireSha256(value.receiveGrantBindingHash, 'ACK.receiveGrantBindingHash'),
+        pilotId: requireOpaqueId(value.pilotId, 'ACK.pilotId'),
+        pointerDeliveryGrantId: requireOpaqueId(value.pointerDeliveryGrantId, 'ACK.pointerDeliveryGrantId'),
+        rootCorrelationHash: requireSha256(value.rootCorrelationHash, 'ACK.rootCorrelationHash'),
+        pointerArtifactRef: requireArtifactRef(value.pointerArtifactRef, 'ACK.pointerArtifactRef'),
+        transportJournalRef: requireOpaqueId(value.transportJournalRef, 'ACK.transportJournalRef'),
+        transportJournalHash: requireSha256(value.transportJournalHash, 'ACK.transportJournalHash'),
+        consumedDeliveryGrantId: requireOpaqueId(value.consumedDeliveryGrantId, 'ACK.consumedDeliveryGrantId'),
+        consumedLeaseId: requireOpaqueId(value.consumedLeaseId, 'ACK.consumedLeaseId'),
       };
     case 'INTAKE':
       return {
@@ -173,6 +211,26 @@ export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, pro
       throw new DomainError('INVALID_SCHEMA', `unknown evidence kind ${String(exhaustive)}`);
     }
   }
+}
+
+/** Compare every §13.1 ACK binding to the accepted authority snapshot; returns a stable code on any mismatch. */
+function ackBindingMismatch(ack: As1AckBindings, accepted: As1AckBindings): string | null {
+  const fields: readonly (keyof As1AckBindings)[] = [
+    'receiveGrantId',
+    'receiveGrantBindingHash',
+    'pilotId',
+    'pointerDeliveryGrantId',
+    'rootCorrelationHash',
+    'pointerArtifactRef',
+    'transportJournalRef',
+    'transportJournalHash',
+    'consumedDeliveryGrantId',
+    'consumedLeaseId',
+  ];
+  for (const field of fields) {
+    if (ack[field] !== accepted[field]) return `EVIDENCE_ACK_BINDING_${field.replace(/([a-z])([A-Z])/gu, '$1_$2').toUpperCase()}`;
+  }
+  return null;
 }
 
 export type EvidenceIngestOutcome = 'ACCEPTED' | 'QUARANTINED';
@@ -211,6 +269,9 @@ export class As1EvidenceIngress {
     if (envelope.kind === 'ACK') {
       if (envelope.sourceEventId !== this.authority.sourceEventId) return this.quarantine('EVIDENCE_WRONG_SOURCE_EVENT');
       if (envelope.pointerHash !== this.authority.pointerHash) return this.quarantine('EVIDENCE_WRONG_POINTER');
+      // Every §13.1 ACK binding must equal the accepted immutable authority/store snapshot (review B06).
+      const mismatch = ackBindingMismatch(envelope, this.authority.acceptedAck);
+      if (mismatch !== null) return this.quarantine(mismatch);
     }
 
     // The evidence repository/path bind to the grant-fixed authority chain; Slack cannot supply either.
@@ -231,25 +292,40 @@ export class As1EvidenceIngress {
     if (!provenance.contentVerified) return this.quarantine('EVIDENCE_CONTENT_MISMATCH');
     if (!provenance.descendsFromBothSnapshots) return this.quarantine('EVIDENCE_SNAPSHOT_DESCENT');
 
-    const priorForIntake = (await this.store.readAcceptedEvidence()).filter((e) => e.intakeId === envelope.intakeId);
-    const orderCode = this.checkStageOrder(kind, priorForIntake.map((e) => e.evidenceKind));
+    // The full canonical envelope hash is bound so a re-observation must match on EVERY field, not a partial tuple.
+    const entry = {
+      evidenceKind: kind,
+      evidenceId: envelope.evidenceId,
+      intakeId: envelope.intakeId,
+      blobSha256: ref.blobSha256,
+      sourceCommit: ref.sourceCommit,
+      repositoryId: ref.repositoryId,
+      path: ref.path,
+      envelopeHash: hashCanonical(value),
+    };
+    const accepted = await this.store.readAcceptedEvidence();
+
+    // Re-observing the EXACT same committed evidence is a normal polling/restart case: after full provenance
+    // validation, route a same-evidenceId submission through exact checkpoint equality BEFORE stage-order.
+    // An exact match is idempotent ACCEPTED; any same-id envelope/ref divergence durably latches (review B06).
+    if (accepted.some((e) => e.evidenceId === envelope.evidenceId)) {
+      try {
+        const sequence = await this.store.appendAcceptedEvidence(entry);
+        return { outcome: 'ACCEPTED', reason: 'ok', sequence };
+      } catch {
+        return this.quarantine('EVIDENCE_DUPLICATE_DIVERGENCE');
+      }
+    }
+
+    // A genuinely new evidence id must satisfy the closed stage order for its intake.
+    const orderCode = this.checkStageOrder(kind, accepted.filter((e) => e.intakeId === envelope.intakeId).map((e) => e.evidenceKind));
     if (orderCode !== null) return this.quarantine(orderCode);
 
     try {
-      // The full canonical envelope hash is bound so a duplicate must match on EVERY field, not a partial tuple.
-      const sequence = await this.store.appendAcceptedEvidence({
-        evidenceKind: kind,
-        evidenceId: envelope.evidenceId,
-        intakeId: envelope.intakeId,
-        blobSha256: ref.blobSha256,
-        sourceCommit: ref.sourceCommit,
-        repositoryId: ref.repositoryId,
-        path: ref.path,
-        envelopeHash: hashCanonical(value),
-      });
+      const sequence = await this.store.appendAcceptedEvidence(entry);
       return { outcome: 'ACCEPTED', reason: 'ok', sequence };
     } catch {
-      // A duplicate-equality violation or capacity failure is a durable contradiction — latch the profile.
+      // A capacity failure (or a race-losing divergence) is a durable contradiction — latch the profile.
       return this.quarantine('EVIDENCE_APPEND_QUARANTINED');
     }
   }

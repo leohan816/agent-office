@@ -5,6 +5,7 @@ import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inboun
 import { As1EvidenceIngress } from '../../src/application/slack-pilot/evidence-ingress.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
 import {
+  AO_ACK_BINDINGS,
   AO_EVIDENCE_PREFIX,
   evidenceRef,
   FakeClock,
@@ -22,6 +23,7 @@ const AUTHORITY = {
   intakeId: 'as1-intake-0001',
   sourceEventId: 'Ev0AGENTOFFICE01',
   pointerHash: `sha256:${'4'.repeat(64)}`,
+  acceptedAck: { ...AO_ACK_BINDINGS },
   receiveGrantSourceCommit: 'a'.repeat(40),
   pointerDeliveryGrantSourceCommit: 'b'.repeat(40),
 };
@@ -173,5 +175,41 @@ describe('AS1 evidence ingress — lineage and provenance', () => {
     await expect(store.appendAcceptedEvidence({ ...base, path: `${base.path.slice(0, -8)}other.json` })).rejects.toBeInstanceOf(DomainError);
     // The exact same envelope is idempotent (no throw, no new sequence).
     await expect(store.appendAcceptedEvidence(base)).resolves.toBeTypeOf('number');
+  });
+
+  it('re-observing the EXACT same committed ACK is idempotent ACCEPTED before stage-order (B06)', async () => {
+    const { ingress } = await makeIngress();
+    const first = await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+    expect(first.outcome).toBe('ACCEPTED');
+    // A normal polling/restart re-observation of the identical evidence is idempotent, NOT a stage-order reject.
+    const again = await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+    expect(again.outcome).toBe('ACCEPTED');
+    expect(again.sequence).toBe(first.sequence);
+  });
+
+  it('a same-evidenceId ACK whose ref diverges durably latches, not idempotent (B06)', async () => {
+    const { ingress, latch } = await makeIngress();
+    expect((await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'))).outcome).toBe('ACCEPTED');
+    const diverged = await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json', { sourceCommit: 'd'.repeat(40) }));
+    expect(diverged.outcome).toBe('QUARANTINED');
+    expect(diverged.reason).toBe('EVIDENCE_DUPLICATE_DIVERGENCE');
+    expect(latch.latched).toBe(true);
+  });
+
+  it('quarantines and latches an ACK whose §13.1 authority binding disagrees with accepted state (B06)', async () => {
+    for (const override of [
+      { receiveGrantBindingHash: `sha256:${'9'.repeat(64)}` },
+      { pointerDeliveryGrantId: 'as1-pdg-9999' },
+      { rootCorrelationHash: `sha256:${'8'.repeat(64)}` },
+      { pointerArtifactRef: 'artifacts/as1-slack-pilot/agent-office-advisor/pointers/p9/pointer.json' },
+      { transportJournalHash: `sha256:${'7'.repeat(64)}` },
+      { consumedLeaseId: 'as1-lease-9999' },
+    ]) {
+      const { ingress, latch } = await makeIngress();
+      const result = await ingress.ingest('ACK', validAdvisorAck(override), evidenceRef('ack.json'));
+      expect(result.outcome, JSON.stringify(override)).toBe('QUARANTINED');
+      expect(result.reason, JSON.stringify(override)).toContain('EVIDENCE_ACK_BINDING_');
+      expect(latch.latched, JSON.stringify(override)).toBe(true);
+    }
   });
 });
