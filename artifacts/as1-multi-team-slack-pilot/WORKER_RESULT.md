@@ -29,10 +29,13 @@ not a verdict, risk acceptance, or final approval.
   no agent, sub-agent, delegated context, or parallel context was created.
 - Controlling authority: the exact committed Advisor patch handoff V3
   `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/33_ADVISOR_IMPLEMENTATION_PATCH_HANDOFF_V3.md`
-  at governance commit `47430b9f01bd1b5d0a841a72f1f56cc9a41c5e81`, handoff SHA256
-  `6562955a8d1f1cb2da7eb527ed52bb76c3787f39a05c4d7258dc462df31933cf` (verified;
-  the earlier V3 copy had a transcription typo in the review-result SHA, corrected
-  by the Advisor before I resumed).
+  at corrected handoff commit `ef26aad4879811aecac797c28ce535cb6498d15f`, handoff
+  SHA256 `6562955a8d1f1cb2da7eb527ed52bb76c3787f39a05c4d7258dc462df31933cf`
+  (verified equal to the committed blob at `ef26aad`). Initial governance lineage:
+  the foundation-docs governance branch head `47430b9f01bd1b5d0a841a72f1f56cc9a41c5e81`
+  (an ancestor-or-equal of which the corrected handoff commit `ef26aad` is a
+  member). The earlier V3 handoff copy had a transcription typo in the review-result
+  SHA, corrected by the Advisor at `ef26aad` before I resumed.
 - Immutable re-review input:
   `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/32_IMPLEMENTATION_SECURITY_DELTA_REREVIEW_RESULT.md`
   at review result commit `3ffbb57689a8b5828eaef235cb9a1ff40dce43e5`, SHA256
@@ -68,14 +71,19 @@ each passing typecheck + changed-file eslint + focused tests before commit.
 | B06 | CLOSED (preserved) | Not reopened; real evidence Git verifier retained. |
 | B07 | CLOSED (preserved) | Not reopened; branded outbound identity retained. |
 | B08 | REPAIRED | Fixed `LIMITS.DURABLE_FILE_MAX_BYTES` enforced before allocation/read/parse on every durable index + global-control file; strict parsers enforce state/phase-to-field relational invariants and exact idempotent duplicate root correlation; impossible/oversized records fail closed and durably latch. `840c58a` |
-| B09 | REPAIRED | As-built + FEATURE_INDEX + this result + pointer regenerated from the actual final source; real class names; honest boundaries. `74ca185` + this result/pointer. |
+| B09 | REPAIRED | As-built + FEATURE_INDEX + this result + pointer regenerated from the actual final source; real class names; honest boundaries. `74ca185`, `4cf967d` + this result/pointer. |
 
 Real exported classes named in the docs: `As1RawSocketTransport`,
 `NodeAs1WebSocketFactory`, `NodeAs1ConnectionsOpener`, `NodeAs1WebClient`,
 `NodeAs1GitProvenanceVerifier`, `NodeAs1AuthorityProvenanceVerifier`. There is no
 `NodeAs1SocketClient` class (the prior evidence's claim was corrected).
 
-## 4. V3 §5 targeted gates (frozen candidate `74ca185`)
+## 4. V3 §5 targeted gates (frozen candidate `4cf967d`)
+
+The exact 21-file / 401-test rerun (and the changed-file eslint / build:core /
+diff-check) was run after the B04 structural correction `57af414`; the frozen
+candidate is `4cf967d` (source behavior fixed at `57af414`, with the docs-only
+as-built naming update `4cf967d` on top).
 
 Run exactly to the V3 §5 scope (no broad repo suite, Living Office, visual, or
 unrelated E2E):
