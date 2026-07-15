@@ -10,9 +10,10 @@ REPOSITORY: `/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_MULTI_TE
 
 This result records the V3 implementation patch that repairs the six re-opened
 blocking findings **B01, B02, B04, B05, B08** (source) and **B09** (evidence). It
-supersedes, as evidence, the prior corrected result/pointer (result `6bc5325`,
-pointer `6a2ca191`) — those commits remain in history as superseded evidence and
-are not deleted or rewritten. The committed source is an **implementation
+supersedes, as evidence, both the V2 corrected result/pointer (result `6bc5325`,
+pointer `6a2ca191`) and the earlier V3 result/pointer superseded by the B04
+structural correction (result `d4a6b86`, pointer `fab15eb`) — all remain in
+history as superseded evidence and are not deleted or rewritten. The committed source is an **implementation
 candidate**: it has **not** received an independent Reviewer PASS and must not be
 read as accepted Phase A. This is Worker evidence for that independent re-review —
 not a verdict, risk acceptance, or final approval.
@@ -47,10 +48,10 @@ not a verdict, risk acceptance, or final approval.
 - BASE (frozen parent): `81a8c3474380a7e427516d6f5e57c97ad88c6c9b`
 - V3 START tip (handoff-frozen): `6a2ca191cf3b03a53a4c612ddf7d425e87fbc543`
 - REJECTED prior patched source (re-reviewed): `0e4274f427904302d67a0de1e78cde60512b94b3`
-- FROZEN V3 SOURCE CANDIDATE (this patch): `74ca1853ae7e10867ae18ce9ef4db8a7a98a3d0b`
+- FROZEN V3 SOURCE CANDIDATE (this patch): `4cf967d54f14e9b63dc3e94efa1081c13ca38044`
 - RESULT_COMMIT / POINTER_COMMIT: recorded in `WORKER_RESULT_POINTER.txt`
-- Diff vs V3 START: **15 files changed, 1316 insertions, 91 deletions**.
-- Diff vs BASE: 44 files changed, 15115 insertions, 33 deletions.
+- Diff vs V3 START: **17 files changed, 1627 insertions, 397 deletions**.
+- Diff vs BASE: 44 files changed, 15120 insertions, 33 deletions.
 
 ## 3. Per-finding disposition and repair commits
 
@@ -62,7 +63,7 @@ each passing typecheck + changed-file eslint + focused tests before commit.
 | B01 | REPAIRED | Production `as1WsClientOptions` literal now uses `as const satisfies As1WsClientOptions` (inferred narrow return); the compile/static probe asserts the ACTUAL production seam, not a detached duplicate. `95c991b` |
 | B02 | REPAIRED | Every ACKable rejection with a usable event identity is driven through the durable transport state machine to a once-only `TERMINAL_NO_INTAKE` (new `openRejectedTransport` opens directly at committed `PREACK_REJECTED`, so crash-recovery never re-derives a bind). Identity contradictions keep their separate unACKed latch policy. `b7bcb98` |
 | B03 | CLOSED (preserved) | Not reopened; fixed-kind continuations retained. |
-| B04 | REPAIRED | Real read-only `git` provenance verifier `NodeAs1AuthorityProvenanceVerifier` (new `authority-provenance.ts`, reusing the bounded closed-argv runner) + MANDATORY `GitAs1ReceiveGrantProvenanceGate` (startup, before connection) and `GitAs1DeliveryProvenanceGate` (transport); construction-bound repo/upstream/snapshots/clock; the unconditional acceptance seam is unrepresentable in a production path. `6f14457` |
+| B04 | REPAIRED | Real read-only `git` provenance verifier `NodeAs1AuthorityProvenanceVerifier` (new `authority-provenance.ts`, reusing the bounded closed-argv runner) + MANDATORY `GitAs1ReceiveGrantProvenanceGate` (startup, before connection) and `GitAs1DeliveryProvenanceGate` (transport). Structural correction: the free `verifyStartupIdentity(input)` (which still took the trusted clock, provenance gate, control snapshot, and connect-ready predicate PER CALL) was replaced by a construction-bound `As1StartupIdentityVerifier` class whose `verify(connection)` takes only per-connection data — so a per-connection caller cannot substitute an accepting gate, a stale time, or a permissive control. `6f14457`, `57af414` |
 | B05 | REPAIRED | tmux transport bound to a MANDATORY owning-control port rechecked before every side effect + adjacent transition; raw Socket bound to a MANDATORY owning-control DEQUEUE gate (before `queue.shift`) and a MANDATORY durable profile latch on every fail-closed transition, awaited before shutdown, never downgraded to CLOSED; durable-latch failure stays visibly fail-closed. `231d598`, `a4a82b5` |
 | B06 | CLOSED (preserved) | Not reopened; real evidence Git verifier retained. |
 | B07 | CLOSED (preserved) | Not reopened; branded outbound identity retained. |
@@ -152,6 +153,17 @@ not exist on `0e4274f`, so they cannot compile/pass there.
   fail closed promptly on a handler failure during the drain (no shutdown-timeout
   wait). B05 landed as `231d598` + follow-up `a4a82b5`.
 
+- **B04 structural correction (Advisor final pre-freeze finding).** Direct
+  inspection against the original Reviewer finding showed the free
+  `verifyStartupIdentity(input)` still accepted the trusted clock, provenance gate,
+  control snapshot, and connect-ready predicate PER CALL — the caller-selectable
+  trust seam B04 was required to eliminate. Refactored to a construction-bound
+  `As1StartupIdentityVerifier` class (`verify(connection)` takes only per-connection
+  data; the free permissive function is removed); the startup tests bind the
+  rejecting gate / stale clock / not-ready control at construction and prove they
+  gate the start. This superseded the earlier V3 result/pointer (`d4a6b86`/
+  `fab15eb`). `57af414`.
+
 No test expectation was weakened without a source/behavioral basis; no case was
 deleted or skipped.
 
@@ -177,10 +189,11 @@ deleted or skipped.
 1. Independent implementation re-review is PENDING; this source is a candidate.
 2. Live composition binding a live receive/delivery loop is intentionally absent
    (the separate Advisor-authorized live-activation gate remains mandatory).
-3. The `verifyStartupIdentity` `now`/`controlSnapshot`/`connectReady` inputs remain
-   typed parameters bound by composition when live; in Phase A there is no live
-   composition. The mandatory receive-grant provenance gate makes a provenance-free
-   start unrepresentable.
+3. The startup trust seams (trusted clock, real receive-grant provenance gate,
+   owning-control snapshot, connect-ready predicate) are bound at construction of
+   `As1StartupIdentityVerifier`; `verify(connection)` accepts only per-connection
+   data and cannot accept or override them, so a caller-selectable trust seam is
+   unrepresentable. In Phase A no live composition binds a live connection.
 4. No production tmux mutation port; owner setup incomplete; owner-only live IDs/
    tokens unset (only Leo's approved user ID is populated in the committed example).
 
