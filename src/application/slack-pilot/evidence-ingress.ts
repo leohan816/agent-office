@@ -12,7 +12,8 @@
 // foundation-advisor join key is invalid for Foundation output.
 import { DomainError } from '../../contracts/types.js';
 import { assertExactKeys, assertRecord, requireEnum } from '../../contracts/validation.js';
-import { requireOpaqueId } from './contracts.js';
+import { hashCanonical } from '../../persistence/file-store/hashing.js';
+import { requireArtifactRef, requireOpaqueId, requireSha256, requireUtc } from './contracts.js';
 import { FOUNDATION_FORBIDDEN_ROLE_INSTANCE_ID, type As1Profile } from './profiles.js';
 import type { As1ProfileInboundStore } from './inbound-store.js';
 
@@ -47,13 +48,19 @@ export interface As1GitProvenanceVerifier {
 /** The immutable authority chain the evidence must bind to — taken from the accepted pointer-delivery grant. */
 export interface As1EvidenceAuthority {
   readonly authorityRepositoryId: string;
-  readonly authoritySourceCommit: string;
+  /** The exact accepted intake / source event / pointer hash the evidence must bind to (from the store state). */
+  readonly intakeId: string;
+  readonly sourceEventId: string;
+  readonly pointerHash: string;
+  /** The two grant source commits the evidence commit MUST descend from (bound into the verifier snapshots). */
+  readonly receiveGrantSourceCommit: string;
+  readonly pointerDeliveryGrantSourceCommit: string;
 }
 
 /** Persist the durable profile latch (a stable bounded reason code). Backed by the canonical control record. */
 export type As1EvidenceLatch = (reasonCode: string) => Promise<void>;
 
-export interface As1EvidenceEnvelope {
+interface As1EvidenceCommon {
   readonly schemaVersion: string;
   readonly evidenceId: string;
   readonly intakeId: string;
@@ -61,6 +68,13 @@ export interface As1EvidenceEnvelope {
   readonly actorId: string;
   readonly roleInstanceId: string;
 }
+
+/** The full per-kind evidence envelope — every reviewed field is retained and validated (review B06). */
+export type As1EvidenceEnvelope =
+  | (As1EvidenceCommon & { readonly kind: 'ACK'; readonly sourceEventId: string; readonly pointerHash: string; readonly advisorAckId: string; readonly acknowledgedAt: string })
+  | (As1EvidenceCommon & { readonly kind: 'INTAKE'; readonly advisorAckId: string; readonly classification: string; readonly recordedAt: string })
+  | (As1EvidenceCommon & { readonly kind: 'QUESTION'; readonly questionId: string; readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE'; readonly recordedAt: string })
+  | (As1EvidenceCommon & { readonly kind: 'RESULT'; readonly resultId: string; readonly terminalStatus: string; readonly resultArtifactRef: string; readonly recordedAt: string });
 
 const ACK_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'sourceEventId', 'pointerHash', 'advisorAckId', 'acknowledgedAt'] as const;
 const INTAKE_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'advisorAckId', 'classification', 'recordedAt'] as const;
@@ -89,9 +103,9 @@ export const INTAKE_CLASSIFICATIONS = [
 ] as const;
 
 /**
- * Validate an evidence record against its exact schema and the selected profile's immutable lineage. The
- * profileId, advisorTeam, actorId, and roleInstanceId must all equal the closed profile; Foundation may
- * never carry the historical foundation-advisor join key.
+ * Validate an evidence record against its EXACT full schema, the selected profile's immutable lineage, and
+ * every reviewed per-kind field (review B06). The profileId, advisorTeam, actorId, and roleInstanceId must
+ * equal the closed profile; Foundation may never carry the historical foundation-advisor join key.
  */
 export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, profile: As1Profile): As1EvidenceEnvelope {
   assertRecord(value, `as1 advisor ${kind} evidence`);
@@ -111,10 +125,7 @@ export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, pro
   if (profile.profileId === 'FOUNDATION_ADVISOR' && roleInstanceId === FOUNDATION_FORBIDDEN_ROLE_INSTANCE_ID) {
     throw new DomainError('UNAUTHORIZED_ACTOR', 'foundation evidence must not use the historical join key');
   }
-  if (kind === 'INTAKE') {
-    requireEnum(value.classification, INTAKE_CLASSIFICATIONS, 'INTAKE.classification');
-  }
-  return {
+  const common: As1EvidenceCommon = {
     schemaVersion: SCHEMA_VERSIONS[kind],
     evidenceId: requireOpaqueId(value.evidenceId, `${kind}.evidenceId`),
     intakeId: requireOpaqueId(value.intakeId, `${kind}.intakeId`),
@@ -122,12 +133,53 @@ export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, pro
     actorId,
     roleInstanceId,
   };
+  switch (kind) {
+    case 'ACK':
+      return {
+        ...common,
+        kind: 'ACK',
+        sourceEventId: requireOpaqueId(value.sourceEventId, 'ACK.sourceEventId'),
+        pointerHash: requireSha256(value.pointerHash, 'ACK.pointerHash'),
+        advisorAckId: requireOpaqueId(value.advisorAckId, 'ACK.advisorAckId'),
+        acknowledgedAt: requireUtc(value.acknowledgedAt, 'ACK.acknowledgedAt'),
+      };
+    case 'INTAKE':
+      return {
+        ...common,
+        kind: 'INTAKE',
+        advisorAckId: requireOpaqueId(value.advisorAckId, 'INTAKE.advisorAckId'),
+        classification: requireEnum(value.classification, INTAKE_CLASSIFICATIONS, 'INTAKE.classification'),
+        recordedAt: requireUtc(value.recordedAt, 'INTAKE.recordedAt'),
+      };
+    case 'QUESTION':
+      return {
+        ...common,
+        kind: 'QUESTION',
+        questionId: requireOpaqueId(value.questionId, 'QUESTION.questionId'),
+        expectedResponseKind: requireEnum(value.expectedResponseKind, ['CLARIFICATION', 'DECISION_RESPONSE'] as const, 'QUESTION.expectedResponseKind'),
+        recordedAt: requireUtc(value.recordedAt, 'QUESTION.recordedAt'),
+      };
+    case 'RESULT':
+      return {
+        ...common,
+        kind: 'RESULT',
+        resultId: requireOpaqueId(value.resultId, 'RESULT.resultId'),
+        terminalStatus: requireOpaqueId(value.terminalStatus, 'RESULT.terminalStatus'),
+        resultArtifactRef: requireArtifactRef(value.resultArtifactRef, 'RESULT.resultArtifactRef'),
+        recordedAt: requireUtc(value.recordedAt, 'RESULT.recordedAt'),
+      };
+    default: {
+      const exhaustive: never = kind;
+      throw new DomainError('INVALID_SCHEMA', `unknown evidence kind ${String(exhaustive)}`);
+    }
+  }
 }
 
 export type EvidenceIngestOutcome = 'ACCEPTED' | 'QUARANTINED';
 
 export interface EvidenceIngestResult {
   readonly outcome: EvidenceIngestOutcome;
+  /** A stable bounded reason CODE on quarantine — never raw detail (review B06). `ok` on acceptance. */
   readonly reason: string;
   readonly sequence: number | null;
 }
@@ -147,44 +199,58 @@ export class As1EvidenceIngress {
     let envelope: As1EvidenceEnvelope;
     try {
       envelope = parseEvidenceEnvelope(kind, value, this.profile);
-    } catch (error) {
-      return this.quarantine('EVIDENCE_SCHEMA_REJECTED', error instanceof DomainError ? error.message : 'schema rejected');
+    } catch {
+      return this.quarantine('EVIDENCE_SCHEMA_REJECTED');
     }
 
-    // The evidence repository/path must bind to the grant-fixed authority chain; Slack cannot supply either.
+    // Bind the evidence ENVELOPE FACTS to the immutable accepted store state (via the grant-derived authority),
+    // so a permissive/fake provenance boolean can NEVER approve an unrelated ref (review B06).
+    if (envelope.intakeId !== this.authority.intakeId) {
+      return this.quarantine('EVIDENCE_WRONG_INTAKE');
+    }
+    if (envelope.kind === 'ACK') {
+      if (envelope.sourceEventId !== this.authority.sourceEventId) return this.quarantine('EVIDENCE_WRONG_SOURCE_EVENT');
+      if (envelope.pointerHash !== this.authority.pointerHash) return this.quarantine('EVIDENCE_WRONG_POINTER');
+    }
+
+    // The evidence repository/path bind to the grant-fixed authority chain; Slack cannot supply either.
     if (ref.repositoryId !== this.authority.authorityRepositoryId) {
-      return this.quarantine('EVIDENCE_WRONG_REPOSITORY', 'evidence repository does not match the delivery-grant authority');
+      return this.quarantine('EVIDENCE_WRONG_REPOSITORY');
     }
     const expectedPrefix = `${this.evidencePrefix}/${envelope.intakeId}/`;
     if (!ref.path.startsWith(expectedPrefix) || ref.path.includes('..')) {
-      return this.quarantine('EVIDENCE_WRONG_PREFIX', 'evidence path is outside the grant-fixed profile prefix');
+      return this.quarantine('EVIDENCE_WRONG_PREFIX');
     }
 
     // Real read-only Git/content provenance: every gate must hold, including a byte-for-byte blob content
-    // match and descent from BOTH frozen authority snapshots (review B06).
+    // match and descent from BOTH grant source commits (bound into the verifier snapshots) (review B06).
     const provenance = await this.verifier.verify(ref);
-    if (!provenance.upstreamAncestral) return this.quarantine('EVIDENCE_NOT_ANCESTRAL', 'evidence is not upstream-ancestral');
-    if (!provenance.firstAddition) return this.quarantine('EVIDENCE_NOT_FIRST_ADDITION', 'evidence path is not a single first addition');
-    if (provenance.dirty) return this.quarantine('EVIDENCE_DIRTY_TREE', 'evidence tree is dirty for this path');
-    if (!provenance.contentVerified) return this.quarantine('EVIDENCE_CONTENT_MISMATCH', 'committed blob bytes do not match the claimed hash');
-    if (!provenance.descendsFromBothSnapshots) return this.quarantine('EVIDENCE_SNAPSHOT_DESCENT', 'evidence commit does not descend from both frozen snapshots');
+    if (!provenance.upstreamAncestral) return this.quarantine('EVIDENCE_NOT_ANCESTRAL');
+    if (!provenance.firstAddition) return this.quarantine('EVIDENCE_NOT_FIRST_ADDITION');
+    if (provenance.dirty) return this.quarantine('EVIDENCE_DIRTY_TREE');
+    if (!provenance.contentVerified) return this.quarantine('EVIDENCE_CONTENT_MISMATCH');
+    if (!provenance.descendsFromBothSnapshots) return this.quarantine('EVIDENCE_SNAPSHOT_DESCENT');
 
     const priorForIntake = (await this.store.readAcceptedEvidence()).filter((e) => e.intakeId === envelope.intakeId);
-    const orderError = this.checkStageOrder(kind, priorForIntake.map((e) => e.evidenceKind));
-    if (orderError !== null) return this.quarantine('EVIDENCE_STAGE_ORDER', orderError);
+    const orderCode = this.checkStageOrder(kind, priorForIntake.map((e) => e.evidenceKind));
+    if (orderCode !== null) return this.quarantine(orderCode);
 
     try {
+      // The full canonical envelope hash is bound so a duplicate must match on EVERY field, not a partial tuple.
       const sequence = await this.store.appendAcceptedEvidence({
         evidenceKind: kind,
         evidenceId: envelope.evidenceId,
         intakeId: envelope.intakeId,
         blobSha256: ref.blobSha256,
         sourceCommit: ref.sourceCommit,
+        repositoryId: ref.repositoryId,
+        path: ref.path,
+        envelopeHash: hashCanonical(value),
       });
       return { outcome: 'ACCEPTED', reason: 'ok', sequence };
-    } catch (error) {
+    } catch {
       // A duplicate-equality violation or capacity failure is a durable contradiction — latch the profile.
-      return this.quarantine('EVIDENCE_APPEND_QUARANTINED', error instanceof DomainError ? error.message : 'append failed');
+      return this.quarantine('EVIDENCE_APPEND_QUARANTINED');
     }
   }
 
@@ -192,17 +258,17 @@ export class As1EvidenceIngress {
     const hasAck = priorKinds.includes('ACK');
     const hasIntake = priorKinds.includes('INTAKE');
     const hasResult = priorKinds.includes('RESULT');
-    if (hasResult) return 'evidence arrived after the final RESULT';
+    if (hasResult) return 'EVIDENCE_ORDER_AFTER_RESULT';
     switch (kind) {
       case 'ACK':
-        return priorKinds.length === 0 ? null : 'ACK must be the first evidence for an intake';
+        return priorKinds.length === 0 ? null : 'EVIDENCE_ORDER_ACK_NOT_FIRST';
       case 'INTAKE':
-        if (!hasAck) return 'INTAKE requires a prior accepted ACK';
-        return hasIntake ? 'INTAKE already accepted' : null;
+        if (!hasAck) return 'EVIDENCE_ORDER_INTAKE_NEEDS_ACK';
+        return hasIntake ? 'EVIDENCE_ORDER_INTAKE_DUPLICATE' : null;
       case 'QUESTION':
-        return hasIntake ? null : 'QUESTION requires a prior accepted INTAKE';
+        return hasIntake ? null : 'EVIDENCE_ORDER_QUESTION_NEEDS_INTAKE';
       case 'RESULT':
-        return hasIntake ? null : 'RESULT requires a prior accepted INTAKE';
+        return hasIntake ? null : 'EVIDENCE_ORDER_RESULT_NEEDS_INTAKE';
       default: {
         const exhaustive: never = kind;
         return `unknown evidence kind ${String(exhaustive)}`;
@@ -214,8 +280,8 @@ export class As1EvidenceIngress {
    * Every provenance/order/append contradiction quarantines AND durably latches the profile with a stable
    * bounded reason CODE (never a raw message), so a rewrite/deletion/wrong-ancestry defect is never forgotten.
    */
-  private async quarantine(reasonCode: string, detail: string): Promise<EvidenceIngestResult> {
+  private async quarantine(reasonCode: string): Promise<EvidenceIngestResult> {
     await this.latch(reasonCode);
-    return { outcome: 'QUARANTINED', reason: detail, sequence: null };
+    return { outcome: 'QUARANTINED', reason: reasonCode, sequence: null };
   }
 }

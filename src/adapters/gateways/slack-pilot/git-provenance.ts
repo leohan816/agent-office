@@ -27,12 +27,15 @@ export interface As1GitRunResult {
 /** Run one bounded, read-only git command in the trusted repo. Injectable so tests can drive it deterministically. */
 export type As1GitRunner = (repoRoot: string, args: readonly string[]) => Promise<As1GitRunResult>;
 
-/** The real git runner: closed argv, shell:false (execFile), fixed minimal env, bounded output + timeout. */
+/** The fixed, trusted git binary. Never resolved from PATH lookups or caller input. */
+const GIT_BINARY = '/usr/bin/git';
+
+/** The real git runner: fixed binary, closed argv, shell:false (execFile), fixed minimal env, bounded output. */
 export function nodeGitRunner(maxBytes = 65_536, timeoutMs = 5_000): As1GitRunner {
   return (repoRoot: string, args: readonly string[]): Promise<As1GitRunResult> =>
     new Promise<As1GitRunResult>((resolve, reject) => {
       execFile(
-        'git',
+        GIT_BINARY,
         ['-C', repoRoot, ...args],
         {
           env: {
@@ -103,8 +106,8 @@ export class NodeAs1GitProvenanceVerifier implements As1GitProvenanceVerifier {
       const blob = await this.run(this.repoRoot, ['cat-file', 'blob', `${ref.sourceCommit}:${ref.path}`]);
       const contentVerified = blob.code === 0 && sha256Bytes(blob.stdout) === ref.blobSha256;
 
-      // Exactly one commit ever ADDED this path (a single first-addition history).
-      const addLog = await this.run(this.repoRoot, ['log', '--diff-filter=A', '--format=%H', '--', ref.path]);
+      // Exactly one commit ADDED this path in the ancestry of the EXACT source commit (not current HEAD).
+      const addLog = await this.run(this.repoRoot, ['log', '--diff-filter=A', '--format=%H', ref.sourceCommit, '--', ref.path]);
       const firstAddition = addLog.code === 0 && nonEmptyLines(addLog.stdout).length === 1;
 
       // The source commit is an ancestor of the upstream tip (committed AND pushed).

@@ -910,6 +910,9 @@ export class As1ProfileInboundStore {
     readonly intakeId: string;
     readonly blobSha256: string;
     readonly sourceCommit: string;
+    readonly repositoryId: string;
+    readonly path: string;
+    readonly envelopeHash: string;
   }): Promise<number> {
     return this.mutex.run(async () => {
       const records = await this.readJsonArray<{
@@ -918,18 +921,25 @@ export class As1ProfileInboundStore {
         intakeId: string;
         blobSha256: string;
         sourceCommit: string;
+        repositoryId: string;
+        path: string;
+        envelopeHash: string;
       }>(this.indexPath('evidence-ingress-checkpoint.json'));
       const existing = records.find((r) => r.evidenceId === entry.evidenceId);
       if (existing !== undefined) {
-        // Exact duplicate equality: the re-accepted evidence must match on kind/intake/commit AND bytes, not
-        // only the blob hash (review B06). Any divergence is a durable contradiction.
+        // Exact duplicate equality: the re-accepted evidence must match on the FULL canonical envelope hash
+        // AND repository/path/commit/blob/kind/intake — not a partial tuple (review B06). Any divergence
+        // (including a missing legacy field) is a durable contradiction.
         if (
+          existing.envelopeHash !== entry.envelopeHash ||
           existing.evidenceKind !== entry.evidenceKind ||
           existing.intakeId !== entry.intakeId ||
           existing.sourceCommit !== entry.sourceCommit ||
+          existing.repositoryId !== entry.repositoryId ||
+          existing.path !== entry.path ||
           existing.blobSha256 !== entry.blobSha256
         ) {
-          throw new DomainError('STORE_QUARANTINED', 'evidence id re-accepted with different kind/intake/commit/bytes');
+          throw new DomainError('STORE_QUARANTINED', 'evidence id re-accepted with different envelope/repository/path/commit/kind/intake/bytes');
         }
         return records.length;
       }

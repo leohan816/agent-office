@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { DomainError } from '../../src/contracts/types.js';
 import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1EvidenceIngress } from '../../src/application/slack-pilot/evidence-ingress.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
@@ -16,7 +17,14 @@ import {
 } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
-const AUTHORITY = { authorityRepositoryId: 'agent-office', authoritySourceCommit: 'c'.repeat(40) };
+const AUTHORITY = {
+  authorityRepositoryId: 'agent-office',
+  intakeId: 'as1-intake-0001',
+  sourceEventId: 'Ev0AGENTOFFICE01',
+  pointerHash: `sha256:${'4'.repeat(64)}`,
+  receiveGrantSourceCommit: 'a'.repeat(40),
+  pointerDeliveryGrantSourceCommit: 'b'.repeat(40),
+};
 
 async function makeIngress() {
   const root = await makeStateRoot();
@@ -81,7 +89,7 @@ describe('AS1 evidence ingress — lineage and provenance', () => {
       store,
       new FakeGitVerifier(),
       'advisor/jobs/20260714_as1/runtime-evidence/foundation-advisor',
-      { authorityRepositoryId: 'agent-office', authoritySourceCommit: 'c'.repeat(40) },
+      { ...AUTHORITY },
       new FakeEvidenceLatch().latch,
     );
     const foundationAck = validAdvisorAck({
@@ -119,7 +127,7 @@ describe('AS1 evidence ingress — lineage and provenance', () => {
     const { ingress, latch } = await makeIngress();
     const result = await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json', { repositoryId: 'some-other-repo' }));
     expect(result.outcome).toBe('QUARANTINED');
-    expect(result.reason).toContain('repository');
+    expect(result.reason).toBe('EVIDENCE_WRONG_REPOSITORY');
     expect(latch.latched).toBe(true);
   });
 
@@ -127,7 +135,43 @@ describe('AS1 evidence ingress — lineage and provenance', () => {
     const { ingress, latch } = await makeIngress();
     const result = await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json', { path: 'advisor/jobs/other/ack.json' }));
     expect(result.outcome).toBe('QUARANTINED');
-    expect(result.reason).toContain('prefix');
+    expect(result.reason).toBe('EVIDENCE_WRONG_PREFIX');
     expect(latch.latched).toBe(true);
+  });
+
+  it('a permissive (all-true) verifier can NOT approve an unrelated ref: envelope facts must bind the authority (B06)', async () => {
+    // The verifier accepts everything; the ingress must still reject on the envelope↔authority correlations.
+    for (const [override, code] of [
+      [{ intakeId: 'as1-intake-9999' }, 'EVIDENCE_WRONG_INTAKE'],
+      [{ sourceEventId: 'Ev0OTHER00001' }, 'EVIDENCE_WRONG_SOURCE_EVENT'],
+      [{ pointerHash: `sha256:${'9'.repeat(64)}` }, 'EVIDENCE_WRONG_POINTER'],
+    ] as const) {
+      const { ingress, latch } = await makeIngress();
+      const result = await ingress.ingest('ACK', validAdvisorAck(override), evidenceRef('ack.json'));
+      expect(result.outcome, code).toBe('QUARANTINED');
+      expect(result.reason, code).toBe(code);
+      expect(latch.latched, code).toBe(true);
+    }
+  });
+
+  it('the checkpoint enforces FULL duplicate equality: envelope hash + repository/path/commit/blob (B06)', async () => {
+    const { store } = await makeIngress();
+    const base = {
+      evidenceKind: 'ACK',
+      evidenceId: 'ev-ack-0001',
+      intakeId: 'as1-intake-0001',
+      blobSha256: `sha256:${'5'.repeat(64)}`,
+      sourceCommit: 'c'.repeat(40),
+      repositoryId: 'agent-office',
+      path: 'advisor/jobs/20260714_as1/runtime-evidence/agent-office-advisor/as1-intake-0001/ack.json',
+      envelopeHash: `sha256:${'e'.repeat(64)}`,
+    };
+    await store.appendAcceptedEvidence(base);
+    // A re-accepted id must match on EVERY field, not a partial tuple; any divergence quarantines.
+    await expect(store.appendAcceptedEvidence({ ...base, sourceCommit: 'd'.repeat(40) })).rejects.toBeInstanceOf(DomainError);
+    await expect(store.appendAcceptedEvidence({ ...base, envelopeHash: `sha256:${'f'.repeat(64)}` })).rejects.toBeInstanceOf(DomainError);
+    await expect(store.appendAcceptedEvidence({ ...base, path: `${base.path.slice(0, -8)}other.json` })).rejects.toBeInstanceOf(DomainError);
+    // The exact same envelope is idempotent (no throw, no new sequence).
+    await expect(store.appendAcceptedEvidence(base)).resolves.toBeTypeOf('number');
   });
 });
