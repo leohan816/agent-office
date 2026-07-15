@@ -531,6 +531,47 @@ export function parsePointerDeliveryGrant(value: unknown): As1PointerDeliveryGra
   };
 }
 
+const AS1_PROFILE_STATE_SLUG = /^(?:agent-office-advisor|foundation-advisor)$/u;
+const AS1_CONTAINED_DELIVERY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+
+/** The contained delivery identity a pointer-delivery grant's `pointerArtifactRef` encodes (design §12.6). */
+export interface As1ContainedPointerRef {
+  readonly profileStateSlug: string;
+  readonly deliveryId: string;
+  readonly pointerFilePath: string;
+}
+
+/**
+ * Parse a pointer-delivery grant's own `pointerArtifactRef` into its contained profile slug + delivery id via
+ * the exact closed internal layout `artifacts/as1-slack-pilot/<slug>/pointers/<deliveryId>/<file>.json`
+ * (design §12.6). This is the SINGLE source of that parsing — reused by both the exact tmux transport and the
+ * evidence-authority derivation so the two can never diverge. Pure; never a caller/Slack value.
+ */
+export function parseContainedPointerRef(grant: As1PointerDeliveryGrantV1): As1ContainedPointerRef {
+  const profileStateSlug = selectProfile(grant.profileId).profileStateSlug;
+  if (!AS1_PROFILE_STATE_SLUG.test(profileStateSlug)) {
+    throw new DomainError('INVALID_SCHEMA', 'delivery profile slug is not one of the two closed profiles');
+  }
+  const ref = grant.pointerArtifactRef;
+  if (ref.includes('..') || ref.includes('//') || ref.includes('\\')) {
+    throw new DomainError('FORBIDDEN_TARGET', 'pointer artifact ref is not a contained path');
+  }
+  const [seg0, seg1, seg2, seg3, deliveryId, filename, ...rest] = ref.split('/');
+  if (
+    rest.length > 0 ||
+    seg0 !== 'artifacts' ||
+    seg1 !== 'as1-slack-pilot' ||
+    seg2 !== profileStateSlug ||
+    seg3 !== 'pointers' ||
+    deliveryId === undefined ||
+    !AS1_CONTAINED_DELIVERY_ID.test(deliveryId) ||
+    filename?.endsWith('.json') !== true
+  ) {
+    throw new DomainError('FORBIDDEN_TARGET', 'pointer artifact ref is not the internal delivery layout for this profile');
+  }
+  return { profileStateSlug, deliveryId, pointerFilePath: ref };
+}
+
 // ── Pre-Mission intake and Advisor pointer (design §11, §12.6) ────────────────
 export interface As1NewMissionIntakeV1 {
   readonly schemaVersion: 'agent-office.as1-new-mission-intake.v1';

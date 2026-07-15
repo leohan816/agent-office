@@ -14,6 +14,7 @@ import { DomainError, type SourceArtifactRef } from '../../contracts/types.js';
 import { assertExactKeys, assertRecord, requireEnum, requireInteger } from '../../contracts/validation.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import {
+  parseContainedPointerRef,
   requireArtifactRef,
   requireBoundedMessageText,
   requireGitCommit,
@@ -475,10 +476,11 @@ export interface As1AcceptedAuthorityRecords {
   readonly pointerDeliveryGrant: As1PointerDeliveryGrantV1;
   readonly terminalDelivery: As1TmuxDeliveryRecordV1;
   readonly rootCorrelation: As1RootCorrelationV1;
-  /** The durable transport-journal artifact locator; its integrity HASH is recomputed here, never trusted. */
-  readonly transportJournalRef: string;
   readonly consumption: As1DeliveryAuthorityConsumptionV1;
 }
+
+/** The three closed BOUND receive-grant phases — a `*_UNBOUND`/`LATCHED` state is never an accepted binding. */
+const AS1_BOUND_RECEIVE_PHASES: ReadonlySet<string> = new Set(['ROOT_BOUND', 'EXPIRED_BOUND', 'RETIRED_BOUND']);
 
 /**
  * The concrete PRODUCTION derivation of the immutable evidence authority (including the §13.1 `acceptedAck`
@@ -518,7 +520,41 @@ export function buildEvidenceAuthority(records: As1AcceptedAuthorityRecords): As
   requireEqual(st.stateHash, pdg.receiveGrantBindingHash, 'state/pdg receiveGrantBindingHash');
   requireEqual(facts.receiveGrantBindingHash, pdg.receiveGrantBindingHash, 'facts/pdg receiveGrantBindingHash');
   requireEqual(root.bindingStateHash, pdg.receiveGrantBindingHash, 'root/pdg bindingStateHash');
-  if (st.boundSourceEventId !== null) requireEqual(st.boundSourceEventId, root.sourceEventId, 'state/root boundSourceEventId');
+
+  // 3b. The receive-grant state must be the ACTUAL accepted BOUND state, not merely a matching stateHash: same
+  //     profile, root slot consumed, a bound (never *_UNBOUND / LATCHED) phase, and every bound-lineage field
+  //     present and equal to the root correlation. boundAt must be a canonical UTC strictly before grant expiry.
+  requireEqual(st.profileId, rg.profileId, 'state/grant profileId');
+  if (!st.rootSlotConsumed) {
+    throw new DomainError('STORE_QUARANTINED', 'evidence authority derivation: receive-grant state root slot is not consumed');
+  }
+  if (!AS1_BOUND_RECEIVE_PHASES.has(st.phase)) {
+    throw new DomainError('STORE_QUARANTINED', 'evidence authority derivation: receive-grant state is not in a bound phase');
+  }
+  const requireBound = (value: string | null, field: string): string => {
+    if (value === null) {
+      throw new DomainError('STORE_QUARANTINED', `evidence authority derivation: receive-grant state ${field} is not bound`);
+    }
+    return value;
+  };
+  const boundSourceEventId = requireBound(st.boundSourceEventId, 'boundSourceEventId');
+  const boundRootTs = requireBound(st.boundRootTs, 'boundRootTs');
+  const boundRootKeyHash = requireBound(st.boundRootKeyHash, 'boundRootKeyHash');
+  const boundAt = requireBound(st.boundAt, 'boundAt');
+  requireBound(st.boundReceiptArtifactRef, 'boundReceiptArtifactRef');
+  requireBound(st.boundReceiptArtifactHash, 'boundReceiptArtifactHash');
+  requireBound(st.boundMessageArtifactHash, 'boundMessageArtifactHash');
+  requireEqual(boundSourceEventId, root.sourceEventId, 'state/root boundSourceEventId');
+  requireEqual(boundRootTs, root.rootTs, 'state/root boundRootTs');
+  requireEqual(boundRootKeyHash, root.rootKeyHash, 'state/root boundRootKeyHash');
+  try {
+    requireUtc(boundAt, 'receive-grant state boundAt');
+  } catch {
+    throw new DomainError('STORE_QUARANTINED', 'evidence authority derivation: receive-grant state boundAt is not a canonical UTC timestamp');
+  }
+  if (!(Date.parse(boundAt) < Date.parse(rg.expiresAt))) {
+    throw new DomainError('STORE_QUARANTINED', 'evidence authority derivation: receive-grant state boundAt is not before the grant expiry');
+  }
 
   // 4. Intake and source event agree across root correlation, pointer-delivery grant, and delivery facts.
   requireEqual(root.intakeId, pdg.intakeId, 'root/pdg intakeId');
@@ -556,8 +592,18 @@ export function buildEvidenceAuthority(records: As1AcceptedAuthorityRecords): As
   requireEqual(cons.pointerDeliveryGrantId, facts.pointerDeliveryGrantId, 'consumption/facts pointerDeliveryGrantId');
   requireEqual(cons.leaseId, facts.leaseId, 'consumption/facts leaseId');
 
-  // 8. Both grants agree on the authority repository; the two frozen source commits come from the typed grants.
+  // 8. Both grants agree on the authority repository AND the authority root; the two frozen source commits come
+  //    from the typed grants.
   requireEqual(rg.authorityRepositoryId, pdg.authorityRepositoryId, 'grant/pdg authorityRepositoryId');
+  requireEqual(rg.authorityRootId, pdg.authorityRootId, 'grant/pdg authorityRootId');
+
+  // 9. The terminal delivery journal's deliveryId MUST equal the deliveryId the pointer-delivery grant's own
+  //    pointerArtifactRef encodes, parsed by the SINGLE shared contained-pointer parser (the same one the exact
+  //    tmux transport uses). The transport-journal REF is then DERIVED from the profile-local store layout — never
+  //    a free caller string — and the HASH is recomputed from the canonical terminal-delivery record bytes.
+  const pointer = parseContainedPointerRef(pdg);
+  requireEqual(td.deliveryId, pointer.deliveryId, 'terminalDelivery/pdg deliveryId');
+  const transportJournalRef = `indexes/as1-slack-pilot/profiles/${pointer.profileStateSlug}/tmux-delivery.json`;
 
   const acceptedAck: As1AckBindings = {
     receiveGrantId: rg.receiveGrantId,
@@ -566,7 +612,7 @@ export function buildEvidenceAuthority(records: As1AcceptedAuthorityRecords): As
     pointerDeliveryGrantId: pdg.pointerDeliveryGrantId,
     rootCorrelationHash,
     pointerArtifactRef: pdg.pointerArtifactRef,
-    transportJournalRef: records.transportJournalRef,
+    transportJournalRef,
     // Recompute the journal hash from the canonical terminal-delivery record bytes — never a free hash input.
     transportJournalHash: hashCanonical(td),
     consumedDeliveryGrantId: cons.pointerDeliveryGrantId,

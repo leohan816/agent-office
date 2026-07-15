@@ -13,10 +13,9 @@
 // paste. Any interrupted nonterminal journal becomes MANUAL_RECONCILIATION_REQUIRED and is never resumed.
 import { DomainError } from '../../../contracts/types.js';
 import { hashCanonical } from '../../../persistence/file-store/hashing.js';
-import { redactError } from '../../../application/slack-pilot/contracts.js';
+import { parseContainedPointerRef, redactError } from '../../../application/slack-pilot/contracts.js';
 import type { As1PointerDeliveryGrantV1 } from '../../../application/slack-pilot/contracts.js';
 import type { As1TmuxDeliveryFacts } from '../../../application/slack-pilot/inbound-store.js';
-import { selectProfile } from '../../../application/slack-pilot/profiles.js';
 import {
   assertCapabilityUsable,
   assertDeliveryChainConsistent,
@@ -41,9 +40,6 @@ export type As1TmuxJournalPhase = (typeof AS1_TMUX_JOURNAL_PHASES)[number];
 // Every nonterminal phase is interrupted-unsafe: on re-entry it becomes MANUAL_RECONCILIATION_REQUIRED and is
 // never silently resumed or retried (design §12.7). Only a fresh (null) or terminal journal proceeds/returns.
 const INTERRUPTED_NONTERMINAL_PHASES: readonly string[] = ['PREPARED', 'BUFFER_LOADED', 'PASTE_STARTED', 'PASTE_CONFIRMED', 'SUBMIT_STARTED'];
-
-const PROFILE_STATE_SLUG = /^(?:agent-office-advisor|foundation-advisor)$/u;
-const CONTAINED_DELIVERY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 
 /** Live tmux facts read by a structured preflight (no pane content is ever captured). */
 export interface As1TmuxPreflight {
@@ -131,33 +127,13 @@ interface As1DeliveryTarget {
 }
 
 /**
- * Derive the whole delivery target from the grant alone (review B04): the profile comes from `profileId`,
- * the pointer file from the grant's own `pointerArtifactRef`, and the delivery id + private buffer name from
- * that ref's exact internal layout `artifacts/as1-slack-pilot/<slug>/pointers/<deliveryId>/<file>.json`.
+ * Derive the whole delivery target from the grant alone (review B04): the profile/delivery identity come from
+ * the SINGLE shared `parseContainedPointerRef` parser (design §12.6), and the private buffer name is derived
+ * from that slug + delivery id. No divergent local pointer parsing.
  */
 function deriveDeliveryTarget(grant: As1PointerDeliveryGrantV1): As1DeliveryTarget {
-  const profileStateSlug = selectProfile(grant.profileId).profileStateSlug;
-  if (!PROFILE_STATE_SLUG.test(profileStateSlug)) {
-    throw new DomainError('INVALID_SCHEMA', 'delivery profile slug is not one of the two closed profiles');
-  }
-  const ref = grant.pointerArtifactRef;
-  if (ref.includes('..') || ref.includes('//') || ref.includes('\\')) {
-    throw new DomainError('FORBIDDEN_TARGET', 'pointer artifact ref is not a contained path');
-  }
-  const [seg0, seg1, seg2, seg3, deliveryId, filename, ...rest] = ref.split('/');
-  if (
-    rest.length > 0 ||
-    seg0 !== 'artifacts' ||
-    seg1 !== 'as1-slack-pilot' ||
-    seg2 !== profileStateSlug ||
-    seg3 !== 'pointers' ||
-    deliveryId === undefined ||
-    !CONTAINED_DELIVERY_ID.test(deliveryId) ||
-    filename?.endsWith('.json') !== true
-  ) {
-    throw new DomainError('FORBIDDEN_TARGET', 'pointer artifact ref is not the internal delivery layout for this profile');
-  }
-  return { profileStateSlug, deliveryId, bufferName: `as1-${profileStateSlug}-${deliveryId}`, pointerFilePath: ref };
+  const { profileStateSlug, deliveryId, pointerFilePath } = parseContainedPointerRef(grant);
+  return { profileStateSlug, deliveryId, bufferName: `as1-${profileStateSlug}-${deliveryId}`, pointerFilePath };
 }
 
 function preflightMatchesDestination(preflight: As1TmuxPreflight, destination: As1TmuxDestination): boolean {

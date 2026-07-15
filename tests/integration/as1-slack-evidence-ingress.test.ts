@@ -337,7 +337,8 @@ describe('AS1 evidence authority — production derivation from typed artifacts 
       pointerDeliveryGrant,
       terminalDelivery: {
         schemaVersion: 'agent-office.as1-tmux-delivery.v1',
-        deliveryId: 'as1p-0001',
+        // The deliveryId the pointer-delivery grant's pointerArtifactRef (.../pointers/p1/pointer.json) encodes.
+        deliveryId: 'p1',
         phase: 'TRANSPORT_RECORDED',
         boundFacts,
         recordedAt: '2026-07-14T22:05:30.000Z',
@@ -352,7 +353,6 @@ describe('AS1 evidence authority — production derivation from typed artifacts 
         intakeId: 'as1-intake-0001',
         createdAt: '2026-07-14T22:05:10.000Z',
       },
-      transportJournalRef: AO_ACK_BINDINGS.transportJournalRef,
       consumption: {
         schemaVersion: 'agent-office.as1-delivery-authority-consumption.v1',
         pointerDeliveryGrantId: 'as1-pdg-0001',
@@ -383,11 +383,14 @@ describe('AS1 evidence authority — production derivation from typed artifacts 
     });
     // The recomputed rootCorrelationHash is the service formula, NOT the raw rootKeyHash.
     expect(authority.acceptedAck.rootCorrelationHash).not.toBe(records.rootCorrelation.rootKeyHash);
+    // The transport-journal ref is DERIVED from the profile-local store layout, not a caller string.
+    expect(authority.acceptedAck.transportJournalRef).toBe('indexes/as1-slack-pilot/profiles/agent-office-advisor/tmux-delivery.json');
   });
 
   it('fails closed on any inconsistency between the typed artifacts', () => {
     const base = makeRecords();
     const facts = base.terminalDelivery.boundFacts;
+    const st = base.receiveGrantState;
     const cases: As1AcceptedAuthorityRecords[] = [
       // A non-terminal (not TRANSPORT_RECORDED) delivery journal.
       { ...base, terminalDelivery: { ...base.terminalDelivery, phase: 'PREPARED' } },
@@ -399,6 +402,22 @@ describe('AS1 evidence authority — production derivation from typed artifacts 
       { ...base, pointerDeliveryGrant: parsePointerDeliveryGrant(validPointerDeliveryGrant()) },
       // Consumption naming a different lease than the delivery facts.
       { ...base, consumption: { ...base.consumption, leaseId: 'as1-lease-9999' } },
+      // Receive-grant state in an UNBOUND phase (not an accepted binding).
+      { ...base, receiveGrantState: { ...st, phase: 'UNBOUND' } },
+      // Receive-grant state whose root slot was never consumed.
+      { ...base, receiveGrantState: { ...st, rootSlotConsumed: false } },
+      // Receive-grant state with a null bound-lineage field.
+      { ...base, receiveGrantState: { ...st, boundSourceEventId: null } },
+      // Receive-grant state whose bound root key hash does not match the root correlation.
+      { ...base, receiveGrantState: { ...st, boundRootKeyHash: H('9') } },
+      // Receive-grant state whose profile differs from the grant.
+      { ...base, receiveGrantState: { ...st, profileId: 'FOUNDATION_ADVISOR' } },
+      // Receive-grant state whose boundAt is not strictly before the grant expiry.
+      { ...base, receiveGrantState: { ...st, boundAt: '2026-07-14T22:11:00.000Z' } },
+      // The receive grant and pointer-delivery grant disagree on the authority root id.
+      { ...base, receiveGrant: parseReceiveGrant(validReceiveGrant({ authorityRootId: 'a-different-root' })) },
+      // The terminal delivery journal id is not the id the pointer-delivery grant's pointer ref encodes.
+      { ...base, terminalDelivery: { ...base.terminalDelivery, deliveryId: 'not-the-pointer-id' } },
     ];
     for (const [index, records] of cases.entries()) {
       expect(() => buildEvidenceAuthority(records), `case ${String(index)}`).toThrow(DomainError);

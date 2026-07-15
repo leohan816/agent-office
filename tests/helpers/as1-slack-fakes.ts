@@ -785,7 +785,7 @@ export const AO_ACK_BINDINGS = {
   pointerDeliveryGrantId: 'as1-pdg-0001',
   rootCorrelationHash: HASH_3,
   pointerArtifactRef: 'artifacts/as1-slack-pilot/agent-office-advisor/pointers/p1/pointer.json',
-  transportJournalRef: 'indexes/as1-slack-pilot/profiles/agent-office-advisor/transport-journal/Ev0AGENTOFFICE01.json',
+  transportJournalRef: 'indexes/as1-slack-pilot/profiles/agent-office-advisor/tmux-delivery.json',
   transportJournalHash: HASH_1,
   consumedDeliveryGrantId: 'as1-pdg-0001',
   consumedLeaseId: 'as1-lease-0001',
