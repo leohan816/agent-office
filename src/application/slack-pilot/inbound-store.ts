@@ -113,7 +113,10 @@ export interface DedupeInput {
   readonly eventId: string;
   readonly rawEnvelopeHash: string;
   readonly innerEventHash: string;
-  readonly preAckClass: string;
+  // The dedupe input contract is narrowed to the ONLY canonical writer state (review B08 V5 clarification): the
+  // production service records dedupe at PREACK_PENDING and there is no dedupe update path. A non-PENDING dedupe
+  // input is unrepresentable.
+  readonly preAckClass: 'PREACK_PENDING';
 }
 
 export type DedupeOutcome = 'inserted' | 'duplicate';
@@ -485,6 +488,28 @@ function assertPendingQuestionInvariant(question: As1PendingQuestionV1): void {
 /** Transport record: the closed state correlates with the pre-ACK decision, ACK flag/timestamp, continuation,
  * terminal reason, and intake/pointer/materialization fields (design §8.2/§8.3; matches the transition writers). */
 function assertTransportRecordInvariant(record: As1TransportRecordV1): void {
+  // Transport identity: the record's eventId is exactly the observed source event id (review B08 V5).
+  if (record.eventId !== record.observed.sourceEventId) {
+    throw new DomainError('STORE_QUARANTINED', 'transport eventId does not equal observed.sourceEventId');
+  }
+  // Candidate kind must agree with the committed pre-ACK decision: a ROOT_BOUND is a ROOT, a CONTINUATION_CONSUMED
+  // is a CONTINUATION (and their materialized downstream preserve the decision). REJECTED/PENDING may be either.
+  if (record.preAckDecision === 'ROOT_BOUND' && record.observed.candidateKind !== 'ROOT') {
+    throw new DomainError('STORE_QUARANTINED', 'a ROOT_BOUND decision requires a ROOT candidate kind');
+  }
+  if (record.preAckDecision === 'CONTINUATION_CONSUMED' && record.observed.candidateKind !== 'CONTINUATION') {
+    throw new DomainError('STORE_QUARANTINED', 'a CONTINUATION_CONSUMED decision requires a CONTINUATION candidate kind');
+  }
+  // Binding-state hash: a decision that binds a receive/root (ROOT_BOUND, CONTINUATION_CONSUMED, and their
+  // materialized downstream) MUST carry the binding-state hash; a state that cannot carry it (PREACK_PENDING) must
+  // reject it. A REJECTED decision may or may not carry one (some rejections bind the receive state, some do not).
+  if (record.preAckDecision === null) {
+    if (record.bindingStateHash !== null) {
+      throw new DomainError('STORE_QUARANTINED', 'a pending transport record must not carry a bindingStateHash');
+    }
+  } else if ((record.preAckDecision === 'ROOT_BOUND' || record.preAckDecision === 'CONTINUATION_CONSUMED') && record.bindingStateHash === null) {
+    throw new DomainError('STORE_QUARANTINED', 'a bound/consumed transport decision requires a bindingStateHash');
+  }
   if (record.transportAckRecorded !== (record.ackedAt !== null)) {
     throw new DomainError('STORE_QUARANTINED', 'transport ACK flag and ackedAt disagree');
   }
@@ -541,7 +566,7 @@ function parseDedupeRecord(profile: As1Profile): (value: unknown) => As1DedupeRe
     ['schemaVersion', 'profileId', 'envelopeId', 'teamId', 'apiAppId', 'eventId', 'rawEnvelopeHash', 'innerEventHash', 'firstReceivedAt', 'lastReceivedAt', 'preAckClass', 'receiveGrantStateHash', 'intakeId', 'terminalReason'],
     'as1 dedupe record',
   );
-  return {
+  const record: As1DedupeRecordV1 = {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-inbound-dedupe.v1', 'as1 dedupe record'),
     profileId: requireOwningProfileId(value.profileId, profile, 'dedupe.profileId'),
     envelopeId: requireOpaqueId(value.envelopeId, 'dedupe.envelopeId'),
@@ -558,6 +583,21 @@ function parseDedupeRecord(profile: As1Profile): (value: unknown) => As1DedupeRe
     intakeId: reqNullableOpaqueId(value.intakeId, 'dedupe.intakeId'),
     terminalReason: reqNullableOpaqueId(value.terminalReason, 'dedupe.terminalReason'),
   };
+  // Exact phase-to-field matrix (review B08 V5 + scope clarification). The ONLY canonical writer records a dedupe
+  // row at `PREACK_PENDING` with receiveGrantStateHash/intakeId/terminalReason all null, and there is no dedupe
+  // update path; transport-journal progression — not the dedupe row — is the canonical post-dedupe state machine.
+  // Any other combination (a MATERIALIZED/terminal/other preAckClass, or any populated decision field) is a
+  // semantically impossible durable record that production cannot persist, and fails closed. This rejects the
+  // Reviewer-reproduced `MATERIALIZED`-with-all-null row.
+  if (
+    record.preAckClass !== 'PREACK_PENDING' ||
+    record.receiveGrantStateHash !== null ||
+    record.intakeId !== null ||
+    record.terminalReason !== null
+  ) {
+    throw new DomainError('STORE_QUARANTINED', 'dedupe record is not the exact PREACK_PENDING/all-null state a canonical writer can persist');
+  }
+  return record;
   };
 }
 

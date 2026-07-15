@@ -124,7 +124,7 @@ describe('AS1 inbound dedupe', () => {
       eventId: 'Ev0AGENTOFFICE01',
       rawEnvelopeHash: `sha256:${'a'.repeat(64)}`,
       innerEventHash: `sha256:${'b'.repeat(64)}`,
-      preAckClass: 'PREACK_ROOT_BOUND',
+      preAckClass: 'PREACK_PENDING' as const,
     };
     expect(await store.insertDedupe(input)).toBe('inserted');
     expect(await store.insertDedupe(input)).toBe('duplicate');
@@ -140,7 +140,7 @@ describe('AS1 inbound dedupe', () => {
       eventId: 'Ev0AGENTOFFICE01',
       rawEnvelopeHash: `sha256:${'a'.repeat(64)}`,
       innerEventHash: `sha256:${'b'.repeat(64)}`,
-      preAckClass: 'PREACK_ROOT_BOUND',
+      preAckClass: 'PREACK_PENDING' as const,
     };
     await store.insertDedupe(base);
     const error = await grabDomainError(() =>

@@ -630,3 +630,85 @@ describe('AS1 ACKable rejection durability (B02 re-review)', () => {
     expect(await store.readTransport(EVENT_ID)).toBeNull();
   });
 });
+
+// B08 re-review V5 (AS1-PATCH-V5-08A): exact dedupe phase-to-field matrix + transport identity/candidate-kind/
+// binding correlations. Each malicious well-typed fixture is accepted on 4cf967d and must fail closed here,
+// including the Reviewer-reproduced MATERIALIZED dedupe row with all terminal fields null.
+describe('AS1 exact dedupe/transport phase-to-field matrix (B08 V5)', () => {
+  const DIR5 = 'indexes/as1-slack-pilot/profiles/agent-office-advisor';
+  const H5 = `sha256:${'c'.repeat(64)}`;
+  const OBS5 = {
+    candidateKind: 'ROOT', sourceEventId: EVENT_ID, rootTs: ROOT_TS, rootKeyHash: H5,
+    receiptArtifactRef: 'advisor/jobs/x/receipt.json', receiptArtifactHash: H5,
+    messageArtifactRef: 'advisor/jobs/x/message.json', messageArtifactHash: H5,
+  };
+  const BASE5 = {
+    schemaVersion: 'agent-office.as1-transport-record.v1', eventId: EVENT_ID, envelopeId: 'Env1',
+    state: 'PREACK_PENDING', rawEnvelopeHash: H5, innerEventHash: H5, observed: OBS5,
+    preAckDecision: null as string | null, terminalReason: null as string | null, bindingStateHash: null as string | null,
+    continuation: null as unknown, transportAckRecorded: false, intakeId: null as string | null,
+    pointerArtifactRef: null as string | null, recordedAt: '2026-07-14T22:06:00.000Z', ackedAt: null as string | null,
+    materializedAt: null as string | null,
+  };
+  const DEDUPE5 = {
+    schemaVersion: 'agent-office.as1-inbound-dedupe.v1', profileId: 'AGENT_OFFICE_ADVISOR', envelopeId: 'Env1',
+    teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: EVENT_ID, rawEnvelopeHash: H5, innerEventHash: H5,
+    firstReceivedAt: '2026-07-14T22:06:00.000Z', lastReceivedAt: '2026-07-14T22:06:00.000Z',
+    preAckClass: 'PREACK_PENDING', receiveGrantStateHash: null as string | null, intakeId: null as string | null, terminalReason: null as string | null,
+  };
+  const NEW_INSERT = { envelopeId: 'Env2', teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: 'Ev0Z', rawEnvelopeHash: H5, innerEventHash: H5, preAckClass: 'PREACK_PENDING' as const };
+
+  async function fresh() {
+    const root = await makeStateRoot();
+    const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2026-07-14T22:06:00.000Z'));
+    await mkdir(path.join(root, DIR5), { recursive: true });
+    return { root, store };
+  }
+  async function writeIdx(root: string, name: string, value: unknown): Promise<void> {
+    await writeFile(path.join(root, DIR5, name), JSON.stringify(value));
+  }
+
+  it('quarantines any dedupe row whose preAckClass is not the canonical PREACK_PENDING (incl. the reproduced MATERIALIZED-all-null)', async () => {
+    for (const preAckClass of ['MATERIALIZED', 'TERMINAL_NO_INTAKE', 'PREACK_ROOT_BOUND', 'PREACK_CONTINUATION_CONSUMED', 'PREACK_REJECTED', 'TRANSPORT_ACK_RECORDED']) {
+      const { root, store } = await fresh();
+      await writeIdx(root, 'inbound-dedupe.json', [{ ...DEDUPE5, preAckClass }]);
+      await expect(store.insertDedupe(NEW_INSERT), preAckClass).rejects.toBeInstanceOf(DomainError);
+    }
+  });
+
+  it('quarantines a dedupe row with a populated decision field (no writer populates them)', async () => {
+    for (const bad of [{ ...DEDUPE5, intakeId: 'as1-intake-0001' }, { ...DEDUPE5, terminalReason: 'REJECTED_DEFERRED_QUERY' }, { ...DEDUPE5, receiveGrantStateHash: H5 }]) {
+      const { root, store } = await fresh();
+      await writeIdx(root, 'inbound-dedupe.json', [bad]);
+      await expect(store.insertDedupe(NEW_INSERT)).rejects.toBeInstanceOf(DomainError);
+    }
+  });
+
+  it('quarantines a transport record whose eventId does not equal observed.sourceEventId', async () => {
+    const { root, store } = await fresh();
+    await writeIdx(root, 'transport-journal.json', [{ ...BASE5, eventId: 'Ev0DIFFERENT' }]);
+    await expect(store.readTransport('Ev0DIFFERENT')).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('quarantines a candidate kind that disagrees with the committed pre-ACK decision', async () => {
+    for (const bad of [
+      { ...BASE5, state: 'PREACK_ROOT_BOUND', preAckDecision: 'ROOT_BOUND', bindingStateHash: H5, observed: { ...OBS5, candidateKind: 'CONTINUATION' } },
+      { ...BASE5, state: 'PREACK_CONTINUATION_CONSUMED', preAckDecision: 'CONTINUATION_CONSUMED', bindingStateHash: H5, continuation: { kind: 'CLARIFICATION', originalIntakeId: 'as1-intake-0001', questionId: 'q1' }, observed: { ...OBS5, candidateKind: 'ROOT' } },
+    ]) {
+      const { root, store } = await fresh();
+      await writeIdx(root, 'transport-journal.json', [bad]);
+      await expect(store.readTransport(EVENT_ID), bad.state).rejects.toBeInstanceOf(DomainError);
+    }
+  });
+
+  it('quarantines a bound decision missing its bindingStateHash, and a PENDING record carrying one', async () => {
+    for (const bad of [
+      { ...BASE5, state: 'PREACK_ROOT_BOUND', preAckDecision: 'ROOT_BOUND', bindingStateHash: null },
+      { ...BASE5, bindingStateHash: H5 },
+    ]) {
+      const { root, store } = await fresh();
+      await writeIdx(root, 'transport-journal.json', [bad]);
+      await expect(store.readTransport(EVENT_ID), bad.state).rejects.toBeInstanceOf(DomainError);
+    }
+  });
+});
