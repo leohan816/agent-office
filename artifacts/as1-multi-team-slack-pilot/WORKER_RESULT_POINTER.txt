@@ -1,37 +1,37 @@
 WORKER_RESULT_POINTER
 MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 ACTOR: Agent Office Worker
-DELIVERABLE: V6 implementation patch — B05 final socket/generation closure (source) repaired + B09 (evidence) regenerated; B08 CLOSED and B01/B02/B03/B04/B06/B07 CLOSED_FROZEN, all preserved untouched
+DELIVERABLE: V7 implementation patch — B05 pre-Socket connect reservation (source) repaired + B09 (evidence) regenerated; B08 and B01/B02/B03/B04/B06/B07 CLOSED_FROZEN, all preserved untouched
 RESULT_FILE: artifacts/as1-multi-team-slack-pilot/WORKER_RESULT.md
-RESULT_SHA256: 25a34d39e057ba771728eaa23e7127ff4a893b8cb8f8804a0372480493e6793c
-REREVIEW_RESULT_FILE: advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/38_IMPLEMENTATION_SECURITY_DELTA_REREVIEW_V5_RESULT.md
-REREVIEW_RESULT_COMMIT: f99474932b991cbdd30b9d23d5eff00f409eabe6
-REREVIEW_RESULT_SHA256: 8057004f4ebbe06920f9d6d4d6efee9b0dff4d74484c85e46773750bd12d21e0
-REREVIEW_POINTER_FILE: advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/38_IMPLEMENTATION_SECURITY_DELTA_REREVIEW_V5_RESULT_POINTER.md
-REREVIEW_POINTER_COMMIT: 97c9dadfb6ad6169e54ba3b80a309cb1623ad644
-REREVIEW_POINTER_SHA256: 46a2a7bc8bd483d79c48c793231e7a733c2a4f97de723801209cb5e8eb08349e
+RESULT_SHA256: 8e538d6e9a7240c6d05e7ac632f1208e3fd2f6773656db91ec45b5f83662fe44
+REREVIEW_RESULT_FILE: advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/41_IMPLEMENTATION_SECURITY_DELTA_REREVIEW_V6_RESULT.md
+REREVIEW_RESULT_COMMIT: ccea51e3878fa464eb047964ca5a9b97f4eb9a8b
+REREVIEW_RESULT_SHA256: 2c911703752da252c2751aeffc24b9287a6060df6a123110c13f0d3a5d60df72
+REREVIEW_POINTER_COMMIT: c6fb20e670d11542db655489e9cff689e7fd9a9c
+REREVIEW_POINTER_SHA256: b15ddc157e339c6fc03812b96e7555b322b9be33376db7e95decd01c79e2902f
 REREVIEW_VERDICT: NEEDS_PATCH
-V6_HANDOFF_FILE: advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/39_ADVISOR_IMPLEMENTATION_PATCH_HANDOFF_V6.md
-V6_HANDOFF_COMMIT: 500839c1a459d26c4ea442dac51e5056b457bfac
-V6_HANDOFF_SHA256: 6a56239a7a95dc8839ee21897525de8c8103a27dc418f2601361bc81b793c5c7
-V6_RUN_PROMPT_SHA256: a889d43a272067e4bec03ef12a1c38fd76ae64a5abec27255d0a62f9713fc0fe
+V7_HANDOFF_FILE: advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/42_ADVISOR_IMPLEMENTATION_PATCH_HANDOFF_V7.md
+V7_HANDOFF_COMMIT: f3ccd5927cbec04672330eba60012bedd3715c69
+V7_HANDOFF_SHA256: c8502c6eebd4e9b196fd98c792657bec89629c74369a6fc7a2c7c313e4a703a4
+V7_RUN_PROMPT_SHA256: 84ba8f1c47df65d3712e1815d406cd0b84b527cdd241d22ee9f823d53722e93d
 SKILL_FABLE_BUILDER_SHA256: 9a5afeefd34775a918b83900aa19859278f4e151a067cf6ab82cb6a25757091b
 TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 TARGET_BRANCH: feature/as1-multi-team-slack-pilot-001
 BASE_PARENT: 81a8c3474380a7e427516d6f5e57c97ad88c6c9b
-V6_START_TIP: abfdbebfcde0e23fd068d10263f8a52acb700752
-FROZEN_V5_SOURCE_REVIEWED: 938775a6850d516edfa6122c88b72ca0d1bf4caf
-FROZEN_V6_SOURCE_CANDIDATE: ddab1b12b8f3d21b26e6ebc31de5016f45a7ce6a
-V6_PATCH_COMMIT: ddab1b12b8f3d21b26e6ebc31de5016f45a7ce6a (AS1-PATCH-V6-05 B05, source + tests)
-RESULT_COMMIT: 7db90032e33ecc4a9a06644a8517ae4efab613ff
-TARGET_COMMIT: 7db90032e33ecc4a9a06644a8517ae4efab613ff
-SUPERSEDES_EVIDENCE: V5 result 4013ca8bf01065f604b329445c4836344a5b035e / pointer abfdbebfcde0e23fd068d10263f8a52acb700752 (V4/V3 chains retained in history). All prior evidence remains in history; nothing is deleted or rewritten.
+V7_START_TIP: 2f1ba94495b27cbe8d6c2b5141fbd75699722cbe
+FROZEN_V6_SOURCE_REVIEWED: ddab1b12b8f3d21b26e6ebc31de5016f45a7ce6a
+FROZEN_V7_SOURCE_CANDIDATE: 057dde48683b06c5c800cb528f3bcdf53069bc9d
+V7_PATCH_COMMIT: 057dde48683b06c5c800cb528f3bcdf53069bc9d (AS1-PATCH-V7-05 B05, source + tests)
+RESULT_COMMIT: 156a74c4691d19c0cf50ac3fae4014679cbb0959
+TARGET_COMMIT: 156a74c4691d19c0cf50ac3fae4014679cbb0959
+CHANGED_PATHS_AND_NUMSTAT: V7 source delta 2f1ba94..057dde4 = 2 files, 179 insertions, 5 deletions (src/adapters/gateways/slack-pilot/socket-client.ts +41/-5; tests/adapters/as1-slack-socket-client.test.ts +138/-0). V7 full changed set 2f1ba94..HEAD = 6 files (2 source/test + as-built + FEATURE_INDEX + result + pointer).
+V6_COUNT_CORRECTION: the V6 evidence mislabeled socket-client.ts as +49/-8 (49 was its total changed-line count); git diff --numstat abfdbeb..ddab1b1 is +41/-8 for socket-client.ts (+116/-0 test); the two-file total 157/8 was correct. Corrected in V7 evidence.
+SUPERSEDES_EVIDENCE: V6 result 7db90032e33ecc4a9a06644a8517ae4efab613ff / pointer 2f1ba94495b27cbe8d6c2b5141fbd75699722cbe (V5/V4/V3 chains retained in history). All prior evidence remains in history; nothing is deleted or rewritten.
 PUSH_STATUS: non-force-pushed-upstream-equal (pointer commit is the immediate child of RESULT_COMMIT and the pushed branch tip)
-PATCH_STATUS: B05 final socket/generation closure repaired (V6-05A phase-aware binary/non-Buffer/oversize; V6-05B current Socket/generation ownership + overlapping-connect rejection); B08 CLOSED and B01/B02/B03/B04/B06/B07 CLOSED_FROZEN, untouched; B09 truthful evidence regenerated
-PHASE_A_STATUS: implementation-candidate-default-disconnected-synthetic-only-PENDING-INDEPENDENT-V6-DELTA-REREVIEW
-CHANGED_SET: V6 source delta abfdbeb..ddab1b1 = 2 files (socket-client.ts +49/-8, as1-slack-socket-client.test.ts +116); V6 full changed set abfdbeb..HEAD = 6 files (2 source/test + as-built + FEATURE_INDEX + result + pointer)
-CHECKS: typecheck PASS; socket-client(38)+inbound+exact-transport = 3 files / 99 tests PASS; changed-file eslint (2 .ts) 0 problems; build:core PASS; npm audit --audit-level=high 0 vulnerabilities; git diff --check abfdbeb..HEAD clean; targeted scans clean (no suppression/unsafe-cast/deep-import/token-secret/dynamic-exec; reconnect/reset/fallback only in absence comments and the reconnectable-state name; no stale-callback action — isCurrent() gate makes stale open/message/error/close a no-op; only synthetic 'xapp-x', 13x in the final Socket test); exact allowed-path check passes (six authorized paths only; B08 untouched)
-DISCLOSED_INCIDENT: none — no stash/reset/clean/checkout/restore/rebase/merge/extra-worktree/old-source-materialization; red evidence is the immutable Reviewer V5 probe; only green regressions run against the patch; no live Slack/network/secret/tmux action
+PATCH_STATUS: B05 pre-Socket connect reservation repaired (V7-05: synchronous ownership reservation before opener await; overlap rejects before a second opener/factory side effect; opener/factory failure releases only its own reservation; disconnect-while-pending never binds a socket); B08 and B01/B02/B03/B04/B06/B07 CLOSED_FROZEN, untouched; B09 truthful evidence regenerated with corrected counts
+PHASE_A_STATUS: implementation-candidate-default-disconnected-synthetic-only-PENDING-INDEPENDENT-V7-DELTA-REREVIEW
+CHECKS: typecheck PASS; socket-client(42)+inbound+exact-transport = 3 files / 103 tests PASS; changed-file eslint (2 .ts) 0 problems; build:core PASS; npm audit --audit-level=high 0 vulnerabilities; git diff --check 2f1ba94..HEAD clean; exact changed-path + numstat verified; targeted scans clean (no suppression/unsafe-cast/deep-import/token-secret/dynamic-target; reconnect/retry/reset/fallback only in absence comments; no stale action — the reservation/generation guards make a superseded pending generation abort before binding a socket; only synthetic 'xapp-x', 14x in the final Socket test); exact allowed-path check passes (six authorized paths only; B08 untouched)
+DISCLOSED_ADJUSTMENT: the reservation staleness guard was rewritten from `this.phase !== 'WS_CONNECTING' || this.socket !== null` to `this.generation !== generation || this.getPhase() !== 'WS_CONNECTING'` to clear an ESLint no-unnecessary-condition (TS narrowed the pre-await field values); no suppression/cast; the disconnect-while-pending regression proves the check still fires. No stash/reset/checkout/rebase/merge/extra-worktree/old-source-materialization; no live Slack/network/secret/tmux action.
 RETURN_TO: agent-office-advisor
 PROPOSED_NEXT_ACTOR: agent-office-advisor
 STOP
