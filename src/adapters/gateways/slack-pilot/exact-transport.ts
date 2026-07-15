@@ -99,6 +99,17 @@ export interface As1DeliveryProvenanceGate {
   assertAccepted(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): Promise<void>;
 }
 
+/**
+ * The exact owning-profile operational control, bound to the transport at construction (review B05). It is the
+ * lock-holding canonical control for THIS profile; `isDeliverable()` is false when the profile is not lock-owned,
+ * disabled/disconnected, globally killed, or durably latched. The transport re-checks it immediately before EVERY
+ * delivery side effect — journal mutation, authority consumption, buffer lookup/deletion/load, paste, and Enter —
+ * so a kill/latch engaged between two adjacent boundaries prevents the next mutation. It is never a caller value.
+ */
+export interface As1DeliveryControlPort {
+  isDeliverable(): Promise<boolean>;
+}
+
 export type As1DeliveryOutcome = 'DELIVERED' | 'STOPPED_BEFORE_PASTE' | 'MANUAL_RECONCILIATION_REQUIRED';
 
 export interface As1DeliveryResult {
@@ -154,6 +165,8 @@ export class As1ExactTransport {
     private readonly port: As1TmuxPort,
     private readonly journal: As1DeliveryJournal,
     private readonly provenance: As1DeliveryProvenanceGate,
+    /** Mandatory owning-profile operational control, re-checked before every side effect (review B05). */
+    private readonly control: As1DeliveryControlPort,
     /** Mandatory durable profile latch — a journal/consumption STORE_QUARANTINED never surfaces unlatched (B08). */
     private readonly latch: (reason: string) => Promise<void>,
   ) {}
@@ -187,6 +200,10 @@ export class As1ExactTransport {
     // §12.6: the first exact preflight is driven by the reviewed lease destination, BEFORE any capability.
     const destination = lease.destination;
 
+    // Entry re-check: the owning control must be actionable before even the durable journal READ (review B05).
+    if (!(await this.control.isDeliverable())) {
+      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'owning control not actionable at delivery entry' };
+    }
     const prior = await journal.readTmuxPhase(deliveryId);
     if (prior === 'TRANSPORT_RECORDED') {
       return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'terminal' };
@@ -200,6 +217,11 @@ export class As1ExactTransport {
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'interrupted nonterminal journal' };
     }
 
+    // Owning-profile control is re-checked immediately before EVERY side effect (review B05); a kill/latch
+    // engaged after entry stops the next mutation. Before the first preflight nothing is journaled → clean stop.
+    if (!(await this.control.isDeliverable())) {
+      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'owning control not actionable before preflight' };
+    }
     // The bounded first preflight and the one-use authority consumption happen BEFORE any durable tmux journal.
     // A stop here leaves no nonterminal journal (nothing to reconcile) and the authority stays unconsumed.
     const firstPreflight = await port.preflight(destination.paneId);
@@ -229,6 +251,9 @@ export class As1ExactTransport {
     };
 
     if (!live()) return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'capability expired before PREPARED' };
+    if (!(await this.control.isDeliverable())) {
+      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'owning control not actionable before PREPARED' };
+    }
 
     // Durably record PREPARED (binding the invariant facts) BEFORE consuming authority, so a crash in the
     // consume gap leaves a visible PREPARED (→ manual reconciliation on restart), never an unjournaled
@@ -238,20 +263,26 @@ export class As1ExactTransport {
     // §12.5: consume the grant + lease before the first tmux mutation. An already-consumed authority cannot
     // resume this journal under the no-retry rule, so it is recorded as manual reconciliation, not a silent stop.
     if (!live()) return manual('capability expired before authority consumption');
+    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before authority consumption');
     const consumed = await journal.consumeDeliveryAuthority(capability.pointerDeliveryGrantId, capability.leaseId);
     if (!consumed) {
       return manual('delivery authority already consumed');
     }
 
+    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer lookup');
     if (await port.bufferExists(bufferName)) {
       // Cleanup is allowed here because the journal proves paste has not started and the first preflight matched.
       if (!live()) return manual('capability expired before buffer cleanup');
+      if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer cleanup');
       await port.deleteBuffer(bufferName);
     }
     if (!live()) return manual('capability expired before buffer load');
+    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer load');
     await port.loadBuffer(bufferName, pointerFilePath);
+    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before BUFFER_LOADED record');
     await journal.recordTmuxPhase(deliveryId, 'BUFFER_LOADED', facts);
 
+    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before second preflight');
     const secondPreflight = await port.preflight(destination.paneId);
     if (!preflightMatchesDestination(secondPreflight, destination)) {
       // A fresh preflight that does not prove the same destination forbids buffer cleanup (design §12.7).
@@ -259,17 +290,24 @@ export class As1ExactTransport {
     }
 
     if (!live()) return manual('capability expired before paste');
+    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before paste');
 
     // No-retry boundary: record PASTE_STARTED durably before the paste side effect. Past this line, any
-    // failure — including an expired capability at a fresh check before paste or Enter — is manual reconciliation.
+    // failure — including an expired capability or an owning-control kill/latch at a fresh check before paste or
+    // Enter — is manual reconciliation (the catch below records it; the mutation never repeats).
     await journal.recordTmuxPhase(deliveryId, 'PASTE_STARTED', facts);
     try {
-      assertCapabilityUsable(capability, clock()); // fresh check immediately before the paste mutation
+      await this.assertDeliverableOrThrow(); // owning control re-checked immediately before the paste mutation
+      assertCapabilityUsable(capability, clock()); // fresh capability check immediately before the paste mutation
       await port.pasteBuffer(bufferName, destination.paneId);
+      await this.assertDeliverableOrThrow(); // re-checked before the PASTE_CONFIRMED record
       await journal.recordTmuxPhase(deliveryId, 'PASTE_CONFIRMED', facts);
+      await this.assertDeliverableOrThrow(); // re-checked before the SUBMIT_STARTED record
       await journal.recordTmuxPhase(deliveryId, 'SUBMIT_STARTED', facts);
-      assertCapabilityUsable(capability, clock()); // fresh check immediately before the Enter mutation
+      await this.assertDeliverableOrThrow(); // owning control re-checked immediately before the Enter mutation
+      assertCapabilityUsable(capability, clock()); // fresh capability check immediately before the Enter mutation
       await port.sendEnter(destination.paneId);
+      await this.assertDeliverableOrThrow(); // re-checked before the terminal TRANSPORT_RECORDED record
       await journal.recordTmuxPhase(deliveryId, 'TRANSPORT_RECORDED', facts);
       return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'ok' };
     } catch (error) {
@@ -280,6 +318,14 @@ export class As1ExactTransport {
         outcome: 'MANUAL_RECONCILIATION_REQUIRED',
         reason: redactError(error).code,
       };
+    }
+  }
+
+  /** Re-check the owning-profile control at a post-PASTE_STARTED mutation boundary; a kill/latch throws so the
+   * no-retry catch records MANUAL_RECONCILIATION_REQUIRED rather than repeating a paste or Enter (review B05). */
+  private async assertDeliverableOrThrow(): Promise<void> {
+    if (!(await this.control.isDeliverable())) {
+      throw new DomainError('GATEWAY_DISABLED', 'owning control not actionable at a tmux mutation boundary');
     }
   }
 }

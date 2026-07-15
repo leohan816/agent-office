@@ -42,24 +42,31 @@ const eventFrame = (envelopeId: string, apiAppId: string): Buffer =>
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-function makeTransport() {
+function makeTransport(control: () => Promise<boolean> = () => Promise.resolve(true)) {
   const opener = new FakeConnectionsOpener();
   const factory = new FakeAs1WebSocketFactory();
   const fakeWs = new FakeAs1Ws();
   factory.setNext(fakeWs);
   const logs: string[] = [];
+  // The mandatory durable owning-profile latch (B05): every in-memory LATCHED transition persists here.
+  const durableLatches: string[] = [];
   const transport = new As1RawSocketTransport(
     opener,
     factory,
     { record: (profileId, phase, reason) => logs.push(`${profileId}|${phase}|${reason}`) },
     () => 100_000,
+    (reason) => {
+      durableLatches.push(reason);
+      return Promise.resolve();
+    },
+    control,
   );
   const received: As1InboundEnvelope[] = [];
   transport.onEnvelope((envelope) => {
     received.push(envelope);
     return Promise.resolve();
   });
-  return { opener, factory, fakeWs, logs, transport, received };
+  return { opener, factory, fakeWs, logs, transport, received, durableLatches };
 }
 
 async function connectReady(seal: () => boolean = () => true): Promise<ReturnType<typeof makeTransport>> {
@@ -153,6 +160,7 @@ describe('AS1 raw socket transport — events, ACK, and lifecycle', () => {
   it('delivers a bounded envelope after proof and acks exactly once, payload-free, same-generation', async () => {
     const { fakeWs, received } = await connectReady();
     fakeWs.emit('message', eventFrame('Env0AGENTOFFICE1', APP_ID), false);
+    await flush(); // delivery dequeues after the owning-control DEQUEUE check (B05)
     expect(received).toHaveLength(1);
     const envelope = received[0];
     expect(envelope?.envelopeId).toBe('Env0AGENTOFFICE1');
@@ -164,6 +172,7 @@ describe('AS1 raw socket transport — events, ACK, and lifecycle', () => {
   it('refuses to ack when the socket is not open or has a nonzero send buffer', async () => {
     const { fakeWs, received } = await connectReady();
     fakeWs.emit('message', eventFrame('Env2', APP_ID), false);
+    await flush();
     const envelope = received[0];
     fakeWs.readyState = 3; // CLOSED
     await expect(envelope?.acknowledge()).rejects.toBeInstanceOf(DomainError);
@@ -192,6 +201,7 @@ describe('AS1 raw socket transport — events, ACK, and lifecycle', () => {
     const b = await connectReady();
     expect(a.fakeWs).not.toBe(b.fakeWs);
     b.fakeWs.emit('message', eventFrame('EnvB', APP_ID), false);
+    await flush();
     expect(a.received).toHaveLength(0);
     expect(b.received).toHaveLength(1);
   });
@@ -251,14 +261,25 @@ describe('AS1 raw socket transport — bounded profile-local admission (B08)', (
     const fakeWs = new FakeAs1Ws();
     factory.setNext(fakeWs);
     const logs: string[] = [];
-    const transport = new As1RawSocketTransport(opener, factory, { record: (p, ph, r) => logs.push(`${p}|${ph}|${r}`) }, () => 100_000);
+    const durableLatches: string[] = [];
+    const transport = new As1RawSocketTransport(
+      opener,
+      factory,
+      { record: (p, ph, r) => logs.push(`${p}|${ph}|${r}`) },
+      () => 100_000,
+      (reason) => {
+        durableLatches.push(reason);
+        return Promise.resolve();
+      },
+      () => Promise.resolve(true),
+    );
     transport.onEnvelope(onEnvelope);
     const promise = transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
     await flush();
     fakeWs.emit('open');
     fakeWs.emit('message', helloFrame(APP_ID), false);
     await promise;
-    return { transport, fakeWs, logs };
+    return { transport, fakeWs, logs, durableLatches };
   }
 
   it('processes envelopes FIFO with observed max concurrency of exactly one', async () => {
@@ -275,6 +296,7 @@ describe('AS1 raw socket transport — bounded profile-local admission (B08)', (
     fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
     fakeWs.emit('message', eventFrame('Env2', APP_ID), false);
     fakeWs.emit('message', eventFrame('Env3', APP_ID), false);
+    await flush(); // the first task dequeues after the async owning-control check (B05)
     expect(order).toEqual(['start:Env1']); // only one started
     gates[0]?.(); await flush();
     gates[1]?.(); await flush();
@@ -285,7 +307,9 @@ describe('AS1 raw socket transport — bounded profile-local admission (B08)', (
 
   it('latches (1008) on inbound queue overflow at the 33rd queued callback', async () => {
     const { transport, fakeWs } = await readyWith(() => new Promise<void>(() => undefined)); // blocks in flight forever
-    for (let i = 1; i <= 33; i += 1) fakeWs.emit('message', eventFrame(`Env${String(i)}`, APP_ID), false); // 1 in flight + 32 queued
+    fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    await flush(); // Env1 dequeues into the single in-flight slot (after the async control check)
+    for (let i = 2; i <= 33; i += 1) fakeWs.emit('message', eventFrame(`Env${String(i)}`, APP_ID), false); // 32 queued
     expect(transport.getPhase()).not.toBe('LATCHED');
     fakeWs.emit('message', eventFrame('Env34', APP_ID), false); // the 33rd queued callback → overflow
     expect(transport.getPhase()).toBe('LATCHED');
@@ -317,6 +341,7 @@ describe('AS1 raw socket transport — bounded profile-local admission (B08)', (
       return new Promise<void>((resolve) => gates.push(resolve));
     });
     fakeWs.emit('message', eventFrame('Env1', APP_ID), false); // in flight
+    await flush(); // Env1 dequeues into the in-flight slot (after the async control check)
     fakeWs.emit('message', eventFrame('Env2', APP_ID), false); // queued
     gates[0]?.(); // let the in-flight finish so the drain completes fast
     await transport.disconnect();
@@ -331,6 +356,7 @@ describe('AS1 raw socket transport — bounded profile-local admission (B08)', (
   it('force-terminates and stays LATCHED when the in-flight handler misses the drain deadline', async () => {
     const { transport, fakeWs } = await readyWith(() => new Promise<void>(() => undefined)); // never finishes
     fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    await flush(); // Env1 dequeues into the in-flight slot (real timers) before switching to fake timers
     vi.useFakeTimers();
     try {
       const disc = transport.disconnect();
@@ -356,5 +382,66 @@ describe('AS1 raw socket transport — bounded profile-local admission (B08)', (
     }
     expect(fakeWs.terminateCalls).toBeGreaterThan(0);
     expect(transport.getPhase()).toBe('LATCHED');
+  });
+});
+
+// B05 re-review (AS1-PATCH-V3-05): the raw Socket is bound to a MANDATORY owning-control predicate (re-checked at
+// DEQUEUE, before queue.shift) and a MANDATORY durable profile latch. Both are structurally required constructor
+// arguments (no permissive defaults), so an omitting construction cannot typecheck (proven by `npm run typecheck`
+// over every site) — a provenance-free/latch-free Socket is unrepresentable. These prove the runtime behavior.
+describe('AS1 raw socket transport — owning-control DEQUEUE gate + durable latch (B05)', () => {
+  async function ready(
+    onEnvelope: (env: As1InboundEnvelope) => Promise<void>,
+    control: () => Promise<boolean> = () => Promise.resolve(true),
+  ): Promise<ReturnType<typeof makeTransport>> {
+    const ctx = makeTransport(control);
+    ctx.transport.onEnvelope(onEnvelope);
+    const promise = ctx.transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    ctx.fakeWs.emit('open');
+    ctx.fakeWs.emit('message', helloFrame(APP_ID), false);
+    await promise;
+    return ctx;
+  }
+
+  it('a non-actionable owning control at DEQUEUE leaves the task unrun and un-dequeued, and durably latches', async () => {
+    let actionable = true;
+    const ran: string[] = [];
+    const ctx = await ready((env) => {
+      ran.push(env.envelopeId);
+      return Promise.resolve();
+    }, () => Promise.resolve(actionable));
+    actionable = false; // owning control transitions to not-actionable AFTER admission, BEFORE the dequeue check
+    ctx.fakeWs.emit('message', eventFrame('EnvX', APP_ID), false);
+    await flush();
+    expect(ran).toEqual([]); // the queued task was never dequeued or run under stale authority
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('control not actionable at dequeue'))).toBe(true);
+  });
+
+  it('queue overflow persists a DURABLE profile latch (not only the in-memory LATCHED phase)', async () => {
+    const ctx = await ready(() => new Promise<void>(() => undefined));
+    ctx.fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    await flush();
+    for (let i = 2; i <= 33; i += 1) ctx.fakeWs.emit('message', eventFrame(`Env${String(i)}`, APP_ID), false);
+    ctx.fakeWs.emit('message', eventFrame('Env34', APP_ID), false); // overflow
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('inbound queue overflow'))).toBe(true);
+  });
+
+  it('a handler failure persists a DURABLE profile latch', async () => {
+    const ctx = await ready(() => Promise.reject(new Error('boom')));
+    ctx.fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('handler failure'))).toBe(true);
+  });
+
+  it('a provider disconnect persists a DURABLE profile latch', async () => {
+    const ctx = await ready(() => Promise.resolve());
+    ctx.fakeWs.emit('message', Buffer.from('{"type":"disconnect","reason":"refresh_requested"}', 'utf8'), false);
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('provider disconnect'))).toBe(true);
   });
 });

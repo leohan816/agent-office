@@ -169,13 +169,40 @@ export class As1RawSocketTransport implements As1SocketPort {
   private inFlightCount = 0;
   private readonly inFlightRunning = new Set<Promise<void>>();
   private admitting = false;
+  // A single pump loop runs at a time; the async owning-control DEQUEUE check must not be raced (review B05).
+  private pumping = false;
+
+  private latchPersisted = false;
 
   public constructor(
     private readonly opener: As1ConnectionsOpener,
     private readonly factory: As1WebSocketFactory,
     private readonly log: As1SocketLogSink = NULL_LOG_SINK,
     private readonly now: () => number = () => Date.now(),
+    /**
+     * MANDATORY durable owning-profile latch (review B05). Every in-memory LATCHED transition — queue overflow,
+     * provider disconnect, unexpected data, handler failure, forced termination, drain-deadline/close-unconfirmed —
+     * ALSO persists a durable profile latch, so a capacity/transport failure is not forgotten on restart.
+     */
+    private readonly durableLatch: (reason: string) => Promise<void>,
+    /**
+     * MANDATORY owning-profile control predicate, re-checked before every queue DEQUEUE (review B05). When the
+     * owning profile is killed/latched/disabled/wrong-active between admission and running, the queued handler
+     * never runs; admission stops and the socket fails closed.
+     */
+    private readonly control: () => Promise<boolean>,
   ) {}
+
+  /** Persist the DURABLE profile latch exactly once (review B05) and RETURN its promise so an async caller can
+   * AWAIT it before closure. The in-memory LATCHED already fail-closed the socket, so a durable-latch failure is
+   * recorded as a stable code and never thrown into a ws callback. */
+  private persistDurableLatch(reason: string): Promise<void> {
+    if (this.latchPersisted) return Promise.resolve();
+    this.latchPersisted = true;
+    return this.durableLatch(reason).catch(() => {
+      this.log.record(this.profileId, 'LATCHED', 'DURABLE_LATCH_FAILED');
+    });
+  }
 
   public onEnvelope(handler: (envelope: As1InboundEnvelope) => Promise<void>): void {
     this.handler = handler;
@@ -274,16 +301,17 @@ export class As1RawSocketTransport implements As1SocketPort {
     this.phase = 'DRAINING';
     const drained = await this.awaitWithin([...this.inFlightRunning], LIMITS.DRAIN_DEADLINE_MS);
     if (!drained) {
-      // Drain deadline exceeded: fail closed — force-terminate and stay LATCHED, never a clean CLOSED.
+      // Drain deadline exceeded: fail closed — force-terminate and stay LATCHED, never a clean CLOSED. Await the
+      // durable profile latch before disconnect() returns (review B05).
       this.log.record(this.profileId, 'DRAINING', 'REJECTED_DRAIN_DEADLINE');
-      this.forceTerminateAndLatch(socket);
+      await this.forceTerminateAndLatch(socket, 'drain deadline exceeded');
       return;
     }
     // Close and CONFIRM within SHUTDOWN_DEADLINE_MS; an unconfirmed close force-terminates and stays LATCHED.
     const confirmed = await this.closeAndConfirm(socket, LIMITS.SHUTDOWN_DEADLINE_MS);
     if (!confirmed) {
       this.log.record(this.profileId, 'DRAINING', 'REJECTED_CLOSE_UNCONFIRMED');
-      this.forceTerminateAndLatch(socket);
+      await this.forceTerminateAndLatch(socket, 'close unconfirmed after drain');
       return;
     }
     this.socket = null;
@@ -291,8 +319,9 @@ export class As1RawSocketTransport implements As1SocketPort {
     this.phase = 'CLOSED';
   }
 
-  /** Immediate force-termination: abnormal terminate + LATCHED (never a confirmed CLOSED). */
-  private forceTerminateAndLatch(socket: As1WsLike): void {
+  /** Immediate force-termination: abnormal terminate + LATCHED (never a confirmed CLOSED). Returns the durable-
+   * latch promise so `disconnect()` can AWAIT durable persistence before it returns (review B05). */
+  private forceTerminateAndLatch(socket: As1WsLike, reason = 'socket force-terminate latch'): Promise<void> {
     this.admitting = false;
     this.queue.length = 0;
     this.phase = 'LATCHED';
@@ -303,6 +332,7 @@ export class As1RawSocketTransport implements As1SocketPort {
     }
     socket.removeAllListeners();
     if (this.socket === socket) this.socket = null;
+    return this.persistDurableLatch(reason);
   }
 
   /** Await all promises within `deadlineMs`; true if they all settled, false on timeout. */
@@ -348,7 +378,7 @@ export class As1RawSocketTransport implements As1SocketPort {
     if (isDisconnectFrame(value)) {
       // Provider disconnect is transport control: close with no reconnect (design §7.5/§7.7).
       this.log.record(this.profileId, 'EVENT_RECEIVE_READY', 'PROVIDER_DISCONNECT');
-      this.disconnectAndLatch(socket);
+      void this.disconnectAndLatch(socket, 1008, 'provider disconnect');
       return;
     }
     let envelope: { envelopeId: string; payload: unknown; retryAttempt: number | null; retryReason: string | null };
@@ -376,22 +406,44 @@ export class As1RawSocketTransport implements As1SocketPort {
       acknowledge: this.buildAck(socket, generation, envelope.envelopeId),
     };
     this.queue.push(() => handler(item));
-    this.pump();
+    void this.pump();
   }
 
-  /** Start queued handlers up to the EXACT declared in-flight bound (INFLIGHT_SIDE_EFFECTS_PER_PROFILE=1), FIFO. */
-  private pump(): void {
-    while (this.inFlightCount < LIMITS.INFLIGHT_SIDE_EFFECTS_PER_PROFILE && this.queue.length > 0) {
-      const task = this.queue.shift();
-      if (task === undefined) break;
-      this.inFlightCount += 1;
-      const running = this.runHandler(task);
-      this.inFlightRunning.add(running);
-      void running.finally(() => {
-        this.inFlightCount -= 1;
-        this.inFlightRunning.delete(running);
-        this.pump();
-      });
+  /**
+   * Start queued handlers up to the EXACT declared in-flight bound (INFLIGHT_SIDE_EFFECTS_PER_PROFILE=1), FIFO.
+   * The owning control is re-checked at DEQUEUE — immediately BEFORE queue.shift() removes the task — so a control
+   * transition leaves the queued task both UNEXECUTED and UN-DEQUEUED (review B05). A single pump loop runs at a
+   * time (the `pumping` guard) so the async control check cannot be raced into a double dequeue.
+   */
+  private async pump(): Promise<void> {
+    if (this.pumping) return;
+    this.pumping = true;
+    try {
+      while (this.inFlightCount < LIMITS.INFLIGHT_SIDE_EFFECTS_PER_PROFILE && this.queue.length > 0) {
+        // DEQUEUE gate: check the owning control BEFORE removing anything from the FIFO. A profile killed/latched/
+        // disabled/wrong-active stops admission, drops queued work (never replayed), and durably latches — the
+        // task is never dequeued or run under stale authority.
+        if (!(await this.control())) {
+          const socket = this.socket;
+          this.log.record(this.profileId, this.phase, 'REJECTED_CONTROL_NOT_ACTIONABLE');
+          this.admitting = false;
+          this.queue.length = 0;
+          if (socket !== null) void this.disconnectAndLatch(socket, 1011, 'owning control not actionable at dequeue');
+          return;
+        }
+        const task = this.queue.shift();
+        if (task === undefined) break;
+        this.inFlightCount += 1;
+        const running = this.runHandler(task);
+        this.inFlightRunning.add(running);
+        void running.finally(() => {
+          this.inFlightCount -= 1;
+          this.inFlightRunning.delete(running);
+          void this.pump();
+        });
+      }
+    } finally {
+      this.pumping = false;
     }
   }
 
@@ -401,13 +453,14 @@ export class As1RawSocketTransport implements As1SocketPort {
    */
   private async runHandler(task: () => Promise<void>): Promise<void> {
     try {
+      // The owning-control DEQUEUE gate ran in pump() BEFORE this task was removed from the FIFO (review B05).
       await task();
     } catch {
       const socket = this.socket;
       this.log.record(this.profileId, this.phase, 'REJECTED_HANDLER_FAILURE');
       this.admitting = false;
       this.queue.length = 0;
-      if (socket !== null) this.disconnectAndLatch(socket, 1011);
+      if (socket !== null) void this.disconnectAndLatch(socket, 1011, 'handler failure');
     }
   }
 
@@ -437,17 +490,18 @@ export class As1RawSocketTransport implements As1SocketPort {
 
   private failStart(socket: As1WsLike, code: number, reason: string, reject: (error: Error) => void): void {
     this.log.record(this.profileId, this.phase, `START_FAILURE_${code}`);
-    this.disconnectAndLatch(socket, code);
+    void this.disconnectAndLatch(socket, code, `start failure: ${reason}`);
     reject(new DomainError('AUTHORITY_ARTIFACT_INVALID', `socket start failed: ${reason}`));
   }
 
   private latch(socket: As1WsLike, code: number, reason: string): void {
     this.log.record(this.profileId, this.phase, `LATCH_${code}`);
-    void reason;
-    this.disconnectAndLatch(socket, code);
+    // ws-callback (sync) context: the durable latch is fired-and-forgotten (still persisted once); only the async
+    // disconnect() drain/close path awaits it before returning.
+    void this.disconnectAndLatch(socket, code, reason);
   }
 
-  private disconnectAndLatch(socket: As1WsLike, closeCode = 1008): void {
+  private disconnectAndLatch(socket: As1WsLike, closeCode = 1008, reason = 'socket fail-closed latch'): Promise<void> {
     this.admitting = false;
     this.queue.length = 0;
     this.phase = 'LATCHED';
@@ -458,6 +512,8 @@ export class As1RawSocketTransport implements As1SocketPort {
     }
     socket.removeAllListeners();
     if (this.socket === socket) this.socket = null;
+    // Return the durable-latch promise so an async caller can AWAIT persistence before closure (review B05).
+    return this.persistDurableLatch(reason);
   }
 
   public getPhase(): Phase {
