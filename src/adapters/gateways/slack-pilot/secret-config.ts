@@ -47,18 +47,23 @@ export interface As1ProfileSecret {
   readonly appToken: string;
 }
 
-/** The setup §6 redacted-check projection. Contains no token, raw ID, prefix, length, or hash. */
+/**
+ * The setup §6 redacted-check projection. Contains no token, raw ID, prefix, length, or hash. Every status is
+ * scoped to LOCAL SYNTAX / GRAMMAR validation of the owner-only file — this command performs NO live identity
+ * proof (no auth.test, bots.info, or Socket hello pairing), so it never claims network verification (review B09).
+ */
 export interface As1RedactedCheckReport {
+  readonly scope: 'LOCAL_SYNTAX_ONLY';
   readonly configFile: 'VALID_OWNER_ONLY';
   readonly keySet: 'EXACT';
-  readonly workspace: 'VERIFIED_REDACTED';
-  readonly leoUser: 'VERIFIED_APPROVED_ID';
-  readonly agentOfficeProfile: 'VERIFIED_REDACTED';
-  readonly foundationProfile: 'VERIFIED_REDACTED';
-  readonly profileSeparation: 'VERIFIED';
+  readonly workspace: 'GRAMMAR_VALID_REDACTED';
+  readonly leoUser: 'GRAMMAR_MATCHES_APPROVED_ID';
+  readonly agentOfficeProfile: 'GRAMMAR_VALID_REDACTED';
+  readonly foundationProfile: 'GRAMMAR_VALID_REDACTED';
+  readonly profileSeparation: 'LOCAL_DISTINCT';
   readonly tokens: 'PRESENT_AND_REDACTED';
-  readonly liveConnection: 'NOT_STARTED';
-  readonly result: 'PASS';
+  readonly liveIdentityProof: 'NOT_PERFORMED';
+  readonly result: 'LOCAL_SYNTAX_PASS';
 }
 
 /**
@@ -96,24 +101,26 @@ export class As1SecretConfig {
 
   public redactedProjection(): As1RedactedCheckReport {
     return {
+      scope: 'LOCAL_SYNTAX_ONLY',
       configFile: 'VALID_OWNER_ONLY',
       keySet: 'EXACT',
-      workspace: 'VERIFIED_REDACTED',
-      leoUser: 'VERIFIED_APPROVED_ID',
-      agentOfficeProfile: 'VERIFIED_REDACTED',
-      foundationProfile: 'VERIFIED_REDACTED',
-      profileSeparation: 'VERIFIED',
+      workspace: 'GRAMMAR_VALID_REDACTED',
+      leoUser: 'GRAMMAR_MATCHES_APPROVED_ID',
+      agentOfficeProfile: 'GRAMMAR_VALID_REDACTED',
+      foundationProfile: 'GRAMMAR_VALID_REDACTED',
+      profileSeparation: 'LOCAL_DISTINCT',
       tokens: 'PRESENT_AND_REDACTED',
-      liveConnection: 'NOT_STARTED',
-      result: 'PASS',
+      liveIdentityProof: 'NOT_PERFORMED',
+      result: 'LOCAL_SYNTAX_PASS',
     };
   }
 
-  /** The exact successful text block (setup §6). Deterministic and secret-free. */
+  /** The exact successful text block (setup §6). Deterministic and secret-free; LOCAL SYNTAX only (review B09). */
   public renderRedactedCheck(): string {
     const report = this.redactedProjection();
     return [
       'AS1_SLACK_REDACTED_CHECK',
+      `SCOPE: ${report.scope}`,
       `CONFIG_FILE: ${report.configFile}`,
       `KEY_SET: ${report.keySet}`,
       `WORKSPACE: ${report.workspace}`,
@@ -122,8 +129,9 @@ export class As1SecretConfig {
       `FOUNDATION_PROFILE: ${report.foundationProfile}`,
       `PROFILE_SEPARATION: ${report.profileSeparation}`,
       `TOKENS: ${report.tokens}`,
-      `LIVE_CONNECTION: ${report.liveConnection}`,
+      `LIVE_IDENTITY_PROOF: ${report.liveIdentityProof}`,
       `RESULT: ${report.result}`,
+      'NOTE: local syntax validation only — NOT a live identity proof (no auth.test/bots.info/Socket hello).',
     ].join('\n');
   }
 

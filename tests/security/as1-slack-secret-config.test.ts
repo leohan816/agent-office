@@ -28,11 +28,17 @@ describe('AS1 secret-config parser — positive', () => {
 
     expect(config.getWorkspaceId()).toBe('TWORKSPACE001');
     expect(config.getLeoUserId()).toBe('U0BD3523C1F');
-    expect(config.redactedProjection().result).toBe('PASS');
+    // The projection is scoped to LOCAL SYNTAX only and never claims a live identity proof (B09).
+    expect(config.redactedProjection().scope).toBe('LOCAL_SYNTAX_ONLY');
+    expect(config.redactedProjection().liveIdentityProof).toBe('NOT_PERFORMED');
+    expect(config.redactedProjection().result).toBe('LOCAL_SYNTAX_PASS');
 
     const rendered = config.renderRedactedCheck();
     expect(rendered).toContain('AS1_SLACK_REDACTED_CHECK');
-    expect(rendered).toContain('RESULT: PASS');
+    expect(rendered).toContain('SCOPE: LOCAL_SYNTAX_ONLY');
+    expect(rendered).toContain('RESULT: LOCAL_SYNTAX_PASS');
+    expect(rendered).toContain('LIVE_IDENTITY_PROOF: NOT_PERFORMED');
+    expect(rendered).toContain('NOT a live identity proof');
     expect(rendered).toContain('TOKENS: PRESENT_AND_REDACTED');
     // The redacted output must contain no token, prefix, or raw ID.
     expect(rendered).not.toContain('xoxb');

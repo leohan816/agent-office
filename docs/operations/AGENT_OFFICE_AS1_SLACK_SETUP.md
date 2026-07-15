@@ -1,17 +1,21 @@
 # AS1 Multi-Team Slack Pilot Setup
 
-Status: `SETUP_PACK_ONLY__RUNTIME_COMMANDS_NOT_YET_AVAILABLE`
+Status: `PHASE_A_IMPLEMENTATION_CANDIDATE__PENDING_INDEPENDENT_REVIEW__DEFAULT_DISCONNECTED`
 
 Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
 This is the non-secret owner Setup Pack for two private Slack Socket Mode apps.
 It does not create a pilot receive grant, activate a client, connect to Slack,
 create pointer-delivery authority or a runtime capability, start Agent Office,
-or authorize a real pilot. The commands in section 7 are a Phase A contract and
-remain unavailable until Phase A implementation lands. Even after they exist,
-live connection remains disabled until independent implementation/security
-review passes, the Advisor records the owner gate, and the Advisor supplies one
-exact committed/pushed unexpired `As1PilotReceiveGrantV1` for one profile.
+or authorize a real pilot. The lifecycle commands in section 7 exist in Phase A
+(via the `as1:slack-pilot` CLI) as an **implementation candidate** — committed
+source pending an independent Reviewer PASS, not yet independently reviewed or
+accepted — and they default to disconnected: they open no Slack connection on
+their own. Live connection and owner setup remain unauthorized until the
+independent implementation/security review passes, the Advisor records the owner
+gate, and the Advisor supplies one exact committed/pushed unexpired
+`As1PilotReceiveGrantV1` for one profile. `redacted-check` runs today and
+performs local syntax validation only — it is not a live identity proof.
 
 ## 1. Fixed pilot boundary
 
@@ -141,37 +145,48 @@ file.
 
 ## 6. Redacted validation contract
 
-The future redacted check must validate file type, owner, modes, exact key set,
-nonempty values, immutable ID syntax, token class, two distinct App IDs, two
-distinct channel IDs, `auth.test` workspace/bot identity, `bots.info` App ID,
-Socket Mode `hello` App ID, per-profile token/App identity, intended workspace,
-and the approved Leo user ID. It must never print a token, token prefix, token
-length, raw ID, file contents, Slack response body, or reconstructable hash.
+The `redacted-check` command performs **LOCAL SYNTAX validation only**. It
+validates the owner-only file's type, owner, modes, no-follow/regular-file/UTF-8,
+exact key set, nonempty values, immutable ID *grammar*, token *class*, two
+distinct App IDs, two distinct channel IDs, per-profile token/App key mapping, the
+intended workspace ID, and the approved Leo user ID. It **does NOT** perform any
+live identity proof — there is no `auth.test`, `bots.info`, or Socket Mode `hello`
+App-ID pairing, and no Slack connection is opened. (Those live checks are part of
+the `start` command's startup identity gate, not `redacted-check`.) It must never
+print a token, token prefix, token length, raw ID, file contents, Slack response
+body, or reconstructable hash.
 
-Successful output is limited to this shape:
+Successful output is limited to this shape — every status is scoped to local
+syntax/grammar, and the result is explicitly `LOCAL_SYNTAX_PASS`, never a bare
+`PASS` that would imply a network identity proof:
 
 ```text
 AS1_SLACK_REDACTED_CHECK
+SCOPE: LOCAL_SYNTAX_ONLY
 CONFIG_FILE: VALID_OWNER_ONLY
 KEY_SET: EXACT
-WORKSPACE: VERIFIED_REDACTED
-LEO_USER: VERIFIED_APPROVED_ID
-AGENT_OFFICE_PROFILE: VERIFIED_REDACTED
-FOUNDATION_PROFILE: VERIFIED_REDACTED
-PROFILE_SEPARATION: VERIFIED
+WORKSPACE: GRAMMAR_VALID_REDACTED
+LEO_USER: GRAMMAR_MATCHES_APPROVED_ID
+AGENT_OFFICE_PROFILE: GRAMMAR_VALID_REDACTED
+FOUNDATION_PROFILE: GRAMMAR_VALID_REDACTED
+PROFILE_SEPARATION: LOCAL_DISTINCT
 TOKENS: PRESENT_AND_REDACTED
-LIVE_CONNECTION: NOT_STARTED
-RESULT: PASS
+LIVE_IDENTITY_PROOF: NOT_PERFORMED
+RESULT: LOCAL_SYNTAX_PASS
+NOTE: local syntax validation only — NOT a live identity proof (no auth.test/bots.info/Socket hello).
 ```
 
 On failure, output only a stable reason code and the affected profile or field
 name; never echo the rejected value. Validation failure leaves both profiles
 disconnected.
 
-## 7. Planned lifecycle commands
+## 7. Lifecycle commands
 
-These exact command forms are design inputs for the Worker. They do not exist in
-the Setup Pack and must not be run until Phase A implementation lands:
+These command forms exist in Phase A via the `as1:slack-pilot` CLI as an
+implementation candidate (committed source pending an independent Reviewer PASS,
+not yet independently reviewed or accepted). They run today but default to
+disconnected — they open no Slack connection on their own, and `start` fails
+closed absent every gate below:
 
 ```sh
 npm run as1:slack-pilot -- start --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
@@ -183,7 +198,8 @@ npm run as1:slack-pilot -- redacted-check --env-file /home/leo/.config/agent-off
 
 Command semantics after implementation:
 
-- `redacted-check` performs validation without opening a Slack connection.
+- `redacted-check` performs LOCAL SYNTAX validation only (section 6) without
+  opening a Slack connection and without any live identity proof.
 - `start` fails closed unless both profiles validate, the global kill switch is
   disengaged, the reviewed Phase A gate is present, no instance is running, and
   exactly one separately Advisor-created committed/pushed
@@ -233,7 +249,7 @@ Return only the following non-secret facts to the Advisor:
 - App and channel IDs are pairwise distinct where required;
 - each app was invited only to its fixed private channel;
 - the external directory/file ownership and modes pass;
-- `redacted-check` output, once implemented, matches section 6;
+- `redacted-check` output matches section 6 (LOCAL SYNTAX validation only);
 - no token or filled configuration content is included.
 
 Owner setup does not itself authorize a connection or pilot. The Advisor records
@@ -250,8 +266,9 @@ their pilot channels or uninstall them if the pilot is abandoned. Keep the
 committed non-secret Setup Pack as historical evidence unless a reviewed commit
 replaces it.
 
-After Phase A exists, run the planned `stop` command before revocation. If stop
-is ambiguous, engage the global kill switch, revoke both app-level tokens, and
-require manual reconciliation. Rollback never edits Exact Delivery v2 history,
+Once a live connection has ever been authorized, run the `stop` command
+(implemented in Phase A) before revocation. If stop is ambiguous, engage the
+global kill switch, revoke both app-level tokens, and require manual
+reconciliation. Rollback never edits Exact Delivery v2 history,
 reuses a retired/expired/latched receive grant, pointer-delivery grant, lease,
 or consumed capability, or silently clears durable evidence.

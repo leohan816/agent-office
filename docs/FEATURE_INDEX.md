@@ -638,14 +638,17 @@ Sixth implementation-review rework (Sentinel `NEEDS_PATCH` → Advisor `66`/`09P
   and real private-run evidence, and final approval; another mission does not
   start automatically.
 
-## 9. AS1 Multi-Team Slack Pilot (Phase A implemented, default-disabled)
+## 9. AS1 Multi-Team Slack Pilot (Phase A implementation candidate, default-disabled)
 
-Status: `AS1_PHASE_A_IMPLEMENTED_DEFAULT_DISABLED_SYNTHETIC_ONLY__PENDING_INDEPENDENT_IMPLEMENTATION_SECURITY_REVIEW`
+Status: `AS1_PHASE_A_IMPLEMENTATION_CANDIDATE_DEFAULT_DISABLED_SYNTHETIC_ONLY__PENDING_INDEPENDENT_IMPLEMENTATION_SECURITY_REVIEW`
 
 The additive AS1 pilot (`AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`) implements
 a default-disabled, synthetic-only shared Slack Gateway with exactly two closed
 profiles (`AGENT_OFFICE_ADVISOR`, `FOUNDATION_ADVISOR`) from the frozen reviewed
 design at `81a8c3474380a7e427516d6f5e57c97ad88c6c9b` (independent design `PASS`).
+The committed source is an implementation candidate — the design has an
+independent `PASS`, but the implementation has NOT yet received an independent
+Reviewer PASS and must not be read as accepted Phase A.
 As-built detail: `docs/operations/AGENT_OFFICE_AS1_SLACK_PHASE_A_AS_BUILT.md`;
 Worker evidence: `artifacts/as1-multi-team-slack-pilot/WORKER_RESULT.md`.
 
@@ -657,9 +660,10 @@ Worker evidence: `artifacts/as1-multi-team-slack-pilot/WORKER_RESULT.md`.
   grant/lease/capability), persist-before-ACK ordering, the sole
   transition-time expiry decision, profile isolation, evidence ingress, outbox,
   exact tmux transport, and default-disabled control are implemented and covered
-  by eleven synthetic focused test files (fake Slack/tmux ports).
+  by sixteen synthetic focused `as1-slack-*` test files (fake Slack/tmux ports).
 - It claims no enabled descriptor, live Slack/tmux connection, usable authority,
   owner setup, implementation-review `PASS`, risk acceptance, or closure.
 - It changes no M01 authority, Exact Delivery v2 behavior, registry identity/
-  history, DB, or network behavior; Slack SDKs `@slack/socket-mode@3.0.0` and
-  `@slack/web-api@8.0.0` are pinned (package-root imports only).
+  history, DB, or network behavior; the raw Socket Mode transport uses `ws@8.21.1`
+  and the Web port uses `@slack/web-api@8.0.0` (package-root imports only); there
+  is no `@slack/socket-mode` dependency.

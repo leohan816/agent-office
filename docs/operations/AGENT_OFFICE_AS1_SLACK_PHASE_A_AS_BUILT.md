@@ -1,6 +1,6 @@
 # AS1 Multi-Team Slack Pilot — Phase A As-Built
 
-Status: `PHASE_A_IMPLEMENTED_DEFAULT_DISABLED_SYNTHETIC_ONLY__PENDING_INDEPENDENT_IMPLEMENTATION_SECURITY_REVIEW`
+Status: `PHASE_A_IMPLEMENTATION_CANDIDATE_DEFAULT_DISABLED_SYNTHETIC_ONLY__PENDING_INDEPENDENT_IMPLEMENTATION_SECURITY_REVIEW`
 
 Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
@@ -8,7 +8,9 @@ Frozen parent: `81a8c3474380a7e427516d6f5e57c97ad88c6c9b`
 
 This records the additive Phase A implementation of the reviewed design in
 `docs/integration/AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_DESIGN.md` and
-`docs/security/AGENT_OFFICE_AS1_SLACK_SECURITY_AUTHORITY_MODEL.md`. It claims no
+`docs/security/AGENT_OFFICE_AS1_SLACK_SECURITY_AUTHORITY_MODEL.md`. The committed
+source is an **implementation candidate** — it has NOT yet received an
+independent Reviewer PASS and must not be read as accepted Phase A. It claims no
 enabled descriptor, live Slack connection, real tmux input, usable authority
 material, owner setup, implementation-review `PASS`, risk acceptance, or mission
 closure. All Phase A validation is synthetic with fake Slack/tmux ports.
@@ -24,7 +26,7 @@ closure. All Phase A validation is synthetic with fake Slack/tmux ports.
 | `src/application/slack-pilot/evidence-ingress.ts` | Profile-bound ACK/intake/question/result schemas; injected Git-provenance verification; ordered stages; Foundation separation |
 | `src/application/slack-pilot/outbox.ts` | Rendered same-thread outbound; safe-retry classification; no blind resend |
 | `src/adapters/gateways/slack-pilot/secret-config.ts` | Strict owner-only exact-key secret parser; no-follow + double-stat; redacted projection |
-| `src/adapters/gateways/slack-pilot/socket-client.ts` | Narrow raw Socket Mode port + manual-ACK SDK adapter (auto-reconnect disabled) |
+| `src/adapters/gateways/slack-pilot/socket-client.ts` | Narrow raw `ws` public-root Socket Mode port (no `@slack/socket-mode`; auto-reconnect disabled); manual ACK; bounded FIFO admission (`INMEMORY_QUEUE_PER_PROFILE`/`INFLIGHT_SIDE_EFFECTS_PER_PROFILE`) with drain-deadline and forced-terminate latch |
 | `src/adapters/gateways/slack-pilot/web-client.ts` | Narrow Web port (auth.test/bots.info/chat.postMessage only) + SDK adapter (auto-retry disabled) |
 | `src/adapters/gateways/slack-pilot/exact-authority.ts` | Receive-grant startup gate + pair verification; readiness-lease parser; delivery-chain consistency; in-memory capability |
 | `src/adapters/gateways/slack-pilot/exact-transport.ts` | Separate exact tmux journal/runner; two preflights; PASTE_STARTED no-retry boundary |
@@ -33,8 +35,9 @@ closure. All Phase A validation is synthetic with fake Slack/tmux ports.
 | `src/runtime/as1-slack-pilot/cli.ts` | Closed lifecycle command parser + redacted CLI + guarded operator entry |
 
 Configuration: `config/agent-office.as1-slack-pilot.disabled.json` (default-disabled,
-`receiveGrantRef: null`). Dependencies pinned: `@slack/socket-mode@3.0.0`,
-`@slack/web-api@8.0.0` (package-root imports only). Package script `as1:slack-pilot`.
+`receiveGrantRef: null`). Dependencies pinned: `ws@8.21.1` (raw Socket Mode
+WebSocket) and `@slack/web-api@8.0.0` (package-root imports only); there is no
+`@slack/socket-mode` dependency. Package script `as1:slack-pilot`.
 
 ## 2. Two-stage authority (as built)
 
@@ -59,8 +62,8 @@ automatic deletion, compaction, or silent eviction.
 
 ## 4. Synthetic validation
 
-All eleven focused test files use fake Slack/tmux ports and disposable owner-only
-state roots with placeholder IDs/tokens only. No real DNS/HTTP/WebSocket/Slack or
+All sixteen focused `as1-slack-*` test files use fake Slack/tmux ports and
+disposable owner-only state roots with placeholder IDs/tokens only. No real DNS/HTTP/WebSocket/Slack or
 tmux mutation is reachable. The narrow SDK adapters (`NodeAs1WebClient`,
 `NodeAs1SocketClient`) exist for production composition and are never executed in
 Phase A. There is no real tmux mutation runner in Phase A.

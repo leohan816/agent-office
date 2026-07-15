@@ -415,7 +415,9 @@ describe('AS1 default-disabled composition and CLI', () => {
     });
     const { filePath } = await writeSecretFile(secretText(validSecretValues()));
     const result = await runAs1Cli({ command: 'redacted-check', envFilePath: filePath }, composition);
-    expect(result.lines).toContain('RESULT: PASS');
+    expect(result.lines).toContain('RESULT: LOCAL_SYNTAX_PASS');
+    expect(result.lines).toContain('SCOPE: LOCAL_SYNTAX_ONLY');
+    expect(result.lines).toContain('LIVE_IDENTITY_PROOF: NOT_PERFORMED');
     expect(result.lines.join('\n')).not.toContain('xoxb');
     await composition.close();
   });
