@@ -41,32 +41,19 @@ export interface As1ReceiveGrantProvenanceGate {
   assertAccepted(grant: As1PilotReceiveGrantV1): Promise<void>;
 }
 
-export interface StartupIdentityInput {
+/**
+ * The PER-CONNECTION inputs to a startup verification: ONLY the selected profile, its external secret identity,
+ * the receive grant, and the two ports. The trust seams — the trusted clock, the real receive-grant provenance
+ * gate, the owning-control snapshot, and the connect-ready predicate — are NOT here; they are bound once at
+ * construction of `As1StartupIdentityVerifier`, so a per-connection caller can never substitute an accepting
+ * gate, a stale timestamp, or a permissive control (review B04).
+ */
+export interface As1StartupConnection {
   readonly profile: As1Profile;
   readonly wire: As1ProfileWireIdentity;
   readonly grant: As1PilotReceiveGrantV1;
-  readonly now: string;
   readonly web: As1WebPort;
   readonly socket: As1SocketPort;
-  /**
-   * REQUIRED real receive-grant Git provenance gate (review B04). Runs before the pair verification and the
-   * connection, so a grant that is not the exact committed/pushed/clean/first-added/snapshot-descended artifact
-   * can never open a Socket. Never an injected permissive assertion in a production-representable path.
-   */
-  readonly receiveGrantProvenance: As1ReceiveGrantProvenanceGate;
-  /**
-   * REQUIRED current immutable control/latch snapshot (a stable hash of global-control + profile-latch
-   * state). Composition wires this to As1SlackControl; it is never a caller-selectable permissive value.
-   * The readiness seal is derived internally from the immutable profile identity plus this snapshot and is
-   * synchronously revalidated inside the raw hello callback; a stale/changed snapshot fails the start.
-   */
-  readonly controlSnapshot: () => string;
-  /**
-   * REQUIRED synchronous, fail-closed control predicate bound to the exact receiving profile/state/latch
-   * (production: `As1SlackControl.isConnectReady(slug)`). It is re-checked inside the pre-event hello callback,
-   * so a default-disabled, killed, latched, or wrong-active-profile control can never pass the seal.
-   */
-  readonly connectReady: () => boolean;
 }
 
 /** The AUTHENTICATED_QUARANTINE proof — the client still cannot accept a message until every other gate passes. */
@@ -103,70 +90,91 @@ export function assertReceiveGrantConnectable(
 }
 
 /**
- * Full startup pair verification (design §6 steps 3–6). Runs only after the pre-connection gate. Returns
- * an AUTHENTICATED_QUARANTINE proof; a live-receive decision requires further profile/state/control gates.
+ * The startup identity verifier (design §6 steps 3–6). Its four trust seams — the trusted clock, the REAL
+ * receive-grant Git provenance gate, the owning-control snapshot, and the connect-ready predicate — are bound
+ * ONCE at construction (composition or a test), NEVER per verification call. A per-connection caller therefore
+ * cannot substitute an accepting provenance gate, a stale/forged current time, or a permissive control snapshot/
+ * predicate (review B04). There is no exported free function that accepts those trust seams per invocation, so
+ * the caller-selectable trust seam is unrepresentable in a production path.
  */
-export async function verifyStartupIdentity(input: StartupIdentityInput): Promise<StartupIdentityProof> {
-  const { profile, wire, grant, now, web, socket } = input;
-  assertReceiveGrantConnectable(profile, wire, grant, now);
-  // Real Git provenance of the receive-grant artifact BEFORE any Slack call or Socket open (review B04): the
-  // grant must be the exact committed/pushed/clean/upstream-ancestral/byte-stable/single-first-added blob that
-  // descends from the frozen authority snapshots. A permissive/echoed hash is not proof; this gate is.
-  await input.receiveGrantProvenance.assertAccepted(grant);
+export class As1StartupIdentityVerifier {
+  public constructor(
+    /** Trusted clock, read fresh at the connection gate. Never a caller-supplied timestamp. */
+    private readonly clock: () => string,
+    /** Real receive-grant Git provenance gate (production: GitAs1ReceiveGrantProvenanceGate). */
+    private readonly receiveGrantProvenance: As1ReceiveGrantProvenanceGate,
+    /** Current immutable global-control + profile-latch snapshot hash (production: As1SlackControl). */
+    private readonly controlSnapshot: () => string,
+    /** Synchronous fail-closed control predicate for the exact receiving profile/state/latch. */
+    private readonly connectReady: () => boolean,
+  ) {}
 
-  const auth = await web.authTest(wire.botToken);
-  if (!auth.ok || auth.teamId !== wire.workspaceId) {
-    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'auth.test workspace does not match the configured workspace');
-  }
+  /**
+   * Full startup pair verification. Runs only after the pre-connection gate. Returns an AUTHENTICATED_QUARANTINE
+   * proof; a live-receive decision requires the further profile/state/control gates. Accepts only per-connection
+   * data — it can NOT accept or override any trust seam.
+   */
+  public async verify(connection: As1StartupConnection): Promise<StartupIdentityProof> {
+    const { profile, wire, grant, web, socket } = connection;
+    // Trusted clock, read fresh — not a caller timestamp (review B04).
+    assertReceiveGrantConnectable(profile, wire, grant, this.clock());
+    // Real Git provenance of the receive-grant artifact BEFORE any Slack call or Socket open (review B04): the
+    // grant must be the exact committed/pushed/clean/upstream-ancestral/byte-stable/single-first-added blob that
+    // descends from the frozen authority snapshots. A permissive/echoed hash is not proof; this bound gate is.
+    await this.receiveGrantProvenance.assertAccepted(grant);
 
-  const bot = await web.botsInfo(wire.botToken, auth.botId);
-  if (!bot.ok || bot.deleted || bot.botId !== auth.botId || bot.userId !== auth.userId) {
-    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'bots.info identity does not agree with auth.test');
-  }
-  if (bot.appId !== wire.appId) {
-    // Swapped bot token: the bot resolves to a different App ID than the configured profile.
-    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'bots.info app_id does not match the configured App');
-  }
+    const auth = await web.authTest(wire.botToken);
+    if (!auth.ok || auth.teamId !== wire.workspaceId) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'auth.test workspace does not match the configured workspace');
+    }
 
-  // The reviewed raw Socket adapter (docs/integration/AGENT_OFFICE_AS1_SOCKET_IDENTITY_DESIGN_DELTA.md)
-  // proves the app-token->App identity PRE-EVENT: connect opens the raw stream and compares the raw
-  // hello.connection_info.app_id to this expected App ID inside the transport message callback, before any
-  // Team event is parsed or delivered, and synchronously revalidates the internally-derived readiness seal.
-  // A swapped app token or a changed control/latch snapshot is rejected here, before content, with no
-  // fallback. The seal is derived from the immutable profile identity plus the required control snapshot;
-  // it is recomputed at hello time and compared to the value precomputed before connect.
-  const sealOf = (): string =>
-    hashCanonical({
+    const bot = await web.botsInfo(wire.botToken, auth.botId);
+    if (!bot.ok || bot.deleted || bot.botId !== auth.botId || bot.userId !== auth.userId) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'bots.info identity does not agree with auth.test');
+    }
+    if (bot.appId !== wire.appId) {
+      // Swapped bot token: the bot resolves to a different App ID than the configured profile.
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'bots.info app_id does not match the configured App');
+    }
+
+    // The reviewed raw Socket adapter (docs/integration/AGENT_OFFICE_AS1_SOCKET_IDENTITY_DESIGN_DELTA.md)
+    // proves the app-token->App identity PRE-EVENT: connect opens the raw stream and compares the raw
+    // hello.connection_info.app_id to this expected App ID inside the transport message callback, before any
+    // Team event is parsed or delivered, and synchronously revalidates the internally-derived readiness seal.
+    // The seal binds the immutable profile identity plus the construction-bound control snapshot; it is
+    // recomputed at hello time and compared to the value precomputed before connect. The construction-bound
+    // connect-ready predicate is re-checked there too (review B05).
+    const sealOf = (): string =>
+      hashCanonical({
+        profileId: profile.profileId,
+        advisorTeam: profile.advisorTeam,
+        actorId: profile.actorId,
+        roleInstanceId: profile.roleInstanceId,
+        appId: bot.appId,
+        channelId: wire.channelId,
+        leoUserId: wire.leoUserId,
+        control: this.controlSnapshot(),
+      });
+    const expectedSeal = sealOf();
+    const socketResult = await socket.connect({
       profileId: profile.profileId,
-      advisorTeam: profile.advisorTeam,
-      actorId: profile.actorId,
-      roleInstanceId: profile.roleInstanceId,
-      appId: bot.appId,
+      appToken: wire.appToken,
+      expectedAppId: bot.appId,
+      readinessSeal: (): boolean => sealOf() === expectedSeal && this.connectReady(),
+    });
+    if (!socketResult.ok) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'socket connection or pre-event App-ID/seal proof failed');
+    }
+
+    return {
+      teamId: auth.teamId,
+      botId: auth.botId,
+      botUserId: auth.userId,
+      appId: wire.appId,
       channelId: wire.channelId,
       leoUserId: wire.leoUserId,
-      control: input.controlSnapshot(),
-    });
-  const expectedSeal = sealOf();
-  const connection = await socket.connect({
-    profileId: profile.profileId,
-    appToken: wire.appToken,
-    expectedAppId: bot.appId,
-    // The seal binds BOTH the immutable identity/control snapshot AND the synchronous fail-closed control
-    // predicate for the exact receiving profile/state/latch; either failing rejects pre-event (review B05).
-    readinessSeal: (): boolean => sealOf() === expectedSeal && input.connectReady(),
-  });
-  if (!connection.ok) {
-    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'socket connection or pre-event App-ID/seal proof failed');
+    };
   }
-
-  return {
-    teamId: auth.teamId,
-    botId: auth.botId,
-    botUserId: auth.userId,
-    appId: wire.appId,
-    channelId: wire.channelId,
-    leoUserId: wire.leoUserId,
-  };
 }
 
 // ── Readiness lease, delivery-grant binding, and in-memory capability (design §12.5/§12.6) ────────────
