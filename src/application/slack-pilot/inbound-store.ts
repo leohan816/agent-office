@@ -206,6 +206,49 @@ export interface CommitPreAckInput {
   readonly continuation: As1TransportContinuationBinding | null;
 }
 
+/** One atomic record proving both the delivery grant and its lease were consumed together (design §12.5). */
+export interface As1DeliveryAuthorityConsumptionV1 {
+  readonly schemaVersion: 'agent-office.as1-delivery-authority-consumption.v1';
+  readonly pointerDeliveryGrantId: string;
+  readonly leaseId: string;
+  readonly consumedAt: string;
+}
+
+/**
+ * Invariant identity/authority facts bound to a tmux delivery journal at PREPARED and preserved across it
+ * (design §12.6/§12.7). Full lineage — pilot/profile/team/actor/role, grant/lease ids, pointer/source/intake,
+ * destination fingerprint, and every governance/registry/global-control/profile-latch/grant snapshot hash —
+ * so a recovered record can always distinguish its exact authority lineage.
+ */
+export interface As1TmuxDeliveryFacts {
+  readonly receiveGrantId: string;
+  readonly receiveGrantBindingHash: string;
+  readonly pointerDeliveryGrantId: string;
+  readonly leaseId: string;
+  readonly pilotId: string;
+  readonly profileId: string;
+  readonly advisorTeam: string;
+  readonly actorId: string;
+  readonly roleInstanceId: string;
+  readonly intakeId: string;
+  readonly sourceEventId: string;
+  readonly pointerHash: string;
+  readonly destinationHash: string;
+  readonly governanceSnapshotHash: string;
+  readonly registrySnapshotHash: string;
+  readonly globalControlSnapshotHash: string;
+  readonly profileLatchSnapshotHash: string;
+  readonly pointerDeliveryGrantSnapshotHash: string;
+}
+
+export interface As1TmuxDeliveryRecordV1 {
+  readonly schemaVersion: 'agent-office.as1-tmux-delivery.v1';
+  readonly deliveryId: string;
+  readonly phase: string;
+  readonly boundFacts: As1TmuxDeliveryFacts;
+  readonly recordedAt: string;
+}
+
 export type ConsumeQuestionOutcome = 'CONSUMED' | 'REJECTED_RECEIVE_GRANT_EXPIRED' | 'REJECTED_NO_OPEN_QUESTION';
 
 export interface ConsumeQuestionResult {
@@ -774,28 +817,55 @@ export class As1ProfileInboundStore {
   }
 
   // ── Tmux delivery journal + one-use delivery-authority consumption (design §12.5/§12.7) ────────────
-  public async recordTmuxPhase(deliveryId: string, phase: string): Promise<void> {
+  /**
+   * Record the tmux delivery phase, binding the invariant identity/hash facts on the first (PREPARED) write.
+   * Every later transition preserves those exact facts (a change is corruption), never resumes a terminal
+   * journal, and — because PREPARED is written before authority consumption — no consumption is unjournaled.
+   */
+  public async recordTmuxPhase(deliveryId: string, phase: string, facts?: As1TmuxDeliveryFacts): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray<{ deliveryId: string; phase: string; recordedAt: string }>(
-        this.indexPath('tmux-delivery.json'),
-      );
+      const records = await this.readJsonArray<As1TmuxDeliveryRecordV1>(this.indexPath('tmux-delivery.json'));
       const index = records.findIndex((r) => r.deliveryId === deliveryId);
-      const record = { deliveryId, phase, recordedAt: this.clock.now() };
-      if (index >= 0) {
-        const copy = [...records];
-        copy[index] = record;
-        await this.writeJsonArray(this.indexPath('tmux-delivery.json'), copy);
-      } else {
+      const now = this.clock.now();
+      if (index < 0) {
+        if (facts === undefined) {
+          throw new DomainError('INVALID_TRANSITION', 'a new tmux delivery journal must bind its invariant facts');
+        }
         if (records.length >= LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE) {
           throw new DomainError('STORE_QUARANTINED', 'tmux delivery journal capacity exhausted; no silent eviction');
         }
+        const record: As1TmuxDeliveryRecordV1 = {
+          schemaVersion: 'agent-office.as1-tmux-delivery.v1',
+          deliveryId,
+          phase,
+          boundFacts: facts,
+          recordedAt: now,
+        };
         await this.writeJsonArray(this.indexPath('tmux-delivery.json'), [...records, record]);
+        return;
       }
+      const existing = records[index];
+      if (existing === undefined) {
+        throw new DomainError('STORE_QUARANTINED', 'tmux delivery journal returned an impossible state');
+      }
+      // The invariant facts are checked BEFORE any idempotent-return: same phase + different facts is
+      // corruption, never a silent no-op (design §12.7, review B04).
+      if (facts !== undefined && hashCanonical(facts) !== hashCanonical(existing.boundFacts)) {
+        throw new DomainError('STORE_QUARANTINED', 'tmux delivery bound facts changed across the hash chain');
+      }
+      if (existing.phase === phase) return; // idempotent replay of the exact same phase and facts
+      if (existing.phase === 'TRANSPORT_RECORDED' || existing.phase === 'MANUAL_RECONCILIATION_REQUIRED') {
+        throw new DomainError('INVALID_TRANSITION', 'tmux delivery journal is already terminal');
+      }
+      const next: As1TmuxDeliveryRecordV1 = { ...existing, phase, recordedAt: now };
+      const copy = [...records];
+      copy[index] = next;
+      await this.writeJsonArray(this.indexPath('tmux-delivery.json'), copy);
     });
   }
 
   public async readTmuxPhase(deliveryId: string): Promise<string | null> {
-    const records = await this.readJsonArray<{ deliveryId: string; phase: string }>(this.indexPath('tmux-delivery.json'));
+    const records = await this.readJsonArray<As1TmuxDeliveryRecordV1>(this.indexPath('tmux-delivery.json'));
     return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
   }
 
@@ -870,27 +940,35 @@ export class As1ProfileInboundStore {
     );
   }
 
-  /** Consume the delivery grant + lease exactly once. Permanent; reuse of either returns false. */
+  /**
+   * Consume the delivery grant + lease exactly once, in a SINGLE atomic write (design §12.5). Both ids live
+   * in one index so a crash can never consume only one side; reuse of either id returns false. Permanent.
+   */
   public async consumeDeliveryAuthority(pointerDeliveryGrantId: string, leaseId: string): Promise<boolean> {
     return this.mutex.run(async () => {
-      const grants = await this.readJsonArray<{ id: string; consumedAt: string }>(
-        this.indexPath('pointer-delivery-grant-consumption.json'),
+      // Fail closed on legacy two-file consumption state: a prior version's separately-written grant/lease
+      // indexes must never be silently ignored, or already-consumed authority could be re-delivered.
+      const legacyGrants = await this.readJsonArray<unknown>(this.indexPath('pointer-delivery-grant-consumption.json'));
+      const legacyLeases = await this.readJsonArray<unknown>(this.indexPath('readiness-lease-consumption.json'));
+      if (legacyGrants.length > 0 || legacyLeases.length > 0) {
+        throw new DomainError('STORE_QUARANTINED', 'legacy delivery-authority consumption state present; requires a reviewed migration');
+      }
+      const records = await this.readJsonArray<As1DeliveryAuthorityConsumptionV1>(
+        this.indexPath('delivery-authority-consumption.json'),
       );
-      const leases = await this.readJsonArray<{ id: string; consumedAt: string }>(
-        this.indexPath('readiness-lease-consumption.json'),
-      );
-      if (grants.some((r) => r.id === pointerDeliveryGrantId) || leases.some((r) => r.id === leaseId)) {
+      if (records.some((r) => r.pointerDeliveryGrantId === pointerDeliveryGrantId || r.leaseId === leaseId)) {
         return false;
       }
-      const now = this.clock.now();
-      await this.writeJsonArray(this.indexPath('pointer-delivery-grant-consumption.json'), [
-        ...grants,
-        { id: pointerDeliveryGrantId, consumedAt: now },
-      ]);
-      await this.writeJsonArray(this.indexPath('readiness-lease-consumption.json'), [
-        ...leases,
-        { id: leaseId, consumedAt: now },
-      ]);
+      if (records.length >= LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE) {
+        throw new DomainError('STORE_QUARANTINED', 'delivery-authority consumption capacity exhausted; no silent eviction');
+      }
+      const record: As1DeliveryAuthorityConsumptionV1 = {
+        schemaVersion: 'agent-office.as1-delivery-authority-consumption.v1',
+        pointerDeliveryGrantId,
+        leaseId,
+        consumedAt: this.clock.now(),
+      };
+      await this.writeJsonArray(this.indexPath('delivery-authority-consumption.json'), [...records, record]);
       return true;
     });
   }

@@ -343,14 +343,22 @@ export function assertDeliveryChainConsistent(
   pointerHash: string,
   now: string,
 ): void {
+  // Every immutable grant↔lease correlation the two artifacts share must agree (design §12.5, review B04):
+  // the identity ids, the profile lineage (team/actor/role), the pilot, and the authority/registry snapshots.
   if (
     lease.pointerDeliveryGrantId !== grant.pointerDeliveryGrantId ||
     lease.receiveGrantId !== grant.receiveGrantId ||
+    lease.pilotId !== grant.pilotId ||
     lease.profileId !== grant.profileId ||
     lease.intakeId !== grant.intakeId ||
     lease.sourceEventId !== grant.sourceEventId ||
     lease.pointerHash !== grant.pointerHash ||
-    lease.receiveGrantBindingHash !== grant.receiveGrantBindingHash
+    lease.receiveGrantBindingHash !== grant.receiveGrantBindingHash ||
+    lease.advisorTeam !== grant.advisorTeam ||
+    lease.actorId !== grant.actorId ||
+    lease.roleInstanceId !== grant.roleInstanceId ||
+    lease.registrySnapshotHash !== grant.registrySnapshotHash ||
+    lease.authoritySnapshotHash !== grant.governanceSnapshotHash
   ) {
     throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease does not bind the exact delivery-grant facts');
   }
@@ -362,22 +370,53 @@ export function assertDeliveryChainConsistent(
   }
 }
 
-/** In-memory pointer-bound capability (design §12.6). Never serialized, never accepted from a caller. */
+/**
+ * In-memory pointer-bound capability (design §12.6). Never serialized, never accepted from a caller. It binds
+ * the full authority lineage — pilot/profile/team/actor/role, grant/lease ids, pointer/source/intake, the
+ * destination fingerprint, and every governance/registry/global-control/profile-latch/grant snapshot hash —
+ * so a recovered delivery record can always distinguish its exact authority lineage.
+ */
 export interface As1DeliveryCapability {
+  readonly receiveGrantId: string;
   readonly receiveGrantBindingHash: string;
   readonly pointerDeliveryGrantId: string;
+  readonly leaseId: string;
   readonly pilotId: string;
   readonly profileId: As1ProfileId;
+  readonly advisorTeam: string;
+  readonly actorId: string;
+  readonly roleInstanceId: string;
   readonly intakeId: string;
   readonly sourceEventId: string;
   readonly pointerHash: string;
-  readonly leaseId: string;
   readonly destination: As1TmuxDestination;
+  readonly governanceSnapshotHash: string;
+  readonly registrySnapshotHash: string;
+  readonly globalControlSnapshotHash: string;
+  readonly profileLatchSnapshotHash: string;
+  readonly pointerDeliveryGrantSnapshotHash: string;
   readonly issuedAt: string;
   readonly expiresAt: string;
 }
 
-/** Create the live capability after static validation and the first preflight. Bounded to <= 30s. */
+/**
+ * Prove the lease's `pointerDeliveryGrantSnapshotHash` equals the canonical accepted grant bytes — not merely
+ * that the lease carries some hash. This is the exact lease→grant snapshot binding (design §12.5, review B04).
+ */
+export function assertPointerGrantSnapshot(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): void {
+  if (lease.pointerDeliveryGrantSnapshotHash !== hashCanonical(grant)) {
+    throw new DomainError(
+      'AUTHORITY_ARTIFACT_INVALID',
+      'readiness lease pointer-delivery-grant snapshot does not equal the canonical grant bytes',
+    );
+  }
+}
+
+/**
+ * Create the live capability after static validation and the first preflight (design §12.6). Bounded to
+ * <= 30s and to both artifacts' exclusive expiries. It binds the full authority lineage and snapshot facts,
+ * verified equal by `assertDeliveryChainConsistent` / `assertPointerGrantSnapshot`, not only identity ids.
+ */
 export function createDeliveryCapability(
   grant: As1PointerDeliveryGrantV1,
   lease: As1AdvisorReadinessLeaseV1,
@@ -389,15 +428,24 @@ export function createDeliveryCapability(
     Date.parse(lease.expiresAt),
   );
   return {
+    receiveGrantId: grant.receiveGrantId,
     receiveGrantBindingHash: grant.receiveGrantBindingHash,
     pointerDeliveryGrantId: grant.pointerDeliveryGrantId,
+    leaseId: lease.leaseId,
     pilotId: grant.pilotId,
     profileId: grant.profileId,
+    advisorTeam: grant.advisorTeam,
+    actorId: grant.actorId,
+    roleInstanceId: grant.roleInstanceId,
     intakeId: grant.intakeId,
     sourceEventId: grant.sourceEventId,
     pointerHash: grant.pointerHash,
-    leaseId: lease.leaseId,
     destination: lease.destination,
+    governanceSnapshotHash: grant.governanceSnapshotHash,
+    registrySnapshotHash: grant.registrySnapshotHash,
+    globalControlSnapshotHash: grant.globalControlSnapshotHash,
+    profileLatchSnapshotHash: grant.profileLatchSnapshotHash,
+    pointerDeliveryGrantSnapshotHash: lease.pointerDeliveryGrantSnapshotHash,
     issuedAt,
     expiresAt: new Date(expiresMs).toISOString(),
   };

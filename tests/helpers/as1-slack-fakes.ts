@@ -116,7 +116,7 @@ export function validPointerDeliveryGrant(overrides: Record<string, unknown> = {
     intakeId: 'as1-intake-0001',
     sourceEventId: 'Ev0AGENTOFFICE01',
     rootCorrelationHash: HASH_3,
-    pointerArtifactRef: 'artifacts/as1-slack-pilot/agent-office-advisor/pointers/p1',
+    pointerArtifactRef: 'artifacts/as1-slack-pilot/agent-office-advisor/pointers/p1/pointer.json',
     pointerHash: HASH_4,
     advisorTeam: 'AGENT_OFFICE_ADVISOR_TEAM',
     actorId: 'agent-office-advisor',
@@ -610,6 +610,8 @@ export class FakeTmuxPort implements As1TmuxPort {
   private readonly preflightQueue: As1TmuxPreflight[] = [];
   private pasteThrows = false;
   private bufferPresent = false;
+  private onLoadHook: (() => void) | null = null;
+  private onPasteHook: (() => void) | null = null;
 
   public constructor(private readonly base: As1TmuxPreflight) {}
 
@@ -625,6 +627,16 @@ export class FakeTmuxPort implements As1TmuxPort {
     this.bufferPresent = true;
   }
 
+  /** Fire a side effect the instant loadBuffer runs — used to advance a test clock at an exact boundary. */
+  public onLoad(fn: () => void): void {
+    this.onLoadHook = fn;
+  }
+
+  /** Fire a side effect the instant pasteBuffer runs — used to advance a test clock past the no-retry boundary. */
+  public onPaste(fn: () => void): void {
+    this.onPasteHook = fn;
+  }
+
   public preflight(): Promise<As1TmuxPreflight> {
     this.preflightCalls += 1;
     return Promise.resolve(this.preflightQueue.shift() ?? this.base);
@@ -636,11 +648,13 @@ export class FakeTmuxPort implements As1TmuxPort {
 
   public loadBuffer(): Promise<void> {
     this.loadCalls += 1;
+    if (this.onLoadHook !== null) this.onLoadHook();
     return Promise.resolve();
   }
 
   public pasteBuffer(): Promise<void> {
     this.pasteCalls += 1;
+    if (this.onPasteHook !== null) this.onPasteHook();
     if (this.pasteThrows) return Promise.reject(new Error('tmux paste ambiguous'));
     return Promise.resolve();
   }
