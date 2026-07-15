@@ -2,6 +2,7 @@ import WebSocket from 'ws';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
+import { LIMITS } from '../../src/application/slack-pilot/contracts.js';
 import {
   As1RawSocketTransport,
   as1WsClientOptions,
@@ -564,5 +565,120 @@ describe('AS1 raw socket transport — receive-ready fail-closed durable latchin
     expect(ran).toEqual([]);
     expect(ctx.transport.getPhase()).toBe('LATCHED');
     expect(ctx.durableLatches.some((r) => r.includes('control not actionable at dequeue'))).toBe(true);
+  });
+});
+
+// B05 re-review V6 (AS1-PATCH-V6-05): the Reviewer V5 result (f994749 / 8057004f) reproduced two load-bearing
+// edges on 938775a — a post-ready binary frame and a 32,769-byte frame both stayed EVENT_RECEIVE_READY with an
+// empty durableLatches list (routed to the now-inert startup rejectOnce), and a stale generation's raw error
+// latched the current transport while closing only the old socket. V6-05A makes binary/non-Buffer/oversize
+// phase-aware; V6-05B gates every raw callback on current Socket+generation ownership and rejects an overlapping
+// connect before a second opener/factory side effect.
+describe('AS1 raw socket transport — receive-ready binary/oversize + generation ownership (B05 V6)', () => {
+  // --- V6-05A: a post-ready binary / non-Buffer / oversize frame follows the durable fail-closed path ---
+  it('a binary frame after ready durably latches the owning profile and closes the current socket', async () => {
+    const ctx = await connectReady();
+    ctx.fakeWs.emit('message', Buffer.from('binary-after-ready', 'utf8'), true); // isBinary === true
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('binary or non-buffer frame after ready'))).toBe(true);
+    expect(ctx.fakeWs.closeCalls.length).toBeGreaterThan(0);
+    await ctx.transport.disconnect(); // a later shutdown must NOT downgrade LATCHED to CLOSED
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+  });
+
+  it('a non-Buffer frame after ready durably latches the owning profile', async () => {
+    const ctx = await connectReady();
+    ctx.fakeWs.emit('message', 'a plain string, not a Buffer', false); // !Buffer.isBuffer(data)
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('binary or non-buffer frame after ready'))).toBe(true);
+    expect(ctx.fakeWs.closeCalls.length).toBeGreaterThan(0);
+  });
+
+  it('an exact WS_MAX_PAYLOAD_BYTES+1 oversize frame after ready durably latches', async () => {
+    const ctx = await connectReady();
+    const oversize = Buffer.alloc(LIMITS.WS_MAX_PAYLOAD_BYTES + 1, 0x61); // exactly 32_769 bytes
+    ctx.fakeWs.emit('message', oversize, false);
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('oversize frame after ready'))).toBe(true);
+    expect(ctx.fakeWs.closeCalls.length).toBeGreaterThan(0);
+  });
+
+  // --- V6-05B: current Socket/generation ownership ---
+  /** Wrap a fake's `on` to retain the exact listener functions the transport registers (they survive a later
+   * removeAllListeners on the fake, so a stale generation's callbacks can be invoked directly). */
+  function captureListeners(ws: FakeAs1Ws): Record<string, ((...a: unknown[]) => void) | undefined> {
+    const captured: Record<string, ((...a: unknown[]) => void) | undefined> = {};
+    const original = ws.on.bind(ws);
+    ws.on = (event: string, listener: (...a: unknown[]) => void): void => {
+      captured[event] = listener;
+      original(event, listener);
+    };
+    return captured;
+  }
+
+  it('a stale generation error/close/message is a no-op against the clean current generation', async () => {
+    const ctx = makeTransport();
+    const gen1 = ctx.fakeWs;
+    const stale = captureListeners(gen1);
+    // gen1: connect + ready.
+    const p1 = ctx.transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    gen1.emit('open');
+    gen1.emit('message', helloFrame(APP_ID), false);
+    await p1;
+    // Clean disconnect gen1 (retains the monotonic generation counter, phase CLOSED), then a clean authorized reuse.
+    await ctx.transport.disconnect();
+    expect(ctx.transport.getPhase()).toBe('CLOSED');
+    const gen2 = new FakeAs1Ws();
+    ctx.factory.setNext(gen2);
+    const p2 = ctx.transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    gen2.emit('open');
+    gen2.emit('message', helloFrame(APP_ID), false);
+    await p2;
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+
+    const latchesBefore = ctx.durableLatches.length;
+    const gen2ClosesBefore = gen2.closeCalls.length;
+    // Invoke the RETAINED stale gen1 callbacks directly — none may mutate/latch/close the current (gen2) transport.
+    stale.error?.(new Error('stale gen1 provider error'));
+    stale.close?.();
+    stale.message?.(Buffer.from('{', 'utf8'), false); // a malformed frame from the old generation
+    stale.message?.(Buffer.from('binary', 'utf8'), true); // a binary frame from the old generation
+    await flush();
+
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY'); // current generation unchanged
+    expect(ctx.durableLatches.length).toBe(latchesBefore); // no durable latch from a stale callback
+    expect(gen2.closeCalls.length).toBe(gen2ClosesBefore); // the current socket was not closed
+    // The current generation is still actionable: it delivers a fresh event.
+    gen2.emit('message', eventFrame('EnvGen2AGENTOFFICE', APP_ID), false);
+    await flush();
+    expect(ctx.received.some((e) => e.envelopeId === 'EnvGen2AGENTOFFICE')).toBe(true);
+  });
+
+  it('a current-generation raw error after ready still durably fails closed (V5 behavior preserved)', async () => {
+    const ctx = await connectReady();
+    ctx.fakeWs.emit('error', new Error('current provider error'));
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('raw socket error after ready'))).toBe(true);
+  });
+
+  it('rejects an overlapping connect before a second opener/factory side effect', async () => {
+    const ctx = await connectReady(); // gen1 live and ready
+    const openerCallsBefore = ctx.opener.calls;
+    const createdBefore = ctx.factory.created.length;
+    await expect(
+      ctx.transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true }),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(ctx.opener.calls).toBe(openerCallsBefore); // no second opener.open side effect
+    expect(ctx.factory.created.length).toBe(createdBefore); // no second factory.create side effect
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY'); // the first live connection is intact
+    ctx.fakeWs.emit('message', eventFrame('EnvStillLiveAGENT', APP_ID), false);
+    await flush();
+    expect(ctx.received.some((e) => e.envelopeId === 'EnvStillLiveAGENT')).toBe(true);
   });
 });

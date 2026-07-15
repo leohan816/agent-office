@@ -227,6 +227,14 @@ export class As1RawSocketTransport implements As1SocketPort {
   }
 
   public async connect(input: As1SocketConnectInput): Promise<As1SocketConnectResult> {
+    // Reject an overlapping connect BEFORE any opener/factory side effect unless the transport is in its clean
+    // reconnectable state — the initial CLOSED after construction, or CLOSED after a clean disconnect, with no
+    // bound Socket (review B05 V6). A connecting/quarantine/receive-ready/draining transport must never be silently
+    // replaced by a second live Socket, and a terminal LATCHED transport is never reusable. A clean reuse advances
+    // (retains, never resets) the monotonic generation counter, so a stale generation's callback can never match.
+    if (this.phase !== 'CLOSED' || this.socket !== null) {
+      throw new DomainError('INVALID_TRANSITION', 'connect requires a clean reconnectable transport state');
+    }
     this.profileId = input.profileId;
     const deadlineAt = this.now() + LIMITS.STARTUP_IDENTITY_TIMEOUT_MS;
     const url = await this.opener.open(input.appToken, Math.max(0, deadlineAt - this.now()));
@@ -249,13 +257,19 @@ export class As1RawSocketTransport implements As1SocketPort {
         clearTimeout(timer);
         this.failStart(socket, code, reason, reject);
       };
+      // Current-generation ownership (review B05 V6-05B): an async ws callback may mutate/latch transport-wide phase,
+      // admission, queue, latch state, or Socket ownership ONLY while it still owns BOTH the current Socket and the
+      // current generation. A stale generation's open/message/error/close is a no-op against the current transport.
+      const isCurrent = (): boolean => this.socket === socket && this.generation === generation;
 
       socket.on('open', () => {
-        if (this.phase === 'WS_CONNECTING' && this.generation === generation) this.phase = 'HELLO_QUARANTINE';
+        if (isCurrent() && this.phase === 'WS_CONNECTING') this.phase = 'HELLO_QUARANTINE';
       });
       socket.on('error', () => {
-        // A post-ready raw error on the LIVE receive socket is a fail-closed durable latch (review B05 V5);
-        // before ready it fails the start. No reconnect/retry.
+        // A stale generation's error must never latch/close the CURRENT transport (review B05 V6-05B); a
+        // current-generation post-ready raw error on the LIVE receive socket is a fail-closed durable latch (review
+        // B05 V5); before ready it fails the start. No reconnect/retry.
+        if (!isCurrent()) return;
         if (this.phase === 'EVENT_RECEIVE_READY') {
           void this.disconnectAndLatch(socket, 1011, 'raw socket error after ready');
           return;
@@ -263,9 +277,11 @@ export class As1RawSocketTransport implements As1SocketPort {
         rejectOnce(1008, 'ws error before ready');
       });
       socket.on('close', () => {
-        // A post-ready raw close (the provider dropped the live receive socket) is a fail-closed durable latch;
-        // a close before ready fails the start; a close during a controlled DRAINING/CLOSED shutdown is expected
-        // and is handled by disconnect()/closeAndConfirm, not here.
+        // A stale generation's close must never latch/close the CURRENT transport (review B05 V6-05B). For the
+        // current generation: a post-ready raw close (the provider dropped the live receive socket) is a fail-closed
+        // durable latch; a close before ready fails the start; a close during a controlled DRAINING/CLOSED shutdown
+        // is expected and handled by disconnect()/closeAndConfirm, not here.
+        if (!isCurrent()) return;
         if (this.phase === 'EVENT_RECEIVE_READY') {
           void this.disconnectAndLatch(socket, 1008, 'raw socket close after ready');
           return;
@@ -273,14 +289,31 @@ export class As1RawSocketTransport implements As1SocketPort {
         if (!done.settled) rejectOnce(1008, 'closed before ready');
       });
       socket.on('message', (...args: unknown[]) => {
+        // A stale generation's frame must never mutate/latch the CURRENT transport (review B05 V6-05B).
+        if (!isCurrent()) return;
         const data = args[0];
         const isBinary = args[1] === true;
+        // A binary/non-Buffer or an oversize frame is malformed in EVERY phase. Before receive-ready it fails the
+        // start via the startup closure; AFTER ready — and during a post-ready drain — it must follow the SAME
+        // fail-closed durable-latch path, never the now-inert startup rejection that would leave it admitted
+        // (review B05 V6-05A).
+        const afterReady = this.phase === 'EVENT_RECEIVE_READY' || this.phase === 'DRAINING';
         if (isBinary || !Buffer.isBuffer(data)) {
-          rejectOnce(1003, 'binary frame in quarantine');
+          if (afterReady) {
+            this.log.record(this.profileId, this.phase, 'REJECTED_BINARY_FRAME');
+            this.latch(socket, 1003, 'binary or non-buffer frame after ready');
+          } else {
+            rejectOnce(1003, 'binary frame in quarantine');
+          }
           return;
         }
         if (data.byteLength > LIMITS.WS_MAX_PAYLOAD_BYTES) {
-          rejectOnce(1009, 'oversize frame in quarantine');
+          if (afterReady) {
+            this.log.record(this.profileId, this.phase, 'REJECTED_OVERSIZE_FRAME');
+            this.latch(socket, 1009, 'oversize frame after ready');
+          } else {
+            rejectOnce(1009, 'oversize frame in quarantine');
+          }
           return;
         }
         const text = data.toString('utf8');
