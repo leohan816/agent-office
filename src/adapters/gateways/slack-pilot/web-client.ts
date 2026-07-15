@@ -5,15 +5,13 @@
 // auth.test, bots.info, and chat.postMessage are representable. SDK automatic retries are disabled
 // (`retryConfig.retries: 0`) and rate-limited calls reject (`rejectRateLimitedCalls: true`) so application
 // code owns retry classification. Provider errors are translated into exactly the reviewed safe-retry
-// classes: a proven pre-request failure (`WebAPIRequestError`) is CONNECTION_BEFORE_SEND; an explicit
-// rate-limit (`WebAPIRateLimitedError`) is RATE_LIMITED with a bounded `retryAfter`; every HTTP/platform/
-// unknown/ok:false outcome is AMBIGUOUS (never blind-resent). No token, response body, or WebSocket URL is
-// ever logged.
-import {
-  WebAPIRateLimitedError,
-  WebAPIRequestError,
-  WebClient,
-} from '@slack/web-api';
+// classes: an explicit rate-limit (`WebAPIRateLimitedError`) is RATE_LIMITED with a bounded `retryAfter`;
+// EVERY other provider outcome — including `WebAPIRequestError` (which the installed SDK also wraps around
+// timeout/reset failures where bytes MAY already have been sent), HTTP/platform errors, an unknown throw, and
+// ok:false — is AMBIGUOUS and never blind-resent. The adapter emits no CONNECTION_BEFORE_SEND class: that class
+// is reserved for an explicitly proven LOCAL pre-invocation failure, which this provider path cannot prove. No
+// token, response body, or WebSocket URL is ever logged.
+import { WebAPIRateLimitedError, WebClient } from '@slack/web-api';
 
 import { DomainError } from '../../../contracts/types.js';
 
@@ -72,17 +70,20 @@ function boundedField(value: unknown, label: string): string {
   return value;
 }
 
-/** Translate a thrown provider error into exactly one reviewed outbound retry class. Never leaks the body. */
+/**
+ * Translate a thrown provider error into exactly one reviewed outbound retry class (design §14). Never leaks the
+ * body. Only an explicit `WebAPIRateLimitedError` is a safe-retry (RATE_LIMITED). A `WebAPIRequestError` is NOT
+ * treated as definitely-unsent: the installed @slack/web-api wraps timeout/reset failures (bytes possibly already
+ * sent) in that same class, so it — like every HTTP/platform/unknown/ok:false outcome — is AMBIGUOUS and never
+ * blind-resent. This path manufactures no CONNECTION_BEFORE_SEND signal.
+ */
 export function classifyOutboundError(error: unknown): As1OutboundError {
   if (error instanceof As1OutboundError) return error;
   if (error instanceof WebAPIRateLimitedError) {
     return new As1OutboundError('RATE_LIMITED', 'provider rate limited the request', error.retryAfter * 1_000);
   }
-  if (error instanceof WebAPIRequestError) {
-    // The request could not be handed to the network (DNS/TLS/build) — proven definitely-unsent.
-    return new As1OutboundError('CONNECTION_BEFORE_SEND', 'request failed before any bytes were sent');
-  }
-  // WebAPIHTTPError, WebAPIPlatformError, timeouts after write, and anything else are ambiguous.
+  // WebAPIRequestError (incl. timeout/reset after possible send), WebAPIHTTPError, WebAPIPlatformError, and any
+  // other throw are all ambiguous — fail closed.
   return new As1OutboundError('AMBIGUOUS', 'outbound outcome is ambiguous');
 }
 

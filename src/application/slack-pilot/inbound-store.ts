@@ -148,6 +148,20 @@ export interface As1ConsumedQuestionReplyV1 {
   readonly continuationIntakeId: string;
 }
 
+/** One durable outbox phase record with its bound immutable request/response artifact hashes (design §14). */
+export interface As1OutboxRecordV1 {
+  readonly outboundId: string;
+  readonly phase: string;
+  readonly requestHash: string | null;
+  readonly responseHash: string | null;
+  readonly recordedAt: string;
+}
+
+export interface As1OutboxHashes {
+  readonly requestHash?: string;
+  readonly responseHash?: string;
+}
+
 /**
  * The durable checkpoint of one accepted Advisor evidence artifact (design §13). Each record fixes the full
  * canonical envelope identity (repository/path/commit/blob/hash) AND the per-kind canonical correlation facts
@@ -709,6 +723,12 @@ export class As1ProfileInboundStore {
     });
   }
 
+  /** Resolve the immutable accepted root correlation for an intake (design §10/§14 outbound root binding). */
+  public async findRootByIntakeId(intakeId: string): Promise<As1RootCorrelationV1 | null> {
+    const records = await this.readJsonArray<As1RootCorrelationV1>(this.indexPath('root-correlations.json'));
+    return records.find((r) => r.intakeId === intakeId) ?? null;
+  }
+
   public async findRootByThreadTs(threadTs: string): Promise<As1RootCorrelationV1 | null> {
     const records = await this.readJsonArray<As1RootCorrelationV1>(this.indexPath('root-correlations.json'));
     return records.find((r) => r.rootTs === threadTs) ?? null;
@@ -972,13 +992,23 @@ export class As1ProfileInboundStore {
     );
   }
 
-  public async recordOutboxPhase(outboundId: string, phase: string): Promise<void> {
+  /**
+   * Advance the durable outbox phase and bind the immutable request/response artifact hashes (design §14). The
+   * request hash is written at PREPARED and the response hash at RESPONSE_RECORDED; both are PRESERVED across a
+   * later phase update so the terminal record proves exactly which bytes were prepared and (if any) recorded.
+   */
+  public async recordOutboxPhase(outboundId: string, phase: string, hashes?: As1OutboxHashes): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray<{ outboundId: string; phase: string; recordedAt: string }>(
-        this.indexPath('slack-outbox.json'),
-      );
+      const records = await this.readJsonArray<As1OutboxRecordV1>(this.indexPath('slack-outbox.json'));
       const index = records.findIndex((r) => r.outboundId === outboundId);
-      const record = { outboundId, phase, recordedAt: this.clock.now() };
+      const prior = index >= 0 ? records[index] : undefined;
+      const record: As1OutboxRecordV1 = {
+        outboundId,
+        phase,
+        requestHash: hashes?.requestHash ?? prior?.requestHash ?? null,
+        responseHash: hashes?.responseHash ?? prior?.responseHash ?? null,
+        recordedAt: this.clock.now(),
+      };
       if (index >= 0) {
         const copy = [...records];
         copy[index] = record;
@@ -993,8 +1023,13 @@ export class As1ProfileInboundStore {
   }
 
   public async readOutboxPhase(outboundId: string): Promise<string | null> {
-    const records = await this.readJsonArray<{ outboundId: string; phase: string }>(this.indexPath('slack-outbox.json'));
+    const records = await this.readJsonArray<As1OutboxRecordV1>(this.indexPath('slack-outbox.json'));
     return records.find((r) => r.outboundId === outboundId)?.phase ?? null;
+  }
+
+  public async readOutboxRecord(outboundId: string): Promise<As1OutboxRecordV1 | null> {
+    const records = await this.readJsonArray<As1OutboxRecordV1>(this.indexPath('slack-outbox.json'));
+    return records.find((r) => r.outboundId === outboundId) ?? null;
   }
 
   // ── Advisor evidence ingress log (design §13) ─────────────────────────────
