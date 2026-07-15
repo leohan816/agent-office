@@ -831,7 +831,8 @@ export class FakeGitVerifier implements As1GitProvenanceVerifier {
     upstreamAncestral: true,
     firstAddition: true,
     dirty: false,
-    byteStable: true,
+    contentVerified: true,
+    descendsFromBothSnapshots: true,
   };
 
   public set(partial: Partial<As1EvidenceProvenance>): void {
@@ -840,5 +841,19 @@ export class FakeGitVerifier implements As1GitProvenanceVerifier {
 
   public verify(): Promise<As1EvidenceProvenance> {
     return Promise.resolve(this.provenance);
+  }
+}
+
+/** Records the durable profile-latch calls an evidence-ingress makes (the canonical latch source in tests). */
+export class FakeEvidenceLatch {
+  public readonly reasons: string[] = [];
+
+  public readonly latch = (reasonCode: string): Promise<void> => {
+    if (!this.reasons.includes(reasonCode)) this.reasons.push(reasonCode);
+    return Promise.resolve();
+  };
+
+  public get latched(): boolean {
+    return this.reasons.length > 0;
   }
 }

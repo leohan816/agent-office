@@ -912,13 +912,24 @@ export class As1ProfileInboundStore {
     readonly sourceCommit: string;
   }): Promise<number> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray<{ evidenceId: string; blobSha256: string }>(
-        this.indexPath('evidence-ingress-checkpoint.json'),
-      );
+      const records = await this.readJsonArray<{
+        evidenceKind: string;
+        evidenceId: string;
+        intakeId: string;
+        blobSha256: string;
+        sourceCommit: string;
+      }>(this.indexPath('evidence-ingress-checkpoint.json'));
       const existing = records.find((r) => r.evidenceId === entry.evidenceId);
       if (existing !== undefined) {
-        if (existing.blobSha256 !== entry.blobSha256) {
-          throw new DomainError('STORE_QUARANTINED', 'evidence re-accepted with different bytes');
+        // Exact duplicate equality: the re-accepted evidence must match on kind/intake/commit AND bytes, not
+        // only the blob hash (review B06). Any divergence is a durable contradiction.
+        if (
+          existing.evidenceKind !== entry.evidenceKind ||
+          existing.intakeId !== entry.intakeId ||
+          existing.sourceCommit !== entry.sourceCommit ||
+          existing.blobSha256 !== entry.blobSha256
+        ) {
+          throw new DomainError('STORE_QUARANTINED', 'evidence id re-accepted with different kind/intake/commit/bytes');
         }
         return records.length;
       }

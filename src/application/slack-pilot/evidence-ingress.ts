@@ -26,18 +26,32 @@ export interface As1EvidenceRef {
   readonly blobSha256: string;
 }
 
-/** Result of the read-only Git provenance check (design §13; implemented outside the gateway). */
+/**
+ * Result of the real read-only Git/content provenance check (design §13). `contentVerified` means the exact
+ * committed blob's bytes hash to the claimed blobSha256; `descendsFromBothSnapshots` means the source commit
+ * descends from BOTH frozen authority snapshot commits. All must hold for acceptance.
+ */
 export interface As1EvidenceProvenance {
   readonly upstreamAncestral: boolean;
   readonly firstAddition: boolean;
   readonly dirty: boolean;
-  readonly byteStable: boolean;
+  readonly contentVerified: boolean;
+  readonly descendsFromBothSnapshots: boolean;
 }
 
 /** Read-only Git provenance verifier. Uses closed argv, shell:false, fixed env, bounded output. */
 export interface As1GitProvenanceVerifier {
   verify(ref: As1EvidenceRef): Promise<As1EvidenceProvenance>;
 }
+
+/** The immutable authority chain the evidence must bind to — taken from the accepted pointer-delivery grant. */
+export interface As1EvidenceAuthority {
+  readonly authorityRepositoryId: string;
+  readonly authoritySourceCommit: string;
+}
+
+/** Persist the durable profile latch (a stable bounded reason code). Backed by the canonical control record. */
+export type As1EvidenceLatch = (reasonCode: string) => Promise<void>;
 
 export interface As1EvidenceEnvelope {
   readonly schemaVersion: string;
@@ -118,13 +132,15 @@ export interface EvidenceIngestResult {
   readonly sequence: number | null;
 }
 
-/** Profile-bound, ordered, immutable evidence ingress. Fails closed on any provenance or order defect. */
+/** Profile-bound, ordered, immutable evidence ingress. Fails closed AND durably latches on any defect. */
 export class As1EvidenceIngress {
   public constructor(
     private readonly profile: As1Profile,
     private readonly store: As1ProfileInboundStore,
     private readonly verifier: As1GitProvenanceVerifier,
     private readonly evidencePrefix: string,
+    private readonly authority: As1EvidenceAuthority,
+    private readonly latch: As1EvidenceLatch,
   ) {}
 
   public async ingest(kind: As1EvidenceKind, value: unknown, ref: As1EvidenceRef): Promise<EvidenceIngestResult> {
@@ -132,24 +148,30 @@ export class As1EvidenceIngress {
     try {
       envelope = parseEvidenceEnvelope(kind, value, this.profile);
     } catch (error) {
-      return this.quarantine(error instanceof DomainError ? error.message : 'schema rejected');
+      return this.quarantine('EVIDENCE_SCHEMA_REJECTED', error instanceof DomainError ? error.message : 'schema rejected');
     }
 
-    // The evidence path must live under the grant-fixed profile prefix; Slack cannot supply a path.
+    // The evidence repository/path must bind to the grant-fixed authority chain; Slack cannot supply either.
+    if (ref.repositoryId !== this.authority.authorityRepositoryId) {
+      return this.quarantine('EVIDENCE_WRONG_REPOSITORY', 'evidence repository does not match the delivery-grant authority');
+    }
     const expectedPrefix = `${this.evidencePrefix}/${envelope.intakeId}/`;
     if (!ref.path.startsWith(expectedPrefix) || ref.path.includes('..')) {
-      return this.quarantine('evidence path is outside the grant-fixed profile prefix');
+      return this.quarantine('EVIDENCE_WRONG_PREFIX', 'evidence path is outside the grant-fixed profile prefix');
     }
 
+    // Real read-only Git/content provenance: every gate must hold, including a byte-for-byte blob content
+    // match and descent from BOTH frozen authority snapshots (review B06).
     const provenance = await this.verifier.verify(ref);
-    if (!provenance.upstreamAncestral) return this.quarantine('evidence is not upstream-ancestral');
-    if (!provenance.firstAddition) return this.quarantine('evidence path is not a single first addition');
-    if (provenance.dirty) return this.quarantine('evidence tree is dirty');
-    if (!provenance.byteStable) return this.quarantine('evidence bytes changed after first acceptance');
+    if (!provenance.upstreamAncestral) return this.quarantine('EVIDENCE_NOT_ANCESTRAL', 'evidence is not upstream-ancestral');
+    if (!provenance.firstAddition) return this.quarantine('EVIDENCE_NOT_FIRST_ADDITION', 'evidence path is not a single first addition');
+    if (provenance.dirty) return this.quarantine('EVIDENCE_DIRTY_TREE', 'evidence tree is dirty for this path');
+    if (!provenance.contentVerified) return this.quarantine('EVIDENCE_CONTENT_MISMATCH', 'committed blob bytes do not match the claimed hash');
+    if (!provenance.descendsFromBothSnapshots) return this.quarantine('EVIDENCE_SNAPSHOT_DESCENT', 'evidence commit does not descend from both frozen snapshots');
 
     const priorForIntake = (await this.store.readAcceptedEvidence()).filter((e) => e.intakeId === envelope.intakeId);
     const orderError = this.checkStageOrder(kind, priorForIntake.map((e) => e.evidenceKind));
-    if (orderError !== null) return this.quarantine(orderError);
+    if (orderError !== null) return this.quarantine('EVIDENCE_STAGE_ORDER', orderError);
 
     try {
       const sequence = await this.store.appendAcceptedEvidence({
@@ -161,7 +183,8 @@ export class As1EvidenceIngress {
       });
       return { outcome: 'ACCEPTED', reason: 'ok', sequence };
     } catch (error) {
-      return this.quarantine(error instanceof DomainError ? error.message : 'append failed');
+      // A duplicate-equality violation or capacity failure is a durable contradiction — latch the profile.
+      return this.quarantine('EVIDENCE_APPEND_QUARANTINED', error instanceof DomainError ? error.message : 'append failed');
     }
   }
 
@@ -187,7 +210,12 @@ export class As1EvidenceIngress {
     }
   }
 
-  private quarantine(reason: string): EvidenceIngestResult {
-    return { outcome: 'QUARANTINED', reason, sequence: null };
+  /**
+   * Every provenance/order/append contradiction quarantines AND durably latches the profile with a stable
+   * bounded reason CODE (never a raw message), so a rewrite/deletion/wrong-ancestry defect is never forgotten.
+   */
+  private async quarantine(reasonCode: string, detail: string): Promise<EvidenceIngestResult> {
+    await this.latch(reasonCode);
+    return { outcome: 'QUARANTINED', reason: detail, sequence: null };
   }
 }
