@@ -669,8 +669,13 @@ Worker evidence: `artifacts/as1-multi-team-slack-pilot/WORKER_RESULT.md`.
   (B05 V6) a post-ready or post-ready-drain binary/non-Buffer or oversize
   (`> WS_MAX_PAYLOAD_BYTES`) frame — where every asynchronous open/message/error/
   close callback proves current Socket + generation ownership before it can
-  mutate/latch transport-wide state (a stale generation is a no-op) and an
-  overlapping connect is rejected before any opener/factory side effect (B05 V6),
+  mutate/latch transport-wide state (a stale generation is a no-op) (B05 V6), and
+  where `connect()` synchronously reserves exclusive ownership (advancing the
+  generation and leaving CLOSED before awaiting the opener) so an overlapping
+  connect — even one racing while the first opener is still pending — rejects
+  before a second opener/factory side effect, a failed opener/factory releases
+  only its own reservation, and a disconnect while an opener is pending never
+  binds a Socket (B05 V7),
   byte-bounded durable recovery whose parsers enforce the exact dedupe
   phase-to-field matrix and normalize fatal UTF-8/JSON corruption of any profile
   index or the global-control file into a durable owning-profile/global quarantine
