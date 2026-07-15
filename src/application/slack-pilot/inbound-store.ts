@@ -1872,7 +1872,15 @@ export class As1ProfileInboundStore {
         throw new DomainError('STORE_QUARANTINED', `profile index ${relative} exceeds the ${String(LIMITS.DURABLE_FILE_MAX_BYTES)}-byte durable-file bound`);
       }
       const bytes = await handle.readFile();
-      const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+      // A fatal UTF-8 decode failure or a JSON syntax error on a durable profile index is durable corruption, not a
+      // programming fault: normalize it to the reviewed quarantine class (review B08) so the service's STORE_QUARANTINED
+      // catch persists the owning profile latch instead of surfacing a raw, code-less SyntaxError/TypeError.
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+      } catch {
+        throw new DomainError('STORE_QUARANTINED', `profile index ${relative} is not valid UTF-8 JSON`);
+      }
       if (!Array.isArray(parsed)) {
         throw new DomainError('STORE_QUARANTINED', 'profile index is not an array');
       }

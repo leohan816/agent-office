@@ -569,7 +569,15 @@ async function readJsonRecord(target: string): Promise<Record<string, unknown> |
       throw new DomainError('STORE_QUARANTINED', `as1 control file exceeds the ${String(LIMITS.DURABLE_FILE_MAX_BYTES)}-byte durable-file bound`);
     }
     const bytes = await handle.readFile();
-    const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    // A fatal UTF-8 decode failure or a JSON syntax error on a durable control file is durable corruption, not a
+    // programming fault: normalize it to the reviewed quarantine class (review B08) so the establish-verify path fails
+    // closed with a latchable global error on every restart instead of surfacing a raw, code-less SyntaxError/TypeError.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      throw new DomainError('STORE_QUARANTINED', 'as1 control file is not valid UTF-8 JSON');
+    }
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       throw new DomainError('STORE_QUARANTINED', 'as1 control record is not an object');
     }

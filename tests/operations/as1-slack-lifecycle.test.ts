@@ -422,3 +422,37 @@ describe('AS1 default-disabled composition and CLI', () => {
     await composition.close();
   });
 });
+
+/** The exact DomainError code a control open rejects with, or null for a raw/code-less error (the pre-patch defect). */
+async function openRejectionCode(root: string, iso: string): Promise<string | null> {
+  try {
+    const control = await reopenControl(root, iso);
+    await control.close();
+  } catch (error) {
+    return error instanceof DomainError ? error.code : null;
+  }
+  throw new Error('expected the control open to reject but it resolved');
+}
+
+describe('AS1 durable global-control corruption normalization (B08)', () => {
+  // The immutable Reviewer V4 result (caf808f6, SHA256 93c4eda5) reproduced a corrupt global-control.json ({)
+  // surfacing a raw, code-less SyntaxError instead of the reviewed quarantine class, so no durable global
+  // fail-closed was proven. Fatal UTF-8 decode / JSON parse / oversize corruption now normalizes to
+  // STORE_QUARANTINED, and — because the corrupt bytes are never silently healed — the control stays fail-closed
+  // on every restart.
+  const CORRUPTIONS: readonly (readonly [string, Buffer])[] = [
+    ['malformed JSON', Buffer.from('{', 'utf8')],
+    ['invalid UTF-8 bytes', Buffer.from([0x80, 0xff, 0xfe])],
+    ['oversize beyond the 1 MiB durable bound', Buffer.from('['.padEnd(1_048_577, ' '), 'utf8')],
+  ];
+  for (const [label, bytes] of CORRUPTIONS) {
+    it(`quarantines a ${label} global-control file as STORE_QUARANTINED and stays fail-closed across restart`, async () => {
+      const root = await establishedRoot();
+      await writeFile(path.join(root, CONTROL_DIR, 'global-control.json'), bytes);
+      // First open: the durable corruption is the reviewed quarantine class, not a raw SyntaxError/TypeError.
+      expect(await openRejectionCode(root, '2026-07-14T22:30:00.000Z')).toBe('STORE_QUARANTINED');
+      // Restart: the corruption is never auto-healed; the durable global fail-closed persists.
+      expect(await openRejectionCode(root, '2026-07-14T23:00:00.000Z')).toBe('STORE_QUARANTINED');
+    });
+  }
+});
