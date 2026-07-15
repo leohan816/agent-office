@@ -135,19 +135,75 @@ export interface As1RootCorrelationV1 {
   readonly createdAt: string;
 }
 
+// The single durable, hash-bound transport state machine (design §8.2/§8.3/§12.3/§15.1). Every inbound
+// event advances through exactly this closed chain; illegal transitions are rejected, never overwritten.
+export const AS1_TRANSPORT_STATES = [
+  'PREACK_PENDING',
+  'PREACK_ROOT_BOUND',
+  'PREACK_CONTINUATION_CONSUMED',
+  'PREACK_REJECTED',
+  'TRANSPORT_ACK_RECORDED',
+  'MATERIALIZED',
+  'TERMINAL_NO_INTAKE',
+] as const;
+export type As1TransportState = (typeof AS1_TRANSPORT_STATES)[number];
+
+export type As1PreAckDecision = 'ROOT_BOUND' | 'CONTINUATION_CONSUMED' | 'REJECTED';
+
+/** Closed legal-transition table. A target absent from a source's list is an INVALID_TRANSITION. */
+const AS1_LEGAL_TRANSPORT_TRANSITIONS: Readonly<Record<As1TransportState, readonly As1TransportState[]>> = {
+  PREACK_PENDING: ['PREACK_ROOT_BOUND', 'PREACK_CONTINUATION_CONSUMED', 'PREACK_REJECTED'],
+  PREACK_ROOT_BOUND: ['TRANSPORT_ACK_RECORDED'],
+  PREACK_CONTINUATION_CONSUMED: ['TRANSPORT_ACK_RECORDED'],
+  PREACK_REJECTED: ['TRANSPORT_ACK_RECORDED'],
+  TRANSPORT_ACK_RECORDED: ['MATERIALIZED', 'TERMINAL_NO_INTAKE'],
+  MATERIALIZED: [],
+  TERMINAL_NO_INTAKE: [],
+};
+
+/** Observed facts durably bound at open time so recovery can re-linearize/materialize with no live envelope. */
+export interface As1TransportObserved {
+  readonly candidateKind: 'ROOT' | 'CONTINUATION';
+  readonly sourceEventId: string;
+  readonly rootTs: string;
+  readonly rootKeyHash: string;
+  readonly receiptArtifactRef: string;
+  readonly receiptArtifactHash: string;
+  readonly messageArtifactRef: string;
+  readonly messageArtifactHash: string;
+}
+
+export interface As1TransportContinuationBinding {
+  readonly kind: 'CLARIFICATION' | 'DECISION_RESPONSE';
+  readonly originalIntakeId: string;
+  readonly questionId: string;
+}
+
 export interface As1TransportRecordV1 {
   readonly schemaVersion: 'agent-office.as1-transport-record.v1';
   readonly eventId: string;
   readonly envelopeId: string;
-  readonly preAckClass: string;
-  readonly receiveGrantStateHash: string | null;
+  readonly state: As1TransportState;
+  readonly rawEnvelopeHash: string;
+  readonly innerEventHash: string;
+  readonly observed: As1TransportObserved;
+  readonly preAckDecision: As1PreAckDecision | null;
+  readonly terminalReason: string | null;
+  readonly bindingStateHash: string | null;
+  readonly continuation: As1TransportContinuationBinding | null;
   readonly transportAckRecorded: boolean;
   readonly intakeId: string | null;
   readonly pointerArtifactRef: string | null;
-  readonly terminalReason: string | null;
   readonly recordedAt: string;
   readonly ackedAt: string | null;
   readonly materializedAt: string | null;
+}
+
+export interface CommitPreAckInput {
+  readonly decision: As1PreAckDecision;
+  readonly terminalReason: string | null;
+  readonly bindingStateHash: string | null;
+  readonly continuation: As1TransportContinuationBinding | null;
 }
 
 export type ConsumeQuestionOutcome = 'CONSUMED' | 'REJECTED_RECEIVE_GRANT_EXPIRED' | 'REJECTED_NO_OPEN_QUESTION';
@@ -325,6 +381,11 @@ export class As1ProfileInboundStore {
         throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'receive-grant state has not been initialized');
       }
       if (tail.phase === 'ROOT_BOUND') {
+        // Idempotent resume: this exact event already committed the binding (crash-after-transition). Do not
+        // repeat the transition and do not treat one's own committed root as a slot-consumed rejection.
+        if (tail.boundSourceEventId === observed.sourceEventId) {
+          return { outcome: 'ROOT_BOUND', state: tail };
+        }
         return { outcome: 'REJECTED_ROOT_SLOT_CONSUMED', state: tail };
       }
       if (tail.phase !== 'UNBOUND') {
@@ -470,6 +531,11 @@ export class As1ProfileInboundStore {
       const index = questions.findIndex((q) => q.rootTs === rootTs && q.state === 'OPEN');
       const open = index >= 0 ? questions[index] : undefined;
       if (open === undefined) {
+        // Idempotent resume: this exact event already consumed the sole question (crash-after-transition).
+        const mine = questions.find((q) => q.rootTs === rootTs && q.state === 'CONSUMED' && q.consumedBySourceEventId === sourceEventId);
+        if (mine !== undefined) {
+          return { outcome: 'CONSUMED', question: mine };
+        }
         return { outcome: 'REJECTED_NO_OPEN_QUESTION', question: null };
       }
       const consumedAt = this.clock.now();
@@ -511,45 +577,127 @@ export class As1ProfileInboundStore {
     return records.find((r) => r.rootTs === threadTs) ?? null;
   }
 
-  // ── Transport journal (design §8.2) ───────────────────────────────────────
-  public async recordPreAck(
+  // ── Transport journal — the durable hash-bound state machine (design §8.2/§8.3/§12.3/§15.1) ─────────
+  /**
+   * Open the `PREACK_PENDING` transport record, binding the immutable bytes and observed facts. Idempotent:
+   * a re-delivery of the same event returns the existing record only when every bound byte/fact matches;
+   * any divergence is corruption/attack and quarantines the profile (never a silent overwrite).
+   */
+  public async openTransport(
     eventId: string,
     envelopeId: string,
-    preAckClass: string,
-    receiveGrantStateHash: string | null,
-    terminalReason: string | null,
-  ): Promise<void> {
-    await this.upsertTransport(eventId, (existing) => ({
-      schemaVersion: 'agent-office.as1-transport-record.v1',
-      eventId,
-      envelopeId,
-      preAckClass,
-      receiveGrantStateHash,
-      transportAckRecorded: existing?.transportAckRecorded ?? false,
-      intakeId: existing?.intakeId ?? null,
-      pointerArtifactRef: existing?.pointerArtifactRef ?? null,
-      terminalReason,
-      recordedAt: existing?.recordedAt ?? this.clock.now(),
-      ackedAt: existing?.ackedAt ?? null,
-      materializedAt: existing?.materializedAt ?? null,
-    }));
-  }
-
-  public async recordTransportAck(eventId: string): Promise<void> {
-    await this.upsertTransport(eventId, (existing) => {
-      if (existing === null) {
-        throw new DomainError('INVALID_TRANSITION', 'cannot record TRANSPORT_ACK before a pre-ACK decision');
+    rawEnvelopeHash: string,
+    innerEventHash: string,
+    observed: As1TransportObserved,
+  ): Promise<As1TransportRecordV1> {
+    return this.mutex.run(async () => {
+      const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+      const existing = records.find((r) => r.eventId === eventId);
+      if (existing !== undefined) {
+        if (
+          existing.envelopeId !== envelopeId ||
+          existing.rawEnvelopeHash !== rawEnvelopeHash ||
+          existing.innerEventHash !== innerEventHash ||
+          existing.observed.sourceEventId !== observed.sourceEventId ||
+          existing.observed.rootTs !== observed.rootTs ||
+          existing.observed.rootKeyHash !== observed.rootKeyHash ||
+          existing.observed.receiptArtifactHash !== observed.receiptArtifactHash ||
+          existing.observed.messageArtifactHash !== observed.messageArtifactHash ||
+          existing.observed.candidateKind !== observed.candidateKind
+        ) {
+          throw new DomainError('STORE_QUARANTINED', 'transport identity reused with different bytes or facts');
+        }
+        return existing;
       }
-      return { ...existing, transportAckRecorded: true, ackedAt: existing.ackedAt ?? this.clock.now() };
+      if (records.length >= LIMITS.RECEIPT_RECORDS_PER_PROFILE) {
+        throw new DomainError('STORE_QUARANTINED', 'transport journal capacity exhausted; no silent eviction');
+      }
+      const record: As1TransportRecordV1 = {
+        schemaVersion: 'agent-office.as1-transport-record.v1',
+        eventId,
+        envelopeId,
+        state: 'PREACK_PENDING',
+        rawEnvelopeHash,
+        innerEventHash,
+        observed,
+        preAckDecision: null,
+        terminalReason: null,
+        bindingStateHash: null,
+        continuation: null,
+        transportAckRecorded: false,
+        intakeId: null,
+        pointerArtifactRef: null,
+        recordedAt: this.clock.now(),
+        ackedAt: null,
+        materializedAt: null,
+      };
+      await this.writeJsonArray(this.indexPath('transport-journal.json'), [...records, record]);
+      return record;
     });
   }
 
-  public async recordMaterialized(eventId: string, intakeId: string, pointerArtifactRef: string): Promise<void> {
-    await this.upsertTransport(eventId, (existing) => {
-      if (!existing?.transportAckRecorded) {
-        throw new DomainError('INVALID_TRANSITION', 'materialization requires a durable TRANSPORT_ACK_RECORDED');
+  /** `PREACK_PENDING -> PREACK_{ROOT_BOUND|CONTINUATION_CONSUMED|REJECTED}`. Idempotent on the same decision. */
+  public async commitPreAckDecision(eventId: string, input: CommitPreAckInput): Promise<As1TransportRecordV1> {
+    const target: As1TransportState =
+      input.decision === 'ROOT_BOUND'
+        ? 'PREACK_ROOT_BOUND'
+        : input.decision === 'CONTINUATION_CONSUMED'
+          ? 'PREACK_CONTINUATION_CONSUMED'
+          : 'PREACK_REJECTED';
+    return this.transition(eventId, target, (existing) => {
+      if (existing.preAckDecision !== null && existing.preAckDecision !== input.decision) {
+        throw new DomainError('INVALID_TRANSITION', 'a different pre-ACK decision is already committed');
       }
-      return { ...existing, intakeId, pointerArtifactRef, materializedAt: existing.materializedAt ?? this.clock.now() };
+      return {
+        ...existing,
+        state: target,
+        preAckDecision: input.decision,
+        terminalReason: input.terminalReason,
+        bindingStateHash: input.bindingStateHash,
+        continuation: input.continuation,
+      };
+    });
+  }
+
+  /** `PREACK_* -> TRANSPORT_ACK_RECORDED`. This is the sole durable meaning of "the Socket ACK happened". */
+  public async commitTransportAck(eventId: string): Promise<As1TransportRecordV1> {
+    return this.transition(eventId, 'TRANSPORT_ACK_RECORDED', (existing) => ({
+      ...existing,
+      state: 'TRANSPORT_ACK_RECORDED',
+      transportAckRecorded: true,
+      ackedAt: existing.ackedAt ?? this.clock.now(),
+    }));
+  }
+
+  /** `TRANSPORT_ACK_RECORDED -> MATERIALIZED` for a bound/consumed decision. Idempotent (one intake only). */
+  public async commitMaterialized(eventId: string, intakeId: string, pointerArtifactRef: string): Promise<void> {
+    await this.transition(eventId, 'MATERIALIZED', (existing) => {
+      if (existing.preAckDecision === 'REJECTED') {
+        throw new DomainError('INVALID_TRANSITION', 'a rejected decision cannot materialize an intake');
+      }
+      if (existing.state === 'MATERIALIZED') {
+        if (existing.intakeId !== intakeId) {
+          throw new DomainError('INVALID_TRANSITION', 'a different intake is already materialized for this event');
+        }
+        return existing;
+      }
+      return {
+        ...existing,
+        state: 'MATERIALIZED',
+        intakeId,
+        pointerArtifactRef,
+        materializedAt: existing.materializedAt ?? this.clock.now(),
+      };
+    });
+  }
+
+  /** `TRANSPORT_ACK_RECORDED -> TERMINAL_NO_INTAKE` for a rejected decision. Idempotent. */
+  public async commitTerminalNoIntake(eventId: string): Promise<void> {
+    await this.transition(eventId, 'TERMINAL_NO_INTAKE', (existing) => {
+      if (existing.preAckDecision !== 'REJECTED') {
+        throw new DomainError('INVALID_TRANSITION', 'only a rejected decision reaches TERMINAL_NO_INTAKE');
+      }
+      return { ...existing, state: 'TERMINAL_NO_INTAKE' };
     });
   }
 
@@ -558,25 +706,37 @@ export class As1ProfileInboundStore {
     return records.find((r) => r.eventId === eventId) ?? null;
   }
 
-  private async upsertTransport(
+  /** Every non-terminal transport record, oldest first — the input to bounded startup recovery (§15.1). */
+  public async listNonTerminalTransport(): Promise<readonly As1TransportRecordV1[]> {
+    const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+    return records.filter((r) => r.state !== 'MATERIALIZED' && r.state !== 'TERMINAL_NO_INTAKE');
+  }
+
+  /** Apply one legal, hash-bound transition. A target absent from the source's legal set is rejected. */
+  private async transition(
     eventId: string,
-    update: (existing: As1TransportRecordV1 | null) => As1TransportRecordV1,
-  ): Promise<void> {
-    await this.mutex.run(async () => {
+    target: As1TransportState,
+    update: (existing: As1TransportRecordV1) => As1TransportRecordV1,
+  ): Promise<As1TransportRecordV1> {
+    return this.mutex.run(async () => {
       const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
       const index = records.findIndex((r) => r.eventId === eventId);
-      const existing = index >= 0 ? (records[index] ?? null) : null;
-      const next = update(existing);
-      if (index >= 0) {
-        const copy = [...records];
-        copy[index] = next;
-        await this.writeJsonArray(this.indexPath('transport-journal.json'), copy);
-      } else {
-        if (records.length >= LIMITS.RECEIPT_RECORDS_PER_PROFILE) {
-          throw new DomainError('STORE_QUARANTINED', 'transport journal capacity exhausted; no silent eviction');
-        }
-        await this.writeJsonArray(this.indexPath('transport-journal.json'), [...records, next]);
+      const existing = index >= 0 ? records[index] : undefined;
+      if (existing === undefined) {
+        throw new DomainError('INVALID_TRANSITION', 'transport record must be opened before any transition');
       }
+      if (existing.state === target) {
+        // Idempotent replay of an already-committed transition: verify via the same update path, do not rewrite.
+        return update(existing);
+      }
+      if (!AS1_LEGAL_TRANSPORT_TRANSITIONS[existing.state].includes(target)) {
+        throw new DomainError('INVALID_TRANSITION', `illegal transport transition ${existing.state} -> ${target}`);
+      }
+      const next = update(existing);
+      const copy = [...records];
+      copy[index] = next;
+      await this.writeJsonArray(this.indexPath('transport-journal.json'), copy);
+      return next;
     });
   }
 

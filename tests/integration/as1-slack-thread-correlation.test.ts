@@ -16,7 +16,7 @@ async function makeBoundService() {
   const clock = new FakeClock('2026-07-14T22:05:00.000Z');
   const store = await As1ProfileInboundStore.open(root, agentOfficeContext().profile, clock);
   const grant = parseReceiveGrant(validReceiveGrant());
-  const service = new As1InboundService(agentOfficeContext(), grant, store, clock);
+  const service = new As1InboundService(agentOfficeContext(), grant, store);
   const rootResult = await service.processEnvelope(slackEnvelope({ ts: ROOT_TS }));
   return { root, clock, store, grant, service, rootIntakeId: rootResult.intakeId };
 }

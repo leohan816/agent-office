@@ -15,7 +15,6 @@
 import { DomainError } from '../../contracts/types.js';
 import { isRecord } from '../../contracts/validation.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
-import type { AgentOfficeRuntimeIdentity } from '../../runtime/identity.js';
 import {
   buildAdvisorPointer,
   buildContinuationIntake,
@@ -26,7 +25,13 @@ import {
   type As1ContinuationKind,
   type As1PilotReceiveGrantV1,
 } from './contracts.js';
-import { As1ProfileInboundStore, rootKeyHash } from './inbound-store.js';
+import {
+  As1ProfileInboundStore,
+  rootKeyHash,
+  type As1TransportObserved,
+  type As1TransportRecordV1,
+  type CommitPreAckInput,
+} from './inbound-store.js';
 import type { As1Profile } from './profiles.js';
 import type { As1InboundEnvelope } from '../../adapters/gateways/slack-pilot/socket-client.js';
 
@@ -65,14 +70,6 @@ type Classification =
   | { readonly kind: 'CONTINUATION_CANDIDATE'; readonly extracted: ExtractedEvent }
   | { readonly kind: 'REJECTED'; readonly reason: string; readonly latch: boolean };
 
-/**
- * The materializer intake spec (design §11). A new-mission root persists an INTAKE_ONLY record; a
- * continuation persists a CONTINUATION_ONLY record whose fixed kind comes ONLY from the durable pending
- * question and which binds the original intake and question. Slack text can never choose the kind.
- */
-type MaterializeSpec =
-  | { readonly kind: 'NEW_MISSION' }
-  | { readonly kind: As1ContinuationKind; readonly originalIntakeId: string; readonly questionId: string };
 
 function readBoundedString(record: Record<string, unknown>, key: string, max = 256): string | null {
   const value = record[key];
@@ -86,7 +83,6 @@ export class As1InboundService {
     private readonly context: As1ProfileRuntimeContext,
     private readonly grant: As1PilotReceiveGrantV1,
     private readonly store: As1ProfileInboundStore,
-    private readonly clock: AgentOfficeRuntimeIdentity,
   ) {}
 
   public isLatched(): boolean {
@@ -201,48 +197,45 @@ export class As1InboundService {
     return { acked: true, classification: reason, intakeId: null, latched: false };
   }
 
-  private async handleRoot(envelope: As1InboundEnvelope, extracted: ExtractedEvent): Promise<ProcessResult> {
-    const receipt = await this.store.persistReceipt(extracted.eventId, envelope.payload, extracted.text);
-    const dedupe = await this.store.insertDedupe({
-      envelopeId: envelope.envelopeId,
-      teamId: extracted.teamId,
-      apiAppId: extracted.apiAppId,
-      eventId: extracted.eventId,
-      rawEnvelopeHash: hashCanonical(envelope.payload),
-      innerEventHash: hashCanonical(extracted.event),
-      preAckClass: 'PREACK_PENDING',
-    });
-    if (dedupe === 'duplicate') {
-      await envelope.acknowledge();
-      return { acked: true, classification: 'DUPLICATE', intakeId: null, latched: false };
-    }
-    await this.store.initReceiveGrantState(this.grant);
-    const rootKey = rootKeyHash(
+  private rootKeyFor(rootTs: string): string {
+    return rootKeyHash(
       this.context.profile.profileId,
       this.context.workspaceId,
       this.context.appId,
       this.context.channelId,
-      extracted.ts,
+      rootTs,
     );
-    const bind = await this.store.bindFirstRoot(this.grant, {
+  }
+
+  private async handleRoot(envelope: As1InboundEnvelope, extracted: ExtractedEvent): Promise<ProcessResult> {
+    const receipt = await this.store.persistReceipt(extracted.eventId, envelope.payload, extracted.text);
+    const rootKey = this.rootKeyFor(extracted.ts);
+    const observed: As1TransportObserved = {
+      candidateKind: 'ROOT',
       sourceEventId: extracted.eventId,
       rootTs: extracted.ts,
       rootKeyHash: rootKey,
       receiptArtifactRef: receipt.receiptArtifactRef,
       receiptArtifactHash: receipt.receiptArtifactHash,
+      messageArtifactRef: receipt.messageArtifactRef,
       messageArtifactHash: receipt.messageArtifactHash,
+    };
+    await this.recordDedupe(envelope, extracted);
+    return this.driveInbound(envelope, extracted, observed, async () => {
+      await this.store.initReceiveGrantState(this.grant);
+      const bind = await this.store.bindFirstRoot(this.grant, {
+        sourceEventId: extracted.eventId,
+        rootTs: extracted.ts,
+        rootKeyHash: rootKey,
+        receiptArtifactRef: receipt.receiptArtifactRef,
+        receiptArtifactHash: receipt.receiptArtifactHash,
+        messageArtifactHash: receipt.messageArtifactHash,
+      });
+      if (bind.outcome === 'ROOT_BOUND') {
+        return { decision: 'ROOT_BOUND', terminalReason: null, bindingStateHash: bind.state.stateHash, continuation: null };
+      }
+      return { decision: 'REJECTED', terminalReason: bind.outcome, bindingStateHash: bind.state.stateHash, continuation: null };
     });
-    if (bind.outcome !== 'ROOT_BOUND') {
-      await this.store.recordPreAck(extracted.eventId, envelope.envelopeId, bind.outcome, bind.state.stateHash, bind.outcome);
-      await envelope.acknowledge();
-      await this.store.recordTransportAck(extracted.eventId);
-      return { acked: true, classification: bind.outcome, intakeId: null, latched: false };
-    }
-    await this.store.recordPreAck(extracted.eventId, envelope.envelopeId, 'PREACK_ROOT_BOUND', bind.state.stateHash, null);
-    await envelope.acknowledge();
-    await this.store.recordTransportAck(extracted.eventId);
-    const intakeId = await this.materialize(extracted, receipt, bind.state.stateHash, rootKey, { kind: 'NEW_MISSION' });
-    return { acked: true, classification: 'NEW_MISSION_ROOT', intakeId, latched: false };
   }
 
   private async handleContinuation(envelope: As1InboundEnvelope, extracted: ExtractedEvent): Promise<ProcessResult> {
@@ -250,13 +243,53 @@ export class As1InboundService {
     if (threadTs === null) {
       return this.handleRejection(envelope, 'REJECTED_THREAD_CORRELATION', false);
     }
-    const root = await this.store.findRootByThreadTs(threadTs);
-    const openQuestion = root === null ? null : await this.store.findOpenQuestionForRoot(threadTs);
-    if (root === null || openQuestion === null) {
-      return this.handleRejection(envelope, 'REJECTED_THREAD_CORRELATION', false);
+    // A genuinely new correlation must name a bound root with one open question. A re-delivery of an event
+    // that already has a durable transport decision skips this gate and reproduces only that durable decision.
+    const alreadyRecorded = (await this.store.readTransport(extracted.eventId)) !== null;
+    if (!alreadyRecorded) {
+      const root = await this.store.findRootByThreadTs(threadTs);
+      const openQuestion = root === null ? null : await this.store.findOpenQuestionForRoot(threadTs);
+      if (root === null || openQuestion === null) {
+        return this.handleRejection(envelope, 'REJECTED_THREAD_CORRELATION', false);
+      }
     }
     const receipt = await this.store.persistReceipt(extracted.eventId, envelope.payload, extracted.text);
-    const dedupe = await this.store.insertDedupe({
+    const rootKey = this.rootKeyFor(threadTs);
+    const observed: As1TransportObserved = {
+      candidateKind: 'CONTINUATION',
+      sourceEventId: extracted.eventId,
+      rootTs: threadTs,
+      rootKeyHash: rootKey,
+      receiptArtifactRef: receipt.receiptArtifactRef,
+      receiptArtifactHash: receipt.receiptArtifactHash,
+      messageArtifactRef: receipt.messageArtifactRef,
+      messageArtifactHash: receipt.messageArtifactHash,
+    };
+    await this.recordDedupe(envelope, extracted);
+    return this.driveInbound(envelope, extracted, observed, async () => {
+      const root = await this.store.findRootByThreadTs(threadTs);
+      const consume = await this.store.consumeQuestion(this.grant, threadTs, extracted.eventId);
+      if (consume.outcome === 'CONSUMED' && root !== null && consume.question !== null) {
+        return {
+          decision: 'CONTINUATION_CONSUMED',
+          terminalReason: null,
+          bindingStateHash: root.bindingStateHash,
+          continuation: {
+            kind: consume.question.expectedResponseKind,
+            originalIntakeId: root.intakeId,
+            questionId: consume.question.questionId,
+          },
+        };
+      }
+      const reason = consume.outcome === 'CONSUMED' ? 'REJECTED_THREAD_CORRELATION' : consume.outcome;
+      return { decision: 'REJECTED', terminalReason: reason, bindingStateHash: null, continuation: null };
+    });
+  }
+
+  private async recordDedupe(envelope: As1InboundEnvelope, extracted: ExtractedEvent): Promise<void> {
+    // Both §8.3 dedupe keys plus the immutable byte guard. Its return is not trusted for control flow; the
+    // durable transport state machine is the sole driver of the ACK/materialize decision.
+    await this.store.insertDedupe({
       envelopeId: envelope.envelopeId,
       teamId: extracted.teamId,
       apiAppId: extracted.apiAppId,
@@ -265,54 +298,181 @@ export class As1InboundService {
       innerEventHash: hashCanonical(extracted.event),
       preAckClass: 'PREACK_PENDING',
     });
-    if (dedupe === 'duplicate') {
-      await envelope.acknowledge();
-      return { acked: true, classification: 'DUPLICATE', intakeId: null, latched: false };
-    }
-    const consume = await this.store.consumeQuestion(this.grant, threadTs, extracted.eventId);
-    if (consume.outcome !== 'CONSUMED') {
-      await this.store.recordPreAck(extracted.eventId, envelope.envelopeId, consume.outcome, null, consume.outcome);
-      await envelope.acknowledge();
-      await this.store.recordTransportAck(extracted.eventId);
-      return { acked: true, classification: consume.outcome, intakeId: null, latched: false };
-    }
-    await this.store.recordPreAck(extracted.eventId, envelope.envelopeId, 'PREACK_CONTINUATION_CONSUMED', null, null);
-    await envelope.acknowledge();
-    await this.store.recordTransportAck(extracted.eventId);
-    const rootKey = rootKeyHash(
-      this.context.profile.profileId,
-      this.context.workspaceId,
-      this.context.appId,
-      this.context.channelId,
-      threadTs,
-    );
-    const intakeId = await this.materialize({ ...extracted, ts: threadTs }, receipt, root.bindingStateHash, rootKey, {
-      kind: openQuestion.expectedResponseKind,
-      originalIntakeId: root.intakeId,
-      questionId: openQuestion.questionId,
-    });
-    return { acked: true, classification: 'CONTINUATION', intakeId, latched: false };
   }
 
-  /** Separate post-ACK predicate (design §9.2/§11): runs from the durable ACK decision, no expiry recheck. */
-  private async materialize(
+  /**
+   * The single durable-state-driven inbound engine (design §8.2/§8.3/§12.3/§15.1). Fresh delivery, exact
+   * Slack retry, and every crash-boundary resume all converge here: it advances the one hash-bound transport
+   * record and never fabricates an ACK for an unfinished decision. A re-delivery reproduces only the exact
+   * durable transport decision.
+   */
+  private async driveInbound(
+    envelope: As1InboundEnvelope,
     extracted: ExtractedEvent,
-    receipt: {
-      readonly receiptArtifactRef: string;
-      readonly messageArtifactRef: string;
-      readonly messageArtifactHash: string;
-    },
-    bindingStateHash: string,
-    rootKey: string,
-    spec: MaterializeSpec,
-  ): Promise<string> {
-    const transport = await this.store.readTransport(extracted.eventId);
-    if (!transport?.transportAckRecorded) {
+    observed: As1TransportObserved,
+    decide: () => Promise<CommitPreAckInput>,
+  ): Promise<ProcessResult> {
+    let record = await this.store.openTransport(
+      extracted.eventId,
+      envelope.envelopeId,
+      hashCanonical(envelope.payload),
+      hashCanonical(extracted.event),
+      observed,
+    );
+    const startState = record.state;
+
+    // 1. PREACK_PENDING -> committed pre-ACK decision (the sole receive-expiry linearization is inside decide()).
+    if (record.state === 'PREACK_PENDING') {
+      record = await this.store.commitPreAckDecision(extracted.eventId, await decide());
+    }
+
+    let acked = false;
+    // 2. committed pre-ACK decision -> Socket ACK -> durable TRANSPORT_ACK_RECORDED.
+    if (
+      record.state === 'PREACK_ROOT_BOUND' ||
+      record.state === 'PREACK_CONTINUATION_CONSUMED' ||
+      record.state === 'PREACK_REJECTED'
+    ) {
+      await envelope.acknowledge();
+      acked = true;
+      record = await this.store.commitTransportAck(extracted.eventId);
+    }
+
+    // 3. TRANSPORT_ACK_RECORDED -> MATERIALIZED | TERMINAL_NO_INTAKE.
+    if (record.state === 'TRANSPORT_ACK_RECORDED') {
+      if (!acked) {
+        // A prior attempt recorded the ACK but crashed before this step; reproduce only the durable ACK.
+        await envelope.acknowledge();
+        acked = true;
+      }
+      if (record.preAckDecision === 'REJECTED') {
+        await this.store.commitTerminalNoIntake(extracted.eventId);
+      } else {
+        await this.materializeFromTransport(record);
+      }
+      record = (await this.store.readTransport(extracted.eventId)) ?? record;
+    }
+
+    // 4. Already terminal on entry (a fully processed prior delivery): reproduce only the durable ACK.
+    if (!acked && (record.state === 'MATERIALIZED' || record.state === 'TERMINAL_NO_INTAKE')) {
+      await envelope.acknowledge();
+      acked = true;
+    }
+
+    // A prior invocation already committed the full durable ACK decision; this delivery only reproduced it.
+    if (startState === 'MATERIALIZED' || startState === 'TERMINAL_NO_INTAKE') {
+      return { acked, classification: 'DUPLICATE', intakeId: null, latched: false };
+    }
+    if (record.preAckDecision === 'ROOT_BOUND') {
+      return { acked, classification: 'NEW_MISSION_ROOT', intakeId: record.intakeId, latched: false };
+    }
+    if (record.preAckDecision === 'CONTINUATION_CONSUMED') {
+      return { acked, classification: 'CONTINUATION', intakeId: record.intakeId, latched: false };
+    }
+    return { acked, classification: record.terminalReason ?? 'REJECTED', intakeId: null, latched: false };
+  }
+
+  /**
+   * Bounded startup recovery (design §15.1). With no live envelope it never fabricates an ACK: it commits the
+   * pre-ACK decision for a `PREACK_PENDING` record by re-linearizing against expiry, and it drains one-time
+   * materialization for every durable `TRANSPORT_ACK_RECORDED` decision without reopening the Socket.
+   */
+  public async recoverPending(): Promise<void> {
+    if (this.latched) return;
+    for (const record of await this.store.listNonTerminalTransport()) {
+      if (record.state === 'PREACK_PENDING') {
+        await this.recoverPreAckDecision(record);
+      } else if (record.state === 'TRANSPORT_ACK_RECORDED') {
+        if (record.preAckDecision === 'REJECTED') {
+          await this.store.commitTerminalNoIntake(record.eventId);
+        } else {
+          await this.materializeFromTransport(record);
+        }
+      }
+      // A committed pre-ACK decision that is not yet ACK-recorded waits for the exact Slack retry to reproduce
+      // the durable transport decision; recovery does not ACK it (design §15.1 step 3).
+    }
+  }
+
+  /** Re-enter the serialized transition for a recovered `PREACK_PENDING` record; no ACK and no materialization. */
+  private async recoverPreAckDecision(record: As1TransportRecordV1): Promise<void> {
+    if (record.observed.candidateKind === 'ROOT') {
+      await this.store.initReceiveGrantState(this.grant);
+      const bind = await this.store.bindFirstRoot(this.grant, {
+        sourceEventId: record.eventId,
+        rootTs: record.observed.rootTs,
+        rootKeyHash: record.observed.rootKeyHash,
+        receiptArtifactRef: record.observed.receiptArtifactRef,
+        receiptArtifactHash: record.observed.receiptArtifactHash,
+        messageArtifactHash: record.observed.messageArtifactHash,
+      });
+      const input: CommitPreAckInput =
+        bind.outcome === 'ROOT_BOUND'
+          ? { decision: 'ROOT_BOUND', terminalReason: null, bindingStateHash: bind.state.stateHash, continuation: null }
+          : { decision: 'REJECTED', terminalReason: bind.outcome, bindingStateHash: bind.state.stateHash, continuation: null };
+      await this.store.commitPreAckDecision(record.eventId, input);
+      return;
+    }
+    const root = await this.store.findRootByThreadTs(record.observed.rootTs);
+    const consume = await this.store.consumeQuestion(this.grant, record.observed.rootTs, record.eventId);
+    if (consume.outcome === 'CONSUMED' && root !== null && consume.question !== null) {
+      await this.store.commitPreAckDecision(record.eventId, {
+        decision: 'CONTINUATION_CONSUMED',
+        terminalReason: null,
+        bindingStateHash: root.bindingStateHash,
+        continuation: {
+          kind: consume.question.expectedResponseKind,
+          originalIntakeId: root.intakeId,
+          questionId: consume.question.questionId,
+        },
+      });
+      return;
+    }
+    const reason = consume.outcome === 'CONSUMED' ? 'REJECTED_THREAD_CORRELATION' : consume.outcome;
+    await this.store.commitPreAckDecision(record.eventId, {
+      decision: 'REJECTED',
+      terminalReason: reason,
+      bindingStateHash: null,
+      continuation: null,
+    });
+  }
+
+  /** A short, collision-resistant, DETERMINISTIC id so a crash-retry regenerates byte-identical artifacts. */
+  private deriveId(prefix: string, parts: Record<string, unknown>): string {
+    return `${prefix}-${hashCanonical(parts).slice('sha256:'.length, 'sha256:'.length + 40)}`;
+  }
+
+  /**
+   * Post-ACK materialization (design §11/§15.1). Runs only from a durable `TRANSPORT_ACK_RECORDED` decision,
+   * binds and re-verifies the immutable accepted transition (not a mutable boolean), never rechecks current
+   * receive-grant expiry, and creates exactly one intake+pointer. Deterministic ids + the durable ack time
+   * make it byte-idempotent, so a crash between artifact and journal never yields a second intake.
+   */
+  private async materializeFromTransport(record: As1TransportRecordV1): Promise<string> {
+    if (record.state === 'MATERIALIZED' && record.intakeId !== null) {
+      return record.intakeId;
+    }
+    if (record.state !== 'TRANSPORT_ACK_RECORDED') {
       throw new DomainError('INVALID_TRANSITION', 'materialization requires a durable TRANSPORT_ACK_RECORDED decision');
     }
+    if (record.preAckDecision !== 'ROOT_BOUND' && record.preAckDecision !== 'CONTINUATION_CONSUMED') {
+      throw new DomainError('INVALID_TRANSITION', 'only a bound or consumed decision materializes an intake');
+    }
+    if (record.bindingStateHash === null || record.ackedAt === null) {
+      throw new DomainError('INVALID_SCHEMA', 'the durable decision is missing its bound hashes');
+    }
+    if (this.latched) {
+      throw new DomainError('FORBIDDEN_TARGET', 'a latched profile cannot materialize');
+    }
     const { profile } = this.context;
-    const intakeId = this.clock.nextId();
-    const recordedAt = this.clock.now();
+    const { observed } = record;
+    const recordedAt = record.ackedAt;
+    const intakeId = this.deriveId('as1i', {
+      eventId: record.eventId,
+      bindingStateHash: record.bindingStateHash,
+      profileId: profile.profileId,
+      decision: record.preAckDecision,
+    });
     const common = {
       intakeId,
       profileId: profile.profileId,
@@ -320,55 +480,85 @@ export class As1InboundService {
       advisorActorId: profile.actorId,
       advisorRoleInstanceId: profile.roleInstanceId,
       receiveGrantId: this.grant.receiveGrantId,
-      receiveGrantBindingHash: bindingStateHash,
-      sourceEventId: extracted.eventId,
-      rootTs: extracted.ts,
-      messageArtifactRef: receipt.messageArtifactRef,
-      messageArtifactHash: receipt.messageArtifactHash,
-      receiptArtifactRef: receipt.receiptArtifactRef,
+      receiveGrantBindingHash: record.bindingStateHash,
+      sourceEventId: record.eventId,
+      rootTs: observed.rootTs,
+      messageArtifactRef: observed.messageArtifactRef,
+      messageArtifactHash: observed.messageArtifactHash,
+      receiptArtifactRef: observed.receiptArtifactRef,
       receivedAt: recordedAt,
       recordedAt,
     } as const;
-    // The persisted intake artifact carries the fixed kind itself — a continuation is NEVER stored as a
-    // new-mission record, and its kind is bound to the durable question, not to any Slack text (design §11).
-    const intake =
-      spec.kind === 'NEW_MISSION'
-        ? buildNewMissionIntake(common)
-        : buildContinuationIntake({ ...common, kind: spec.kind, originalIntakeId: spec.originalIntakeId, questionId: spec.questionId });
+
+    let intake: unknown;
+    let intakeKind: 'NEW_MISSION' | As1ContinuationKind;
+    if (record.preAckDecision === 'ROOT_BOUND') {
+      // Re-verify the durable root binding matches the transport decision — not just a boolean flag.
+      const state = await this.store.readReceiveGrantState(this.grant.receiveGrantId);
+      if (state === null) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'the durable root binding is missing');
+      }
+      if (
+        state.phase !== 'ROOT_BOUND' ||
+        state.stateHash !== record.bindingStateHash ||
+        state.boundSourceEventId !== record.eventId
+      ) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'root binding does not match the durable transport decision');
+      }
+      intake = buildNewMissionIntake(common);
+      intakeKind = 'NEW_MISSION';
+    } else {
+      const continuation = record.continuation;
+      const root = await this.store.findRootByThreadTs(observed.rootTs);
+      if (continuation === null || root === null) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'the durable continuation binding is missing');
+      }
+      if (root.bindingStateHash !== record.bindingStateHash) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'continuation binding does not match the durable transport decision');
+      }
+      intake = buildContinuationIntake({
+        ...common,
+        kind: continuation.kind,
+        originalIntakeId: continuation.originalIntakeId,
+        questionId: continuation.questionId,
+      });
+      intakeKind = continuation.kind;
+    }
+
     const intakeReceipt = await this.store.persistIntakeArtifact(intakeId, intake);
     const rootCorrelationHash = hashCanonical({
-      rootKeyHash: rootKey,
-      bindingStateHash,
-      sourceEventId: extracted.eventId,
-      rootTs: extracted.ts,
+      rootKeyHash: observed.rootKeyHash,
+      bindingStateHash: record.bindingStateHash,
+      sourceEventId: record.eventId,
+      rootTs: observed.rootTs,
       intakeId,
     });
-    const deliveryId = this.clock.nextId();
+    const deliveryId = this.deriveId('as1p', { intakeId });
     const pointer = buildAdvisorPointer({
       profileId: profile.profileId,
       pilotId: this.grant.pilotId,
       receiveGrantId: this.grant.receiveGrantId,
-      receiveGrantBindingHash: bindingStateHash,
+      receiveGrantBindingHash: record.bindingStateHash,
       intakeId,
-      intakeKind: spec.kind,
-      sourceEventId: extracted.eventId,
+      intakeKind,
+      sourceEventId: record.eventId,
       rootCorrelationHash,
       intakeArtifactRef: intakeReceipt.relativePath,
       intakeArtifactHash: intakeReceipt.sha256,
       recordedAt,
     });
     const pointerReceipt = await this.store.persistPointerArtifact(deliveryId, pointer);
-    if (spec.kind === 'NEW_MISSION') {
+    if (record.preAckDecision === 'ROOT_BOUND') {
       await this.store.recordRootCorrelation({
-        rootTs: extracted.ts,
-        rootKeyHash: rootKey,
-        sourceEventId: extracted.eventId,
+        rootTs: observed.rootTs,
+        rootKeyHash: observed.rootKeyHash,
+        sourceEventId: record.eventId,
         receiveGrantId: this.grant.receiveGrantId,
-        bindingStateHash,
+        bindingStateHash: record.bindingStateHash,
         intakeId,
       });
     }
-    await this.store.recordMaterialized(extracted.eventId, intakeId, pointerReceipt.relativePath);
+    await this.store.commitMaterialized(record.eventId, intakeId, pointerReceipt.relativePath);
     return intakeId;
   }
 }

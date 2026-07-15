@@ -11,7 +11,7 @@ async function makeService(startIso = '2026-07-14T22:05:00.000Z') {
   const clock = new FakeClock(startIso);
   const store = await As1ProfileInboundStore.open(root, agentOfficeContext().profile, clock);
   const grant = parseReceiveGrant(validReceiveGrant());
-  const service = new As1InboundService(agentOfficeContext(), grant, store, clock);
+  const service = new As1InboundService(agentOfficeContext(), grant, store);
   return { root, clock, store, grant, service };
 }
 
