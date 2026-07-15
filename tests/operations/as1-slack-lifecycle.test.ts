@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -25,21 +25,37 @@ function committedDescriptorSync(): Record<string, unknown> {
 
 async function makeControl() {
   const root = await makeStateRoot();
-  const control = await As1SlackControl.open(root, new FakeClock('2026-07-14T22:00:00.000Z'));
+  const control = await reopenControl(root, '2026-07-14T22:00:00.000Z');
   return { root, control };
+}
+
+/** Open the control through its only (lock-owning) path. The caller closes it (releasing the owned lock). */
+function reopenControl(root: string, iso: string): Promise<As1SlackControl> {
+  return As1SlackControl.open(root, new FakeClock(iso));
+}
+
+/** A fresh state root with the control fully established and its lock released (ready for tamper + reopen tests). */
+async function establishedRoot(): Promise<string> {
+  const root = await makeStateRoot();
+  const control = await reopenControl(root, '2026-07-14T22:00:00.000Z');
+  await control.close();
+  return root;
 }
 
 describe('AS1 control lifecycle', () => {
   it('starts default-disabled and walks the reviewed live-receive states then shuts down clean', async () => {
     const { control } = await makeControl();
-    expect(control.getState()).toBe('DISABLED_DEFAULT');
-    expect(control.isDefaultDisabled()).toBe(true);
-
-    await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
-    await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
-    await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
-    await control.shutdown();
-    expect(control.getState()).toBe('DISABLED_CLEAN');
+    try {
+      expect(control.getState()).toBe('DISABLED_DEFAULT');
+      expect(control.isDefaultDisabled()).toBe(true);
+      await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
+      await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+      await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
+      await control.shutdown();
+      expect(control.getState()).toBe('DISABLED_CLEAN');
+    } finally {
+      await control.close();
+    }
   });
 
   it('engages an irreversible global kill switch with no reset', async () => {
@@ -47,47 +63,190 @@ describe('AS1 control lifecycle', () => {
     await control.engageGlobalKill('cross-profile contradiction');
     expect(control.getState()).toBe('DISABLED_LATCHED');
     expect(control.isGloballyLatched()).toBe(true);
-
     await expect(control.transition('DISABLED_LATCHED', 'RECEIVING_ONE_PROFILE')).rejects.toThrow(DomainError);
     await control.shutdown();
     await control.rollbackToDisabled();
     expect(control.getState()).toBe('DISABLED_LATCHED'); // neither shutdown nor rollback clears a latch
+    await control.close();
 
     // A fresh process (restart) still sees the latch — no automatic reset.
-    const restarted = await As1SlackControl.open(root, new FakeClock('2026-07-14T22:30:00.000Z'));
+    const restarted = await reopenControl(root, '2026-07-14T22:30:00.000Z');
     expect(restarted.isGloballyLatched()).toBe(true);
+    await restarted.close();
   });
 
   it('latches a single profile independently', async () => {
     const { control } = await makeControl();
-    expect(await control.isProfileLatched('foundation-advisor')).toBe(false);
-    await control.latchProfile('agent-office-advisor', 'evidence rewrite');
-    expect(await control.isProfileLatched('agent-office-advisor')).toBe(true);
-    expect(await control.isProfileLatched('foundation-advisor')).toBe(false);
+    try {
+      expect(await control.isProfileLatched('foundation-advisor')).toBe(false);
+      await control.latchProfile('agent-office-advisor', 'evidence rewrite');
+      expect(await control.isProfileLatched('agent-office-advisor')).toBe(true);
+      expect(await control.isProfileLatched('foundation-advisor')).toBe(false);
+    } finally {
+      await control.close();
+    }
   });
 
-  it('enforces a single-process lock', async () => {
-    const { control } = await makeControl();
-    const lock = await control.acquireProcessLock();
-    await expect(control.acquireProcessLock()).rejects.toThrow();
-    await lock.release();
-    const relocked = await control.acquireProcessLock();
-    await relocked.release();
+  it('owns the single-process lock and rejects mutation after close (B05)', async () => {
+    const { root, control } = await makeControl();
+    // A second open on the same root cannot acquire the owned lock.
+    await expect(As1SlackControl.open(root, new FakeClock('2026-07-14T22:01:00.000Z'))).rejects.toThrow();
+    await control.close();
+    // A released control rejects every durable mutation.
+    await expect(control.engageGlobalKill('after close')).rejects.toThrow(DomainError);
+    await expect(control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor')).rejects.toThrow(DomainError);
+    // The lock is free again after close.
+    const relocked = await reopenControl(root, '2026-07-14T22:02:00.000Z');
+    await relocked.close();
   });
 
   it('persists control state across a restart', async () => {
     const { root, control } = await makeControl();
     await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
-    const restarted = await As1SlackControl.open(root, new FakeClock('2026-07-14T22:30:00.000Z'));
+    await control.close();
+    const restarted = await reopenControl(root, '2026-07-14T22:30:00.000Z');
     expect(restarted.getState()).toBe('RECEIVE_GRANTED_ONE_PROFILE');
+    await restarted.close();
   });
 
   it('rolls back to default-disabled from a non-latched state', async () => {
     const { control } = await makeControl();
+    try {
+      await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
+      await control.rollbackToDisabled();
+      expect(control.getState()).toBe('DISABLED_DEFAULT');
+      expect(control.isDefaultDisabled()).toBe(true);
+    } finally {
+      await control.close();
+    }
+  });
+});
+
+const CONTROL_DIR = 'indexes/as1-slack-pilot';
+
+describe('AS1 control durable-state integrity (B05)', () => {
+  it('rejects an illegal state jump and enforces the state↔slug correlation', async () => {
+    const { control } = await makeControl();
+    // A jump not in the closed adjacency table is illegal.
+    await expect(control.transition('DISABLED_DEFAULT', 'RECEIVING_ONE_PROFILE', 'agent-office-advisor')).rejects.toThrow(DomainError);
+    // A transition into an active state requires exactly one closed slug.
+    await expect(control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE')).rejects.toThrow(DomainError);
+    // An arbitrary slug is refused.
+    await expect(control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'intruder')).rejects.toThrow(DomainError);
     await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
-    await control.rollbackToDisabled();
-    expect(control.getState()).toBe('DISABLED_DEFAULT');
-    expect(control.isDefaultDisabled()).toBe(true);
+    expect(control.getActiveProfileSlug()).toBe('agent-office-advisor');
+    await control.rollbackToDisabled(); // a disabled state clears the slug
+    expect(control.getActiveProfileSlug()).toBeNull();
+    await control.close();
+  });
+
+  it('preserves the first profile latch and refuses an arbitrary slug', async () => {
+    const { root, control } = await makeControl();
+    await expect(control.latchProfile('intruder', 'x')).rejects.toThrow(DomainError);
+    await control.latchProfile('agent-office-advisor', 'first reason');
+    await control.latchProfile('agent-office-advisor', 'second reason');
+    const latch = JSON.parse(
+      await readFile(path.join(root, CONTROL_DIR, 'profiles/agent-office-advisor/failure-latch.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(latch.reason).toBe('first reason'); // the first latch is preserved, never overwritten
+    await control.close();
+  });
+
+  it('quarantines a deleted established marker with residual control (partial init)', async () => {
+    const root = await establishedRoot();
+    await rm(path.join(root, CONTROL_DIR, 'control-established.json'));
+    await expect(reopenControl(root, '2026-07-14T22:30:00.000Z')).rejects.toThrow(DomainError);
+  });
+
+  it('quarantines a deleted global-control file when the marker proves it was established', async () => {
+    const root = await establishedRoot();
+    await rm(path.join(root, CONTROL_DIR, 'global-control.json'));
+    await expect(reopenControl(root, '2026-07-14T22:30:00.000Z')).rejects.toThrow(DomainError);
+  });
+
+  it('quarantines a deleted profile latch record', async () => {
+    const root = await establishedRoot();
+    await rm(path.join(root, CONTROL_DIR, 'profiles/foundation-advisor/failure-latch.json'));
+    await expect(reopenControl(root, '2026-07-14T22:30:00.000Z')).rejects.toThrow(DomainError);
+  });
+
+  it('quarantines a malformed global-control record instead of coercing it', async () => {
+    const root = await establishedRoot();
+    await writeFile(
+      path.join(root, CONTROL_DIR, 'global-control.json'),
+      JSON.stringify({ schemaVersion: 'agent-office.as1-global-control.v1', state: 'DISABLED_DEFAULT', killEngaged: 'yes', latchReason: null, activeProfileSlug: null, updatedAt: '2026-07-14T22:00:00.000Z' }),
+      'utf8',
+    );
+    await expect(reopenControl(root, '2026-07-14T22:30:00.000Z')).rejects.toThrow(DomainError);
+  });
+
+  it('quarantines a non-latched control that carries a stale latch reason', async () => {
+    const root = await establishedRoot();
+    await writeFile(
+      path.join(root, CONTROL_DIR, 'global-control.json'),
+      JSON.stringify({ schemaVersion: 'agent-office.as1-global-control.v1', state: 'DISABLED_DEFAULT', killEngaged: false, latchReason: 'stale', activeProfileSlug: null, updatedAt: '2026-07-14T22:00:00.000Z' }),
+      'utf8',
+    );
+    await expect(reopenControl(root, '2026-07-14T22:30:00.000Z')).rejects.toThrow(DomainError);
+  });
+
+  it('rejects an established marker with a wrong stateRootId, wrong schema, or non-UTC time', async () => {
+    for (const marker of [
+      { schemaVersion: 'agent-office.as1-control-established.v1', stateRootId: 'some-other-root', establishedAt: '2026-07-14T22:00:00.000Z' },
+      { schemaVersion: 'agent-office.WRONG.v1', stateRootId: 'as1-slack-pilot', establishedAt: '2026-07-14T22:00:00.000Z' },
+      { schemaVersion: 'agent-office.as1-control-established.v1', stateRootId: 'as1-slack-pilot', establishedAt: 'not-a-time' },
+    ]) {
+      const root = await establishedRoot();
+      await writeFile(path.join(root, CONTROL_DIR, 'control-established.json'), JSON.stringify(marker), 'utf8');
+      await expect(reopenControl(root, '2026-07-14T22:30:00.000Z')).rejects.toThrow(DomainError);
+    }
+  });
+
+  it('close() serializes behind an in-flight mutation and never drops committed work (B05)', async () => {
+    const { root, control } = await makeControl();
+    // The latch is queued in the mutex first; close is queued second and waits for it before releasing.
+    const latch = control.latchProfile('agent-office-advisor', 'in flight');
+    await control.close();
+    await latch; // completed durably, under the lock, before close released it
+    const reopened = await reopenControl(root, '2026-07-14T22:05:00.000Z');
+    expect(await reopened.isProfileLatched('agent-office-advisor')).toBe(true);
+    await reopened.close();
+  });
+});
+
+describe('AS1 composition restart and lock ownership (B05)', () => {
+  const clock = (): FakeClock => new FakeClock('2026-07-14T22:00:00.000Z');
+
+  it('a stopped composition is closed and refuses every further lifecycle call', async () => {
+    const root = await makeStateRoot();
+    const composition = await As1GatewayComposition.open(parseRuntimeDescriptor(await committedDescriptor()), { stateRoot: root, clock: clock() });
+    await composition.stop();
+    expect(() => composition.start()).toThrow(DomainError);
+    await expect(composition.stop()).rejects.toThrow(DomainError);
+    await expect(composition.restart()).rejects.toThrow(DomainError);
+  });
+
+  it('restart reopens under the same trusted options and stays disconnected in Phase A', async () => {
+    const root = await makeStateRoot();
+    const composition = await As1GatewayComposition.open(parseRuntimeDescriptor(await committedDescriptor()), { stateRoot: root, clock: clock() });
+    const result = await composition.restart();
+    expect(result.connected).toBe(false);
+    expect(result.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
+    await composition.close();
+  });
+
+  it('restart stays closed and unusable when the reopen fails its integrity check (B05)', async () => {
+    const root = await makeStateRoot();
+    const composition = await As1GatewayComposition.open(parseRuntimeDescriptor(await committedDescriptor()), { stateRoot: root, clock: clock() });
+    // Corrupt the durable marker so the restart's reopen integrity check fails deterministically.
+    await writeFile(
+      path.join(root, CONTROL_DIR, 'control-established.json'),
+      JSON.stringify({ schemaVersion: 'agent-office.WRONG.v1', stateRootId: 'as1-slack-pilot', establishedAt: '2026-07-14T22:00:00.000Z' }),
+      'utf8',
+    );
+    await expect(composition.restart()).rejects.toThrow();
+    expect(() => composition.start()).toThrow(DomainError); // no reuse without ownership
+    await composition.close();
   });
 });
 
@@ -108,10 +267,25 @@ describe('AS1 default-disabled composition and CLI', () => {
       stateRoot: root,
       clock: new FakeClock('2026-07-14T22:00:00.000Z'),
     });
-    const result = composition.start();
-    expect(result.connected).toBe(false);
-    expect(result.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
-    expect(composition.status().liveConnection).toBe('NOT_STARTED');
+    try {
+      const result = composition.start();
+      expect(result.connected).toBe(false);
+      expect(result.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
+      expect(composition.status().liveConnection).toBe('NOT_STARTED');
+    } finally {
+      await composition.close();
+    }
+  });
+
+  it('owns the single-process lock: a second composition on the same root fails closed until close (B05)', async () => {
+    const root = await makeStateRoot();
+    const descriptor = parseRuntimeDescriptor(await committedDescriptor());
+    const clock = new FakeClock('2026-07-14T22:00:00.000Z');
+    const first = await As1GatewayComposition.open(descriptor, { stateRoot: root, clock });
+    await expect(As1GatewayComposition.open(descriptor, { stateRoot: root, clock })).rejects.toThrow();
+    await first.close(); // release the owned lock
+    const second = await As1GatewayComposition.open(descriptor, { stateRoot: root, clock });
+    await second.close();
   });
 
   it('even a descriptor with a grant ref does not connect in Phase A', async () => {
@@ -122,9 +296,13 @@ describe('AS1 default-disabled composition and CLI', () => {
       receiveGrantRef: 'advisor/jobs/20260714_as1/receive-grant.json',
     });
     const composition = await As1GatewayComposition.open(descriptor, { stateRoot: root, clock: new FakeClock('2026-07-14T22:00:00.000Z') });
-    const result = composition.start();
-    expect(result.connected).toBe(false);
-    expect(result.reason).toBe('LIVE_START_REQUIRES_SEPARATE_AUTHORIZATION');
+    try {
+      const result = composition.start();
+      expect(result.connected).toBe(false);
+      expect(result.reason).toBe('LIVE_START_REQUIRES_SEPARATE_AUTHORIZATION');
+    } finally {
+      await composition.close();
+    }
   });
 
   it('parses the closed lifecycle commands and rejects anything else', () => {
@@ -145,6 +323,7 @@ describe('AS1 default-disabled composition and CLI', () => {
     expect(result.lines).toContain('LIVE_CONNECTION: NOT_STARTED');
     expect(result.lines.join('\n')).not.toContain('xoxb');
     expect(result.lines.join('\n')).not.toContain('TWORKSPACE001');
+    await composition.close();
   });
 
   it('redacted-check validates a disposable synthetic file without contacting Slack', async () => {
@@ -157,5 +336,6 @@ describe('AS1 default-disabled composition and CLI', () => {
     const result = await runAs1Cli({ command: 'redacted-check', envFilePath: filePath }, composition);
     expect(result.lines).toContain('RESULT: PASS');
     expect(result.lines.join('\n')).not.toContain('xoxb');
+    await composition.close();
   });
 });

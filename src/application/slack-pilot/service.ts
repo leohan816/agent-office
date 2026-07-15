@@ -52,6 +52,17 @@ export interface ProcessResult {
   readonly latched: boolean;
 }
 
+/**
+ * Narrow durable profile-latch port (review B05). It is the SOLE profile-latch source and is backed in
+ * production by the lock-owning `As1SlackControl` canonical `failure-latch.json` record — never a second
+ * truth. The service cannot be constructed into a live path without it.
+ */
+export interface As1ProfileLatchPort {
+  /** Persist the irreversible profile latch (first reason preserved). Bound to this profile's closed slug. */
+  latchProfile(reason: string): Promise<void>;
+  isProfileLatched(): Promise<boolean>;
+}
+
 interface ExtractedEvent {
   readonly eventId: string;
   readonly teamId: string;
@@ -83,6 +94,7 @@ export class As1InboundService {
     private readonly context: As1ProfileRuntimeContext,
     private readonly grant: As1PilotReceiveGrantV1,
     private readonly store: As1ProfileInboundStore,
+    private readonly latchPort: As1ProfileLatchPort,
   ) {}
 
   public isLatched(): boolean {
@@ -169,7 +181,10 @@ export class As1InboundService {
   }
 
   public async processEnvelope(envelope: As1InboundEnvelope): Promise<ProcessResult> {
-    if (this.latched) {
+    // Enforce the durable profile latch before any side effect (dequeue/ACK/materialize). The canonical latch
+    // survives restart — it is not a private in-memory boolean — and once set is never cleared here (review B05).
+    if (this.latched || (await this.latchPort.isProfileLatched())) {
+      this.latched = true;
       return { acked: false, classification: 'PROFILE_LATCHED', intakeId: null, latched: true };
     }
     if (envelope.envelopeId.length === 0) {
@@ -177,20 +192,33 @@ export class As1InboundService {
       return { acked: false, classification: 'MALFORMED_NO_ENVELOPE_ID', intakeId: null, latched: false };
     }
     const classification = this.classify(envelope);
-    if (classification.kind === 'REJECTED') {
-      return this.handleRejection(envelope, classification.reason, classification.latch);
+    try {
+      if (classification.kind === 'REJECTED') {
+        return await this.handleRejection(envelope, classification.reason, classification.latch);
+      }
+      if (classification.kind === 'ROOT_CANDIDATE') {
+        return await this.handleRoot(envelope, classification.extracted);
+      }
+      return await this.handleContinuation(envelope, classification.extracted);
+    } catch (error) {
+      // A durable corruption/capacity failure persists the profile latch before surfacing (review B05).
+      if (error instanceof DomainError && error.code === 'STORE_QUARANTINED') {
+        await this.latchProfile(`store quarantined: ${error.message}`);
+      }
+      throw error;
     }
-    if (classification.kind === 'ROOT_CANDIDATE') {
-      return this.handleRoot(envelope, classification.extracted);
-    }
-    return this.handleContinuation(envelope, classification.extracted);
+  }
+
+  private async latchProfile(reason: string): Promise<void> {
+    await this.latchPort.latchProfile(reason);
+    this.latched = true;
   }
 
   private async handleRejection(envelope: As1InboundEnvelope, reason: string, latch: boolean): Promise<ProcessResult> {
     await this.store.recordDenialAudit(reason, null, envelope.envelopeId);
     if (latch) {
-      this.latched = true;
-      // An authenticated-profile identity contradiction latches and refuses; it is not ACKed.
+      // An authenticated-profile identity contradiction persists a durable latch and refuses; it is not ACKed.
+      await this.latchProfile(reason);
       return { acked: false, classification: reason, intakeId: null, latched: true };
     }
     await envelope.acknowledge();

@@ -24,7 +24,8 @@ import type {
   As1WsClientOptions,
   As1WsLike,
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
-import type { As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
+import type { As1ProfileLatchPort, As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
+import { DomainError } from '../../src/contracts/types.js';
 import type { As1TmuxPort, As1TmuxPreflight } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
 import type {
   As1EvidenceProvenance,
@@ -538,6 +539,34 @@ export function slackEnvelope(options: EnvelopeOptions = {}): As1InboundEnvelope
 }
 
 /** Runtime context for the Agent Office profile using the synthetic wire world identities. */
+/**
+ * Strict in-memory profile-latch port. It preserves the first bounded reason and is durable across "restart"
+ * when the SAME instance is shared between service instances (it models the one canonical latch source).
+ */
+export class FakeProfileLatchPort implements As1ProfileLatchPort {
+  private latched = false;
+  private firstReason: string | null = null;
+
+  public latchProfile(reason: string): Promise<void> {
+    if (typeof reason !== 'string' || reason.length === 0 || reason.length > 512) {
+      return Promise.reject(new DomainError('INVALID_SCHEMA', 'profile latch reason must be a bounded non-empty string'));
+    }
+    if (!this.latched) {
+      this.latched = true;
+      this.firstReason = reason;
+    }
+    return Promise.resolve();
+  }
+
+  public isProfileLatched(): Promise<boolean> {
+    return Promise.resolve(this.latched);
+  }
+
+  public reason(): string | null {
+    return this.firstReason;
+  }
+}
+
 export function agentOfficeContext(): As1ProfileRuntimeContext {
   const world = fakeWireWorld().world;
   return {

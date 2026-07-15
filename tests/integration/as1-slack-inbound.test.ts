@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parseReceiveGrant } from '../../src/application/slack-pilot/contracts.js';
 import { As1ProfileInboundStore, type As1PilotReceiveGrantStateV1 } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1InboundService } from '../../src/application/slack-pilot/service.js';
-import { agentOfficeContext, FakeClock, slackEnvelope, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
+import { agentOfficeContext, FakeClock, FakeProfileLatchPort, slackEnvelope, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
 async function makeService(startIso = '2026-07-14T22:05:00.000Z') {
@@ -11,8 +11,9 @@ async function makeService(startIso = '2026-07-14T22:05:00.000Z') {
   const clock = new FakeClock(startIso);
   const store = await As1ProfileInboundStore.open(root, agentOfficeContext().profile, clock);
   const grant = parseReceiveGrant(validReceiveGrant());
-  const service = new As1InboundService(agentOfficeContext(), grant, store);
-  return { root, clock, store, grant, service };
+  const latchPort = new FakeProfileLatchPort();
+  const service = new As1InboundService(agentOfficeContext(), grant, store, latchPort);
+  return { root, clock, store, grant, service, latchPort };
 }
 
 describe('AS1 inbound service — first root and persist-before-ACK', () => {
@@ -119,5 +120,16 @@ describe('AS1 inbound service — policy matrix rejections', () => {
     const afterLatch = await service.processEnvelope(slackEnvelope());
     expect(afterLatch.classification).toBe('PROFILE_LATCHED');
     expect(afterLatch.acked).toBe(false);
+  });
+
+  it('persists the profile latch durably so a restart still refuses input (B05)', async () => {
+    const { root, grant, service, latchPort } = await makeService();
+    await service.processEnvelope(slackEnvelope({ teamId: 'TOTHERWORKSP01' })); // identity contradiction → durable latch
+    // Restart: a fresh store + service over the same durable state root and the same canonical latch source.
+    const store2 = await As1ProfileInboundStore.open(root, agentOfficeContext().profile, new FakeClock('2026-07-14T22:06:00.000Z'));
+    const service2 = new As1InboundService(agentOfficeContext(), grant, store2, latchPort);
+    const afterRestart = await service2.processEnvelope(slackEnvelope());
+    expect(afterRestart.classification).toBe('PROFILE_LATCHED');
+    expect(afterRestart.acked).toBe(false);
   });
 });

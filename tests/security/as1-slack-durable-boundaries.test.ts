@@ -9,7 +9,7 @@ import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
 import { parseReceiveGrant } from '../../src/application/slack-pilot/contracts.js';
 import { As1ProfileInboundStore, rootKeyHash, type As1TransportObserved } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1InboundService } from '../../src/application/slack-pilot/service.js';
-import { agentOfficeContext, FakeClock, slackEnvelope, validReceiveGrant, type EnvelopeOptions } from '../helpers/as1-slack-fakes.js';
+import { agentOfficeContext, FakeClock, FakeProfileLatchPort, slackEnvelope, validReceiveGrant, type EnvelopeOptions } from '../helpers/as1-slack-fakes.js';
 import type { As1InboundEnvelope } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
@@ -26,14 +26,14 @@ async function newSession(iso = '2026-07-14T22:05:00.000Z') {
   const root = await makeStateRoot();
   const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock(iso));
   const grant = parseReceiveGrant(validReceiveGrant());
-  const service = new As1InboundService(CTX, grant, store);
+  const service = new As1InboundService(CTX, grant, store, new FakeProfileLatchPort());
   return { root, store, grant, service };
 }
 
 async function reopen(root: string, iso: string) {
   const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock(iso));
   const grant = parseReceiveGrant(validReceiveGrant());
-  return { store, grant, service: new As1InboundService(CTX, grant, store) };
+  return { store, grant, service: new As1InboundService(CTX, grant, store, new FakeProfileLatchPort()) };
 }
 
 function innerEventOf(envelope: As1InboundEnvelope): unknown {

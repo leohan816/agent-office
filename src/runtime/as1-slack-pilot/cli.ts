@@ -77,8 +77,8 @@ export async function runAs1Cli(
       return { command: 'stop', ok: true, lines: statusLines('stop', status.state, 'STOPPED_CLEAN') };
     }
     case 'restart': {
-      await composition.stop();
-      const result = composition.start();
+      // Restart never reuses a released lock: the composition stops then reopens/reacquires internally.
+      const result = await composition.restart();
       return { command: 'restart', ok: false, lines: statusLines('restart', result.state, result.reason) };
     }
     case 'status': {
@@ -110,9 +110,14 @@ async function main(): Promise<void> {
   await initializeStateRoot(stateRoot, { stateRootId: 'as1-slack-pilot', initializedAt: clock.now() });
   const descriptor = parseRuntimeDescriptor(JSON.parse(await readFile(descriptorPath, 'utf8')));
   const composition = await As1GatewayComposition.open(descriptor, { stateRoot, clock });
-  const result = await runAs1Cli(invocation, composition);
-  for (const line of result.lines) process.stdout.write(`${line}\n`);
-  process.exitCode = result.ok ? 0 : 1;
+  try {
+    const result = await runAs1Cli(invocation, composition);
+    for (const line of result.lines) process.stdout.write(`${line}\n`);
+    process.exitCode = result.ok ? 0 : 1;
+  } finally {
+    // Always release the owned single-process lock so a one-shot command never leaves a stale lock behind.
+    await composition.close();
+  }
 }
 
 const entry = process.argv[1];
