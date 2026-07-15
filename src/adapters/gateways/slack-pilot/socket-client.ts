@@ -235,16 +235,43 @@ export class As1RawSocketTransport implements As1SocketPort {
     if (this.phase !== 'CLOSED' || this.socket !== null) {
       throw new DomainError('INVALID_TRANSITION', 'connect requires a clean reconnectable transport state');
     }
+    // SYNCHRONOUSLY reserve exclusive transport ownership BEFORE awaiting any opener side effect (review B05 V7):
+    // advance the monotonic generation and leave the clean CLOSED state (as WS_CONNECTING) with no bound Socket yet,
+    // so a second immediate connect() that overlaps while this opener is still pending rejects at the guard above
+    // BEFORE a second opener/factory call. The reservation is owned by this exact `generation`.
     this.profileId = input.profileId;
-    const deadlineAt = this.now() + LIMITS.STARTUP_IDENTITY_TIMEOUT_MS;
-    const url = await this.opener.open(input.appToken, Math.max(0, deadlineAt - this.now()));
-    const remaining = Math.max(1, deadlineAt - this.now());
-    const socket = this.factory.create(url, as1WsClientOptions(remaining));
-    socket.binaryType = 'nodebuffer';
-    this.socket = socket;
     this.generation += 1;
     const generation = this.generation;
     this.phase = 'WS_CONNECTING';
+    const deadlineAt = this.now() + LIMITS.STARTUP_IDENTITY_TIMEOUT_MS;
+    let url: string;
+    try {
+      url = await this.opener.open(input.appToken, Math.max(0, deadlineAt - this.now()));
+    } catch (error) {
+      // The opener rejected before a Socket was bound: release ONLY this generation's reservation back to the clean
+      // CLOSED/no-Socket state (never clobber a newer generation or a disconnect), then reject. No retry/reconnect.
+      this.releaseReservation(generation);
+      throw error;
+    }
+    // If a disconnect(), or a newer reservation, superseded this pending generation while the opener was pending, this
+    // generation must NOT bind a Socket or mutate the newer/stopped state (review B05 V7). Abort without releasing —
+    // the state it would release belongs to a newer generation or a stop, not to this one. A newer connect advances
+    // the generation; a disconnect leaves WS_CONNECTING for CLOSED (via getPhase() so the post-await value is read,
+    // not the pre-await narrowed literal); together they cover every supersession before a Socket is bound.
+    if (this.generation !== generation || this.getPhase() !== 'WS_CONNECTING') {
+      throw new DomainError('INVALID_TRANSITION', 'connect reservation was superseded before the socket was bound');
+    }
+    const remaining = Math.max(1, deadlineAt - this.now());
+    let socket: As1WsLike;
+    try {
+      socket = this.factory.create(url, as1WsClientOptions(remaining));
+    } catch (error) {
+      // The factory threw before a Socket was bound: release ONLY this generation's reservation. No retry/reconnect.
+      this.releaseReservation(generation);
+      throw error;
+    }
+    socket.binaryType = 'nodebuffer';
+    this.socket = socket;
 
     return new Promise<As1SocketConnectResult>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -349,6 +376,15 @@ export class As1RawSocketTransport implements As1SocketPort {
         this.latch(socket, 1008, 'unexpected data frame');
       });
     });
+  }
+
+  /** Release ONLY this generation's pre-Socket reservation back to the clean CLOSED/no-Socket state (review B05 V7).
+   * A no-op if a newer generation already owns the reservation, a Socket is already bound, or a disconnect already
+   * moved the transport — so a failed opener/factory can never clobber a newer connection or an intervening stop. */
+  private releaseReservation(generation: number): void {
+    if (this.generation === generation && this.socket === null && this.phase === 'WS_CONNECTING') {
+      this.phase = 'CLOSED';
+    }
   }
 
   public async disconnect(): Promise<void> {

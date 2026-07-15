@@ -8,7 +8,9 @@ import {
   as1WsClientOptions,
   assertValidSlackWssUrl,
   boundedSlackFetch,
+  type As1ConnectionsOpener,
   type As1InboundEnvelope,
+  type As1WebSocketFactory,
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import { FakeAs1Ws, FakeAs1WebSocketFactory, FakeConnectionsOpener } from '../helpers/as1-slack-fakes.js';
 
@@ -680,5 +682,141 @@ describe('AS1 raw socket transport — receive-ready binary/oversize + generatio
     ctx.fakeWs.emit('message', eventFrame('EnvStillLiveAGENT', APP_ID), false);
     await flush();
     expect(ctx.received.some((e) => e.envelopeId === 'EnvStillLiveAGENT')).toBe(true);
+  });
+});
+
+// B05 re-review V7 (AS1-PATCH-V7-05): the Reviewer V6 result (ccea51e / 2c911703) reproduced a pre-Socket
+// concurrency race — two connect() calls overlapping while the first opener.open() was pending both passed the
+// clean-state guard and each invoked the opener (openerCalls 2, factoryCalls 0, phase CLOSED). The V6 overlap test
+// starts its second call only after connectReady(), so it never held the first opener pending. V7 reserves exclusive
+// ownership synchronously (WS_CONNECTING) BEFORE the opener await, releases only its own reservation on opener/factory
+// failure, and keeps a disconnect-while-pending generation from ever binding a Socket.
+describe('AS1 raw socket transport — pre-Socket connect reservation (B05 V7)', () => {
+  const URL = 'wss://wss.slack.com/link/?ticket=redacted';
+  const CONNECT = { profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true };
+
+  interface Deferred { resolve: (url: string) => void; reject: (error: Error) => void; }
+
+  /** A transport whose opener stays pending until the test resolves/rejects the captured deferred (so the pre-Socket
+   * overlap window is directly observable). Uses a real FakeAs1WebSocketFactory for created-count assertions. */
+  function reservationCtx() {
+    let openerCalls = 0;
+    const deferreds: Deferred[] = [];
+    const opener: As1ConnectionsOpener = {
+      open: () => {
+        openerCalls += 1;
+        return new Promise<string>((resolve, reject) => { deferreds.push({ resolve, reject }); });
+      },
+    };
+    const factory = new FakeAs1WebSocketFactory();
+    const durableLatches: string[] = [];
+    const received: As1InboundEnvelope[] = [];
+    const transport = new As1RawSocketTransport(
+      opener,
+      factory,
+      { record: () => { /* redacted */ } },
+      () => 100_000,
+      (reason) => { durableLatches.push(reason); return Promise.resolve(); },
+      () => Promise.resolve(true),
+    );
+    transport.onEnvelope((envelope) => { received.push(envelope); return Promise.resolve(); });
+    return { transport, factory, deferreds, durableLatches, received, openerCalls: () => openerCalls };
+  }
+
+  it('two overlapping connects with the first opener pending: one opener call, zero factory calls, second rejects', async () => {
+    const ctx = reservationCtx();
+    const p1 = ctx.transport.connect(CONNECT); // reserves synchronously, then suspends on the pending opener
+    const p2 = ctx.transport.connect(CONNECT); // must reject at the guard BEFORE a second opener/factory side effect
+    await expect(p2).rejects.toBeInstanceOf(DomainError);
+    expect(ctx.openerCalls()).toBe(1); // exactly one opener call at the overlap point
+    expect(ctx.factory.created.length).toBe(0); // zero factory calls at the overlap point
+    expect(ctx.transport.getPhase()).toBe('WS_CONNECTING'); // the first reservation is held
+
+    // Resolving the first opener lets the first generation complete hello and receive a current event.
+    const gen1 = new FakeAs1Ws();
+    ctx.factory.setNext(gen1);
+    ctx.deferreds[0]?.resolve(URL);
+    await flush();
+    gen1.emit('open');
+    gen1.emit('message', helloFrame(APP_ID), false);
+    await p1;
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+    gen1.emit('message', eventFrame('EnvReserveA', APP_ID), false);
+    await flush();
+    expect(ctx.received.some((e) => e.envelopeId === 'EnvReserveA')).toBe(true);
+  });
+
+  it('an opener rejection releases only its own reservation and permits one later clean connect', async () => {
+    const ctx = reservationCtx();
+    const p1 = ctx.transport.connect(CONNECT);
+    expect(ctx.transport.getPhase()).toBe('WS_CONNECTING');
+    ctx.deferreds[0]?.reject(new Error('apps.connections.open failed'));
+    await expect(p1).rejects.toThrow('apps.connections.open failed');
+    expect(ctx.transport.getPhase()).toBe('CLOSED'); // reservation released to the clean state
+    expect(ctx.factory.created.length).toBe(0); // no Socket was bound
+
+    const gen = new FakeAs1Ws();
+    ctx.factory.setNext(gen);
+    const p2 = ctx.transport.connect(CONNECT); // a later explicit clean connect proceeds
+    ctx.deferreds[1]?.resolve(URL);
+    await flush();
+    gen.emit('open');
+    gen.emit('message', helloFrame(APP_ID), false);
+    await p2;
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+  });
+
+  it('a factory throw releases only its own reservation and permits one later clean connect', async () => {
+    const deferreds: Deferred[] = [];
+    const opener: As1ConnectionsOpener = {
+      open: () => new Promise<string>((resolve, reject) => { deferreds.push({ resolve, reject }); }),
+    };
+    const gen2 = new FakeAs1Ws();
+    let createCalls = 0;
+    const factory: As1WebSocketFactory = {
+      create: () => {
+        createCalls += 1;
+        if (createCalls === 1) throw new Error('ws factory failed');
+        return gen2;
+      },
+    };
+    const received: As1InboundEnvelope[] = [];
+    const transport = new As1RawSocketTransport(
+      opener,
+      factory,
+      { record: () => { /* redacted */ } },
+      () => 100_000,
+      () => Promise.resolve(),
+      () => Promise.resolve(true),
+    );
+    transport.onEnvelope((envelope) => { received.push(envelope); return Promise.resolve(); });
+
+    const p1 = transport.connect(CONNECT);
+    deferreds[0]?.resolve(URL); // opener resolves → factory.create throws before a Socket is bound
+    await expect(p1).rejects.toThrow('ws factory failed');
+    expect(transport.getPhase()).toBe('CLOSED'); // reservation released; no reconnect/retry
+    expect(createCalls).toBe(1);
+
+    const p2 = transport.connect(CONNECT); // a later explicit clean connect proceeds (second create returns gen2)
+    deferreds[1]?.resolve(URL);
+    await flush();
+    gen2.emit('open');
+    gen2.emit('message', helloFrame(APP_ID), false);
+    await p2;
+    expect(transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+  });
+
+  it('a disconnect while the opener is pending prevents that generation from binding a Socket after it resolves', async () => {
+    const ctx = reservationCtx();
+    const p1 = ctx.transport.connect(CONNECT);
+    expect(ctx.transport.getPhase()).toBe('WS_CONNECTING'); // reserved, opener pending
+    await ctx.transport.disconnect(); // stop while the opener is still pending
+    expect(ctx.transport.getPhase()).toBe('CLOSED'); // stopped, fail closed
+    ctx.factory.setNext(new FakeAs1Ws()); // a Socket is queued but must NOT be created by the stopped generation
+    ctx.deferreds[0]?.resolve(URL); // the opener resolves late
+    await expect(p1).rejects.toBeInstanceOf(DomainError); // the pending generation must not bind
+    await flush();
+    expect(ctx.factory.created.length).toBe(0); // no Socket was created/bound by the stopped generation
+    expect(ctx.transport.getPhase()).toBe('CLOSED'); // the clean stopped state is intact
   });
 });
