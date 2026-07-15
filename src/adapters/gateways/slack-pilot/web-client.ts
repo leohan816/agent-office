@@ -1,13 +1,19 @@
 // AS1 Multi-Team Slack Pilot — narrow Slack Web API port and its official-SDK adapter.
 //
 // Canonical design: docs/integration/AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_DESIGN.md §6 (startup identity),
-// §14 (outbound); docs/security/AGENT_OFFICE_AS1_SLACK_SECURITY_AUTHORITY_MODEL.md §4.2 (control-plane
-// boundary), §6.3 (token handling), §12 (outbound). Only auth.test, bots.info, and chat.postMessage are
-// representable. Every response is untrusted external data: it is parsed into a bounded, exact-key result
-// and must agree with committed profile identity elsewhere. Tokens travel only in the Authorization header
-// through the official client; SDK automatic retries are disabled so application code owns retry
-// classification. No token, response body, or WebSocket URL is ever logged.
-import { WebClient } from '@slack/web-api';
+// §14 (outbound); docs/security/AGENT_OFFICE_AS1_SLACK_SECURITY_AUTHORITY_MODEL.md §4.2, §6.3, §12. Only
+// auth.test, bots.info, and chat.postMessage are representable. SDK automatic retries are disabled
+// (`retryConfig.retries: 0`) and rate-limited calls reject (`rejectRateLimitedCalls: true`) so application
+// code owns retry classification. Provider errors are translated into exactly the reviewed safe-retry
+// classes: a proven pre-request failure (`WebAPIRequestError`) is CONNECTION_BEFORE_SEND; an explicit
+// rate-limit (`WebAPIRateLimitedError`) is RATE_LIMITED with a bounded `retryAfter`; every HTTP/platform/
+// unknown/ok:false outcome is AMBIGUOUS (never blind-resent). No token, response body, or WebSocket URL is
+// ever logged.
+import {
+  WebAPIRateLimitedError,
+  WebAPIRequestError,
+  WebClient,
+} from '@slack/web-api';
 
 import { DomainError } from '../../../contracts/types.js';
 
@@ -38,6 +44,20 @@ export interface As1PostMessageResult {
   readonly ts: string;
 }
 
+export type As1OutboundErrorClass = 'CONNECTION_BEFORE_SEND' | 'RATE_LIMITED' | 'AMBIGUOUS';
+
+/** A classified outbound failure. Only CONNECTION_BEFORE_SEND and RATE_LIMITED are safe to retry. */
+export class As1OutboundError extends Error {
+  public constructor(
+    public readonly outboundClass: As1OutboundErrorClass,
+    message: string,
+    public readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = 'As1OutboundError';
+  }
+}
+
 /** The only three Web API calls AS1 can make. No generic method or dynamic route exists. */
 export interface As1WebPort {
   authTest(botToken: string): Promise<As1AuthTestResult>;
@@ -50,6 +70,20 @@ function boundedField(value: unknown, label: string): string {
     throw new DomainError('INVALID_SCHEMA', `slack response ${label} is missing or not bounded`);
   }
   return value;
+}
+
+/** Translate a thrown provider error into exactly one reviewed outbound retry class. Never leaks the body. */
+export function classifyOutboundError(error: unknown): As1OutboundError {
+  if (error instanceof As1OutboundError) return error;
+  if (error instanceof WebAPIRateLimitedError) {
+    return new As1OutboundError('RATE_LIMITED', 'provider rate limited the request', error.retryAfter * 1_000);
+  }
+  if (error instanceof WebAPIRequestError) {
+    // The request could not be handed to the network (DNS/TLS/build) — proven definitely-unsent.
+    return new As1OutboundError('CONNECTION_BEFORE_SEND', 'request failed before any bytes were sent');
+  }
+  // WebAPIHTTPError, WebAPIPlatformError, timeouts after write, and anything else are ambiguous.
+  return new As1OutboundError('AMBIGUOUS', 'outbound outcome is ambiguous');
 }
 
 /** Official-SDK adapter. Never executed in Phase A (fakes only); present for production composition. */
@@ -91,17 +125,22 @@ export class NodeAs1WebClient implements As1WebPort {
   }
 
   public async postMessage(botToken: string, request: As1PostMessageRequest): Promise<As1PostMessageResult> {
-    const response = await this.client(botToken).chat.postMessage({
-      channel: request.channel,
-      thread_ts: request.threadTs,
-      text: request.text,
-      mrkdwn: false,
-      reply_broadcast: false,
-      unfurl_links: false,
-      unfurl_media: false,
-    });
+    let response;
+    try {
+      response = await this.client(botToken).chat.postMessage({
+        channel: request.channel,
+        thread_ts: request.threadTs,
+        text: request.text,
+        mrkdwn: false,
+        reply_broadcast: false,
+        unfurl_links: false,
+        unfurl_media: false,
+      });
+    } catch (error) {
+      throw classifyOutboundError(error);
+    }
     if (!response.ok) {
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'chat.postMessage did not return ok');
+      throw new As1OutboundError('AMBIGUOUS', 'chat.postMessage did not return ok');
     }
     return {
       ok: true,

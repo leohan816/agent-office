@@ -15,9 +15,14 @@ import type {
   As1WebPort,
 } from '../../src/adapters/gateways/slack-pilot/web-client.js';
 import type {
+  As1ConnectionsOpener,
   As1InboundEnvelope,
+  As1SocketConnectInput,
   As1SocketConnectResult,
   As1SocketPort,
+  As1WebSocketFactory,
+  As1WsClientOptions,
+  As1WsLike,
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import type { As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
 import type { As1TmuxPort, As1TmuxPreflight } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
@@ -285,10 +290,15 @@ export class FakeWebPort implements As1WebPort {
   }
 }
 
-/** In-memory Socket port. Maps each app token to the hello app_id it would report. */
+/**
+ * In-memory Socket port modeling the reviewed pre-event boundary: connect proves the app token's hello
+ * App-ID equals the expected App ID and synchronously revalidates the internally-derived readiness seal,
+ * all BEFORE any event. A swapped app token (helloAppId != expectedAppId) or a stale seal fails connect.
+ */
 export class FakeSocketPort implements As1SocketPort {
   public connectCalls = 0;
   public disconnectCalls = 0;
+  public lastSealOk: boolean | null = null;
   private readonly byAppToken = new Map<string, string>();
   private handler: ((envelope: As1InboundEnvelope) => Promise<void>) | null = null;
 
@@ -296,13 +306,15 @@ export class FakeSocketPort implements As1SocketPort {
     this.byAppToken.set(appToken, helloAppId);
   }
 
-  public connect(appToken: string): Promise<As1SocketConnectResult> {
+  public connect(input: As1SocketConnectInput): Promise<As1SocketConnectResult> {
     this.connectCalls += 1;
-    const helloAppId = this.byAppToken.get(appToken);
-    if (helloAppId === undefined) {
-      return Promise.resolve({ ok: false, helloAppId: '' });
+    const helloAppId = this.byAppToken.get(input.appToken);
+    if (helloAppId === undefined || helloAppId !== input.expectedAppId) {
+      return Promise.resolve({ ok: false });
     }
-    return Promise.resolve({ ok: true, helloAppId });
+    const sealOk = input.readinessSeal();
+    this.lastSealOk = sealOk;
+    return Promise.resolve({ ok: sealOk });
   }
 
   public onEnvelope(handler: (envelope: As1InboundEnvelope) => Promise<void>): void {
@@ -317,6 +329,89 @@ export class FakeSocketPort implements As1SocketPort {
   public async deliver(envelope: As1InboundEnvelope): Promise<void> {
     if (this.handler === null) throw new Error('no envelope handler registered');
     await this.handler(envelope);
+  }
+}
+
+/** Public-`ws`-shaped fake socket. The test drives open/message/error/close via emit and inspects sends. */
+export class FakeAs1Ws implements As1WsLike {
+  public binaryType: 'nodebuffer' | 'arraybuffer' | 'fragments' = 'arraybuffer';
+  public readyState = 1; // WebSocket.OPEN
+  public bufferedAmount = 0;
+  public readonly sent: string[] = [];
+  public readonly closeCalls: { code: number; reason: string }[] = [];
+  public terminateCalls = 0;
+  public removeAllCalls = 0;
+  private readonly listeners = new Map<string, ((...args: unknown[]) => void)[]>();
+
+  public on(event: string, listener: (...args: unknown[]) => void): void {
+    const existing = this.listeners.get(event) ?? [];
+    existing.push(listener);
+    this.listeners.set(event, existing);
+  }
+
+  public send(data: string): void {
+    this.sent.push(data);
+  }
+
+  public close(code: number, reason: string): void {
+    this.closeCalls.push({ code, reason });
+  }
+
+  public terminate(): void {
+    this.terminateCalls += 1;
+  }
+
+  public removeAllListeners(): void {
+    this.removeAllCalls += 1;
+    this.listeners.clear();
+  }
+
+  public emit(event: string, ...args: unknown[]): void {
+    for (const listener of [...(this.listeners.get(event) ?? [])]) listener(...args);
+  }
+}
+
+/** Fake ws factory that captures the exact url/options passed (design §9.8 option spy). */
+export class FakeAs1WebSocketFactory implements As1WebSocketFactory {
+  public lastUrl: string | null = null;
+  public lastOptions: As1WsClientOptions | null = null;
+  public readonly created: FakeAs1Ws[] = [];
+  private queued: FakeAs1Ws | null = null;
+
+  public setNext(ws: FakeAs1Ws): void {
+    this.queued = ws;
+  }
+
+  public create(url: string, options: As1WsClientOptions): As1WsLike {
+    this.lastUrl = url;
+    this.lastOptions = options;
+    const ws = this.queued ?? new FakeAs1Ws();
+    this.queued = null;
+    this.created.push(ws);
+    return ws;
+  }
+}
+
+/** Fake bounded apps.connections.open opener: returns a configured wss URL or a configured error. */
+export class FakeConnectionsOpener implements As1ConnectionsOpener {
+  public calls = 0;
+  public lastDeadlineMs = 0;
+  private url = 'wss://wss.slack.com/link/?ticket=redacted';
+  private error: Error | null = null;
+
+  public setUrl(url: string): void {
+    this.url = url;
+  }
+
+  public setError(error: Error): void {
+    this.error = error;
+  }
+
+  public open(_appToken: string, deadlineMs: number): Promise<string> {
+    this.calls += 1;
+    this.lastDeadlineMs = deadlineMs;
+    if (this.error !== null) return Promise.reject(this.error);
+    return Promise.resolve(this.url);
   }
 }
 

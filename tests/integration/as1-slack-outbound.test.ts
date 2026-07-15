@@ -7,17 +7,18 @@ import {
   As1Outbox,
   As1OutboundError,
   renderOutbound,
+  type As1AcceptedRoot,
   type As1OutboundRecord,
-  type As1OutboundTarget,
   type As1SendRequest,
 } from '../../src/application/slack-pilot/outbox.js';
 import { FakeClock, FakeWebPort } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
-const TARGET: As1OutboundTarget = {
-  channel: 'CAGENTOFFICE01',
-  threadTs: '1720000000.000100',
-  botToken: 'xoxb-agentoffice-placeholder-0001',
+const ACCEPTED_ROOT: As1AcceptedRoot = {
+  profileId: 'AGENT_OFFICE_ADVISOR',
+  channelId: 'CAGENTOFFICE01',
+  rootTs: '1720000000.000100',
+  rootCorrelationHash: `sha256:${'3'.repeat(64)}`,
 };
 
 const ACK_RECORD: As1OutboundRecord = { kind: 'ACK', intakeId: 'as1-intake-0001', advisorAckId: 'ack-0001', summary: 'received your mission' };
@@ -27,15 +28,21 @@ async function makeOutbox() {
   const store = await As1ProfileInboundStore.open(root, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock('2026-07-14T22:06:00.000Z'));
   const web = new FakeWebPort();
   const outbox = new As1Outbox();
+  const latched: string[] = [];
   const base = (record: As1OutboundRecord): As1SendRequest => ({
     outboundId: 'outbound-0001',
     record,
-    target: TARGET,
+    acceptedRoot: ACCEPTED_ROOT,
+    botToken: 'xoxb-agentoffice-placeholder-0001',
     web,
     journal: store,
+    latch: (reason: string) => {
+      latched.push(reason);
+      return Promise.resolve();
+    },
     delay: () => Promise.resolve(),
   });
-  return { store, web, outbox, base };
+  return { store, web, outbox, base, latched };
 }
 
 function grabDomainError(fn: () => unknown): DomainError {
@@ -99,13 +106,39 @@ describe('AS1 outbound transport', () => {
     expect(result.attempts).toBe(2);
   });
 
-  it('never blind-resends after an ambiguous failure', async () => {
-    const { store, web, outbox, base } = await makeOutbox();
+  it('never blind-resends after an ambiguous failure and durably latches', async () => {
+    const { store, web, outbox, base, latched } = await makeOutbox();
     web.setPostScript([new As1OutboundError('AMBIGUOUS', 'timeout after request write')]);
     const result = await outbox.send(base(ACK_RECORD));
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
     expect(web.posted).toHaveLength(1);
+    expect(latched.length).toBeGreaterThan(0);
     expect(await store.readOutboxPhase('outbound-0001')).toBe('MANUAL_RECONCILIATION_REQUIRED');
+  });
+
+  it('resumes an interrupted REQUEST_STARTED as manual reconciliation without a network resend', async () => {
+    const { store, web, outbox, base, latched } = await makeOutbox();
+    await store.recordOutboxPhase('outbound-0001', 'REQUEST_STARTED'); // durable in-flight from a prior crash
+    const result = await outbox.send(base(ACK_RECORD));
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(web.posted).toHaveLength(0); // never re-sent
+    expect(latched.length).toBeGreaterThan(0);
+  });
+
+  it('resumes a delivered phase without a network resend', async () => {
+    const { store, web, outbox, base } = await makeOutbox();
+    await store.recordOutboxPhase('outbound-0001', 'RESPONSE_RECORDED');
+    const result = await outbox.send(base(ACK_RECORD));
+    expect(result.outcome).toBe('DELIVERED');
+    expect(web.posted).toHaveLength(0);
+  });
+
+  it('treats a success with a non-Slack timestamp grammar as ambiguous', async () => {
+    const { web, outbox, base, latched } = await makeOutbox();
+    web.setPostResult({ ok: true, channel: 'CAGENTOFFICE01', ts: 'not-a-timestamp' });
+    const result = await outbox.send(base(ACK_RECORD));
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(latched.length).toBeGreaterThan(0);
   });
 
   it('treats a malformed success as ambiguous', async () => {

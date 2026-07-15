@@ -10,7 +10,7 @@
 // constructs a route/identity from free text. No value is ever echoed: rejection messages name only a
 // field/key category and a stable reason.
 import { DomainError } from '../../contracts/types.js';
-import { assertExactKeys, assertRecord, requireInteger } from '../../contracts/validation.js';
+import { assertExactKeys, assertRecord, isRecord, requireInteger } from '../../contracts/validation.js';
 import { isSha256 } from '../../persistence/file-store/hashing.js';
 import { assertUtcTimestamp } from '../../domain/time/index.js';
 import { assertAs1ProfileId, selectProfile, type As1ProfileId } from './profiles.js';
@@ -59,6 +59,13 @@ export const LIMITS = {
   OUTBOUND_MAX_ATTEMPTS: 3,
   RETRY_BACKOFF_MS: [250, 1_000] as readonly number[],
   RETRY_AFTER_MAX_MS: 5 * SECOND_MS,
+  // Raw Socket Mode transport delta (docs/integration/AGENT_OFFICE_AS1_SOCKET_IDENTITY_DESIGN_DELTA.md §7.2).
+  WS_URL_MAX_BYTES: 4_096,
+  ACK_FRAME_MAX_BYTES: 256,
+  WS_MAX_BUFFERED_CHUNKS: 64,
+  WS_MAX_FRAGMENTS: 64,
+  WS_MAX_PAYLOAD_BYTES: 32_768,
+  WS_CLOSE_TIMEOUT_MS: 5 * SECOND_MS,
 } as const;
 
 // ── Bounded value grammars (design §5.1 IDs; §6.3 token class) ────────────────
@@ -149,6 +156,41 @@ export function requireSlackTs(value: unknown, label: string): string {
 /** Count Unicode scalar values (code points), not UTF-16 units. */
 export function unicodeScalarCount(text: string): number {
   return Array.from(text).length;
+}
+
+/**
+ * Bounded structural validation for an external JSON value (design §8.1): serialized size, nesting depth,
+ * and per-array entry count. Enforced at the raw Socket boundary and on the reconstructed envelope.
+ */
+export function assertBoundedJsonStructure(
+  value: unknown,
+  label: string,
+  maxBytes: number = LIMITS.RAW_SOCKET_ENVELOPE_MAX_BYTES,
+): void {
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(value);
+  } catch {
+    throw new DomainError('INVALID_SCHEMA', `${label} is not serializable JSON`);
+  }
+  if (typeof serialized !== 'string' || Buffer.byteLength(serialized, 'utf8') > maxBytes) {
+    throw new DomainError('INVALID_SCHEMA', `${label} exceeds its bounded byte size`);
+  }
+  walkBoundedJson(value, label, 1);
+}
+
+function walkBoundedJson(value: unknown, label: string, depth: number): void {
+  if (depth > LIMITS.JSON_NESTING_DEPTH_MAX) {
+    throw new DomainError('INVALID_SCHEMA', `${label} exceeds the maximum JSON nesting depth`);
+  }
+  if (Array.isArray(value)) {
+    if (value.length > LIMITS.PARSED_ARRAY_MAX) {
+      throw new DomainError('INVALID_SCHEMA', `${label} array exceeds the maximum entry count`);
+    }
+    for (const item of value) walkBoundedJson(item, `${label}[]`, depth + 1);
+  } else if (isRecord(value)) {
+    for (const key of Object.keys(value)) walkBoundedJson(value[key], `${label}.${key}`, depth + 1);
+  }
 }
 
 /**

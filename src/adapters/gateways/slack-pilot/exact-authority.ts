@@ -11,6 +11,7 @@
 // — never a profile-local transient retry. Errors are redacted (no token/prefix/raw ID).
 import { DomainError } from '../../../contracts/types.js';
 import { assertExactKeys, assertRecord, requireInteger } from '../../../contracts/validation.js';
+import { hashCanonical } from '../../../persistence/file-store/hashing.js';
 import { requireOpaqueId, requireSha256, requireUtc, LIMITS } from '../../../application/slack-pilot/contracts.js';
 import type { As1PilotReceiveGrantV1, As1PointerDeliveryGrantV1 } from '../../../application/slack-pilot/contracts.js';
 import { assertAs1ProfileId, selectProfile } from '../../../application/slack-pilot/profiles.js';
@@ -35,6 +36,13 @@ export interface StartupIdentityInput {
   readonly now: string;
   readonly web: As1WebPort;
   readonly socket: As1SocketPort;
+  /**
+   * REQUIRED current immutable control/latch snapshot (a stable hash of global-control + profile-latch
+   * state). Composition wires this to As1SlackControl; it is never a caller-selectable permissive value.
+   * The readiness seal is derived internally from the immutable profile identity plus this snapshot and is
+   * synchronously revalidated inside the raw hello callback; a stale/changed snapshot fails the start.
+   */
+  readonly controlSnapshot: () => string;
 }
 
 /** The AUTHENTICATED_QUARANTINE proof — the client still cannot accept a message until every other gate passes. */
@@ -92,10 +100,33 @@ export async function verifyStartupIdentity(input: StartupIdentityInput): Promis
     throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'bots.info app_id does not match the configured App');
   }
 
-  const hello = await socket.connect(wire.appToken);
-  if (!hello.ok || hello.helloAppId !== wire.appId) {
-    // Swapped app token: the Socket hello resolves to a different App ID than the configured profile.
-    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'socket hello app_id does not match the configured App');
+  // The reviewed raw Socket adapter (docs/integration/AGENT_OFFICE_AS1_SOCKET_IDENTITY_DESIGN_DELTA.md)
+  // proves the app-token->App identity PRE-EVENT: connect opens the raw stream and compares the raw
+  // hello.connection_info.app_id to this expected App ID inside the transport message callback, before any
+  // Team event is parsed or delivered, and synchronously revalidates the internally-derived readiness seal.
+  // A swapped app token or a changed control/latch snapshot is rejected here, before content, with no
+  // fallback. The seal is derived from the immutable profile identity plus the required control snapshot;
+  // it is recomputed at hello time and compared to the value precomputed before connect.
+  const sealOf = (): string =>
+    hashCanonical({
+      profileId: profile.profileId,
+      advisorTeam: profile.advisorTeam,
+      actorId: profile.actorId,
+      roleInstanceId: profile.roleInstanceId,
+      appId: bot.appId,
+      channelId: wire.channelId,
+      leoUserId: wire.leoUserId,
+      control: input.controlSnapshot(),
+    });
+  const expectedSeal = sealOf();
+  const connection = await socket.connect({
+    profileId: profile.profileId,
+    appToken: wire.appToken,
+    expectedAppId: bot.appId,
+    readinessSeal: (): boolean => sealOf() === expectedSeal,
+  });
+  if (!connection.ok) {
+    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'socket connection or pre-event App-ID/seal proof failed');
   }
 
   return {
