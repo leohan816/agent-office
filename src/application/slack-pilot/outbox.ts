@@ -12,8 +12,8 @@
 // reconciliation, and NEVER blind-resend. Success requires the exact channel and a valid Slack timestamp.
 import { DomainError } from '../../contracts/types.js';
 import { LIMITS, containsSecretShapedValue, requireBoundedMessageText, requireSlackTs } from './contracts.js';
-import type { As1ResultOutboundRecord } from './evidence-ingress.js';
-import type { As1OutboxHashes, As1RootCorrelationV1 } from './inbound-store.js';
+import { acceptedOutboundId, acceptedOutboundRecord, type As1AcceptedOutbound, type As1ResultOutboundRecord } from './evidence-ingress.js';
+import { rootKeyHash, type As1OutboxHashes, type As1RootCorrelationV1 } from './inbound-store.js';
 import type { As1Profile } from './profiles.js';
 import {
   As1OutboundError,
@@ -66,6 +66,7 @@ export interface As1OutboxJournal {
   persistOutboundArtifact(outboundId: string, rendered: unknown): Promise<{ readonly relativePath: string; readonly sha256: string }>;
   recordOutboxPhase(outboundId: string, phase: As1OutboxPhase, hashes?: As1OutboxHashes): Promise<void>;
   readOutboxPhase(outboundId: string): Promise<string | null>;
+  readOutboxRecord(outboundId: string): Promise<{ readonly phase: string; readonly requestHash: string | null; readonly responseHash: string | null } | null>;
 }
 
 /** Resolve the immutable accepted root correlation for an intake from the profile-local store (never a caller). */
@@ -73,8 +74,13 @@ export interface As1RootResolver {
   findRootByIntakeId(intakeId: string): Promise<As1RootCorrelationV1 | null>;
 }
 
-/** The validated per-profile owner secret the outbox is constructed with — the ONLY channel/token source. */
+/**
+ * The validated per-profile owner secret the outbox is constructed with — the ONLY channel/token source, and the
+ * workspace/app identity that (with the profile) recomputes the accepted root's rootKeyHash (review B07).
+ */
 export interface As1OutboxProfileSecret {
+  readonly workspaceId: string;
+  readonly appId: string;
   readonly channelId: string;
   readonly botToken: string;
 }
@@ -114,27 +120,24 @@ export interface As1OutboxDependencies {
   readonly delay: (ms: number) => Promise<void>;
 }
 
-/** The ONLY per-send inputs: the outbound identity and the typed record that came from accepted evidence. */
-export interface As1SendInput {
-  readonly outboundId: string;
-  readonly record: As1OutboundRecord;
-}
-
 /**
  * A profile-bound rendered-outbound sender. Channel, thread, token, store, latch, and control are all fixed at
- * construction from composition; `send` cannot select a target. It resolves the immutable root by the record's
- * intakeId from the profile-local store, requires the record's intake to match that root, derives thread_ts from
- * the root, and uses ONLY the bound profile secret's channel + token.
+ * construction from composition; `send` cannot select a target OR an identity. It accepts ONLY a branded accepted
+ * value (which a raw caller cannot fabricate), derives the durable outbound id deterministically from that
+ * accepted evidence id, resolves the immutable root by the record's intakeId, requires the intake to match the
+ * root and the root's key hash to match the bound config, and uses ONLY the bound profile secret's channel/token.
  */
 export class As1Outbox {
   public constructor(private readonly deps: As1OutboxDependencies) {}
 
-  public async send(input: As1SendInput): Promise<As1OutboxResult> {
-    const { outboundId, record } = input;
-    const { profile, secret, store, web, latch, assertSendable, delay } = this.deps;
+  public async send(accepted: As1AcceptedOutbound): Promise<As1OutboxResult> {
+    const record = acceptedOutboundRecord(accepted);
+    const outboundId = acceptedOutboundId(accepted);
+    const { profile, secret, store, web, latch, delay } = this.deps;
 
     // Resume: never touch the network once a terminal or in-flight phase is durable (no blind resend).
-    const prior = await store.readOutboxPhase(outboundId);
+    const priorRecord = await store.readOutboxRecord(outboundId);
+    const prior = priorRecord?.phase ?? null;
     if (prior === 'RESPONSE_RECORDED') {
       return { outcome: 'DELIVERED', phase: 'RESPONSE_RECORDED', attempts: 0, reason: 'already delivered' };
     }
@@ -149,10 +152,15 @@ export class As1Outbox {
     }
 
     // Resolve the immutable accepted root by the record's intakeId from the profile-local store; the record's
-    // intake must match that root. channel/thread/token are then derived ONLY from the bound root + profile secret.
+    // intake must match, and the root's rootKeyHash MUST equal the hash recomputed from the profile + bound
+    // secret's workspace/app/channel — a config change (or a wrong root) refuses the send (review B07).
     const root = await store.findRootByIntakeId(record.intakeId);
     if (root?.intakeId !== record.intakeId) {
       return { outcome: 'REJECTED_ROOT', phase: 'PREPARED', attempts: 0, reason: 'no accepted root for the intake' };
+    }
+    const expectedRootKeyHash = rootKeyHash(profile.profileId, secret.workspaceId, secret.appId, secret.channelId, root.rootTs);
+    if (root.rootKeyHash !== expectedRootKeyHash) {
+      return { outcome: 'REJECTED_ROOT', phase: 'PREPARED', attempts: 0, reason: 'root key hash disagrees with the bound profile config' };
     }
 
     let text: string;
@@ -162,18 +170,10 @@ export class As1Outbox {
       return { outcome: 'REJECTED_RENDER', phase: 'PREPARED', attempts: 0, reason: error instanceof DomainError ? error.code : 'render' };
     }
 
-    // Control/latch gate immediately before ANY durable write or network side effect. A closed/killed/latched or
-    // non-active profile refuses the send cleanly BEFORE REQUEST_STARTED is durable — nothing is written or sent.
-    try {
-      await assertSendable();
-    } catch (error) {
-      return { outcome: 'REJECTED_CONTROL', phase: 'PREPARED', attempts: 0, reason: error instanceof DomainError ? error.code : 'control not sendable' };
-    }
-
     const channel = secret.channelId;
     const threadTs = root.rootTs;
     const postRequest: As1PostMessageRequest = { channel, threadTs, text };
-    const requestReceipt = await store.persistOutboundArtifact(outboundId, {
+    const requestPayload = {
       kind: record.kind,
       profileId: profile.profileId,
       intakeId: record.intakeId,
@@ -183,9 +183,25 @@ export class As1Outbox {
       channel,
       threadTs,
       text,
-    });
-    // Bind the immutable request-bytes hash at PREPARED, then commit REQUEST_STARTED.
+    };
+
+    // Control/latch gate immediately before the FIRST durable write. Refuse cleanly BEFORE REQUEST_STARTED.
+    const refusal = await this.gateBeforeStart();
+    if (refusal !== null) return refusal;
+    const requestReceipt = await store.persistOutboundArtifact(outboundId, requestPayload);
+
+    // PREPARED restart must be exact and immutable: a re-observed PREPARED must re-derive the IDENTICAL request
+    // bytes; the same outboundId reused with different record/root/request bytes latches, never silently replaces.
+    if (prior === 'PREPARED' && priorRecord?.requestHash != null && priorRecord.requestHash !== requestReceipt.sha256) {
+      return await this.reconcile(outboundId, 0, 'outbound id reused with different request bytes');
+    }
+
+    // Gate before the PREPARED write and again before REQUEST_STARTED (each durable side effect).
+    const beforePrepared = await this.gateBeforeStart();
+    if (beforePrepared !== null) return beforePrepared;
     await store.recordOutboxPhase(outboundId, 'PREPARED', { requestHash: requestReceipt.sha256 });
+    const beforeStarted = await this.gateBeforeStart();
+    if (beforeStarted !== null) return beforeStarted;
     await store.recordOutboxPhase(outboundId, 'REQUEST_STARTED');
 
     let attempts = 0;
@@ -193,14 +209,25 @@ export class As1Outbox {
       attempts = attempt;
       // Re-check control immediately before every network send — it may have closed during a retry backoff.
       try {
-        await assertSendable();
+        await this.deps.assertSendable();
       } catch {
         return await this.reconcile(outboundId, attempts, 'control not sendable before send');
       }
       try {
         const response = await web.postMessage(secret.botToken, postRequest);
         if (this.isTrustedSuccess(response, channel)) {
+          // Gate before the response artifact write and before the RESPONSE_RECORDED write.
+          try {
+            await this.deps.assertSendable();
+          } catch {
+            return await this.reconcile(outboundId, attempts, 'control not sendable before response write');
+          }
           const responseReceipt = await store.persistOutboundArtifact(`${outboundId}.response`, { ok: true, channel: response.channel, ts: response.ts });
+          try {
+            await this.deps.assertSendable();
+          } catch {
+            return await this.reconcile(outboundId, attempts, 'control not sendable before response record');
+          }
           await store.recordOutboxPhase(outboundId, 'RESPONSE_RECORDED', { responseHash: responseReceipt.sha256 });
           return { outcome: 'DELIVERED', phase: 'RESPONSE_RECORDED', attempts, reason: 'ok' };
         }
@@ -222,6 +249,19 @@ export class As1Outbox {
       }
     }
     return this.reconcile(outboundId, attempts, 'attempts exhausted');
+  }
+
+  /**
+   * Assert the control gate before a PRE-REQUEST_STARTED durable write. On refusal returns a clean REJECTED_CONTROL
+   * result (nothing terminal is committed); null means the write may proceed.
+   */
+  private async gateBeforeStart(): Promise<As1OutboxResult | null> {
+    try {
+      await this.deps.assertSendable();
+      return null;
+    } catch (error) {
+      return { outcome: 'REJECTED_CONTROL', phase: 'PREPARED', attempts: 0, reason: error instanceof DomainError ? error.code : 'control not sendable' };
+    }
   }
 
   private isTrustedSuccess(response: As1PostMessageResult, channel: string): boolean {

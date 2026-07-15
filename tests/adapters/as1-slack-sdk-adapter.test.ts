@@ -5,10 +5,10 @@ import {
   As1OutboundError,
   classifyOutboundError,
 } from '../../src/adapters/gateways/slack-pilot/web-client.js';
-import { As1Outbox, type As1OutboundRecord } from '../../src/application/slack-pilot/outbox.js';
-import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
+import { As1Outbox } from '../../src/application/slack-pilot/outbox.js';
+import { As1ProfileInboundStore, rootKeyHash } from '../../src/application/slack-pilot/inbound-store.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
-import { FakeClock, FakeWebPort } from '../helpers/as1-slack-fakes.js';
+import { FakeClock, FakeWebPort, sealAcceptedOutboundVia } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
 // Real @slack/web-api error classes drive these tests — the classification must fail closed on the exact
@@ -43,20 +43,21 @@ describe('AS1 SDK outbound error classification (B07)', () => {
     const store = await As1ProfileInboundStore.open(root, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock('2026-07-14T22:06:00.000Z'));
     await store.recordRootCorrelation({
       rootTs: '1720000000.000100',
-      rootKeyHash: `sha256:${'a'.repeat(64)}`,
+      rootKeyHash: rootKeyHash('AGENT_OFFICE_ADVISOR', 'TWORKSPACE001', 'AAGENTOFFICE01', 'CAGENTOFFICE01', '1720000000.000100'),
       sourceEventId: 'Ev0AGENTOFFICE01',
       receiveGrantId: 'as1-receive-grant-0001',
       bindingStateHash: `sha256:${'2'.repeat(64)}`,
       intakeId: 'as1-intake-0001',
     });
     const web = new FakeWebPort();
-    const record: As1OutboundRecord = { kind: 'ACK', intakeId: 'as1-intake-0001', advisorAckId: 'ack-0001', summary: 'received' };
+    // The branded accepted outbound comes only from a real successful ingestion.
+    const accepted = await sealAcceptedOutboundVia(store, 'INTAKE');
     // The exact class the SDK would throw on a reset, run through the real classifier.
     web.setPostScript([classifyOutboundError(new WebAPIRequestError(new Error('ECONNRESET')))]);
     const latched: string[] = [];
     const outbox = new As1Outbox({
       profile: selectProfile('AGENT_OFFICE_ADVISOR'),
-      secret: { channelId: 'CAGENTOFFICE01', botToken: 'xoxb-agentoffice-placeholder-0001' },
+      secret: { workspaceId: 'TWORKSPACE001', appId: 'AAGENTOFFICE01', channelId: 'CAGENTOFFICE01', botToken: 'xoxb-agentoffice-placeholder-0001' },
       store,
       web,
       latch: (reason: string) => {
@@ -66,7 +67,7 @@ describe('AS1 SDK outbound error classification (B07)', () => {
       assertSendable: () => Promise.resolve(),
       delay: () => Promise.resolve(),
     });
-    const result = await outbox.send({ outboundId: 'outbound-0001', record });
+    const result = await outbox.send(accepted);
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
     expect(result.attempts).toBe(1);
     expect(web.posted).toHaveLength(1); // no second attempt after the ambiguous class

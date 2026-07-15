@@ -27,11 +27,15 @@ import type {
 import type { As1ProfileControlPort, As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
 import { DomainError } from '../../src/contracts/types.js';
 import type { As1TmuxPort, As1TmuxPreflight } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
-import type {
-  As1EvidenceProvenance,
-  As1EvidenceRef,
-  As1GitProvenanceVerifier,
+import {
+  As1EvidenceIngress,
+  type As1AcceptedOutbound,
+  type As1EvidenceAuthority,
+  type As1EvidenceProvenance,
+  type As1EvidenceRef,
+  type As1GitProvenanceVerifier,
 } from '../../src/application/slack-pilot/evidence-ingress.js';
+import type { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
 import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
 import { uuidV7 } from './fixtures.js';
@@ -875,6 +879,51 @@ export function evidenceRef(fileName: string, overrides: Partial<As1EvidenceRef>
     blobSha256: `sha256:${'5'.repeat(64)}`,
     ...overrides,
   };
+}
+
+/** The construction-trusted evidence authority the agent-office fixtures agree on (mirrors the ingress tests). */
+export function acceptedEvidenceAuthority(): As1EvidenceAuthority {
+  return {
+    authorityRepositoryId: 'agent-office',
+    evidencePrefix: AO_EVIDENCE_PREFIX,
+    intakeId: 'as1-intake-0001',
+    sourceEventId: 'Ev0AGENTOFFICE01',
+    pointerHash: HASH_4,
+    rootTs: '1720000000.000100',
+    receiveGrantExpiresAt: '2026-07-14T22:10:00.000Z',
+    acceptedAck: { ...AO_ACK_BINDINGS },
+    receiveGrantSourceCommit: 'a'.repeat(40),
+    pointerDeliveryGrantSourceCommit: 'b'.repeat(40),
+  };
+}
+
+/**
+ * Run the real evidence ingress (ACK -> the requested kind) against `store` and return the BRANDED accepted
+ * outbound a successful ingestion sealed. Tests exercise the accepted-evidence path rather than fabricating send
+ * content. The accepted intake is 'as1-intake-0001' (seed a matching root correlation for the outbox).
+ */
+export async function sealAcceptedOutboundVia(
+  store: As1ProfileInboundStore,
+  kind: 'INTAKE' | 'QUESTION' | 'RESULT',
+): Promise<As1AcceptedOutbound> {
+  const profile = selectProfile('AGENT_OFFICE_ADVISOR');
+  const ingress = new As1EvidenceIngress(profile, store, new FakeGitVerifier(), acceptedEvidenceAuthority(), () => Promise.resolve());
+  const ack = await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+  if (ack.outcome !== 'ACCEPTED') throw new Error(`fixture ACK not accepted: ${ack.reason}`);
+  const intake = await ingress.ingest('INTAKE', validAdvisorIntake(), evidenceRef('intake.json'));
+  if (intake.outcome !== 'ACCEPTED') throw new Error(`fixture INTAKE not accepted: ${intake.reason}`);
+  if (kind === 'INTAKE') {
+    if (intake.accepted === null) throw new Error('INTAKE produced no accepted outbound');
+    return intake.accepted;
+  }
+  if (kind === 'QUESTION') {
+    const question = await ingress.ingest('QUESTION', validAdvisorQuestion(), evidenceRef('question.json'));
+    if (question.accepted === null) throw new Error(`QUESTION produced no accepted outbound: ${question.reason}`);
+    return question.accepted;
+  }
+  const result = await ingress.ingest('RESULT', validAdvisorResult(), evidenceRef('result.json'));
+  if (result.accepted === null) throw new Error(`RESULT produced no accepted outbound: ${result.reason}`);
+  return result.accepted;
 }
 
 /** In-memory Git provenance verifier. Never runs git; provenance is scriptable per test. */

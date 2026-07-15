@@ -25,6 +25,7 @@ import {
   type As1PointerDeliveryGrantV1,
 } from './contracts.js';
 import { FOUNDATION_FORBIDDEN_ROLE_INSTANCE_ID, type As1Profile } from './profiles.js';
+import type { As1OutboundRecord } from './outbox.js';
 import type {
   As1AcceptedEvidenceRecordV1,
   As1DeliveryAuthorityConsumptionV1,
@@ -634,11 +635,107 @@ export function buildEvidenceAuthority(records: As1AcceptedAuthorityRecords): As
 
 export type EvidenceIngestOutcome = 'ACCEPTED' | 'QUARANTINED';
 
+// ── Branded accepted outbound (review B07) ───────────────────────────────────────────────────────────────────
+// The ONLY producer of an outbound payload is a successful evidence ingestion. The brand is a module-private
+// symbol, so no other module (and no raw caller) can fabricate an As1AcceptedOutbound — the outbox will only
+// send a value obtained from `ingest`. No cast is used to construct it.
+const ACCEPTED_OUTBOUND_BRAND: unique symbol = Symbol('as1-accepted-outbound');
+
+export interface As1AcceptedOutbound {
+  readonly [ACCEPTED_OUTBOUND_BRAND]: typeof ACCEPTED_OUTBOUND_BRAND;
+  /** The exact accepted evidence id this outbound was sealed from — the outbox identity binds to it. */
+  readonly evidenceId: string;
+  /** The deterministic durable outbound identity derived from `evidenceId`; the caller cannot choose another. */
+  readonly outboundId: string;
+  readonly record: As1OutboundRecord;
+}
+
+/**
+ * Seal a branded, FROZEN accepted-outbound bound to its exact accepted evidence id (review B07). The durable
+ * outbound identity is derived deterministically from the evidence id so the SAME accepted evidence can never be
+ * delivered twice under different ids. Post-ingest mutation is prevented (the wrapper, the record, and a RESULT's
+ * nested artifact are frozen).
+ */
+function sealAcceptedOutbound(evidenceId: string, record: As1OutboundRecord): As1AcceptedOutbound {
+  Object.freeze(record);
+  if ('resultArtifact' in record) Object.freeze(record.resultArtifact);
+  const sealed: As1AcceptedOutbound = {
+    [ACCEPTED_OUTBOUND_BRAND]: ACCEPTED_OUTBOUND_BRAND,
+    evidenceId,
+    outboundId: `as1out-${evidenceId}`,
+    record,
+  };
+  return Object.freeze(sealed);
+}
+
+function assertSealed(accepted: As1AcceptedOutbound): void {
+  // A forged object (or a value whose brand was stripped) cannot carry the module-private brand symbol.
+  if (accepted[ACCEPTED_OUTBOUND_BRAND] !== ACCEPTED_OUTBOUND_BRAND) {
+    throw new DomainError('UNAUTHORIZED_ACTOR', 'outbound value is not a sealed accepted-evidence value');
+  }
+}
+
+/** Read the outbound payload a successful ingestion sealed (used only by the profile-bound outbox). Brand-checked. */
+export function acceptedOutboundRecord(accepted: As1AcceptedOutbound): As1OutboundRecord {
+  assertSealed(accepted);
+  return accepted.record;
+}
+
+/** Read the deterministic durable outbound identity a successful ingestion sealed. Brand-checked. */
+export function acceptedOutboundId(accepted: As1AcceptedOutbound): string {
+  assertSealed(accepted);
+  return accepted.outboundId;
+}
+
+/** Fixed product ACK text per accepted intake classification — never caller-supplied (review B07). */
+const ACK_TEXT_BY_CLASSIFICATION: Record<string, string> = {
+  ACCEPTED_NEW_MISSION: 'Advisor accepted the mission and will proceed.',
+  CLARIFICATION_RECORDED: 'Advisor recorded the clarification.',
+  DECISION_RESPONSE_RECORDED: 'Advisor recorded the decision response.',
+  REJECTED_BY_ADVISOR: 'Advisor declined this mission.',
+};
+
+/**
+ * Derive the branded outbound payload a successful ingestion produces (review B07): an INTAKE yields a branded
+ * ACK derived deterministically from the accepted classification + advisorAckId with FIXED product text (no
+ * caller summary); a QUESTION yields its parsed reviewed record; a RESULT yields its exact embedded parsed
+ * outbound record; an ACK (the Advisor's own acknowledgement evidence) produces no pilot outbound.
+ */
+function acceptedOutboundFor(envelope: As1EvidenceEnvelope): As1AcceptedOutbound | null {
+  switch (envelope.kind) {
+    case 'ACK':
+      return null;
+    case 'INTAKE': {
+      const summary = ACK_TEXT_BY_CLASSIFICATION[envelope.classification];
+      if (summary === undefined) {
+        throw new DomainError('INVALID_SCHEMA', 'accepted intake has no fixed ACK product text for its classification');
+      }
+      return sealAcceptedOutbound(envelope.evidenceId, { kind: 'ACK', intakeId: envelope.intakeId, advisorAckId: envelope.advisorAckId, summary });
+    }
+    case 'QUESTION':
+      return sealAcceptedOutbound(envelope.evidenceId, {
+        kind: 'QUESTION',
+        intakeId: envelope.intakeId,
+        questionId: envelope.questionId,
+        expectedResponseKind: envelope.expectedResponseKind,
+        text: envelope.questionText,
+      });
+    case 'RESULT':
+      return sealAcceptedOutbound(envelope.evidenceId, envelope.outboundRecord);
+    default: {
+      const exhaustive: never = envelope;
+      throw new DomainError('INVALID_SCHEMA', `unknown evidence kind ${String(exhaustive)}`);
+    }
+  }
+}
+
 export interface EvidenceIngestResult {
   readonly outcome: EvidenceIngestOutcome;
   /** A stable bounded reason CODE on quarantine — never raw detail (review B06). `ok` on acceptance. */
   readonly reason: string;
   readonly sequence: number | null;
+  /** The branded outbound payload to send on ACCEPTED (null for ACK evidence and every QUARANTINE) (review B07). */
+  readonly accepted: As1AcceptedOutbound | null;
 }
 
 /** The RESULT variant of the closed evidence envelope union. */
@@ -782,7 +879,7 @@ export class As1EvidenceIngress {
         return this.quarantine('EVIDENCE_QUESTION_OPEN_QUARANTINED');
       }
     }
-    return { outcome: 'ACCEPTED', reason: 'ok', sequence };
+    return { outcome: 'ACCEPTED', reason: 'ok', sequence, accepted: acceptedOutboundFor(envelope) };
   }
 
   /** Verify the RESULT's durable result artifact and bind the deterministically derived consumed-reply set. */
@@ -850,6 +947,6 @@ export class As1EvidenceIngress {
    */
   private async quarantine(reasonCode: string): Promise<EvidenceIngestResult> {
     await this.latch(reasonCode);
-    return { outcome: 'QUARANTINED', reason: reasonCode, sequence: null };
+    return { outcome: 'QUARANTINED', reason: reasonCode, sequence: null, accepted: null };
   }
 }
