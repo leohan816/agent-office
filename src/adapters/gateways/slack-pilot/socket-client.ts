@@ -173,6 +173,11 @@ export class As1RawSocketTransport implements As1SocketPort {
   private pumping = false;
 
   private latchPersisted = false;
+  // The single durable-latch persistence promise — tracked so clean shutdown/disconnect AWAITS it before returning
+  // and never overwrites LATCHED with CLOSED (review B05).
+  private latchPromise: Promise<void> | null = null;
+  // A durable-latch persistence FAILURE stays visibly fail-closed: never treated as a successful persist.
+  private durableLatchFailed = false;
 
   public constructor(
     private readonly opener: As1ConnectionsOpener,
@@ -197,11 +202,24 @@ export class As1RawSocketTransport implements As1SocketPort {
    * AWAIT it before closure. The in-memory LATCHED already fail-closed the socket, so a durable-latch failure is
    * recorded as a stable code and never thrown into a ws callback. */
   private persistDurableLatch(reason: string): Promise<void> {
-    if (this.latchPersisted) return Promise.resolve();
+    if (this.latchPersisted) return this.latchPromise ?? Promise.resolve();
     this.latchPersisted = true;
-    return this.durableLatch(reason).catch(() => {
+    this.latchPromise = this.durableLatch(reason).catch(() => {
+      // Persistence FAILED: stay visibly fail-closed (LATCHED, failure recorded); never a silent success.
+      this.durableLatchFailed = true;
       this.log.record(this.profileId, 'LATCHED', 'DURABLE_LATCH_FAILED');
     });
+    return this.latchPromise;
+  }
+
+  /** Await any pending durable-latch persistence (review B05). Callable from clean shutdown before it returns. */
+  private async awaitLatchPersistence(): Promise<void> {
+    if (this.latchPromise !== null) await this.latchPromise;
+  }
+
+  /** True after a durable-latch persistence failure — the socket stays fail-closed and this is observable. */
+  public latchPersistenceFailed(): boolean {
+    return this.durableLatchFailed;
   }
 
   public onEnvelope(handler: (envelope: As1InboundEnvelope) => Promise<void>): void {
@@ -292,6 +310,13 @@ export class As1RawSocketTransport implements As1SocketPort {
     // them later, even after a reconnect (design §7.5).
     this.admitting = false;
     this.queue.length = 0;
+    // If the socket already fail-closed to LATCHED (provider disconnect, overflow, handler failure, forced
+    // termination), PRESERVE LATCHED — never overwrite it with CLOSED — and AWAIT the pending durable-latch
+    // persistence before returning (review B05).
+    if (this.phase === 'LATCHED') {
+      await this.awaitLatchPersistence();
+      return;
+    }
     const socket = this.socket;
     if (socket === null) {
       this.phase = 'CLOSED';
@@ -300,6 +325,13 @@ export class As1RawSocketTransport implements As1SocketPort {
     // DRAINING keeps the SAME socket + generation bound so the accepted in-flight handler's ACK still works.
     this.phase = 'DRAINING';
     const drained = await this.awaitWithin([...this.inFlightRunning], LIMITS.DRAIN_DEADLINE_MS);
+    // A handler that FAILED during the drain already fail-closed to LATCHED (socket removed/nulled). Preserve it
+    // and await the durable latch — never fall through to closeAndConfirm() and wait the full shutdown timeout on
+    // an already-terminated socket (review B05).
+    if (this.getPhase() === 'LATCHED') {
+      await this.awaitLatchPersistence();
+      return;
+    }
     if (!drained) {
       // Drain deadline exceeded: fail closed — force-terminate and stay LATCHED, never a clean CLOSED. Await the
       // durable profile latch before disconnect() returns (review B05).
@@ -312,6 +344,12 @@ export class As1RawSocketTransport implements As1SocketPort {
     if (!confirmed) {
       this.log.record(this.profileId, 'DRAINING', 'REJECTED_CLOSE_UNCONFIRMED');
       await this.forceTerminateAndLatch(socket, 'close unconfirmed after drain');
+      return;
+    }
+    // A late fail-closed (e.g. during closeAndConfirm) may have set LATCHED; preserve it, await the durable latch,
+    // and never overwrite it with CLOSED (review B05).
+    if (this.getPhase() === 'LATCHED') {
+      await this.awaitLatchPersistence();
       return;
     }
     this.socket = null;

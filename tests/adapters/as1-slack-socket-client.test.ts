@@ -444,4 +444,55 @@ describe('AS1 raw socket transport — owning-control DEQUEUE gate + durable lat
     expect(ctx.transport.getPhase()).toBe('LATCHED');
     expect(ctx.durableLatches.some((r) => r.includes('provider disconnect'))).toBe(true);
   });
+
+  it('a latched socket followed immediately by disconnect() stays LATCHED, never downgraded to CLOSED', async () => {
+    const ctx = await ready(() => Promise.resolve());
+    ctx.fakeWs.emit('message', Buffer.from('{"type":"disconnect","reason":"refresh_requested"}', 'utf8'), false);
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    await ctx.transport.disconnect(); // a shutdown after a latch must NOT overwrite LATCHED with CLOSED (B05)
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+  });
+
+  it('a durable-latch persistence failure stays visibly fail-closed (LATCHED + observable), never a silent success', async () => {
+    const opener = new FakeConnectionsOpener();
+    const factory = new FakeAs1WebSocketFactory();
+    const fakeWs = new FakeAs1Ws();
+    factory.setNext(fakeWs);
+    const transport = new As1RawSocketTransport(
+      opener,
+      factory,
+      { record: () => undefined },
+      () => 100_000,
+      () => Promise.reject(new Error('durable store unavailable')), // persistence FAILS
+      () => Promise.resolve(true),
+    );
+    transport.onEnvelope(() => Promise.resolve());
+    const promise = transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    fakeWs.emit('open');
+    fakeWs.emit('message', helloFrame(APP_ID), false);
+    await promise;
+    fakeWs.emit('message', Buffer.from('{"type":"disconnect","reason":"refresh_requested"}', 'utf8'), false);
+    await flush();
+    await transport.disconnect(); // awaits the (failed) durable-latch persistence
+    expect(transport.getPhase()).toBe('LATCHED'); // still fail-closed
+    expect(transport.latchPersistenceFailed()).toBe(true); // the failure is OBSERVABLE, not a silent success
+  });
+
+  it('a handler that fails DURING the drain fails closed promptly to LATCHED (no shutdown-timeout wait)', async () => {
+    let failInFlight = (): void => undefined;
+    const ctx = await ready(() => new Promise<void>((_resolve, reject) => {
+      failInFlight = (): void => { reject(new Error('mid-drain handler failure')); };
+    }));
+    ctx.fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    await flush(); // Env1 is in flight (blocked)
+    const disc = ctx.transport.disconnect(); // enters DRAINING and awaits the in-flight handler
+    failInFlight(); // the in-flight handler FAILS during the drain -> runHandler latches
+    // If disconnect fell through to closeAndConfirm on the terminated socket it would wait the full 15s shutdown
+    // deadline (real timers) and this test would time out; resolving promptly proves the mid-drain LATCHED check.
+    await disc;
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('handler failure'))).toBe(true);
+  });
 });
