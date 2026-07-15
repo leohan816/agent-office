@@ -251,7 +251,11 @@ describe('AS1 exact tmux transport journal', () => {
 
   it('never resumes a delivery whose journal is already at the no-retry boundary', async () => {
     const { store, transport, port, capability, grant, lease } = await makeTransport();
-    await store.recordTmuxPhase(DELIVERY_ID, 'PASTE_STARTED', deliveryJournalFacts(capability));
+    const facts = deliveryJournalFacts(capability);
+    // Seed an interrupted journal at PASTE_STARTED via its legal PREPARED -> BUFFER_LOADED -> PASTE_STARTED path.
+    await store.recordTmuxPhase(DELIVERY_ID, 'PREPARED', facts);
+    await store.recordTmuxPhase(DELIVERY_ID, 'BUFFER_LOADED', facts);
+    await store.recordTmuxPhase(DELIVERY_ID, 'PASTE_STARTED', facts);
     const result = await transport.deliver(grant, lease);
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
     expect(port.pasteCalls).toBe(0);
@@ -260,7 +264,9 @@ describe('AS1 exact tmux transport journal', () => {
   it('treats an interrupted PREPARED or BUFFER_LOADED journal as manual reconciliation, never a silent retry (B04)', async () => {
     for (const phase of ['PREPARED', 'BUFFER_LOADED'] as const) {
       const { store, transport, port, capability, grant, lease } = await makeTransport();
-      await store.recordTmuxPhase(DELIVERY_ID, phase, deliveryJournalFacts(capability));
+      const facts = deliveryJournalFacts(capability);
+      await store.recordTmuxPhase(DELIVERY_ID, 'PREPARED', facts);
+      if (phase === 'BUFFER_LOADED') await store.recordTmuxPhase(DELIVERY_ID, 'BUFFER_LOADED', facts);
       const result = await transport.deliver(grant, lease);
       expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
       expect(port.loadCalls).toBe(0);

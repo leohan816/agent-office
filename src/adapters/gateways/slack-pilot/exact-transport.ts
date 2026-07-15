@@ -15,7 +15,7 @@ import { DomainError } from '../../../contracts/types.js';
 import { hashCanonical } from '../../../persistence/file-store/hashing.js';
 import { parseContainedPointerRef, redactError } from '../../../application/slack-pilot/contracts.js';
 import type { As1PointerDeliveryGrantV1 } from '../../../application/slack-pilot/contracts.js';
-import type { As1TmuxDeliveryFacts } from '../../../application/slack-pilot/inbound-store.js';
+import type { As1TmuxDeliveryFacts, As1TmuxDeliveryPhase } from '../../../application/slack-pilot/inbound-store.js';
 import {
   assertCapabilityUsable,
   assertDeliveryChainConsistent,
@@ -26,16 +26,8 @@ import {
   type As1TmuxDestination,
 } from './exact-authority.js';
 
-export const AS1_TMUX_JOURNAL_PHASES = [
-  'PREPARED',
-  'BUFFER_LOADED',
-  'PASTE_STARTED',
-  'PASTE_CONFIRMED',
-  'SUBMIT_STARTED',
-  'TRANSPORT_RECORDED',
-  'MANUAL_RECONCILIATION_REQUIRED',
-] as const;
-export type As1TmuxJournalPhase = (typeof AS1_TMUX_JOURNAL_PHASES)[number];
+// The closed tmux delivery phase vocabulary is owned by the store (the journal record owner) and imported here
+// as As1TmuxDeliveryPhase, so the sequence and the durable record can never diverge (review B08).
 
 // Every nonterminal phase is interrupted-unsafe: on re-entry it becomes MANUAL_RECONCILIATION_REQUIRED and is
 // never silently resumed or retried (design §12.7). Only a fresh (null) or terminal journal proceeds/returns.
@@ -68,7 +60,7 @@ export interface As1TmuxPort {
 /** Durable per-profile tmux journal + one-use delivery-authority consumption (implemented by the store). */
 export interface As1DeliveryJournal {
   /** Record a phase; the invariant facts are bound on the first (PREPARED) write and preserved thereafter. */
-  recordTmuxPhase(deliveryId: string, phase: As1TmuxJournalPhase, facts?: As1TmuxDeliveryFacts): Promise<void>;
+  recordTmuxPhase(deliveryId: string, phase: As1TmuxDeliveryPhase, facts?: As1TmuxDeliveryFacts): Promise<void>;
   readTmuxPhase(deliveryId: string): Promise<string | null>;
   /** Consume the grant + lease exactly once. Returns false if either was already consumed (reuse). */
   consumeDeliveryAuthority(pointerDeliveryGrantId: string, leaseId: string): Promise<boolean>;
@@ -110,7 +102,7 @@ export interface As1DeliveryProvenanceGate {
 export type As1DeliveryOutcome = 'DELIVERED' | 'STOPPED_BEFORE_PASTE' | 'MANUAL_RECONCILIATION_REQUIRED';
 
 export interface As1DeliveryResult {
-  readonly phase: As1TmuxJournalPhase;
+  readonly phase: As1TmuxDeliveryPhase;
   readonly outcome: As1DeliveryOutcome;
   readonly reason: string;
 }

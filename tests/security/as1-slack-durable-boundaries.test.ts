@@ -275,7 +275,7 @@ describe('AS1 strict on-read parsing (B08)', () => {
       { ...base, requestHash: 'not-a-sha256' }, // a malformed hash
     ]) {
       const { root, store } = await freshStore();
-      await store.recordOutboxPhase('out-1', 'PREPARED'); // create the index, then corrupt the file bytes
+      await store.recordOutboxPhase('out-1', 'PREPARED', { requestHash: `sha256:${'1'.repeat(64)}` }); // create the index, then corrupt bytes
       await writeFile(path.join(root, OUTBOX), JSON.stringify([corrupt]));
       await expect(store.readOutboxRecord('out-1'), JSON.stringify(corrupt)).rejects.toBeInstanceOf(DomainError);
     }
@@ -312,5 +312,90 @@ describe('AS1 strict on-read parsing (B08)', () => {
       ]),
     );
     await expect(store.findOpenQuestionForRoot(ROOT_TS)).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects an oversized persisted index on read (per-index count bound enforced every read)', async () => {
+    const { root, store } = await freshStore();
+    await store.openQuestion({
+      questionId: 'seed',
+      rootTs: ROOT_TS,
+      expectedResponseKind: 'CLARIFICATION',
+      evidenceRef: 'advisor/jobs/x/q.json',
+      evidenceHash: `sha256:${'7'.repeat(64)}`,
+      openedAt: '2026-07-14T22:06:00.000Z',
+      expiresAt: '2026-07-14T22:10:00.000Z',
+    });
+    // 33 records exceeds the 32-record QUESTION_HISTORY bound; the read fails closed before trusting any record.
+    const oversized = Array.from({ length: 33 }, (_unused, i) => ({
+      schemaVersion: 'agent-office.as1-pending-question.v1',
+      questionId: `q${String(i)}`,
+      rootTs: ROOT_TS,
+      expectedResponseKind: 'CLARIFICATION',
+      evidenceRef: 'advisor/jobs/x/q.json',
+      evidenceHash: `sha256:${'7'.repeat(64)}`,
+      state: 'OPEN',
+      openedAt: '2026-07-14T22:06:00.000Z',
+      expiresAt: '2026-07-14T22:10:00.000Z',
+      consumedAt: null,
+      consumedBySourceEventId: null,
+    }));
+    await writeFile(path.join(root, QUESTIONS), JSON.stringify(oversized));
+    await expect(store.findOpenQuestionForRoot(ROOT_TS)).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects a malformed denial-audit record on read', async () => {
+    const { root, store } = await freshStore();
+    await store.recordDenialAudit('a reason', 'Ev0AGENTOFFICE01', 'Env1'); // create the index
+    await writeFile(
+      path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/denial-audit.json'),
+      JSON.stringify([{ schemaVersion: 'agent-office.as1-denial-audit.v1', reason: 'x', eventId: null, envelopeId: null, recordedAt: '2026-07-14T22:06:00.000Z', extra: 'nope' }]),
+    );
+    await expect(store.recordDenialAudit('b', null, null)).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects an unknown tmux phase and an illegal tmux transition', async () => {
+    const { store } = await freshStore();
+    const h = `sha256:${'a'.repeat(64)}`;
+    const facts = {
+      receiveGrantId: 'rg', receiveGrantBindingHash: h, pointerDeliveryGrantId: 'pdg', leaseId: 'lease', pilotId: 'pilot',
+      profileId: 'AGENT_OFFICE_ADVISOR', advisorTeam: 'team', actorId: 'actor', roleInstanceId: 'role', intakeId: 'intake',
+      sourceEventId: 'ev', pointerHash: h, destinationHash: h, governanceSnapshotHash: h, registrySnapshotHash: h,
+      globalControlSnapshotHash: h, profileLatchSnapshotHash: h, pointerDeliveryGrantSnapshotHash: h,
+    };
+    await expect(store.recordTmuxPhase('d1', 'NONSENSE_PHASE', facts)).rejects.toBeInstanceOf(DomainError);
+    await store.recordTmuxPhase('d1', 'PREPARED', facts);
+    // Skipping to TRANSPORT_RECORDED from PREPARED is not a legal successor.
+    await expect(store.recordTmuxPhase('d1', 'TRANSPORT_RECORDED', facts)).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects an accepted-evidence record with an extra correlation key on read', async () => {
+    const { root, store } = await freshStore();
+    await writeFile(
+      path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/evidence-ingress-checkpoint.json'),
+      JSON.stringify([
+        {
+          evidenceKind: 'ACK',
+          evidenceId: 'ev-ack-1',
+          intakeId: 'as1-intake-0001',
+          blobSha256: `sha256:${'5'.repeat(64)}`,
+          sourceCommit: 'c'.repeat(40),
+          repositoryId: 'agent-office',
+          path: 'advisor/jobs/x/ack.json',
+          envelopeHash: `sha256:${'e'.repeat(64)}`,
+          // ACK correlation must be EXACTLY {advisorAckId, sourceEventId, pointerHash} — the extra key is rejected.
+          correlation: { advisorAckId: 'ack-1', sourceEventId: 'Ev0AGENTOFFICE01', pointerHash: `sha256:${'4'.repeat(64)}`, injected: 'x' },
+          sequence: 1,
+          acceptedAt: '2026-07-14T22:06:00.000Z',
+        },
+      ]),
+    );
+    await expect(store.readAcceptedEvidence()).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects an outbox phase/hash violation on write (immutable request hash)', async () => {
+    const { store } = await freshStore();
+    await store.recordOutboxPhase('o1', 'PREPARED', { requestHash: `sha256:${'1'.repeat(64)}` });
+    // Re-recording PREPARED with a DIFFERENT request hash is corruption, not a silent replace.
+    await expect(store.recordOutboxPhase('o1', 'PREPARED', { requestHash: `sha256:${'2'.repeat(64)}` })).rejects.toBeInstanceOf(DomainError);
   });
 });

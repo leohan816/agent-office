@@ -181,7 +181,9 @@ describe('AS1 outbound transport', () => {
 
   it('resumes an interrupted REQUEST_STARTED as manual reconciliation without a network resend', async () => {
     const { store, web, outbox, accepted, latched } = await makeOutbox();
-    await store.recordOutboxPhase(accepted.outboundId, 'REQUEST_STARTED'); // durable in-flight from a prior crash
+    // A durable in-flight state from a prior crash: PREPARED (with the bound request hash) then REQUEST_STARTED.
+    await store.recordOutboxPhase(accepted.outboundId, 'PREPARED', { requestHash: `sha256:${'1'.repeat(64)}` });
+    await store.recordOutboxPhase(accepted.outboundId, 'REQUEST_STARTED');
     const result = await outbox.send(accepted);
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
     expect(web.posted).toHaveLength(0); // never re-sent
@@ -196,12 +198,13 @@ describe('AS1 outbound transport', () => {
     expect(latched.length).toBeGreaterThan(0);
   });
 
-  it('resumes a delivered phase without a network resend', async () => {
+  it('resumes a delivered phase without a network resend (natural RESPONSE_RECORDED)', async () => {
     const { store, web, outbox, accepted } = await makeOutbox();
-    await store.recordOutboxPhase(accepted.outboundId, 'RESPONSE_RECORDED');
-    const result = await outbox.send(accepted);
-    expect(result.outcome).toBe('DELIVERED');
-    expect(web.posted).toHaveLength(0);
+    expect((await outbox.send(accepted)).outcome).toBe('DELIVERED'); // reaches RESPONSE_RECORDED naturally
+    expect(await store.readOutboxPhase(accepted.outboundId)).toBe('RESPONSE_RECORDED');
+    const again = await outbox.send(accepted);
+    expect(again.outcome).toBe('DELIVERED');
+    expect(web.posted).toHaveLength(1); // the delivered phase resumes with no second send
   });
 
   it('treats a success with a non-Slack timestamp grammar as ambiguous', async () => {

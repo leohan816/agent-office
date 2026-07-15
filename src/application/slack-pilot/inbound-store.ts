@@ -32,7 +32,7 @@ import {
 } from './contracts.js';
 import type { As1PilotReceiveGrantV1 } from './contracts.js';
 import { assertExactKeys, assertRecord, requireEnum, requireInteger } from '../../contracts/validation.js';
-import type { As1Profile } from './profiles.js';
+import { assertAs1ProfileId, type As1Profile } from './profiles.js';
 
 const ARTIFACT_KIND = 'as1-slack-pilot';
 
@@ -160,7 +160,7 @@ export interface As1ConsumedQuestionReplyV1 {
 /** One durable outbox phase record with its bound immutable request/response artifact hashes (design §14). */
 export interface As1OutboxRecordV1 {
   readonly outboundId: string;
-  readonly phase: string;
+  readonly phase: As1OutboxRecordPhase;
   readonly requestHash: string | null;
   readonly responseHash: string | null;
   readonly recordedAt: string;
@@ -169,6 +169,15 @@ export interface As1OutboxRecordV1 {
 export interface As1OutboxHashes {
   readonly requestHash?: string;
   readonly responseHash?: string;
+}
+
+/** One durable denial-audit record (design §9): a bounded reason and the optional source event/envelope. */
+export interface As1DenialAuditV1 {
+  readonly schemaVersion: 'agent-office.as1-denial-audit.v1';
+  readonly reason: string;
+  readonly eventId: string | null;
+  readonly envelopeId: string | null;
+  readonly recordedAt: string;
 }
 
 /**
@@ -302,7 +311,7 @@ export interface As1TmuxDeliveryFacts {
 export interface As1TmuxDeliveryRecordV1 {
   readonly schemaVersion: 'agent-office.as1-tmux-delivery.v1';
   readonly deliveryId: string;
-  readonly phase: string;
+  readonly phase: As1TmuxDeliveryPhase;
   readonly boundFacts: As1TmuxDeliveryFacts;
   readonly recordedAt: string;
 }
@@ -352,10 +361,68 @@ function reqBoundedString(value: unknown, label: string): string {
   }
   return value;
 }
-const AS1_PROFILE_IDS = ['AGENT_OFFICE_ADVISOR', 'FOUNDATION_ADVISOR'] as const;
-/** Passthrough for a legacy/audit index whose ONLY read semantics is presence/capacity, not field trust. */
+/** Presence-only passthrough for a LEGACY consumption index (read bounded; any record fails closed upstream). */
 function passthroughRecord(value: unknown): unknown {
   return value;
+}
+
+// ── Closed tmux delivery-journal phase vocabulary + legal transitions (design §12.7, review B08) ──────────────
+export const AS1_TMUX_DELIVERY_PHASES = [
+  'PREPARED',
+  'BUFFER_LOADED',
+  'PASTE_STARTED',
+  'PASTE_CONFIRMED',
+  'SUBMIT_STARTED',
+  'TRANSPORT_RECORDED',
+  'MANUAL_RECONCILIATION_REQUIRED',
+] as const;
+export type As1TmuxDeliveryPhase = (typeof AS1_TMUX_DELIVERY_PHASES)[number];
+
+const AS1_TMUX_DELIVERY_PHASE_SET: ReadonlySet<string> = new Set<string>(AS1_TMUX_DELIVERY_PHASES);
+function isTmuxDeliveryPhase(value: string): value is As1TmuxDeliveryPhase {
+  return AS1_TMUX_DELIVERY_PHASE_SET.has(value);
+}
+
+/** The only legal tmux phase edges: strict linear progress, or MANUAL_RECONCILIATION from any nonterminal. */
+const AS1_LEGAL_TMUX_TRANSITIONS: Readonly<Record<As1TmuxDeliveryPhase, readonly As1TmuxDeliveryPhase[]>> = {
+  PREPARED: ['BUFFER_LOADED', 'MANUAL_RECONCILIATION_REQUIRED'],
+  BUFFER_LOADED: ['PASTE_STARTED', 'MANUAL_RECONCILIATION_REQUIRED'],
+  PASTE_STARTED: ['PASTE_CONFIRMED', 'MANUAL_RECONCILIATION_REQUIRED'],
+  PASTE_CONFIRMED: ['SUBMIT_STARTED', 'MANUAL_RECONCILIATION_REQUIRED'],
+  SUBMIT_STARTED: ['TRANSPORT_RECORDED', 'MANUAL_RECONCILIATION_REQUIRED'],
+  TRANSPORT_RECORDED: [],
+  MANUAL_RECONCILIATION_REQUIRED: [],
+};
+
+// ── Closed outbox phase vocabulary + legal transitions + phase/hash invariant (design §14, review B08) ────────
+export const AS1_OUTBOX_PHASES = ['PREPARED', 'REQUEST_STARTED', 'RESPONSE_RECORDED', 'MANUAL_RECONCILIATION_REQUIRED'] as const;
+export type As1OutboxRecordPhase = (typeof AS1_OUTBOX_PHASES)[number];
+
+const AS1_LEGAL_OUTBOX_TRANSITIONS: Readonly<Record<As1OutboxRecordPhase, readonly As1OutboxRecordPhase[]>> = {
+  PREPARED: ['PREPARED', 'REQUEST_STARTED', 'MANUAL_RECONCILIATION_REQUIRED'],
+  REQUEST_STARTED: ['RESPONSE_RECORDED', 'MANUAL_RECONCILIATION_REQUIRED'],
+  RESPONSE_RECORDED: [],
+  MANUAL_RECONCILIATION_REQUIRED: [],
+};
+
+const AS1_OUTBOX_PHASE_SET: ReadonlySet<string> = new Set<string>(AS1_OUTBOX_PHASES);
+function isOutboxPhase(value: string): value is As1OutboxRecordPhase {
+  return AS1_OUTBOX_PHASE_SET.has(value);
+}
+
+/**
+ * The phase↔hash invariant a durable outbox record must satisfy (design §14): the request bytes hash is bound
+ * from PREPARED onward and never dropped; the response hash appears only at RESPONSE_RECORDED. Any violation is
+ * corruption, never a trusted record.
+ */
+function assertOutboxPhaseHashInvariant(phase: As1OutboxRecordPhase, requestHash: string | null, responseHash: string | null): void {
+  if (phase === 'RESPONSE_RECORDED') {
+    if (requestHash === null || responseHash === null) throw new DomainError('STORE_QUARANTINED', 'RESPONSE_RECORDED requires both request and response hashes');
+    return;
+  }
+  // PREPARED, REQUEST_STARTED, MANUAL_RECONCILIATION_REQUIRED: request bound, no response yet.
+  if (requestHash === null) throw new DomainError('STORE_QUARANTINED', `${phase} requires the bound request hash`);
+  if (responseHash !== null) throw new DomainError('STORE_QUARANTINED', `${phase} must not carry a response hash`);
 }
 
 function parseDedupeRecord(value: unknown): As1DedupeRecordV1 {
@@ -367,7 +434,7 @@ function parseDedupeRecord(value: unknown): As1DedupeRecordV1 {
   );
   return {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-inbound-dedupe.v1', 'as1 dedupe record'),
-    profileId: requireEnum(value.profileId, AS1_PROFILE_IDS, 'dedupe.profileId'),
+    profileId: assertAs1ProfileId(value.profileId, 'dedupe.profileId'),
     envelopeId: requireOpaqueId(value.envelopeId, 'dedupe.envelopeId'),
     teamId: requireOpaqueId(value.teamId, 'dedupe.teamId'),
     apiAppId: requireOpaqueId(value.apiAppId, 'dedupe.apiAppId'),
@@ -394,7 +461,7 @@ function parseReceiveGrantState(value: unknown): As1PilotReceiveGrantStateV1 {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-pilot-receive-grant-state.v1', 'as1 receive-grant state'),
     receiveGrantId: requireOpaqueId(value.receiveGrantId, 'state.receiveGrantId'),
     pilotId: requireOpaqueId(value.pilotId, 'state.pilotId'),
-    profileId: requireEnum(value.profileId, AS1_PROFILE_IDS, 'state.profileId'),
+    profileId: assertAs1ProfileId(value.profileId, 'state.profileId'),
     phase: requireEnum(value.phase, AS1_RECEIVE_PHASES, 'state.phase'),
     rootLimit: reqRootLimit(value.rootLimit, 'state.rootLimit'),
     rootSlotConsumed: reqBoolean(value.rootSlotConsumed, 'state.rootSlotConsumed'),
@@ -549,23 +616,35 @@ function parseTmuxDeliveryRecord(value: unknown): As1TmuxDeliveryRecordV1 {
   return {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-tmux-delivery.v1', 'as1 tmux delivery record'),
     deliveryId: requireOpaqueId(value.deliveryId, 'tmux.deliveryId'),
-    phase: requireOpaqueId(value.phase, 'tmux.phase'),
+    phase: requireEnum(value.phase, AS1_TMUX_DELIVERY_PHASES, 'tmux.phase'),
     boundFacts: parseTmuxDeliveryFacts(value.boundFacts),
     recordedAt: requireUtc(value.recordedAt, 'tmux.recordedAt'),
   };
 }
 
+/** The EXACT correlation keys each accepted-evidence kind persists — later chain binding trusts these facts. */
+const AS1_CORRELATION_KEYS: Readonly<Record<string, readonly string[]>> = {
+  ACK: ['advisorAckId', 'sourceEventId', 'pointerHash'],
+  INTAKE: ['advisorAckId', 'acceptedAckEvidenceId', 'classification'],
+  QUESTION: ['questionId', 'questionKind', 'expectedResponseKind'],
+  RESULT: ['resultId', 'terminalStatus', 'resultArtifactPath', 'resultArtifactSha256'],
+};
+
 function parseAcceptedEvidence(value: unknown): As1AcceptedEvidenceRecordV1 {
   assertRecord(value, 'as1 accepted evidence');
   assertExactKeys(value, ['evidenceKind', 'evidenceId', 'intakeId', 'blobSha256', 'sourceCommit', 'repositoryId', 'path', 'envelopeHash', 'correlation', 'sequence', 'acceptedAt'], 'as1 accepted evidence');
+  const evidenceKind = requireEnum(value.evidenceKind, ['ACK', 'INTAKE', 'QUESTION', 'RESULT'] as const, 'accepted-evidence.evidenceKind');
+  // The correlation facts are trusted by later chain binding, so their keys are EXACT per kind (review B08).
   assertRecord(value.correlation, 'accepted-evidence.correlation');
   const rawCorrelation = value.correlation;
+  const expectedKeys = AS1_CORRELATION_KEYS[evidenceKind] ?? [];
+  assertExactKeys(rawCorrelation, expectedKeys, `accepted-evidence.correlation(${evidenceKind})`);
   const correlation: Record<string, string> = {};
-  for (const key of Object.keys(rawCorrelation)) {
+  for (const key of expectedKeys) {
     correlation[key] = reqBoundedString(rawCorrelation[key], `accepted-evidence.correlation.${key}`);
   }
   return {
-    evidenceKind: requireEnum(value.evidenceKind, ['ACK', 'INTAKE', 'QUESTION', 'RESULT'] as const, 'accepted-evidence.evidenceKind'),
+    evidenceKind,
     evidenceId: requireOpaqueId(value.evidenceId, 'accepted-evidence.evidenceId'),
     intakeId: requireOpaqueId(value.intakeId, 'accepted-evidence.intakeId'),
     blobSha256: requireSha256(value.blobSha256, 'accepted-evidence.blobSha256'),
@@ -582,12 +661,29 @@ function parseAcceptedEvidence(value: unknown): As1AcceptedEvidenceRecordV1 {
 function parseOutboxRecord(value: unknown): As1OutboxRecordV1 {
   assertRecord(value, 'as1 outbox record');
   assertExactKeys(value, ['outboundId', 'phase', 'requestHash', 'responseHash', 'recordedAt'], 'as1 outbox record');
+  const phase = requireEnum(value.phase, AS1_OUTBOX_PHASES, 'outbox.phase');
+  const requestHash = reqNullableSha256(value.requestHash, 'outbox.requestHash');
+  const responseHash = reqNullableSha256(value.responseHash, 'outbox.responseHash');
+  // Beyond field types: the phase↔hash invariant must hold on read (review B08).
+  assertOutboxPhaseHashInvariant(phase, requestHash, responseHash);
   return {
     outboundId: requireOpaqueId(value.outboundId, 'outbox.outboundId'),
-    phase: requireEnum(value.phase, ['PREPARED', 'REQUEST_STARTED', 'RESPONSE_RECORDED', 'MANUAL_RECONCILIATION_REQUIRED'] as const, 'outbox.phase'),
-    requestHash: reqNullableSha256(value.requestHash, 'outbox.requestHash'),
-    responseHash: reqNullableSha256(value.responseHash, 'outbox.responseHash'),
+    phase,
+    requestHash,
+    responseHash,
     recordedAt: requireUtc(value.recordedAt, 'outbox.recordedAt'),
+  };
+}
+
+function parseDenialAudit(value: unknown): As1DenialAuditV1 {
+  assertRecord(value, 'as1 denial audit');
+  assertExactKeys(value, ['schemaVersion', 'reason', 'eventId', 'envelopeId', 'recordedAt'], 'as1 denial audit');
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-denial-audit.v1', 'as1 denial audit'),
+    reason: reqBoundedString(value.reason, 'denial.reason'),
+    eventId: reqNullableOpaqueId(value.eventId, 'denial.eventId'),
+    envelopeId: reqNullableOpaqueId(value.envelopeId, 'denial.envelopeId'),
+    recordedAt: requireUtc(value.recordedAt, 'denial.recordedAt'),
   };
 }
 
@@ -672,7 +768,7 @@ export class As1ProfileInboundStore {
   /** Insert both dedupe identities atomically (design §8.3). Duplicate on same bytes; corruption on new bytes. */
   public async insertDedupe(input: DedupeInput): Promise<DedupeOutcome> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('inbound-dedupe.json'), parseDedupeRecord);
+      const records = await this.readJsonArray(this.indexPath('inbound-dedupe.json'), parseDedupeRecord, LIMITS.ENVELOPE_DEDUPE_PER_PROFILE);
       const now = this.clock.now();
       const byEnvelope = records.find((r) => r.envelopeId === input.envelopeId);
       const byEvent = records.find(
@@ -863,7 +959,7 @@ export class As1ProfileInboundStore {
     readonly expiresAt: string;
   }): Promise<As1PendingQuestionV1> {
     return this.mutex.run(async () => {
-      const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion);
+      const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion, LIMITS.QUESTION_HISTORY_PER_PROFILE);
       // Exact-idempotent restart: a re-open of the SAME questionId with identical immutable opening fields
       // (root, response kind, evidence ref/hash, openedAt, expiresAt) returns the existing record (the ingress
       // re-observes accepted QUESTION evidence on restart); any divergence on the same id is a durable
@@ -908,7 +1004,7 @@ export class As1ProfileInboundStore {
   }
 
   public async findOpenQuestionForRoot(rootTs: string): Promise<As1PendingQuestionV1 | null> {
-    const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion);
+    const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion, LIMITS.QUESTION_HISTORY_PER_PROFILE);
     return questions.find((q) => q.rootTs === rootTs && q.state === 'OPEN') ?? null;
   }
 
@@ -919,10 +1015,10 @@ export class As1ProfileInboundStore {
    * no matching materialized continuation — or a missing consuming event — fails closed. Used to bind a RESULT.
    */
   public async deriveConsumedQuestionReplies(rootTs: string, intakeId: string): Promise<readonly As1ConsumedQuestionReplyV1[]> {
-    const questions = (await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion)).filter(
+    const questions = (await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion, LIMITS.QUESTION_HISTORY_PER_PROFILE)).filter(
       (q) => q.rootTs === rootTs && q.state === 'CONSUMED',
     );
-    const transports = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
+    const transports = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord, LIMITS.RECEIPT_RECORDS_PER_PROFILE);
     const entries: As1ConsumedQuestionReplyV1[] = [];
     for (const q of questions) {
       if (q.consumedBySourceEventId === null) {
@@ -964,7 +1060,7 @@ export class As1ProfileInboundStore {
   ): Promise<ConsumeQuestionResult> {
     return this.mutex.run(async () => {
       this.assertGrantBelongsToProfile(grant);
-      const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion);
+      const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion, LIMITS.QUESTION_HISTORY_PER_PROFILE);
       const index = questions.findIndex((q) => q.rootTs === rootTs && q.state === 'OPEN');
       const open = index >= 0 ? questions[index] : undefined;
       if (open === undefined) {
@@ -995,7 +1091,7 @@ export class As1ProfileInboundStore {
   // ── Root correlation (design §10) ─────────────────────────────────────────
   public async recordRootCorrelation(record: Omit<As1RootCorrelationV1, 'schemaVersion' | 'createdAt'>): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation);
+      const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation, LIMITS.INTAKE_CORRELATIONS_PER_PROFILE);
       if (records.some((r) => r.rootTs === record.rootTs)) return;
       if (records.length >= LIMITS.INTAKE_CORRELATIONS_PER_PROFILE) {
         throw new DomainError('STORE_QUARANTINED', 'root-correlation capacity exhausted; no silent eviction');
@@ -1011,12 +1107,12 @@ export class As1ProfileInboundStore {
 
   /** Resolve the immutable accepted root correlation for an intake (design §10/§14 outbound root binding). */
   public async findRootByIntakeId(intakeId: string): Promise<As1RootCorrelationV1 | null> {
-    const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation);
+    const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation, LIMITS.INTAKE_CORRELATIONS_PER_PROFILE);
     return records.find((r) => r.intakeId === intakeId) ?? null;
   }
 
   public async findRootByThreadTs(threadTs: string): Promise<As1RootCorrelationV1 | null> {
-    const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation);
+    const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation, LIMITS.INTAKE_CORRELATIONS_PER_PROFILE);
     return records.find((r) => r.rootTs === threadTs) ?? null;
   }
 
@@ -1034,7 +1130,7 @@ export class As1ProfileInboundStore {
     observed: As1TransportObserved,
   ): Promise<As1TransportRecordV1> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
+      const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord, LIMITS.RECEIPT_RECORDS_PER_PROFILE);
       const existing = records.find((r) => r.eventId === eventId);
       if (existing !== undefined) {
         if (
@@ -1145,13 +1241,13 @@ export class As1ProfileInboundStore {
   }
 
   public async readTransport(eventId: string): Promise<As1TransportRecordV1 | null> {
-    const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
+    const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord, LIMITS.RECEIPT_RECORDS_PER_PROFILE);
     return records.find((r) => r.eventId === eventId) ?? null;
   }
 
   /** Every non-terminal transport record, oldest first — the input to bounded startup recovery (§15.1). */
   public async listNonTerminalTransport(): Promise<readonly As1TransportRecordV1[]> {
-    const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
+    const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord, LIMITS.RECEIPT_RECORDS_PER_PROFILE);
     return records.filter((r) => r.state !== 'MATERIALIZED' && r.state !== 'TERMINAL_NO_INTAKE');
   }
 
@@ -1162,7 +1258,7 @@ export class As1ProfileInboundStore {
     update: (existing: As1TransportRecordV1) => As1TransportRecordV1,
   ): Promise<As1TransportRecordV1> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
+      const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord, LIMITS.RECEIPT_RECORDS_PER_PROFILE);
       const index = records.findIndex((r) => r.eventId === eventId);
       const existing = index >= 0 ? records[index] : undefined;
       if (existing === undefined) {
@@ -1186,7 +1282,7 @@ export class As1ProfileInboundStore {
   // ── Minimal denial audit (design §9) ──────────────────────────────────────
   public async recordDenialAudit(reason: string, eventId: string | null, envelopeId: string | null): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('denial-audit.json'), passthroughRecord);
+      const records = await this.readJsonArray(this.indexPath('denial-audit.json'), parseDenialAudit, LIMITS.DENIAL_AUDIT_PER_PROFILE);
       if (records.length >= LIMITS.DENIAL_AUDIT_PER_PROFILE) {
         throw new DomainError('STORE_QUARANTINED', 'denial-audit capacity exhausted; no silent eviction');
       }
@@ -1224,12 +1320,19 @@ export class As1ProfileInboundStore {
    */
   public async recordTmuxPhase(deliveryId: string, phase: string, facts?: As1TmuxDeliveryFacts): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord);
+      // Reject an unknown phase up front; only the closed vocabulary is representable (review B08).
+      if (!isTmuxDeliveryPhase(phase)) {
+        throw new DomainError('INVALID_TRANSITION', 'unknown tmux delivery phase');
+      }
+      const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord, LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
       const index = records.findIndex((r) => r.deliveryId === deliveryId);
       const now = this.clock.now();
       if (index < 0) {
         if (facts === undefined) {
           throw new DomainError('INVALID_TRANSITION', 'a new tmux delivery journal must bind its invariant facts');
+        }
+        if (phase !== 'PREPARED') {
+          throw new DomainError('INVALID_TRANSITION', 'a new tmux delivery journal must start at PREPARED');
         }
         if (records.length >= LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE) {
           throw new DomainError('STORE_QUARANTINED', 'tmux delivery journal capacity exhausted; no silent eviction');
@@ -1254,8 +1357,9 @@ export class As1ProfileInboundStore {
         throw new DomainError('STORE_QUARANTINED', 'tmux delivery bound facts changed across the hash chain');
       }
       if (existing.phase === phase) return; // idempotent replay of the exact same phase and facts
-      if (existing.phase === 'TRANSPORT_RECORDED' || existing.phase === 'MANUAL_RECONCILIATION_REQUIRED') {
-        throw new DomainError('INVALID_TRANSITION', 'tmux delivery journal is already terminal');
+      // Only a legal successor of the current phase is accepted; terminals have no successor (review B08).
+      if (!AS1_LEGAL_TMUX_TRANSITIONS[existing.phase].includes(phase)) {
+        throw new DomainError('INVALID_TRANSITION', `illegal tmux delivery transition ${existing.phase} -> ${phase}`);
       }
       const next: As1TmuxDeliveryRecordV1 = { ...existing, phase, recordedAt: now };
       const copy = [...records];
@@ -1265,7 +1369,7 @@ export class As1ProfileInboundStore {
   }
 
   public async readTmuxPhase(deliveryId: string): Promise<string | null> {
-    const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord);
+    const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord, LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
     return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
   }
 
@@ -1285,16 +1389,30 @@ export class As1ProfileInboundStore {
    */
   public async recordOutboxPhase(outboundId: string, phase: string, hashes?: As1OutboxHashes): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord);
+      if (!isOutboxPhase(phase)) {
+        throw new DomainError('INVALID_TRANSITION', 'unknown outbox phase');
+      }
+      const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord, LIMITS.OUTBOX_PER_PROFILE);
       const index = records.findIndex((r) => r.outboundId === outboundId);
       const prior = index >= 0 ? records[index] : undefined;
-      const record: As1OutboxRecordV1 = {
-        outboundId,
-        phase,
-        requestHash: hashes?.requestHash ?? prior?.requestHash ?? null,
-        responseHash: hashes?.responseHash ?? prior?.responseHash ?? null,
-        recordedAt: this.clock.now(),
-      };
+      // Enforce the closed legal transition (a new record must START at PREPARED).
+      if (prior === undefined) {
+        if (phase !== 'PREPARED') throw new DomainError('INVALID_TRANSITION', 'a new outbox record must start at PREPARED');
+      } else if (!AS1_LEGAL_OUTBOX_TRANSITIONS[prior.phase].includes(phase)) {
+        throw new DomainError('INVALID_TRANSITION', `illegal outbox transition ${prior.phase} -> ${phase}`);
+      }
+      const requestHash = hashes?.requestHash ?? prior?.requestHash ?? null;
+      const responseHash = hashes?.responseHash ?? prior?.responseHash ?? null;
+      // Hash immutability: a bound request/response hash can never change (same phase + differing hash = corruption).
+      if (prior?.requestHash != null && requestHash !== prior.requestHash) {
+        throw new DomainError('STORE_QUARANTINED', 'outbox request hash is immutable once bound');
+      }
+      if (prior?.responseHash != null && responseHash !== prior.responseHash) {
+        throw new DomainError('STORE_QUARANTINED', 'outbox response hash is immutable once bound');
+      }
+      // The resulting record must satisfy the phase↔hash invariant.
+      assertOutboxPhaseHashInvariant(phase, requestHash, responseHash);
+      const record: As1OutboxRecordV1 = { outboundId, phase, requestHash, responseHash, recordedAt: this.clock.now() };
       if (index >= 0) {
         const copy = [...records];
         copy[index] = record;
@@ -1309,12 +1427,12 @@ export class As1ProfileInboundStore {
   }
 
   public async readOutboxPhase(outboundId: string): Promise<string | null> {
-    const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord);
+    const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord, LIMITS.OUTBOX_PER_PROFILE);
     return records.find((r) => r.outboundId === outboundId)?.phase ?? null;
   }
 
   public async readOutboxRecord(outboundId: string): Promise<As1OutboxRecordV1 | null> {
-    const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord);
+    const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord, LIMITS.OUTBOX_PER_PROFILE);
     return records.find((r) => r.outboundId === outboundId) ?? null;
   }
 
@@ -1332,7 +1450,7 @@ export class As1ProfileInboundStore {
     readonly correlation: Readonly<Record<string, string>>;
   }): Promise<number> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('evidence-ingress-checkpoint.json'), parseAcceptedEvidence);
+      const records = await this.readJsonArray(this.indexPath('evidence-ingress-checkpoint.json'), parseAcceptedEvidence, LIMITS.EVIDENCE_INGRESS_PER_PROFILE);
       const existing = records.find((r) => r.evidenceId === entry.evidenceId);
       if (existing !== undefined) {
         // Exact duplicate equality: the re-accepted evidence must match on the FULL canonical envelope hash
@@ -1364,7 +1482,7 @@ export class As1ProfileInboundStore {
   }
 
   public async readAcceptedEvidence(): Promise<readonly As1AcceptedEvidenceRecordV1[]> {
-    return this.readJsonArray(this.indexPath('evidence-ingress-checkpoint.json'), parseAcceptedEvidence);
+    return this.readJsonArray(this.indexPath('evidence-ingress-checkpoint.json'), parseAcceptedEvidence, LIMITS.EVIDENCE_INGRESS_PER_PROFILE);
   }
 
   /**
@@ -1375,14 +1493,15 @@ export class As1ProfileInboundStore {
     return this.mutex.run(async () => {
       // Fail closed on legacy two-file consumption state: a prior version's separately-written grant/lease
       // indexes must never be silently ignored, or already-consumed authority could be re-delivered.
-      const legacyGrants = await this.readJsonArray(this.indexPath('pointer-delivery-grant-consumption.json'), passthroughRecord);
-      const legacyLeases = await this.readJsonArray(this.indexPath('readiness-lease-consumption.json'), passthroughRecord);
+      const legacyGrants = await this.readJsonArray(this.indexPath('pointer-delivery-grant-consumption.json'), passthroughRecord, LIMITS.PARSED_ARRAY_MAX);
+      const legacyLeases = await this.readJsonArray(this.indexPath('readiness-lease-consumption.json'), passthroughRecord, LIMITS.PARSED_ARRAY_MAX);
       if (legacyGrants.length > 0 || legacyLeases.length > 0) {
         throw new DomainError('STORE_QUARANTINED', 'legacy delivery-authority consumption state present; requires a reviewed migration');
       }
       const records = await this.readJsonArray(
         this.indexPath('delivery-authority-consumption.json'),
         parseDeliveryAuthorityConsumption,
+        LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE,
       );
       if (records.some((r) => r.pointerDeliveryGrantId === pointerDeliveryGrantId || r.leaseId === leaseId)) {
         return false;
@@ -1416,7 +1535,7 @@ export class As1ProfileInboundStore {
   }
 
   private async loadReceiveChain(receiveGrantId: string): Promise<As1PilotReceiveGrantStateV1[]> {
-    const records = await this.readJsonArray(this.receiveStatePath(receiveGrantId), parseReceiveGrantState);
+    const records = await this.readJsonArray(this.receiveStatePath(receiveGrantId), parseReceiveGrantState, LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
     let previous: string = GENESIS_EVENT_HASH;
     for (const [index, record] of records.entries()) {
       if (
@@ -1485,7 +1604,7 @@ export class As1ProfileInboundStore {
    * entry passes an exact-key/type/hash/phase parser, and ANY validation failure (or an over-capacity file) fails
    * closed as STORE_QUARANTINED so a corrupted/tampered/legacy index is never trusted downstream.
    */
-  private async readJsonArray<T>(relative: string, parse: (value: unknown, index: number) => T): Promise<T[]> {
+  private async readJsonArray<T>(relative: string, parse: (value: unknown, index: number) => T, maxRecords: number): Promise<T[]> {
     const target = await resolveContainedPath(this.stateRoot, relative, { allowMissingLeaf: true });
     let handle: import('node:fs/promises').FileHandle;
     try {
@@ -1499,6 +1618,11 @@ export class As1ProfileInboundStore {
       const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
       if (!Array.isArray(parsed)) {
         throw new DomainError('STORE_QUARANTINED', 'profile index is not an array');
+      }
+      // Enforce the declared per-index count bound on EVERY read (not only before append), so an oversized
+      // (grown/tampered/replayed) index fails closed before any record is trusted (review B08).
+      if (parsed.length > maxRecords) {
+        throw new DomainError('STORE_QUARANTINED', `profile index ${relative} exceeds its ${String(maxRecords)}-record bound`);
       }
       return parsed.map((item, index) => {
         try {
