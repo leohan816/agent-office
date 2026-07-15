@@ -154,10 +154,26 @@ export class As1ExactTransport {
     private readonly port: As1TmuxPort,
     private readonly journal: As1DeliveryJournal,
     private readonly provenance: As1DeliveryProvenanceGate,
+    /** Mandatory durable profile latch — a journal/consumption STORE_QUARANTINED never surfaces unlatched (B08). */
+    private readonly latch: (reason: string) => Promise<void>,
   ) {}
 
   /** Deliver exactly one pointer through the reviewed journal. Never retries a paste (design §12.7). */
   public async deliver(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): Promise<As1DeliveryResult> {
+    // A durable STORE_QUARANTINED from the journal or the delivery-authority consumption must latch the profile
+    // and fail closed as manual reconciliation, never surface unlatched or silently continue (review B08).
+    try {
+      return await this.deliverInner(grant, lease);
+    } catch (error) {
+      if (error instanceof DomainError && error.code === 'STORE_QUARANTINED') {
+        await this.latch('tmux delivery durable store quarantined');
+        return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'STORE_QUARANTINED' };
+      }
+      throw error;
+    }
+  }
+
+  private async deliverInner(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): Promise<As1DeliveryResult> {
     const { clock, port, journal } = this;
 
     // Internal derivation only — nothing below is caller-selectable (review B04). Every gate reads a fresh

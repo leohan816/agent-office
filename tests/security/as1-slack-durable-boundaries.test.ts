@@ -399,6 +399,35 @@ describe('AS1 strict on-read parsing (B08)', () => {
     await expect(store.recordOutboxPhase('o1', 'PREPARED', { requestHash: `sha256:${'2'.repeat(64)}` })).rejects.toBeInstanceOf(DomainError);
   });
 
+  it('rejects a FOREIGN-profile dedupe record in the profile-local tree (cross-profile contradiction)', async () => {
+    const { root, store } = await freshStore();
+    await store.insertDedupe({ envelopeId: 'Env0SEED', teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: 'Ev0SEED', rawEnvelopeHash: `sha256:${'a'.repeat(64)}`, innerEventHash: `sha256:${'b'.repeat(64)}`, preAckClass: 'PREACK_PENDING' });
+    // A record tagged with the OTHER profile in this profile's own tree is never trusted data.
+    await writeFile(
+      path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/inbound-dedupe.json'),
+      JSON.stringify([{ schemaVersion: 'agent-office.as1-inbound-dedupe.v1', profileId: 'FOUNDATION_ADVISOR', envelopeId: 'Env0X', teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: 'Ev0X', rawEnvelopeHash: `sha256:${'a'.repeat(64)}`, innerEventHash: `sha256:${'b'.repeat(64)}`, firstReceivedAt: '2026-07-14T22:06:00.000Z', lastReceivedAt: '2026-07-14T22:06:00.000Z', preAckClass: 'PREACK_PENDING', receiveGrantStateHash: null, intakeId: null, terminalReason: null }]),
+    );
+    await expect(store.insertDedupe({ envelopeId: 'Env0Y', teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: 'Ev0Y', rawEnvelopeHash: `sha256:${'c'.repeat(64)}`, innerEventHash: `sha256:${'d'.repeat(64)}`, preAckClass: 'PREACK_PENDING' })).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('rejects tmux delivery facts tagged with a FOREIGN profile identity', async () => {
+    const { root, store } = await freshStore();
+    const h = `sha256:${'a'.repeat(64)}`;
+    // Every field is well-formed, but profileId/advisorTeam/actorId/roleInstanceId name the OTHER profile.
+    const foreignFacts = {
+      receiveGrantId: 'rg', receiveGrantBindingHash: h, pointerDeliveryGrantId: 'pdg', leaseId: 'lease', pilotId: 'pilot',
+      profileId: 'FOUNDATION_ADVISOR', advisorTeam: 'FOUNDATION_ADVISOR_TEAM', actorId: 'foundation-advisor',
+      roleInstanceId: 'foundation-advisor-20260714-01', intakeId: 'intake', sourceEventId: 'ev', pointerHash: h,
+      destinationHash: h, governanceSnapshotHash: h, registrySnapshotHash: h, globalControlSnapshotHash: h,
+      profileLatchSnapshotHash: h, pointerDeliveryGrantSnapshotHash: h,
+    };
+    await writeFile(
+      path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/tmux-delivery.json'),
+      JSON.stringify([{ schemaVersion: 'agent-office.as1-tmux-delivery.v1', deliveryId: 'd1', phase: 'PREPARED', boundFacts: foreignFacts, recordedAt: '2026-07-14T22:06:00.000Z' }]),
+    );
+    await expect(store.readTmuxPhase('d1')).rejects.toBeInstanceOf(DomainError);
+  });
+
   it('never auto-deletes or compacts durable state — the retention floor cannot be bypassed (B08)', async () => {
     const root = await makeStateRoot();
     const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2026-07-14T22:06:00.000Z'));

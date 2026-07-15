@@ -1,5 +1,9 @@
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
+import { DomainError } from '../../src/contracts/types.js';
 import { parseReceiveGrant } from '../../src/application/slack-pilot/contracts.js';
 import { As1ProfileInboundStore, type As1PilotReceiveGrantStateV1 } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1InboundService } from '../../src/application/slack-pilot/service.js';
@@ -129,6 +133,17 @@ describe('AS1 inbound service — policy matrix rejections', () => {
       expect(service.isLatched()).toBe(testCase.latched);
     });
   }
+
+  it('durably latches on a STORE_QUARANTINED from a corrupted (foreign-profile) durable index (B08)', async () => {
+    const { root, service } = await makeService();
+    // A foreign-profile dedupe record in this profile's tree fails closed when the service reads the dedupe index.
+    await writeFile(
+      path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/inbound-dedupe.json'),
+      JSON.stringify([{ schemaVersion: 'agent-office.as1-inbound-dedupe.v1', profileId: 'FOUNDATION_ADVISOR', envelopeId: 'Env0X', teamId: 'TWORKSPACE001', apiAppId: 'AAGENTOFFICE01', eventId: 'Ev0X', rawEnvelopeHash: `sha256:${'a'.repeat(64)}`, innerEventHash: `sha256:${'b'.repeat(64)}`, firstReceivedAt: '2026-07-14T22:06:00.000Z', lastReceivedAt: '2026-07-14T22:06:00.000Z', preAckClass: 'PREACK_PENDING', receiveGrantStateHash: null, intakeId: null, terminalReason: null }]),
+    );
+    await expect(service.processEnvelope(slackEnvelope())).rejects.toBeInstanceOf(DomainError);
+    expect(service.isLatched()).toBe(true);
+  });
 
   it('fails closed (latched identity) when the trusted clock cannot be parsed for the future-time check', async () => {
     const root = await makeStateRoot();

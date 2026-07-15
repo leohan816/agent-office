@@ -58,9 +58,16 @@ async function makeTransport() {
   assertDeliveryChainConsistent(grant, lease, POINTER_HASH, NOW);
   const capability = createDeliveryCapability(grant, lease, NOW);
   const port = new FakeTmuxPort(matchingPreflight());
-  const transport = new As1ExactTransport(() => NOW, port, store, ACCEPTING_GATE);
-  return { root, store, grant, lease, capability, transport, port };
+  const latched: string[] = [];
+  const latch = (reason: string): Promise<void> => {
+    latched.push(reason);
+    return Promise.resolve();
+  };
+  const transport = new As1ExactTransport(() => NOW, port, store, ACCEPTING_GATE, latch);
+  return { root, store, grant, lease, capability, transport, port, latched };
 }
+
+const NOOP_LATCH = (): Promise<void> => Promise.resolve();
 
 describe('AS1 readiness lease and delivery chain', () => {
   it('parses a valid lease and binds the exact delivery facts', () => {
@@ -149,12 +156,31 @@ describe('AS1 exact tmux transport journal', () => {
     expect(await store.readTmuxPhase(DELIVERY_ID)).toBe('TRANSPORT_RECORDED');
   });
 
+  it('latches and reconciles when the delivery journal raises a durable STORE_QUARANTINED (B08)', async () => {
+    const { port, grant, lease } = await makeTransport();
+    const latched: string[] = [];
+    const quarantiningJournal: As1DeliveryJournal = {
+      recordTmuxPhase: () => Promise.reject(new DomainError('STORE_QUARANTINED', 'corrupt delivery journal')),
+      readTmuxPhase: () => Promise.resolve(null),
+      consumeDeliveryAuthority: () => Promise.resolve(true),
+    };
+    const transport = new As1ExactTransport(() => NOW, port, quarantiningJournal, ACCEPTING_GATE, (reason) => {
+      latched.push(reason);
+      return Promise.resolve();
+    });
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(result.reason).toBe('STORE_QUARANTINED');
+    expect(latched.length).toBeGreaterThan(0);
+    expect(port.pasteCalls).toBe(0); // never pasted
+  });
+
   it('never delivers when the provenance gate rejects; no journal or side effect (B04/B06 seal)', async () => {
     const { store, port, grant, lease } = await makeTransport();
     const rejecting: As1DeliveryProvenanceGate = {
       assertAccepted: () => Promise.reject(new DomainError('AUTHORITY_ARTIFACT_INVALID', 'provenance not accepted')),
     };
-    const transport = new As1ExactTransport(() => NOW, port, store, rejecting);
+    const transport = new As1ExactTransport(() => NOW, port, store, rejecting, NOOP_LATCH);
     await expect(transport.deliver(grant, lease)).rejects.toBeInstanceOf(DomainError);
     expect(port.pasteCalls).toBe(0);
     expect(await store.readTmuxPhase(DELIVERY_ID)).toBeNull();
@@ -171,7 +197,7 @@ describe('AS1 exact tmux transport journal', () => {
         return store.consumeDeliveryAuthority(g, l);
       },
     };
-    const transport = new As1ExactTransport(() => NOW, port, orderingJournal, ACCEPTING_GATE);
+    const transport = new As1ExactTransport(() => NOW, port, orderingJournal, ACCEPTING_GATE, NOOP_LATCH);
     const result = await transport.deliver(grant, lease);
     expect(result.outcome).toBe('DELIVERED');
     expect(phaseAtConsume).toBe('PREPARED');
@@ -190,7 +216,7 @@ describe('AS1 exact tmux transport journal', () => {
 
   it('rejects a lease whose pointer-grant snapshot does not equal the canonical grant bytes (B04)', async () => {
     const { store, port } = await makeTransport();
-    const transport = new As1ExactTransport(() => NOW, port, store, ACCEPTING_GATE);
+    const transport = new As1ExactTransport(() => NOW, port, store, ACCEPTING_GATE, NOOP_LATCH);
     const grant = parsePointerDeliveryGrant(validPointerDeliveryGrant());
     // A structurally valid snapshot hash that is not the canonical grant hash must be refused.
     const lease = parseReadinessLease(validReadinessLease({ pointerDeliveryGrantSnapshotHash: `sha256:${'a'.repeat(64)}` }));
@@ -209,7 +235,7 @@ describe('AS1 exact tmux transport journal', () => {
     );
     const lease2 = parseReadinessLease(validReadinessLease({ pointerDeliveryGrantSnapshotHash: hashCanonical(grant2) }));
     const secondPort = new FakeTmuxPort(matchingPreflight());
-    const second = new As1ExactTransport(() => NOW, secondPort, store, ACCEPTING_GATE);
+    const second = new As1ExactTransport(() => NOW, secondPort, store, ACCEPTING_GATE, NOOP_LATCH);
     const result = await second.deliver(grant2, lease2);
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
     expect(result.reason).toContain('already consumed');
@@ -277,7 +303,7 @@ describe('AS1 exact tmux transport journal', () => {
 
   it('rejects a grant whose pointer ref is not this profile\'s internal delivery layout (B04)', async () => {
     const { store, port } = await makeTransport();
-    const transport = new As1ExactTransport(() => NOW, port, store, ACCEPTING_GATE);
+    const transport = new As1ExactTransport(() => NOW, port, store, ACCEPTING_GATE, NOOP_LATCH);
     const lease = parseReadinessLease(validReadinessLease());
     const wrongKind = parsePointerDeliveryGrant(
       validPointerDeliveryGrant({ pointerArtifactRef: 'artifacts/as1-slack-pilot/agent-office-advisor/intake/p1/x.json' }),
@@ -292,7 +318,7 @@ describe('AS1 exact tmux transport journal', () => {
   it('reads a fresh trusted clock before paste: an expiry after BUFFER_LOADED requires manual reconciliation (B04)', async () => {
     const { store, port, grant, lease } = await makeTransport();
     let now = NOW;
-    const transport = new As1ExactTransport(() => now, port, store, ACCEPTING_GATE);
+    const transport = new As1ExactTransport(() => now, port, store, ACCEPTING_GATE, NOOP_LATCH);
     port.onLoad(() => { now = LATE; }); // the capability expires the instant the buffer is loaded (past PREPARED)
     const result = await transport.deliver(grant, lease);
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
@@ -303,7 +329,7 @@ describe('AS1 exact tmux transport journal', () => {
   it('reads a fresh trusted clock before Enter: an expiry after PASTE_STARTED requires manual reconciliation (B04)', async () => {
     const { store, port, grant, lease } = await makeTransport();
     let now = NOW;
-    const transport = new As1ExactTransport(() => now, port, store, ACCEPTING_GATE);
+    const transport = new As1ExactTransport(() => now, port, store, ACCEPTING_GATE, NOOP_LATCH);
     port.onPaste(() => { now = LATE; }); // the capability expires the instant the paste lands, before Enter
     const result = await transport.deliver(grant, lease);
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');

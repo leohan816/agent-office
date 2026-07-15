@@ -90,7 +90,8 @@ export type As1DeliverySendOutcome =
   | 'MANUAL_RECONCILIATION_REQUIRED'
   | 'REJECTED_RENDER'
   | 'REJECTED_CONTROL'
-  | 'REJECTED_ROOT';
+  | 'REJECTED_ROOT'
+  | 'REJECTED_STORE';
 
 export interface As1OutboxResult {
   readonly outcome: As1DeliverySendOutcome;
@@ -131,6 +132,20 @@ export class As1Outbox {
   public constructor(private readonly deps: As1OutboxDependencies) {}
 
   public async send(accepted: As1AcceptedOutbound): Promise<As1OutboxResult> {
+    // A durable STORE_QUARANTINED surfacing from a journal/root store operation must NOT escape unlatched: it
+    // durably latches the profile with a stable code and fails closed with no network (review B08).
+    try {
+      return await this.sendInner(accepted);
+    } catch (error) {
+      if (error instanceof DomainError && error.code === 'STORE_QUARANTINED') {
+        await this.deps.latch('outbox durable store quarantined');
+        return { outcome: 'REJECTED_STORE', phase: 'PREPARED', attempts: 0, reason: 'STORE_QUARANTINED' };
+      }
+      throw error;
+    }
+  }
+
+  private async sendInner(accepted: As1AcceptedOutbound): Promise<As1OutboxResult> {
     const record = acceptedOutboundRecord(accepted);
     const outboundId = acceptedOutboundId(accepted);
     const { profile, secret, store, web, latch, delay } = this.deps;

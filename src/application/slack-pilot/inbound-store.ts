@@ -32,7 +32,7 @@ import {
 } from './contracts.js';
 import type { As1PilotReceiveGrantV1 } from './contracts.js';
 import { assertExactKeys, assertRecord, requireEnum, requireInteger } from '../../contracts/validation.js';
-import { assertAs1ProfileId, type As1Profile } from './profiles.js';
+import { assertAs1ProfileId, type As1Profile, type As1ProfileId } from './profiles.js';
 
 const ARTIFACT_KIND = 'as1-slack-pilot';
 
@@ -425,7 +425,17 @@ function assertOutboxPhaseHashInvariant(phase: As1OutboxRecordPhase, requestHash
   if (responseHash !== null) throw new DomainError('STORE_QUARANTINED', `${phase} must not carry a response hash`);
 }
 
-function parseDedupeRecord(value: unknown): As1DedupeRecordV1 {
+/** A profile-tagged durable record whose profile MUST equal the store's closed profile, not merely be valid. */
+function requireOwningProfileId(value: unknown, profile: As1Profile, label: string): As1ProfileId {
+  const profileId = assertAs1ProfileId(value, label);
+  if (profileId !== profile.profileId) {
+    throw new DomainError('STORE_QUARANTINED', `${label} is a foreign profile in a profile-local tree`);
+  }
+  return profileId;
+}
+
+function parseDedupeRecord(profile: As1Profile): (value: unknown) => As1DedupeRecordV1 {
+  return (value: unknown): As1DedupeRecordV1 => {
   assertRecord(value, 'as1 dedupe record');
   assertExactKeys(
     value,
@@ -434,7 +444,7 @@ function parseDedupeRecord(value: unknown): As1DedupeRecordV1 {
   );
   return {
     schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-inbound-dedupe.v1', 'as1 dedupe record'),
-    profileId: assertAs1ProfileId(value.profileId, 'dedupe.profileId'),
+    profileId: requireOwningProfileId(value.profileId, profile, 'dedupe.profileId'),
     envelopeId: requireOpaqueId(value.envelopeId, 'dedupe.envelopeId'),
     teamId: requireOpaqueId(value.teamId, 'dedupe.teamId'),
     apiAppId: requireOpaqueId(value.apiAppId, 'dedupe.apiAppId'),
@@ -447,6 +457,7 @@ function parseDedupeRecord(value: unknown): As1DedupeRecordV1 {
     receiveGrantStateHash: reqNullableSha256(value.receiveGrantStateHash, 'dedupe.receiveGrantStateHash'),
     intakeId: reqNullableOpaqueId(value.intakeId, 'dedupe.intakeId'),
     terminalReason: reqNullableOpaqueId(value.terminalReason, 'dedupe.terminalReason'),
+  };
   };
 }
 
@@ -585,7 +596,15 @@ const TMUX_FACTS_KEYS = [
   'registrySnapshotHash', 'globalControlSnapshotHash', 'profileLatchSnapshotHash', 'pointerDeliveryGrantSnapshotHash',
 ] as const;
 
-function parseTmuxDeliveryFacts(value: unknown): As1TmuxDeliveryFacts {
+/** Assert a profile-tagged fact EXACTLY equals the store's closed profile identity (cross-profile contradiction). */
+function requireOwningValue(actual: string, expected: string, label: string): string {
+  if (actual !== expected) {
+    throw new DomainError('STORE_QUARANTINED', `${label} is a foreign profile value in a profile-local tree`);
+  }
+  return actual;
+}
+
+function parseTmuxDeliveryFacts(profile: As1Profile, value: unknown): As1TmuxDeliveryFacts {
   assertRecord(value, 'as1 tmux delivery facts');
   assertExactKeys(value, TMUX_FACTS_KEYS, 'as1 tmux delivery facts');
   return {
@@ -594,10 +613,10 @@ function parseTmuxDeliveryFacts(value: unknown): As1TmuxDeliveryFacts {
     pointerDeliveryGrantId: requireOpaqueId(value.pointerDeliveryGrantId, 'facts.pointerDeliveryGrantId'),
     leaseId: requireOpaqueId(value.leaseId, 'facts.leaseId'),
     pilotId: requireOpaqueId(value.pilotId, 'facts.pilotId'),
-    profileId: requireOpaqueId(value.profileId, 'facts.profileId'),
-    advisorTeam: requireOpaqueId(value.advisorTeam, 'facts.advisorTeam'),
-    actorId: requireOpaqueId(value.actorId, 'facts.actorId'),
-    roleInstanceId: requireOpaqueId(value.roleInstanceId, 'facts.roleInstanceId'),
+    profileId: requireOwningValue(requireOpaqueId(value.profileId, 'facts.profileId'), profile.profileId, 'facts.profileId'),
+    advisorTeam: requireOwningValue(requireOpaqueId(value.advisorTeam, 'facts.advisorTeam'), profile.advisorTeam, 'facts.advisorTeam'),
+    actorId: requireOwningValue(requireOpaqueId(value.actorId, 'facts.actorId'), profile.actorId, 'facts.actorId'),
+    roleInstanceId: requireOwningValue(requireOpaqueId(value.roleInstanceId, 'facts.roleInstanceId'), profile.roleInstanceId, 'facts.roleInstanceId'),
     intakeId: requireOpaqueId(value.intakeId, 'facts.intakeId'),
     sourceEventId: requireOpaqueId(value.sourceEventId, 'facts.sourceEventId'),
     pointerHash: requireSha256(value.pointerHash, 'facts.pointerHash'),
@@ -610,15 +629,17 @@ function parseTmuxDeliveryFacts(value: unknown): As1TmuxDeliveryFacts {
   };
 }
 
-function parseTmuxDeliveryRecord(value: unknown): As1TmuxDeliveryRecordV1 {
-  assertRecord(value, 'as1 tmux delivery record');
-  assertExactKeys(value, ['schemaVersion', 'deliveryId', 'phase', 'boundFacts', 'recordedAt'], 'as1 tmux delivery record');
-  return {
-    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-tmux-delivery.v1', 'as1 tmux delivery record'),
-    deliveryId: requireOpaqueId(value.deliveryId, 'tmux.deliveryId'),
-    phase: requireEnum(value.phase, AS1_TMUX_DELIVERY_PHASES, 'tmux.phase'),
-    boundFacts: parseTmuxDeliveryFacts(value.boundFacts),
-    recordedAt: requireUtc(value.recordedAt, 'tmux.recordedAt'),
+function parseTmuxDeliveryRecord(profile: As1Profile): (value: unknown) => As1TmuxDeliveryRecordV1 {
+  return (value: unknown): As1TmuxDeliveryRecordV1 => {
+    assertRecord(value, 'as1 tmux delivery record');
+    assertExactKeys(value, ['schemaVersion', 'deliveryId', 'phase', 'boundFacts', 'recordedAt'], 'as1 tmux delivery record');
+    return {
+      schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-tmux-delivery.v1', 'as1 tmux delivery record'),
+      deliveryId: requireOpaqueId(value.deliveryId, 'tmux.deliveryId'),
+      phase: requireEnum(value.phase, AS1_TMUX_DELIVERY_PHASES, 'tmux.phase'),
+      boundFacts: parseTmuxDeliveryFacts(profile, value.boundFacts),
+      recordedAt: requireUtc(value.recordedAt, 'tmux.recordedAt'),
+    };
   };
 }
 
@@ -768,7 +789,7 @@ export class As1ProfileInboundStore {
   /** Insert both dedupe identities atomically (design §8.3). Duplicate on same bytes; corruption on new bytes. */
   public async insertDedupe(input: DedupeInput): Promise<DedupeOutcome> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray(this.indexPath('inbound-dedupe.json'), parseDedupeRecord, LIMITS.ENVELOPE_DEDUPE_PER_PROFILE);
+      const records = await this.readJsonArray(this.indexPath('inbound-dedupe.json'), parseDedupeRecord(this.profile), LIMITS.ENVELOPE_DEDUPE_PER_PROFILE);
       const now = this.clock.now();
       const byEnvelope = records.find((r) => r.envelopeId === input.envelopeId);
       const byEvent = records.find(
@@ -1324,7 +1345,7 @@ export class As1ProfileInboundStore {
       if (!isTmuxDeliveryPhase(phase)) {
         throw new DomainError('INVALID_TRANSITION', 'unknown tmux delivery phase');
       }
-      const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord, LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
+      const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord(this.profile), LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
       const index = records.findIndex((r) => r.deliveryId === deliveryId);
       const now = this.clock.now();
       if (index < 0) {
@@ -1369,7 +1390,7 @@ export class As1ProfileInboundStore {
   }
 
   public async readTmuxPhase(deliveryId: string): Promise<string | null> {
-    const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord, LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
+    const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord(this.profile), LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
     return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
   }
 

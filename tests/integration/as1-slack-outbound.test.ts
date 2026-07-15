@@ -1,3 +1,6 @@
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
@@ -48,7 +51,7 @@ async function makeOutbox(opts: { assertSendable?: () => Promise<void>; seedRoot
   });
   // The branded ACK outbound is produced only by a real, successful ingestion (never fabricated by the test).
   const accepted = await sealAcceptedOutboundVia(store, 'INTAKE');
-  return { store, web, outbox, accepted, latched };
+  return { root, store, web, outbox, accepted, latched };
 }
 
 function grabDomainError(fn: () => unknown): DomainError {
@@ -136,6 +139,19 @@ describe('AS1 outbound transport', () => {
     expect(result.outcome).toBe('REJECTED_CONTROL');
     expect(web.posted).toHaveLength(0);
     expect(await store.readOutboxPhase(accepted.outboundId)).toBeNull();
+  });
+
+  it('latches and fails without network on a durable STORE_QUARANTINED from the outbox journal (B08)', async () => {
+    const { root, web, outbox, accepted, latched } = await makeOutbox();
+    // Corrupt the outbox index so the first journal read fails closed.
+    await writeFile(
+      path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/slack-outbox.json'),
+      JSON.stringify([{ outboundId: 'x', phase: 'BOGUS_PHASE', requestHash: null, responseHash: null, recordedAt: '2026-07-14T22:06:00.000Z' }]),
+    );
+    const result = await outbox.send(accepted);
+    expect(result.outcome).toBe('REJECTED_STORE');
+    expect(latched.length).toBeGreaterThan(0);
+    expect(web.posted).toHaveLength(0);
   });
 
   it('rejects when the intake has no accepted root', async () => {
