@@ -56,24 +56,26 @@ The complete proposed implementation surface is:
 4. `src/application/organization/registry.ts`
 5. `src/application/organization/index.ts`
 6. `tests/contract/organization-registry.test.ts`
-7. `docs/architecture/AGENT_OFFICE_TEAM_ONBOARDING_EXECUTION_PROFILE_DESIGN.md`
-8. `docs/contracts/AGENT_OFFICE_PROTOCOL_READINESS_CONTRACT.md`
-9. `docs/operations/AGENT_OFFICE_TEAM_ONBOARDING_WORKUNIT_PLAN.md`
+7. `tests/ui/actor-detail-drawer.test.tsx`
+8. `tests/ui/actor-summary.test.tsx`
+9. `docs/architecture/AGENT_OFFICE_TEAM_ONBOARDING_EXECUTION_PROFILE_DESIGN.md`
+10. `docs/contracts/AGENT_OFFICE_PROTOCOL_READINESS_CONTRACT.md`
+11. `docs/operations/AGENT_OFFICE_TEAM_ONBOARDING_WORKUNIT_PLAN.md`
 
 ### New files that may be created
 
-10. `docs/agent/TEAM_ONBOARDING_PROTOCOL.md`
-11. `docs/agent/EXECUTION_PROFILE_POLICY.md`
-12. `src/application/organization/onboarding.ts`
-13. `src/application/organization/readiness.ts`
-14. `src/application/organization/execution-profile.ts`
-15. `tests/contract/protocol-readiness.test.ts`
-16. `tests/contract/execution-profile-selection.test.ts`
-17. `tests/contract/team-onboarding-founder-scenarios.test.ts`
-18. `artifacts/team-onboarding-execution-profile-policy/WORKER_RESULT.md`
-19. `artifacts/team-onboarding-execution-profile-policy/WORKER_RESULT_POINTER.txt`
+12. `docs/agent/TEAM_ONBOARDING_PROTOCOL.md`
+13. `docs/agent/EXECUTION_PROFILE_POLICY.md`
+14. `src/application/organization/onboarding.ts`
+15. `src/application/organization/readiness.ts`
+16. `src/application/organization/execution-profile.ts`
+17. `tests/contract/protocol-readiness.test.ts`
+18. `tests/contract/execution-profile-selection.test.ts`
+19. `tests/contract/team-onboarding-founder-scenarios.test.ts`
+20. `artifacts/team-onboarding-execution-profile-policy/WORKER_RESULT.md`
+21. `artifacts/team-onboarding-execution-profile-policy/WORKER_RESULT_POINTER.txt`
 
-Any implementation need outside these nineteen paths returns to the Advisor for
+Any implementation need outside these twenty-one paths returns to the Advisor for
 a new exact handoff. No glob or directory-wide authorization is implied.
 
 ## 4. Globally forbidden implementation paths and actions
@@ -87,8 +89,8 @@ Forbidden without a later Founder decision and new reviewed design:
 - root `AGENTS.md` and `CLAUDE.md`; their current central-pointer pattern is
   already sufficient for Agent Office;
 - package manifests, lockfiles, tsconfig, lint config, build config, scripts,
-  runtime/server/adapters/UI/PWA files, fixtures outside the named tests, or
-  visual baselines;
+  runtime/server/adapters/UI/PWA source, UI tests other than the two exact §3
+  paths, fixtures outside the named tests, or visual baselines;
 - every AS1, Slack, exact-delivery, setup/as-built, manifest, token, owner,
   connection, and transport path;
 - Foundation, SIASIU, Cosmile, VibeNews, another repository/worktree, or the
@@ -121,10 +123,11 @@ Required content:
 - one structured responsible-Advisor entrypoint;
 - role-specific file/check/rehearsal matrix;
 - targeted reload and new-Actor lifecycle;
-- exact `PROTOCOL_READY`, not-ready, `TEAM_READY`, requirement, and selection
-  record shapes;
-- lowest-sufficient, operational retry, capability escalation, Reviewer
-  sufficiency, and self-override rules;
+- exact `PROTOCOL_READY`, not-ready, closed diagnostic, total onboarding-plan,
+  `TEAM_READY`, requirement, selection, attempt, and outcome record shapes;
+- normalized `NONE`, lowest-sufficient selection, immutable one-retry lineage,
+  original-snapshot capability escalation, authoritative independent-review
+  assignment, Reviewer sufficiency, and self-override rules;
 - concise project root pointer template naming project, Team/Advisor, routes,
   project constraints, central paths, and explicit handoff-supplied current
   commit/version; and
@@ -150,6 +153,8 @@ Exact paths:
 - `src/application/organization/registry.ts`
 - `src/application/organization/index.ts`
 - `tests/contract/organization-registry.test.ts`
+- `tests/ui/actor-detail-drawer.test.tsx`
+- `tests/ui/actor-summary.test.tsx`
 
 Implementation requirements:
 
@@ -158,7 +163,8 @@ Implementation requirements:
 2. add exactly `registrationState`, `dispatchRelevant`, and
    `executionCapabilities` to `OrganizationRegistryRow`;
 3. validate lifecycle, unique profile IDs/ranks, token shapes, ordered skills,
-   `NONE`, capability limits, and model/effort membership;
+   exact `['NONE']`-to-empty-set normalization, capability limits, and
+   model/effort membership; reject mixed `NONE` plus real skills;
 4. keep `roleInstanceId` as sole evidence join and `actorId` as routable identity;
 5. preserve all baseline `roleInstanceId`, actorId, role, project, Team, route,
    session, provenance, and existing accepted-evidence fields exactly;
@@ -171,6 +177,24 @@ Implementation requirements:
    explicit empty catalog and let profile selection fail closed. Never copy the
    synthetic xhigh/max/ultra scenario catalog into a real Actor row.
 
+The two authorized UI test files are typed consumers of complete
+`OrganizationRegistryRow` literals. Their only permitted implementation delta is
+to add these explicit fixture values to each `organizationActor()` registry
+literal:
+
+```ts
+registrationState: 'ACTIVE',
+dispatchRelevant: true,
+executionCapabilities: [],
+```
+
+They must also assert that the detail drawer still exposes its existing exact 17
+ordered facts and that the compact summary still exposes its existing exact nine
+facts/accessibility sources and glyph/ring state; no lifecycle/capability field
+is added to either current view. They may not make a field optional, add a
+default/inference helper, alter a UI component or pixel fixture, change existing
+visible behavior, or introduce a nonempty real-Actor catalog.
+
 The later handoff must include an exact table of all current row lifecycle,
 dispatch relevance, and any nonempty capability profiles. Missing real catalog
 evidence is not permission to guess.
@@ -180,12 +204,18 @@ Targeted tests:
 - all baseline identity/route values and evidence joins preserved;
 - duplicate/invalid profile ID/rank, unsorted/duplicate/mixed-`NONE` skills,
   invalid limits, and model/effort outside row allowed tokens fail closed;
+- exact `['NONE']` validates as serialized empty capability while a real-skill
+  list remains a real set;
 - shared allowed token lists alone yield no capability profile;
-- empty explicit catalog is valid but selects nothing; and
-- pending/suspended lifecycle remains non-dispatchable in the new policy.
+- empty explicit catalog is valid but selects nothing;
+- pending/suspended lifecycle remains non-dispatchable in the new policy; and
+- both typed UI fixture consumers compile and preserve their baseline detail/
+  summary outputs after adding all three required fields explicitly.
 
-Gate: existing `organization-registry.test.ts` behavior remains green plus new
-registry assertions; no edit to existing evidence/projector modules.
+Gate: existing `organization-registry.test.ts`, `actor-detail-drawer.test.tsx`,
+and `actor-summary.test.tsx` behavior remains green plus the new required-field/
+preservation assertions; full typecheck passes without optionality, defaults,
+or inference; no edit to existing evidence/projector or UI source modules.
 
 Rollback: revert the additive fields/validation/data and related exports/tests;
 identity/evidence data return byte-for-semantics to the frozen base.
@@ -212,8 +242,11 @@ validateRoleOnboardingHandoff
 validateProtocolUnderstandingResult
 validateProtocolReadyEvidence
 validateProtocolNotReadyEvidence
+validateProtocolReadinessDiagnostic
+validateTeamOnboardingPlannerInput
 projectActorProtocolReadiness
 projectTeamReadiness
+resolveOnboardingDiagnostic
 planTeamOnboarding
 ```
 
@@ -234,18 +267,38 @@ Implementation rules:
 - no role-category synthesis; no-Control is valid and multiple rows of one role
   remain distinct;
 - pending/suspended/stale/invalidated/conflicting/missing readiness fails closed;
-- one targeted handoff per non-ready required Actor, none for current-ready
-  Actors; and
+- every non-ready accepted Actor has one explicit primary diagnostic; only the
+  contract's closed code/detail pairs validate;
+- the contract §8 table maps every primary/global blocking diagnostic to exactly
+  one remediable handoff reason or one no-handoff lifecycle/authority/input
+  disposition;
+- remediable Actors receive one targeted handoff and current-ready Actors receive
+  none. Suspended Actors remain required/non-ready but receive no handoff before
+  separately reviewed reactivation;
+- missing/conflicting/non-active responsible Advisor blocks all handoffs while
+  retaining its pending/suspended row in the required/non-ready set; invalid
+  identity, route, or unattributable evidence emits its exact no-handoff block
+  and never copies authority from a rejected row. Invalid diagnostic pairing or
+  missing/conflicting handoff binding rejects the planner input with no output;
+  and
 - output/diagnostic arrays use the contract's stable deterministic order.
 
 Targeted unit cases include schema unknown/missing keys, malformed identifiers,
 file normalization and exact-set mismatch, wrong Advisor acceptance, actor
 contract drift, explicit commit/version drift, dedup/collision, simultaneous
 ready/not-ready conflict, later re-onboarding, route conflict, pending/suspended,
-zero-Control, multiple Workers, and one-blocked-member aggregation.
+zero-Control, multiple Workers, and one-blocked-member aggregation. Add a table-
+driven case for every valid diagnostic/detail mapping plus invalid cross-pairs;
+assert pending/missing/stale/misunderstood states receive their exact handoff,
+while suspended, missing/conflicting/non-active Advisor, invalid route/identity,
+and unattributable collision return exact no-handoff dispositions. Invalid/
+missing binding and invalid code/detail pairing return exact planner-input
+rejections. FVS-12 subcases must prove blocked Team status is independent from
+whether a lawful onboarding handoff exists.
 
 Gate: no mutable `TEAM_READY`/Actor-ready field in registry; no second store;
-every decision reproduces under input permutation.
+every planner decision reproduces under input permutation; no output attributes
+a handoff to an invalid or unresolved Advisor.
 
 Rollback: remove the two modules and their exports/tests; registry extension is
 inert until WU-04.
@@ -267,8 +320,14 @@ Required exported pure functions:
 
 ```text
 validateDispatchCapabilityRequirement
+validateIndependentReviewAssignment
 validateActorExecutionCapabilities
+validateActorCapabilityCatalogSnapshot
 selectExecutionProfile
+validateDispatchAttempt
+validateDispatchOutcomeEvidence
+validateDispatchLineage
+planInitialDispatchAttempt
 planOperationalRetry
 selectCapabilityEscalation
 validateReviewerSufficiency
@@ -281,21 +340,51 @@ Implementation rules:
 - requester must be the current responsible Advisor and target must be same-Team,
   active, dispatch-relevant, and current-ready;
 - candidate filtering covers all five classified dimensions, exact mode, and
-  required skill subset;
+  normalized required-skill subset. Exact `['NONE']` normalizes to empty on both
+  sides, mixed `NONE` plus real skill rejects, real-skill profiles satisfy an
+  empty requirement, and empty-skill profiles do not satisfy real skills;
 - sorting uses explicit `(capabilityRank, profileId)` only;
 - selection record includes every Founder field and exact structured
-  `whyNotLower`, `whyNotHigher`, and escalation data;
-- operational failure permits one same-selection/profile retry only;
-- accepted capability-insufficiency evidence may exclude the demonstrated
-  profile and select the next already-declared sufficient candidate;
+  `whyNotLower`, `whyNotHigher`, escalation data, selected-profile ref, and
+  immutable original Actor-catalog commit/hash;
+- every initial/retry attempt has one immutable ID/ref and attempt number and
+  exactly binds selection, profile, catalog, Actor, mission, and WorkUnit;
+- attempt and outcome exact same-ID replay collapses; ID collision, two attempt
+  records at one number, broken prior/trigger link, duplicate/conflicting
+  outcomes for one attempt, or a second retry fails closed;
+- operational failure permits only attempt 2 with the same selection/profile and
+  an exact link to attempt 1's sole accepted operational-failure outcome;
+- accepted capability-insufficiency evidence must bind one accepted attempt. A
+  new selection binds the exact outcome, superseded selection, and original
+  catalog snapshot and may select only a higher sufficient profile from that
+  snapshot;
+- current target catalog hash must equal the original snapshot before
+  escalation; any profile addition/removal/change after selection blocks rather
+  than becoming eligible. Repeated supersession planning also blocks;
 - target-authored profile request fails before any record is emitted; and
-- Reviewer selection requires role, Actor/session separation, current Reviewer
-  understanding check, route, and profile sufficiency independently.
+- `dispatchKind` is closed; every Reviewer target requires authoritative
+  `INDEPENDENT_REVIEW` and a valid assignment from the exact committed Advisor
+  review handoff. The later Worker handoff pins the authoritative source commit/
+  ref as a separate selector input; the caller requirement cannot supply or
+  override it. Its nonempty subject producers must equal the complete sorted
+  unique reviewed-Actor list; and
+- Reviewer selection rejects legacy true/false waiver shapes, absent/empty/
+  partial/extra/duplicate/self-overlapping scope or unresolved Actors, then
+  independently requires role, Actor/session separation, current Reviewer
+  understanding check, route, and profile sufficiency.
 
 Targeted unit cases cover every rejection reason, deterministic tie behavior,
-invalid entire catalog, no sufficient profile, operational failure vs capability
-failure, missing escalation evidence, undeclared higher capability, self
-override, and Reviewer authority/profile separation.
+invalid entire catalog, no sufficient profile, and all `NONE` positive/negative
+combinations. Attempt/outcome cases cover identical replay, same-ID collision,
+two IDs at one attempt number, wrong binding/acceptor, duplicate and conflicting
+outcomes, repeated retry planning, and a second retry. Escalation cases cover
+missing/wrong/duplicate trigger evidence, repeated supersession, undeclared
+higher capability, and a sufficient profile added after selection (plus removal
+and mutation), all of which block. Reviewer cases cover authoritative positive
+assignment plus `WORK`/legacy false/legacy true, missing/empty/partial/extra/
+duplicate/self-overlapping scopes, unresolved reviewed IDs, wrong assignment
+target/route, same Actor/session, wrong role, missing authority check, and
+insufficient profile. Self override asserts byte-identical inputs and no output.
 
 Gate: selector is pure and mutation-free; no dispatch/runtime/tmux integration;
 input arrays remain deeply equal after every success/failure test.
@@ -341,7 +430,9 @@ npx vitest run --maxWorkers=1 \
   tests/contract/organization-registry.test.ts \
   tests/contract/protocol-readiness.test.ts \
   tests/contract/execution-profile-selection.test.ts \
-  tests/contract/team-onboarding-founder-scenarios.test.ts
+  tests/contract/team-onboarding-founder-scenarios.test.ts \
+  tests/ui/actor-detail-drawer.test.tsx \
+  tests/ui/actor-summary.test.tsx
 npm run lint
 npm run typecheck
 npm run test:unit
@@ -354,9 +445,9 @@ or unrelated integration suites unless the actual diff unexpectedly reaches a
 forbidden surface; such reach is a STOP requiring a new handoff, not permission
 to broaden tests.
 
-Gate: all twelve named cases plus targeted/unit/type/lint/build checks pass with
-accurate counts; a static changed-path assertion proves the closed allowlist;
-no package/lock/config/baseline changes.
+Gate: all twelve named cases plus targeted/UI fixture/type/lint/build checks pass
+with accurate counts; a static changed-path assertion proves the closed twenty-
+one-path allowlist; no package/lock/config/baseline changes.
 
 Rollback: revert scenario/source commits in reverse order. No live state exists.
 
@@ -380,6 +471,9 @@ Required evidence:
 - per-Actor catalog provenance table, including every deliberately empty real
   catalog;
 - exact FVS-01..12 and gate outputs with failures/skips;
+- exact P1 UI-fixture preservation, P2 diagnostic/planner totality, P3 immutable
+  attempt/escalation lineage, P4 non-bypassable review scope, and P5 normalized
+  `NONE` evidence;
 - no second registry/store, no inferred capability, and explicit current
   protocol input evidence;
 - confirmation of no AS1/Slack/tmux/live/external-project/package/config change;
@@ -407,7 +501,7 @@ and Organization Registry patterns.
 
 Implementation is ready for independent review only when all are true:
 
-1. the nineteen-path closed allowlist is exact and no forbidden path changed;
+1. the twenty-one-path closed allowlist is exact and no forbidden path changed;
 2. every existing `roleInstanceId`, actorId, Team/route/session binding, and
    evidence join is preserved;
 3. per-Actor capability catalogs are explicit; no global allowed token list or
@@ -419,16 +513,19 @@ Implementation is ready for independent review only when all are true:
    evidence produces targeted reload;
 7. `TEAM_READY` is deterministic and requires the responsible Advisor plus all
    actual dispatch-relevant rows, with zero-Control and multi-Worker behavior
-   exact;
+   exact; the total planner emits handoffs only for remediable states and exact
+   no-handoff lifecycle/authority/input results for every other block;
 8. new-Actor nomination/registration/pending/onboarding/activation remains
    reviewed and non-dispatchable until every gate passes;
 9. selection records contain all Founder fields and choose lowest sufficient;
-   operational retry, capability escalation, self-override, and Reviewer
-   sufficiency match the frozen contract;
+   normalized `NONE`, immutable attempt/outcome chains, one operational retry,
+   original-snapshot capability escalation, self-override, and non-bypassable
+   Reviewer sufficiency match the frozen contract;
 10. exactly FVS-01..FVS-12 pass with their expected outcomes;
 11. targeted tests, lint, typecheck, unit suite, build, and diff checks pass;
 12. AS1, Slack, tmux delivery, Foundation, SIASIU, Cosmile, VibeNews, package
-    files, runtime/UI, and external systems remain unchanged;
+    files, runtime/UI source, and external systems remain unchanged; the only UI
+    test edits are the two exact WU-02 fixture/preservation paths;
 13. package/result/pointer commits are separately pushed non-force and verified
     clean/upstream-equal; and
 14. an independent Reviewer later inspects the frozen candidate. Worker and
@@ -449,10 +546,10 @@ override, or an unreviewed higher profile.
 
 ## 9. Explicit unchanged surfaces
 
-AS1, Slack, live tmux delivery, Agent Office runtime/UI/PWA, Foundation, SIASIU,
-Cosmile, VibeNews, all external project entry files, secrets, owner setup,
-packages, and production/live systems remain unchanged by this design and by
-the bounded implementation plan.
+AS1, Slack, live tmux delivery, Agent Office runtime/UI/PWA source, Foundation,
+SIASIU, Cosmile, VibeNews, all external project entry files, secrets, owner
+setup, packages, and production/live systems remain unchanged by this design
+and by the bounded implementation plan.
 
 `RETURN_TO: agent-office-advisor`
 

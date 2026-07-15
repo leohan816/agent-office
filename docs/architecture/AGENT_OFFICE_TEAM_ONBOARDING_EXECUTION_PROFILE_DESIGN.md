@@ -86,8 +86,10 @@ structured records.
    categories and never invents a missing role.
 4. Current accepted readiness is projected against the explicitly supplied
    canonical protocol commit and version.
-5. Already-current Actors receive no handoff. Each missing, stale, conflicting,
-   misunderstood, or pending Actor receives exactly one targeted handoff plan.
+5. Already-current Actors receive no handoff. Each remediable missing, stale,
+   conflicting, misunderstood, or pending Actor receives exactly one targeted
+   handoff plan. Suspension and invalid identity/route/Advisor authority produce
+   an explicit no-handoff block instead.
 6. The Actor reads exact files, completes structured understanding checks, and
    classifies a bounded synthetic rehearsal without executing it.
 7. The responsible Advisor accepts or rejects each subordinate's structured
@@ -159,9 +161,12 @@ Exact validation rules:
 - `capabilityRank` is a unique nonnegative safe integer within that Actor. It is
   the only profile ordering authority; model/effort strings are never globally
   ordered.
-- model, mode, effort, and every skill are nonblank exact tokens. Skills are
-  unique and lexicographically sorted. Literal `NONE` is the sole no-skill
-  value and may not coexist with another skill.
+- model, mode, effort, and every serialized skill are nonblank exact tokens.
+  Serialized skill arrays are unique, lexicographically sorted, and nonempty.
+  Exact `['NONE']` is the sole serialized representation of an empty skill set;
+  it normalizes to `[]` before comparison and may not coexist with a real skill.
+  A real-skill profile therefore covers a no-skill requirement, while a
+  `['NONE']` profile cannot cover any real-skill requirement.
 - the profile model and effort must be members of that row's existing
   observation-validation token sets. Membership alone does not create a
   profile.
@@ -220,9 +225,11 @@ Resolution is deterministic:
 
 1. normalize the registry with the existing drop-all duplicate rules;
 2. resolve the initiating `actorId` to exactly one accepted row;
-3. require that row's role is `ADVISOR`, its Team equals the requested Team, its
-   `registrationState` is `ACTIVE`, and it is the unique responsible Advisor
-   named by every accepted subordinate route for that Team;
+3. require that row's role is `ADVISOR`, its Team equals the requested Team, and
+   it is the unique responsible Advisor named by every accepted subordinate
+   route for that Team. Resolve membership regardless of lifecycle so a pending
+   or suspended Advisor remains required/non-ready; lifecycle independently
+   controls whether any handoff authority is lawful;
 4. form the candidate member set from accepted rows whose `advisorTeam` equals
    that Team;
 5. form the required set from the responsible Advisor plus every member with
@@ -232,6 +239,19 @@ Resolution is deterministic:
 Zero Control rows is valid. Two or more Workers are two separate required Actors
 when both are dispatch-relevant. Duplicate identities, multiple responsible
 Advisors, unresolved routes, or an unassigned initiating Actor fail closed.
+
+Planning is total without pretending every block is curable by onboarding. For
+each required non-ready Actor, the planner selects its highest-precedence closed
+diagnostic and emits exactly one of `HANDOFF_PLANNED`,
+`NO_HANDOFF_LIFECYCLE_BLOCKED`, `NO_HANDOFF_AUTHORITY_BLOCKED`, or
+`NO_HANDOFF_INPUT_BLOCKED`. Only the first disposition contains a handoff and an
+`OnboardingReason`. A suspended Actor remains required and non-ready but receives
+no handoff until a separately reviewed reactivation. A missing/conflicting
+responsible Advisor, invalid Actor identity, unresolved route, or unattributable
+evidence conflict produces an explicit blocked result with no handoff. An
+invalid/missing planner binding rejects the planner input with no plan or
+handoff. The planner never fills an Advisor ID from a rejected row or attributes
+a handoff to invalid authority.
 
 ## 7. Role-specific onboarding and targeted reload
 
@@ -276,6 +296,13 @@ return target, and STOP conditions. No shell, file write, network, or delivery
 action is performed. Any missing/wrong answer produces no ready evidence and
 only that Actor receives a targeted re-onboarding plan.
 
+Targeted onboarding is limited to remediable states defined by the closed
+diagnostic-to-action table in contract §8. Suspension is a lifecycle block, not
+an onboarding reason. Missing/conflicting Advisor authority, invalid routing or
+identity, and unattributable input are authority/input blocks. They preserve the
+`TEAM_NOT_READY` result but produce no handoff until a separate reviewed change
+restores lawful identity, route, lifecycle, or authority.
+
 ## 8. Per-dispatch requirement and profile selection
 
 The Advisor classifies every WorkUnit with these closed ordered values:
@@ -288,8 +315,12 @@ Reversibility: EASY < BOUNDED < DIFFICULT < IRREVERSIBLE
 ContextRequirement: SMALL < MEDIUM < LARGE < XLARGE
 ```
 
-The requirement also names the exact required mode and skill tokens. `NONE` is
-the only no-skill requirement and may not coexist with another skill.
+The requirement also names the exact required mode and serialized skill tokens.
+Exact `['NONE']` is the only no-skill serialization and normalizes to the empty
+set before subset comparison. A real-skill profile satisfies that empty
+requirement. A `['NONE']` profile normalizes to empty and cannot satisfy a real
+skill requirement. Mixed `NONE` plus real-skill arrays are invalid on both
+requirements and profiles.
 
 Selection is a pure function:
 
@@ -301,8 +332,8 @@ Selection is a pure function:
 5. validate every target capability profile; any malformed/duplicate catalog
    fails the selection rather than dropping a convenient profile;
 6. retain profiles whose declared limits meet or exceed all five requirement
-   dimensions, whose mode equals the required mode, and whose skill set covers
-   the required skills;
+   dimensions, whose mode equals the required mode, and whose normalized skill
+   set covers the normalized required-skill set;
 7. sort retained profiles by `capabilityRank`, then `profileId`; select the
    first; and
 8. emit one immutable decision record with the complete Founder classification,
@@ -315,28 +346,50 @@ ranks and envelopes on that Actor's row.
 
 ### 8.1 Retry and escalation
 
+- Every initial dispatch and retry is an immutable attempt. Attempt 1 binds the
+  exact selection, selected profile, and canonical Actor-catalog snapshot;
+  attempt 2 additionally binds attempt 1 and the one accepted triggering
+  `OPERATIONAL_FAILURE`. No attempt number above 2 is valid.
+- Every outcome binds one exact attempt ID and number. Identical same-ID replay
+  collapses; a same-ID collision, multiple outcomes for one attempt, conflicting
+  outcomes, an ambiguous attempt chain, or a second retry fails closed.
 - `OPERATIONAL_FAILURE` (offline/session unavailable/tool launch failure) permits
-  at most one new Advisor-authored dispatch attempt referencing the original
-  selection and using the exact same profile. It does not justify a higher
-  profile.
-- `CAPABILITY_INSUFFICIENT` must be an accepted structured result tied to the
-  exact selection/WorkUnit. It permits the Advisor to create a new selection
-  record excluding the demonstrated-insufficient profile and choosing the next
-  declared sufficient profile. It never edits the Actor catalog.
+  at most one new Advisor-authored attempt 2 referencing the original selection
+  and exact same profile. It does not justify a higher profile.
+- `CAPABILITY_INSUFFICIENT` must be accepted structured evidence tied to the
+  exact selection, attempt, and WorkUnit. A new selection binds that exact
+  outcome ID, its superseded selection, and the original selection's immutable
+  Actor-catalog snapshot. Escalation is blocked if the current target catalog no
+  longer hashes to that snapshot; a profile added after the original selection
+  is never eligible. The selector chooses only a higher, already-declared,
+  independently sufficient profile from the original snapshot and never edits
+  the Actor catalog.
 - if no declared higher profile is sufficient, selection returns
   `NO_SUFFICIENT_PROFILE` to the Advisor. It never invents `ultra` support.
+- replayed/repeated escalation planning, duplicate/conflicting trigger outcomes,
+  or more than one selection superseding the same selection fails closed.
 - the Actor may report evidence but cannot request, author, or apply its own
   profile change.
 
 ### 8.2 Reviewer sufficiency
 
-A review dispatch additionally requires the target row to have role `REVIEWER`,
-current readiness proving the Reviewer authority check, a non-conflicting
-`roleInstanceId` and session from the Advisor and reviewed Actors, and a profile
-whose envelope is sufficient for the review's complexity/risk/failure/context
-classification. Assignment/results still route through the responsible
-Advisor; judgment remains independent. Missing authority separation or profile
-sufficiency blocks review dispatch.
+`dispatchKind` is closed as `WORK | INDEPENDENT_REVIEW`. Review is not a caller
+boolean and cannot be disabled: every target registry row whose role is
+`REVIEWER` requires `INDEPENDENT_REVIEW`, and every `INDEPENDENT_REVIEW` target
+must be a Reviewer. The requirement references one immutable independent-review
+assignment sourced from the exact committed responsible-Advisor review handoff.
+That assignment contains a nonempty reviewed-subject manifest and a sorted,
+unique reviewed-Actor ID list that must equal exactly the set of subject
+producer IDs. Missing, empty, partial, extra, duplicate, false/legacy-waiver, or
+self-overlapping scopes reject the dispatch.
+
+A valid review dispatch additionally requires current readiness proving the
+Reviewer authority check, a non-conflicting `roleInstanceId`, `actorId`, and
+session from the Advisor and every reviewed Actor, exact assignment/target/Team/
+route agreement, and a profile whose envelope is sufficient for the review's
+complexity/risk/failure/context classification. Assignment/results still route
+through the responsible Advisor; judgment remains independent. Missing
+authority separation or profile sufficiency blocks review dispatch.
 
 ## 9. New-Actor lifecycle
 
@@ -379,7 +432,7 @@ Foundation, SIASIU, Cosmile, VibeNews, or any other project.
 
 | Handoff design requirement | Settled contract surface |
 |---|---|
-| 1. Reused components and smallest delta | §§2, 4-5; WorkUnit plan closed nineteen-path future implementation allowlist |
+| 1. Reused components and smallest delta | §§2, 4-5; WorkUnit plan closed twenty-one-path future implementation allowlist |
 | 2. Actor-specific model/mode/effort/skill representation | §4 per-row `executionCapabilities`; contract §3 |
 | 3. Immutable `PROTOCOL_READY` joined by `roleInstanceId` | §5; contract §§6-7 |
 | 4. Deterministic `TEAM_READY`, optional roles, conflicts/staleness | §6; contract §§7-8 |
@@ -423,8 +476,9 @@ Foundation, SIASIU, Cosmile, VibeNews, or any other project.
 
 - Closed task-classification vocabularies and per-Actor numeric ranks are policy
   metadata, not model-name inference.
-- `NONE` is an explicit skill token so lack of a required skill is represented,
-  not guessed from an empty or missing field.
+- `['NONE']` is an explicit serialized sentinel for the empty skill set, so lack
+  of a required skill is represented rather than guessed from a missing field;
+  comparison always uses the normalized set.
 - A reviewed activation commit is required after a new Actor's readiness pass;
   readiness evidence alone never mutates static registration.
 
