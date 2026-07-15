@@ -8,14 +8,16 @@ PROJECT: Agent Office
 
 REPOSITORY: `/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
-This result supersedes the original Phase A Worker result (commit `5e52078`). It
-records the same additive Phase A implementation **after** repairing the nine
-blocking findings B01–B09 raised by the independent SOL Sentinel security review.
-The committed source is an **implementation candidate**: the design has an
-independent `PASS`, but this implementation has **not** yet received an
-independent Reviewer PASS and must not be read as accepted Phase A. This is
-Worker evidence for that independent review — not a verdict, risk acceptance, or
-final mission approval.
+This result records the same additive Phase A implementation **after** repairing
+the nine blocking findings B01–B09 raised by the independent implementation-
+security review (section 1). It supersedes, as evidence, the original Phase A
+Worker result (commit `5e52078`) and the first corrected result/pointer pair
+(result commit `d8d1719`, pointer commit `dba31c0`); those commits remain in
+history as superseded evidence and are not deleted or rewritten. The committed
+source is an **implementation candidate**: the design has an independent `PASS`,
+but this implementation has **not** yet received an independent Reviewer PASS and
+must not be read as accepted Phase A. This is Worker evidence for that
+independent review — not a verdict, risk acceptance, or final mission approval.
 
 ## 1. Runtime and authority
 
@@ -25,13 +27,15 @@ final mission approval.
   "use Workflow" default was overridden by the standing `NO_AGENTS_OR_SUBAGENTS`
   mission constraint: **no** agent, sub-agent, delegated context, or parallel
   context was created; all repair work was solo and sequential.
-- Patch authority: the exact committed Advisor V2 patch handoff for
-  `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`, sourced from the independent SOL
-  Sentinel review result `20_REVIEW_RESULT.md` at governance HEAD
-  `8b66a7337ae3813bebaa557e23dfe281915d2998`, which enumerated blocking findings
-  B01–B09. Leo/GPT granted continuous-progress authorization (fix routine
-  failures in place; escalate only a security boundary or a new material
-  conflict).
+- Independent review source (the findings B01–B09 originate here): the
+  implementation-security review result
+  `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/20_IMPLEMENTATION_SECURITY_REVIEW_RESULT.md`
+  at review result commit `3100a717418d8a4dc17d0114aaa3daa8b14ac083`.
+- Controlling authority (separate commit — not the review result): the exact
+  committed Advisor V2 patch handoff at commit
+  `8b66a7337ae3813bebaa557e23dfe281915d2998`. Leo/GPT granted continuous-progress
+  authorization (fix routine failures in place; escalate only a security boundary
+  or a new material conflict).
 - Original design provenance (unchanged): frozen reviewed design head
   `81a8c3474380a7e427516d6f5e57c97ad88c6c9b` (this branch's BASE parent);
   independent design `PASS` recorded in foundation-docs
@@ -78,8 +82,13 @@ Files added by the patch (beyond the original allowlist):
 `src/adapters/gateways/slack-pilot/socket-frame.ts` (B01/B08), and five focused
 test files (`as1-slack-git-provenance`, `as1-slack-sdk-adapter`,
 `as1-slack-socket-client`, `as1-slack-socket-frame`,
-`as1-slack-durable-boundaries`). No package version, manifest, env-template,
-registry, or Exact-Delivery-v2 file was changed by the patch.
+`as1-slack-durable-boundaries`).
+
+Dependency delta (reviewed B01 transport-seam change): the patch **did** change
+`package.json` and `package-lock.json` — it removed `@slack/socket-mode@3.0.0`,
+added runtime `ws@8.21.1` and dev `@types/ws@8.18.1`, and retained
+`@slack/web-api@8.0.0`. Beyond that dependency delta, the patch changed no Slack
+app manifest, env template, organization registry, or Exact Delivery v2 file.
 
 ## 4. Integration gates (V2 §5, final tree at PATCH_SOURCE_HEAD `0e4274f`)
 
@@ -185,11 +194,14 @@ example template).
 
 ## 8. Rollback and status
 
-- **Rollback:** `git reset --hard 81a8c3474380a7e427516d6f5e57c97ad88c6c9b` fully
-  removes the additive change; the committed descriptor is default-disabled, so
-  no runtime cleanup is required (no live connection, grant, lease, or capability
-  was created). Individual findings are independently reversible by their commits
-  in section 3.
+- **Rollback:** the additive change is entirely above the exact base commit
+  `81a8c3474380a7e427516d6f5e57c97ad88c6c9b`, which is the recorded rollback
+  point. The committed descriptor stays default-disabled, so no runtime cleanup
+  is required (no live connection, grant, lease, or capability was created), and
+  individual findings are independently reversible by their commits in section 3.
+  Any history-changing rollback requires a separate Advisor authorization; the
+  preferred path is a new authorized worktree/branch or a reviewed revert. This
+  result does not prescribe or execute a destructive reset.
 - **Status:** after the result/pointer commits, working tree clean; branch
   upstream-equal after non-force push.
 
