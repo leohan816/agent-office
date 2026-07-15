@@ -26,10 +26,12 @@ closure. All Phase A validation is synthetic with fake Slack/tmux ports.
 | `src/application/slack-pilot/evidence-ingress.ts` | Profile-bound ACK/intake/question/result schemas; injected Git-provenance verification; ordered stages; Foundation separation |
 | `src/application/slack-pilot/outbox.ts` | Rendered same-thread outbound; safe-retry classification; no blind resend |
 | `src/adapters/gateways/slack-pilot/secret-config.ts` | Strict owner-only exact-key secret parser; no-follow + double-stat; redacted projection |
-| `src/adapters/gateways/slack-pilot/socket-client.ts` | Narrow raw `ws` public-root Socket Mode port (no `@slack/socket-mode`; auto-reconnect disabled); manual ACK; bounded FIFO admission (`INMEMORY_QUEUE_PER_PROFILE`/`INFLIGHT_SIDE_EFFECTS_PER_PROFILE`) with drain-deadline and forced-terminate latch |
-| `src/adapters/gateways/slack-pilot/web-client.ts` | Narrow Web port (auth.test/bots.info/chat.postMessage only) + SDK adapter (auto-retry disabled) |
-| `src/adapters/gateways/slack-pilot/exact-authority.ts` | Receive-grant startup gate + pair verification; readiness-lease parser; delivery-chain consistency; in-memory capability |
-| `src/adapters/gateways/slack-pilot/exact-transport.ts` | Separate exact tmux journal/runner; two preflights; PASTE_STARTED no-retry boundary |
+| `src/adapters/gateways/slack-pilot/socket-client.ts` | Narrow raw `ws` public-root Socket Mode transport `As1RawSocketTransport` (+ `NodeAs1WebSocketFactory`, `NodeAs1ConnectionsOpener`); no `@slack/socket-mode`, auto-reconnect disabled; manual ACK; bounded FIFO admission (`INMEMORY_QUEUE_PER_PROFILE`/`INFLIGHT_SIDE_EFFECTS_PER_PROFILE`); MANDATORY owning-control DEQUEUE gate (checked before `queue.shift`) and MANDATORY durable profile latch on every fail-closed transition, awaited before shutdown, never downgraded to CLOSED (B05) |
+| `src/adapters/gateways/slack-pilot/web-client.ts` | Narrow Web port `NodeAs1WebClient` (auth.test/bots.info/chat.postMessage only) + SDK adapter (auto-retry disabled) |
+| `src/adapters/gateways/slack-pilot/git-provenance.ts` | Real read-only bounded closed-argv `git` EVIDENCE provenance verifier `NodeAs1GitProvenanceVerifier` (B06) |
+| `src/adapters/gateways/slack-pilot/authority-provenance.ts` | Real read-only `git` AUTHORITY-artifact provenance verifier `NodeAs1AuthorityProvenanceVerifier` + production `GitAs1ReceiveGrantProvenanceGate` / `GitAs1DeliveryProvenanceGate` (B04) |
+| `src/adapters/gateways/slack-pilot/exact-authority.ts` | Receive-grant startup gate (MANDATORY real provenance gate before connection, B04) + pair verification; readiness-lease parser; delivery-chain consistency; in-memory capability |
+| `src/adapters/gateways/slack-pilot/exact-transport.ts` | Separate exact tmux journal/runner; two preflights; PASTE_STARTED no-retry boundary; MANDATORY delivery provenance gate (B04) and MANDATORY owning-control recheck before every side effect and adjacent transition (B05) |
 | `src/operations/readiness/as1-slack-control.ts` | Global/profile control; single-process lock (WriterLock); shutdown; rollback; irreversible latch |
 | `src/runtime/as1-slack-pilot/composition.ts` | Descriptor parser; default-disabled fail-closed composition |
 | `src/runtime/as1-slack-pilot/cli.ts` | Closed lifecycle command parser + redacted CLI + guarded operator entry |
@@ -58,15 +60,28 @@ permanently single-use. The readiness lease and in-memory capability are one-use
 The Worker-handoff numeric limits (brief §4) are implemented as
 `contracts.LIMITS` and referenced by their owning modules. Crossing a count/size/
 time/retention bound persists a stable reason and fails closed; there is no
-automatic deletion, compaction, or silent eviction.
+automatic deletion, compaction, or silent eviction. Every durable per-profile
+index and the global-control file are byte-bounded (`LIMITS.DURABLE_FILE_MAX_BYTES`)
+BEFORE allocation/read/parse, and the per-index count bound is still enforced after
+parse (B08). Strict on-read parsers additionally enforce state/phase-to-field
+relational invariants (receive-grant, pending-question, transport-record, dedupe
+phase) and exact idempotent-duplicate equality for root correlation; a
+semantically impossible or oversized durable record fails closed and durably
+latches (B08). Corruption/capacity/transport/handler failures durably latch the
+owning profile or global control (B05/B08).
 
 ## 4. Synthetic validation
 
-All sixteen focused `as1-slack-*` test files use fake Slack/tmux ports and
+All seventeen focused `as1-slack-*` test files use fake Slack/tmux ports and
 disposable owner-only state roots with placeholder IDs/tokens only. No real DNS/HTTP/WebSocket/Slack or
-tmux mutation is reachable. The narrow SDK adapters (`NodeAs1WebClient`,
-`NodeAs1SocketClient`) exist for production composition and are never executed in
-Phase A. There is no real tmux mutation runner in Phase A.
+tmux mutation is reachable. The production adapters — the Web adapter
+`NodeAs1WebClient` and the raw Socket Mode transport `As1RawSocketTransport` with
+`NodeAs1WebSocketFactory`/`NodeAs1ConnectionsOpener` — exist for production
+composition and are never executed in Phase A (there is no `NodeAs1SocketClient`
+class). The real read-only `git` provenance verifiers (`NodeAs1GitProvenanceVerifier`,
+`NodeAs1AuthorityProvenanceVerifier`) run only against disposable fixture repos in
+tests. There is no real tmux mutation runner in Phase A, and no live composition
+assembles a live receive/delivery loop.
 
 ## 5. Default-disabled proof
 

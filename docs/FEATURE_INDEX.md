@@ -657,10 +657,16 @@ Worker evidence: `artifacts/as1-multi-team-slack-pilot/WORKER_RESULT.md`.
   and `src/runtime/as1-slack-pilot/`; the committed descriptor is
   `config/agent-office.as1-slack-pilot.disabled.json`.
 - Two-stage authority (pre-event receive grant + post-intake pointer-delivery
-  grant/lease/capability), persist-before-ACK ordering, the sole
-  transition-time expiry decision, profile isolation, evidence ingress, outbox,
-  exact tmux transport, and default-disabled control are implemented and covered
-  by sixteen synthetic focused `as1-slack-*` test files (fake Slack/tmux ports).
+  grant/lease/capability) with real read-only `git` provenance gates for both
+  authority artifacts before connection/delivery, persist-before-ACK ordering
+  (including durable ACKed rejections through the transport state machine to a
+  once-only TERMINAL_NO_INTAKE), the sole transition-time expiry decision, profile
+  isolation, evidence ingress, outbox, exact tmux transport bound to owning
+  lock-holding control rechecked before every side effect, a raw Socket with an
+  owning-control dequeue gate and durable fail-closed latches, byte-bounded and
+  relationally-invariant durable recovery, and default-disabled control are
+  implemented and covered by seventeen synthetic focused `as1-slack-*` test files
+  (fake Slack/tmux ports; real `git` provenance runs only against fixture repos).
 - It claims no enabled descriptor, live Slack/tmux connection, usable authority,
   owner setup, implementation-review `PASS`, risk acceptance, or closure.
 - It changes no M01 authority, Exact Delivery v2 behavior, registry identity/
