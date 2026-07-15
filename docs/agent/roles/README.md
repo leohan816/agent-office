@@ -29,7 +29,9 @@ Common invariants for all roles:
 
 - One responsible Advisor per actor; assignment and result routing pass through
   that Advisor.
-- Start only from an exact committed handoff; fail closed on anything unclear.
+- The responsible Advisor starts only from the current Leo/GPT mission or
+  decision; each subordinate starts only from an exact committed Advisor
+  handoff. Unclear authority fails closed.
 - No unauthorized agent, sub-agent, delegated context, temporary session, or
   substitute actor.
 - No self-review, risk acceptance, or final approval by a subordinate; Leo/GPT
