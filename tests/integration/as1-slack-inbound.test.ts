@@ -6,6 +6,8 @@ import { As1InboundService } from '../../src/application/slack-pilot/service.js'
 import { agentOfficeContext, FakeClock, FakeProfileControlPort, slackEnvelope, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
+const VALID_AUTH = { enterprise_id: null, team_id: 'TWORKSPACE001', user_id: 'UAGENTOFFICEBOT1', is_bot: true, is_enterprise_install: false };
+
 async function makeService(startIso = '2026-07-14T22:05:00.000Z') {
   const root = await makeStateRoot();
   const clock = new FakeClock(startIso);
@@ -100,6 +102,20 @@ describe('AS1 inbound service — policy matrix rejections', () => {
     { name: 'wrong channel', options: { channel: 'COTHERCHANNEL1' }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
     { name: 'non-Leo user', options: { user: 'UINTRUDER00001' }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
     { name: 'shared channel', options: { isExtSharedChannel: true }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    // A/B (review B08): exact callback authorization identity + Slack time correlation.
+    { name: 'missing authorizations', options: { authorizations: undefined }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'empty authorizations', options: { authorizations: [] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'multiple authorizations', options: { authorizations: [VALID_AUTH, VALID_AUTH] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'authorization wrong team', options: { authorizations: [{ ...VALID_AUTH, team_id: 'TOTHERWORKSP01' }] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'authorization wrong bot user', options: { authorizations: [{ ...VALID_AUTH, user_id: 'UNOTTHEBOT0001' }] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'authorization not a bot', options: { authorizations: [{ ...VALID_AUTH, is_bot: false }] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'authorization enterprise install', options: { authorizations: [{ ...VALID_AUTH, is_enterprise_install: true }] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'authorization enterprise id present', options: { authorizations: [{ ...VALID_AUTH, enterprise_id: 'E0123456789' }] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'authorization extra field', options: { authorizations: [{ ...VALID_AUTH, injected: 'x' }] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'authorization missing field', options: { authorizations: [{ team_id: 'TWORKSPACE001', user_id: 'UAGENTOFFICEBOT1', is_bot: true, is_enterprise_install: false }] }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
+    { name: 'event_ts != ts', options: { eventTs: '1720000000.999999' }, reason: 'REJECTED_SURFACE', acked: true, latched: false },
+    { name: 'malformed event_time', options: { eventTime: 0 }, reason: 'REJECTED_SURFACE', acked: true, latched: false },
+    { name: 'unreasonable future event_time', options: { eventTime: 2_000_000_000 }, reason: 'REJECTED_IDENTITY', acked: false, latched: true },
   ];
 
   for (const testCase of cases) {
@@ -113,6 +129,17 @@ describe('AS1 inbound service — policy matrix rejections', () => {
       expect(service.isLatched()).toBe(testCase.latched);
     });
   }
+
+  it('fails closed (latched identity) when the trusted clock cannot be parsed for the future-time check', async () => {
+    const root = await makeStateRoot();
+    const store = await As1ProfileInboundStore.open(root, agentOfficeContext().profile, new FakeClock('2026-07-14T22:05:00.000Z'));
+    const grant = parseReceiveGrant(validReceiveGrant());
+    // A non-parseable trusted clock cannot prove the event is not from the future.
+    const service = new As1InboundService(agentOfficeContext(() => 'not-a-timestamp'), grant, store, new FakeProfileControlPort());
+    const result = await service.processEnvelope(slackEnvelope());
+    expect(result.classification).toBe('REJECTED_IDENTITY');
+    expect(result.latched).toBe(true);
+  });
 
   it('refuses all further envelopes once latched by an identity contradiction', async () => {
     const { service } = await makeService();

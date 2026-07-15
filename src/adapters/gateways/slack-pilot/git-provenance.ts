@@ -13,6 +13,7 @@
 import { execFile } from 'node:child_process';
 
 import { sha256Bytes } from '../../../persistence/file-store/hashing.js';
+import { LIMITS } from '../../../application/slack-pilot/contracts.js';
 import type { As1EvidenceProvenance, As1EvidenceRef, As1GitProvenanceVerifier } from '../../../application/slack-pilot/evidence-ingress.js';
 
 const GIT_SHA1 = /^[0-9a-f]{40}$/u;
@@ -30,8 +31,12 @@ export type As1GitRunner = (repoRoot: string, args: readonly string[]) => Promis
 /** The fixed, trusted git binary. Never resolved from PATH lookups or caller input. */
 const GIT_BINARY = '/usr/bin/git';
 
-/** The real git runner: fixed binary, closed argv, shell:false (execFile), fixed minimal env, bounded output. */
-export function nodeGitRunner(maxBytes = 65_536, timeoutMs = 5_000): As1GitRunner {
+/**
+ * The real git runner: fixed binary, closed argv, shell:false (execFile), fixed minimal env, and the FIXED
+ * approved subprocess output/time bounds (LIMITS.SUBPROCESS_OUTPUT_MAX_BYTES / SUBPROCESS_TIMEOUT_MS). It exposes
+ * no caller-overridable size/time defaults (review B08).
+ */
+export function nodeGitRunner(): As1GitRunner {
   return (repoRoot: string, args: readonly string[]): Promise<As1GitRunResult> =>
     new Promise<As1GitRunResult>((resolve, reject) => {
       execFile(
@@ -46,8 +51,8 @@ export function nodeGitRunner(maxBytes = 65_536, timeoutMs = 5_000): As1GitRunne
             HOME: '/nonexistent',
             LC_ALL: 'C',
           },
-          maxBuffer: maxBytes,
-          timeout: timeoutMs,
+          maxBuffer: LIMITS.SUBPROCESS_OUTPUT_MAX_BYTES,
+          timeout: LIMITS.SUBPROCESS_TIMEOUT_MS,
           encoding: 'buffer',
           windowsHide: true,
         },

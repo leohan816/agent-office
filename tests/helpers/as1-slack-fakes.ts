@@ -505,6 +505,9 @@ export interface EnvelopeOptions {
   readonly hidden?: boolean;
   readonly botId?: string;
   readonly isExtSharedChannel?: boolean;
+  readonly authorizations?: unknown;
+  readonly eventTime?: number;
+  readonly eventTs?: string;
   readonly onAck?: () => Promise<void>;
 }
 
@@ -516,7 +519,7 @@ export function slackEnvelope(options: EnvelopeOptions = {}): As1InboundEnvelope
     channel_type: options.channelType ?? 'group',
     user: options.user ?? APPROVED_LEO_USER_ID,
     ts: options.ts ?? '1720000000.000100',
-    event_ts: options.ts ?? '1720000000.000100',
+    event_ts: options.eventTs ?? options.ts ?? '1720000000.000100',
     text: options.text ?? 'please start a new mission',
   };
   if (options.threadTs !== undefined) event.thread_ts = options.threadTs;
@@ -524,12 +527,17 @@ export function slackEnvelope(options: EnvelopeOptions = {}): As1InboundEnvelope
   if (options.hidden !== undefined) event.hidden = options.hidden;
   if (options.botId !== undefined) event.bot_id = options.botId;
   if (options.isExtSharedChannel !== undefined) event.is_ext_shared_channel = options.isExtSharedChannel;
+  const teamId = options.teamId ?? 'TWORKSPACE001';
   const payload: Record<string, unknown> = {
     type: 'event_callback',
-    team_id: options.teamId ?? 'TWORKSPACE001',
+    team_id: teamId,
     api_app_id: options.apiAppId ?? 'AAGENTOFFICE01',
     event_id: options.eventId ?? 'Ev0AGENTOFFICE01',
-    event_time: 1_720_000_000,
+    event_time: options.eventTime ?? 1_720_000_000,
+    authorizations:
+      'authorizations' in options
+        ? options.authorizations
+        : [{ enterprise_id: null, team_id: teamId, user_id: 'UAGENTOFFICEBOT1', is_bot: true, is_enterprise_install: false }],
     event,
   };
   return {
@@ -607,7 +615,7 @@ export class FakeProfileControlPort implements As1ProfileControlPort {
   }
 }
 
-export function agentOfficeContext(): As1ProfileRuntimeContext {
+export function agentOfficeContext(now: () => string = () => '2026-07-14T22:05:00.000Z'): As1ProfileRuntimeContext {
   const world = fakeWireWorld().world;
   return {
     profile: selectProfile('AGENT_OFFICE_ADVISOR'),
@@ -616,6 +624,7 @@ export function agentOfficeContext(): As1ProfileRuntimeContext {
     channelId: world.agentOffice.channelId,
     leoUserId: world.agentOffice.leoUserId,
     botUserId: world.agentOffice.botUserId,
+    now,
   };
 }
 

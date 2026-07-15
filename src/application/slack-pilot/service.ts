@@ -20,6 +20,7 @@ import {
   buildContinuationIntake,
   buildNewMissionIntake,
   isDeferredQueryText,
+  LIMITS,
   requireBoundedMessageText,
   requireSlackTs,
   type As1ContinuationKind,
@@ -43,6 +44,8 @@ export interface As1ProfileRuntimeContext {
   readonly channelId: string;
   readonly leoUserId: string;
   readonly botUserId: string;
+  /** Trusted local clock (ISO-8601 UTC). Used ONLY to reject an unreasonable-future Slack event time (§9.3). */
+  readonly now: () => string;
 }
 
 export interface ProcessResult {
@@ -104,6 +107,9 @@ function readBoundedString(record: Record<string, unknown>, key: string, max = 2
   return typeof value === 'string' && value.length > 0 && value.length <= max ? value : null;
 }
 
+/** The EXACT key set the single selected-profile callback authorization must carry (design §7.7/§9.3). */
+const AUTHORIZATION_KEYS = ['enterprise_id', 'team_id', 'user_id', 'is_bot', 'is_enterprise_install'] as const;
+
 export class As1InboundService {
   private latched = false;
 
@@ -131,6 +137,26 @@ export class As1InboundService {
       return { kind: 'REJECTED', reason: 'REJECTED_SURFACE', latch: false };
     }
     if (teamId !== this.context.workspaceId || apiAppId !== this.context.appId) {
+      return { kind: 'REJECTED', reason: 'REJECTED_IDENTITY', latch: true };
+    }
+    // §7.7/§9.3: the callback MUST carry EXACTLY one selected-profile authorization — an object with the exact
+    // key set {enterprise_id, team_id, user_id, is_bot, is_enterprise_install} — for THIS workspace + startup bot
+    // user, with is_bot === true, is_enterprise_install === false, and enterprise_id === null. Missing, multiple,
+    // extra/missing fields, cross-team, non-bot, or ANY enterprise install/id fails closed (latched identity).
+    const authorizations = payload.authorizations;
+    if (!Array.isArray(authorizations) || authorizations.length !== 1 || !isRecord(authorizations[0])) {
+      return { kind: 'REJECTED', reason: 'REJECTED_IDENTITY', latch: true };
+    }
+    const authorization = authorizations[0];
+    if (
+      Object.keys(authorization).length !== AUTHORIZATION_KEYS.length ||
+      !AUTHORIZATION_KEYS.every((key) => Object.prototype.hasOwnProperty.call(authorization, key)) ||
+      authorization.enterprise_id !== null ||
+      authorization.is_bot !== true ||
+      authorization.is_enterprise_install !== false ||
+      readBoundedString(authorization, 'team_id') !== this.context.workspaceId ||
+      readBoundedString(authorization, 'user_id') !== this.context.botUserId
+    ) {
       return { kind: 'REJECTED', reason: 'REJECTED_IDENTITY', latch: true };
     }
     const event = payload.event;
@@ -170,6 +196,22 @@ export class As1InboundService {
       requireSlackTs(ts, 'event.ts');
     } catch {
       return { kind: 'REJECTED', reason: 'REJECTED_SURFACE', latch: false };
+    }
+    // §9.3: event.event_ts must equal event.ts, and payload.event_time must be a bounded unix-seconds integer.
+    // Slack time is CORRELATION ONLY — it never sets receive-grant expiry — but an event whose time is
+    // unreasonably in the FUTURE vs the trusted local clock is a replay/forgery signal and fails closed.
+    const eventTs = readBoundedString(event, 'event_ts', 32);
+    if (eventTs === null || eventTs !== ts) {
+      return { kind: 'REJECTED', reason: 'REJECTED_SURFACE', latch: false };
+    }
+    const eventTime = payload.event_time;
+    if (typeof eventTime !== 'number' || !Number.isInteger(eventTime) || eventTime <= 0 || eventTime > 9_999_999_999) {
+      return { kind: 'REJECTED', reason: 'REJECTED_SURFACE', latch: false };
+    }
+    // A non-parseable trusted clock cannot prove the event is not from the future — fail closed, never skip.
+    const nowMs = Date.parse(this.context.now());
+    if (!Number.isFinite(nowMs) || eventTime * 1_000 > nowMs + LIMITS.RECEIVE_GRANT_MAX_LIFETIME_MS) {
+      return { kind: 'REJECTED', reason: 'REJECTED_IDENTITY', latch: true };
     }
     if (isDeferredQueryText(text)) {
       return { kind: 'REJECTED', reason: 'REJECTED_DEFERRED_QUERY', latch: false };
