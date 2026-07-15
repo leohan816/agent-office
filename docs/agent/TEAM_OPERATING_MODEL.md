@@ -160,7 +160,76 @@ role-named folders:
 6. Do not create role-named top-level folders, a second role system, an
    `.agent-office/` overlay, or template collections.
 
-## 8. Dispatch Prerequisites
+## 8. Minimal Team Onboarding Manual
+
+The reusable instruction to a responsible Advisor is exactly:
+
+> Read the canonical Agent Office operating manual, teach the members of your Team their applicable roles, and work through that routine.
+
+The responsible Advisor carries out that instruction as follows:
+
+1. Read this central operating model and
+   [`roles/advisor.md`](roles/advisor.md), plus the current Leo/GPT mission or
+   decision.
+2. Resolve only the Actors currently registered to the Advisor's Team. Do not
+   create, infer, recruit, or substitute an Actor to fill a role.
+3. For each existing subordinate Actor, state the Actor's applicable role and
+   tell that Actor to read the project-local `AGENTS.md` and `CLAUDE.md`, this
+   central operating model, the matching central role file, and the current
+   exact handoff. The Actor must also read any additional authority named by
+   those entry documents or the handoff.
+4. Skip every role that is not registered or assigned. The responsible Advisor
+   is required; Designer, Control, Worker, and Reviewer are optional and are
+   used only when actually registered or assigned. A Team without a Control
+   simply skips Control.
+5. Use only Workers nominated by Leo/GPT or already registered to the Team. Do
+   not silently add or substitute a Worker.
+6. Collect this simple acknowledgement from each participating Actor:
+
+   ```text
+   FILES_READ:
+   ROLE:
+   RESPONSIBLE_ADVISOR:
+   MUST_DO:
+   MUST_NOT_DO:
+   READINESS: READY | CONFLICT
+   CONFLICTS: NONE | <concise conflict>
+   ```
+
+7. Correct only reported conflicts against the current authority and collect a
+   corrected acknowledgement. Do not broaden the mission or rewrite a role to
+   make a conflict disappear.
+8. After the applicable Actors are ready, operate through the existing
+   Advisor-led routine in Section 1, including exact dispatch, evidence return,
+   independent review when assigned, Advisor audit, and return to Leo/GPT.
+
+On every new session, role change, or new mission, the Advisor rereads the
+project entry files, this central model, the Advisor role file, and the current
+Leo/GPT mission or decision; each subordinate rereads the project entry files,
+this central model, the matching role file, and the current exact handoff. No
+Actor relies on memory or a prior acknowledgement.
+
+The acknowledgement is ordinary textual or Markdown mission evidence only. It
+makes no persistence claim and must not create or depend on a database,
+persistent readiness state, readiness projection, schema, or Actor lifecycle.
+
+Project-local `AGENTS.md` and `CLAUDE.md` remain short pointers plus
+project-local rules. Common role manuals remain centralized under
+`docs/agent/roles/` and are never copied into individual projects.
+
+### Advisor execution-profile selection
+
+The governing principle is exactly:
+
+> USE THE LOWEST PROFILE THAT IS SUFFICIENT, BUT NEVER USE AN INSUFFICIENT PROFILE TO SAVE COST OR TIME.
+
+The Advisor dispatches `xhigh` when it is sufficient, `max` when `xhigh` is
+likely insufficient, and `ultra` only when `max` is insufficient. The Advisor
+must not choose an unjustified stronger profile or force a weaker profile. An
+Actor must not silently change its own profile. Any profile change requires a
+new explicit Advisor dispatch that records the changed profile and rationale.
+
+## 9. Dispatch Prerequisites
 
 Before any actor is dispatched, the responsible Advisor confirms:
 
@@ -176,7 +245,7 @@ Before any actor is dispatched, the responsible Advisor confirms:
 If any prerequisite is missing, dispatch fails closed and returns to the
 responsible Advisor.
 
-## 9. Advisor Instruction Gate
+## 10. Advisor Instruction Gate
 
 Before dispatching any subordinate, the responsible Advisor classifies the
 incoming instruction against real repository state and records the verdict:
