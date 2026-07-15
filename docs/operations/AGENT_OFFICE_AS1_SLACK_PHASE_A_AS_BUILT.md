@@ -26,7 +26,7 @@ closure. All Phase A validation is synthetic with fake Slack/tmux ports.
 | `src/application/slack-pilot/evidence-ingress.ts` | Profile-bound ACK/intake/question/result schemas; injected Git-provenance verification; ordered stages; Foundation separation |
 | `src/application/slack-pilot/outbox.ts` | Rendered same-thread outbound; safe-retry classification; no blind resend |
 | `src/adapters/gateways/slack-pilot/secret-config.ts` | Strict owner-only exact-key secret parser; no-follow + double-stat; redacted projection |
-| `src/adapters/gateways/slack-pilot/socket-client.ts` | Narrow raw `ws` public-root Socket Mode transport `As1RawSocketTransport` (+ `NodeAs1WebSocketFactory`, `NodeAs1ConnectionsOpener`); no `@slack/socket-mode`, auto-reconnect disabled; manual ACK; bounded FIFO admission (`INMEMORY_QUEUE_PER_PROFILE`/`INFLIGHT_SIDE_EFFECTS_PER_PROFILE`); MANDATORY owning-control DEQUEUE gate (checked before `queue.shift`) and MANDATORY durable profile latch on every fail-closed transition, awaited before shutdown, never downgraded to CLOSED (B05) |
+| `src/adapters/gateways/slack-pilot/socket-client.ts` | Narrow raw `ws` public-root Socket Mode transport `As1RawSocketTransport` (+ `NodeAs1WebSocketFactory`, `NodeAs1ConnectionsOpener`); no `@slack/socket-mode`, auto-reconnect disabled; manual ACK; bounded FIFO admission (`INMEMORY_QUEUE_PER_PROFILE`/`INFLIGHT_SIDE_EFFECTS_PER_PROFILE`); MANDATORY owning-control DEQUEUE gate (checked before `queue.shift`) and MANDATORY durable profile latch on every fail-closed transition — queue overflow, provider disconnect, handler failure, forced termination, drain timeout, unconfirmed close, AND (B05 V5) a malformed-JSON frame after ready, an invalid/unexpected Events API envelope after ready, a post-ready raw socket `error`, a post-ready raw socket `close`, and a control predicate that returns false/rejects at dequeue — each stops admission, drops queued work, stays LATCHED through shutdown (never downgraded to CLOSED), terminates the same generation, and persists the owning-profile latch once (observable if persistence fails) (B05) |
 | `src/adapters/gateways/slack-pilot/web-client.ts` | Narrow Web port `NodeAs1WebClient` (auth.test/bots.info/chat.postMessage only) + SDK adapter (auto-retry disabled) |
 | `src/adapters/gateways/slack-pilot/git-provenance.ts` | Real read-only bounded closed-argv `git` EVIDENCE provenance verifier `NodeAs1GitProvenanceVerifier` (B06) |
 | `src/adapters/gateways/slack-pilot/authority-provenance.ts` | Real read-only `git` AUTHORITY-artifact provenance verifier `NodeAs1AuthorityProvenanceVerifier` + production `GitAs1ReceiveGrantProvenanceGate` / `GitAs1DeliveryProvenanceGate` (B04) |
@@ -62,13 +62,26 @@ The Worker-handoff numeric limits (brief §4) are implemented as
 time/retention bound persists a stable reason and fails closed; there is no
 automatic deletion, compaction, or silent eviction. Every durable per-profile
 index and the global-control file are byte-bounded (`LIMITS.DURABLE_FILE_MAX_BYTES`)
-BEFORE allocation/read/parse, and the per-index count bound is still enforced after
-parse (B08). Strict on-read parsers additionally enforce state/phase-to-field
-relational invariants (receive-grant, pending-question, transport-record, dedupe
-phase) and exact idempotent-duplicate equality for root correlation; a
+on the pinned read-only fd BEFORE allocation/read/parse, and the per-index count
+bound is still enforced after parse (B08). Strict on-read parsers enforce the exact
+phase-to-field matrix (B08 V5): a dedupe row is accepted only as the sole state a
+canonical writer can persist — `PREACK_PENDING` with `receiveGrantStateHash`,
+`intakeId`, and `terminalReason` all null — and any other combination (a
+`MATERIALIZED`/terminal `preAckClass`, or any populated decision field) is
+`STORE_QUARANTINED`; there is no dedupe update path, and the transport journal —
+not the dedupe row — is the canonical post-dedupe state machine. Transport records
+additionally require `eventId === observed.sourceEventId`, a candidate kind that
+agrees with the committed pre-ACK decision (`ROOT_BOUND`⇒ROOT,
+`CONTINUATION_CONSUMED`⇒CONTINUATION), and a binding-state hash exactly when the
+decision binds (present for bound/consumed, absent for pending); root-correlation
+duplicates require exact immutable equality. A fatal UTF-8 decode or JSON parse
+failure on any profile index or the global-control file is normalized to
+`STORE_QUARANTINED` (B08 V5) rather than a raw error, so profile-index corruption
+drives the owning-profile durable latch through the service boundary and
+global-control corruption fails the control open closed on every restart. A
 semantically impossible or oversized durable record fails closed and durably
-latches (B08). Corruption/capacity/transport/handler failures durably latch the
-owning profile or global control (B05/B08).
+latches; corruption/capacity/transport/handler failures durably latch the owning
+profile or global control (B05/B08).
 
 ## 4. Synthetic validation
 

@@ -663,10 +663,15 @@ Worker evidence: `artifacts/as1-multi-team-slack-pilot/WORKER_RESULT.md`.
   once-only TERMINAL_NO_INTAKE), the sole transition-time expiry decision, profile
   isolation, evidence ingress, outbox, exact tmux transport bound to owning
   lock-holding control rechecked before every side effect, a raw Socket with an
-  owning-control dequeue gate and durable fail-closed latches, byte-bounded and
-  relationally-invariant durable recovery, and default-disabled control are
-  implemented and covered by seventeen synthetic focused `as1-slack-*` test files
-  (fake Slack/tmux ports; real `git` provenance runs only against fixture repos).
+  owning-control dequeue gate and durable fail-closed latches on every
+  malformed/unexpected receive-ready frame, invalid Events API envelope, post-ready
+  raw error/close, and control-not-actionable-at-dequeue (B05 V5), byte-bounded
+  durable recovery whose parsers enforce the exact dedupe phase-to-field matrix and
+  normalize fatal UTF-8/JSON corruption of any profile index or the global-control
+  file into a durable owning-profile/global quarantine latch (B08 V5), and
+  default-disabled control are implemented and covered by seventeen synthetic
+  focused `as1-slack-*` test files (fake Slack/tmux ports; real `git` provenance
+  runs only against fixture repos).
 - It claims no enabled descriptor, live Slack/tmux connection, usable authority,
   owner setup, implementation-review `PASS`, risk acceptance, or closure.
 - It changes no M01 authority, Exact Delivery v2 behavior, registry identity/
