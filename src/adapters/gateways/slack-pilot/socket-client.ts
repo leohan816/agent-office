@@ -25,8 +25,12 @@ export type As1WsClientOptions = WebSocket.ClientOptions & {
   readonly maxFragments: 64;
 };
 
-/** The exact immutable ws options (design §7.4). handshakeTimeout is the remaining startup-deadline portion. */
-export function as1WsClientOptions(handshakeTimeout: number): As1WsClientOptions {
+// The exact immutable ws options (design §7.4). handshakeTimeout is the remaining startup-deadline portion.
+// The literal uses `as const satisfies As1WsClientOptions` (design §7.4 hard gate) so every fixed option keeps
+// its exact literal type through to the direct `new WebSocket(url, options)` seam in `NodeAs1WebSocketFactory`;
+// the inferred narrow return type is what the compile/static probe in the focused test asserts. No explicit
+// widening annotation, cast, `any`, module augmentation, deep import, or suppression is used.
+export function as1WsClientOptions(handshakeTimeout: number) {
   return {
     allowSynchronousEvents: false,
     autoPong: true,
@@ -40,7 +44,7 @@ export function as1WsClientOptions(handshakeTimeout: number): As1WsClientOptions
     perMessageDeflate: false,
     protocolVersion: 13,
     skipUTF8Validation: false,
-  } satisfies As1WsClientOptions;
+  } as const satisfies As1WsClientOptions;
 }
 
 /** Narrow, public-`ws`-shaped surface used by the state machine. Real `ws` satisfies it; fakes implement it. */

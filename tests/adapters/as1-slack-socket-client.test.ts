@@ -4,29 +4,33 @@ import { describe, expect, it, vi } from 'vitest';
 import { DomainError } from '../../src/contracts/types.js';
 import {
   As1RawSocketTransport,
+  as1WsClientOptions,
   assertValidSlackWssUrl,
   boundedSlackFetch,
   type As1InboundEnvelope,
-  type As1WsClientOptions,
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import { FakeAs1Ws, FakeAs1WebSocketFactory, FakeConnectionsOpener } from '../helpers/as1-slack-fakes.js';
 
-// Design §9.2: the exact `as const satisfies` literal against the three-field intersection. Its compilation
-// under strict / skipLibCheck:false is the mandatory type-contract probe; its runtime values are asserted.
-const PROBE_OPTIONS = {
-  allowSynchronousEvents: false,
-  autoPong: true,
-  closeTimeout: 5_000,
-  followRedirects: false,
-  handshakeTimeout: 10_000,
-  maxBufferedChunks: 64,
-  maxFragments: 64,
-  maxPayload: 32_768,
-  maxRedirects: 0,
-  perMessageDeflate: false,
-  protocolVersion: 13,
-  skipUTF8Validation: false,
-} as const satisfies As1WsClientOptions;
+// Design §7.4/§9.2 — the mandatory `as const satisfies` type-contract probe now targets the ACTUAL production
+// seam. The literal that `as1WsClientOptions()` builds — and that `NodeAs1WebSocketFactory` passes directly to
+// `new WebSocket` — must be the exact `as const satisfies As1WsClientOptions` literal, not a contextually
+// widened `satisfies`-only object. This module-scope assignment fails to typecheck if the production factory
+// widens any fixed option, so it is a genuine regression against the prior `satisfies`-only helper (0e4274f).
+// Runtime values of the same production literal are asserted below via the constructor spy.
+const _as1WsProductionLiteralContract: {
+  readonly allowSynchronousEvents: false;
+  readonly autoPong: true;
+  readonly closeTimeout: 5_000;
+  readonly followRedirects: false;
+  readonly maxBufferedChunks: 64;
+  readonly maxFragments: 64;
+  readonly maxPayload: 32_768;
+  readonly maxRedirects: 0;
+  readonly perMessageDeflate: false;
+  readonly protocolVersion: 13;
+  readonly skipUTF8Validation: false;
+} = as1WsClientOptions(10_000);
+void _as1WsProductionLiteralContract;
 
 const APP_ID = 'AAGENTOFFICE01';
 const helloFrame = (appId: string): Buffer => Buffer.from(`{"type":"hello","connection_info":{"app_id":"${appId}"}}`, 'utf8');
@@ -75,10 +79,11 @@ describe('AS1 raw socket transport — identity boundary', () => {
     expect(received).toHaveLength(0);
   });
 
-  it('constructs the ws with exactly the reviewed immutable options (spy) matching the compile probe', async () => {
+  it('constructs the ws with exactly the reviewed immutable production options (as const satisfies seam)', async () => {
     const { factory } = await connectReady();
+    // The exact literal the production factory (`as1WsClientOptions`) built and passed to the constructor.
     const options = factory.lastOptions;
-    expect(options?.maxPayload).toBe(PROBE_OPTIONS.maxPayload);
+    expect(options?.maxPayload).toBe(32_768);
     expect(options?.maxBufferedChunks).toBe(64);
     expect(options?.maxFragments).toBe(64);
     expect(options?.perMessageDeflate).toBe(false);
@@ -86,7 +91,12 @@ describe('AS1 raw socket transport — identity boundary', () => {
     expect(options?.maxRedirects).toBe(0);
     expect(options?.closeTimeout).toBe(5_000);
     expect(options?.followRedirects).toBe(false);
+    expect(options?.allowSynchronousEvents).toBe(false);
+    expect(options?.autoPong).toBe(true);
+    expect(options?.protocolVersion).toBe(13);
     expect((options?.handshakeTimeout ?? 0) > 0).toBe(true);
+    // The captured production options are the exact same reference shape produced by the factory function.
+    expect(factory.lastOptions).toStrictEqual(as1WsClientOptions(options?.handshakeTimeout ?? 0));
   });
 
   it('closes 1008 on a wrong-app hello and never delivers a subsequent event; ACK count stays zero', async () => {
