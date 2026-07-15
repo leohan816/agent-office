@@ -29,6 +29,18 @@ export interface As1ProfileWireIdentity {
   readonly appToken: string;
 }
 
+/**
+ * Real read-only provenance gate for the receive-grant artifact (review B04, security §8.1/§8.3). It proves the
+ * grant is the exact committed/pushed/clean/upstream-ancestral/byte-stable/single-first-added Git blob that
+ * descends from the frozen authority snapshots, BEFORE any connection. Production wires
+ * `GitAs1ReceiveGrantProvenanceGate` (bound to the trusted repo/upstream/snapshots at construction); it is never
+ * a caller-selectable permissive assertion. Making it mandatory here means the unsafe (provenance-free) startup
+ * shape is unrepresentable.
+ */
+export interface As1ReceiveGrantProvenanceGate {
+  assertAccepted(grant: As1PilotReceiveGrantV1): Promise<void>;
+}
+
 export interface StartupIdentityInput {
   readonly profile: As1Profile;
   readonly wire: As1ProfileWireIdentity;
@@ -36,6 +48,12 @@ export interface StartupIdentityInput {
   readonly now: string;
   readonly web: As1WebPort;
   readonly socket: As1SocketPort;
+  /**
+   * REQUIRED real receive-grant Git provenance gate (review B04). Runs before the pair verification and the
+   * connection, so a grant that is not the exact committed/pushed/clean/first-added/snapshot-descended artifact
+   * can never open a Socket. Never an injected permissive assertion in a production-representable path.
+   */
+  readonly receiveGrantProvenance: As1ReceiveGrantProvenanceGate;
   /**
    * REQUIRED current immutable control/latch snapshot (a stable hash of global-control + profile-latch
    * state). Composition wires this to As1SlackControl; it is never a caller-selectable permissive value.
@@ -91,6 +109,10 @@ export function assertReceiveGrantConnectable(
 export async function verifyStartupIdentity(input: StartupIdentityInput): Promise<StartupIdentityProof> {
   const { profile, wire, grant, now, web, socket } = input;
   assertReceiveGrantConnectable(profile, wire, grant, now);
+  // Real Git provenance of the receive-grant artifact BEFORE any Slack call or Socket open (review B04): the
+  // grant must be the exact committed/pushed/clean/upstream-ancestral/byte-stable/single-first-added blob that
+  // descends from the frozen authority snapshots. A permissive/echoed hash is not proof; this gate is.
+  await input.receiveGrantProvenance.assertAccepted(grant);
 
   const auth = await web.authTest(wire.botToken);
   if (!auth.ok || auth.teamId !== wire.workspaceId) {

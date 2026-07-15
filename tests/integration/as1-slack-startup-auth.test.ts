@@ -40,6 +40,10 @@ function startupInput(
     now: BEFORE_EXPIRY,
     web,
     socket,
+    // Pair-verification tests use an accepting provenance gate; the REAL Git provenance gate is proven against
+    // synthetic repos in tests/adapters/as1-slack-authority-provenance.test.ts. A rejecting gate below proves the
+    // start consults it before any connection.
+    receiveGrantProvenance: { assertAccepted: (): Promise<void> => Promise.resolve() },
     controlSnapshot: STABLE_CONTROL,
     connectReady: (): boolean => true,
     ...overrides,
@@ -174,5 +178,23 @@ describe('AS1 receive-grant pre-connection gate', () => {
         BEFORE_EXPIRY,
       );
     }).toThrow(DomainError);
+  });
+
+  it('a rejected receive-grant provenance blocks the start before any Slack call or Socket open (B04)', async () => {
+    const { world, web, socket } = fakeWireWorld();
+    const error = await grabDomainError(() =>
+      verifyStartupIdentity(
+        startupInput(web, socket, wire(world), {
+          receiveGrantProvenance: {
+            assertAccepted: (): Promise<void> =>
+              Promise.reject(new DomainError('AUTHORITY_ARTIFACT_INVALID', 'receive grant Git provenance is not accepted')),
+          },
+        }),
+      ),
+    );
+    expect(error.code).toBe('AUTHORITY_ARTIFACT_INVALID');
+    // The provenance gate runs BEFORE auth.test and BEFORE the Socket opens — a provenance-free start is impossible.
+    expect(web.authTestCalls).toBe(0);
+    expect(socket.connectCalls).toBe(0);
   });
 });
