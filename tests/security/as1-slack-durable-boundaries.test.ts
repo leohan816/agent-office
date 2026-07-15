@@ -9,7 +9,7 @@ import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
 import { parseReceiveGrant } from '../../src/application/slack-pilot/contracts.js';
 import { As1ProfileInboundStore, rootKeyHash, type As1TransportObserved } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1InboundService } from '../../src/application/slack-pilot/service.js';
-import { agentOfficeContext, FakeClock, FakeProfileLatchPort, slackEnvelope, validReceiveGrant, type EnvelopeOptions } from '../helpers/as1-slack-fakes.js';
+import { agentOfficeContext, FakeClock, FakeProfileControlPort, slackEnvelope, validReceiveGrant, type EnvelopeOptions } from '../helpers/as1-slack-fakes.js';
 import type { As1InboundEnvelope } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
@@ -26,14 +26,16 @@ async function newSession(iso = '2026-07-14T22:05:00.000Z') {
   const root = await makeStateRoot();
   const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock(iso));
   const grant = parseReceiveGrant(validReceiveGrant());
-  const service = new As1InboundService(CTX, grant, store, new FakeProfileLatchPort());
-  return { root, store, grant, service };
+  const gate = new FakeProfileControlPort();
+  const service = new As1InboundService(CTX, grant, store, gate);
+  return { root, store, grant, service, gate };
 }
 
 async function reopen(root: string, iso: string) {
   const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock(iso));
   const grant = parseReceiveGrant(validReceiveGrant());
-  return { store, grant, service: new As1InboundService(CTX, grant, store, new FakeProfileLatchPort()) };
+  const gate = new FakeProfileControlPort();
+  return { store, grant, service: new As1InboundService(CTX, grant, store, gate), gate };
 }
 
 function innerEventOf(envelope: As1InboundEnvelope): unknown {
@@ -86,6 +88,25 @@ async function seedAckRecordedRoot(store: As1ProfileInboundStore, grant: ReturnT
   });
   await store.commitPreAckDecision(EVENT_ID, { decision: 'ROOT_BOUND', terminalReason: null, bindingStateHash: bind.state.stateHash, continuation: null });
   await store.commitTransportAck(EVENT_ID);
+}
+
+const SECOND_EVENT_ID = 'Ev0AGENTOFFICE02';
+
+/** Seed a SECOND, independent TRANSPORT_ACK_RECORDED record (a rejected decision) awaiting the offline drain. */
+async function seedSecondAckRecordedRoot(store: As1ProfileInboundStore): Promise<void> {
+  const observed: As1TransportObserved = {
+    candidateKind: 'ROOT',
+    sourceEventId: SECOND_EVENT_ID,
+    rootTs: '1720000000.000200',
+    rootKeyHash: rootKeyHash(PROFILE.profileId, CTX.workspaceId, CTX.appId, CTX.channelId, '1720000000.000200'),
+    receiptArtifactRef: 'r2',
+    receiptArtifactHash: `sha256:${'2'.repeat(64)}`,
+    messageArtifactRef: 'm2',
+    messageArtifactHash: `sha256:${'3'.repeat(64)}`,
+  };
+  await store.openTransport(SECOND_EVENT_ID, 'Env0AGENTOFFICE2', `sha256:${'4'.repeat(64)}`, `sha256:${'5'.repeat(64)}`, observed);
+  await store.commitPreAckDecision(SECOND_EVENT_ID, { decision: 'REJECTED', terminalReason: 'REJECTED_ROOT_SLOT_CONSUMED', bindingStateHash: null, continuation: null });
+  await store.commitTransportAck(SECOND_EVENT_ID);
 }
 
 async function countIntakeDirs(root: string): Promise<number> {
@@ -190,5 +211,46 @@ describe('AS1 durable transport state machine — crash boundaries (B02)', () =>
         messageArtifactHash: `sha256:${'e'.repeat(64)}`,
       })),
     ).rejects.toBeInstanceOf(DomainError);
+  });
+});
+
+// B05 operational gate: the control gate is re-asserted before EVERY side effect, not only at entry.
+describe('AS1 operational control gate (B05)', () => {
+  it('a control block engaged after the entry check stops the first side effect and never ACKs', async () => {
+    const { store, service, gate } = await newSession();
+    gate.blockActionsAfter(0); // entry isActionable passes; the first assertActionable (before receipt) blocks
+    let acked = false;
+    await expect(
+      service.processEnvelope(slackEnvelope({ onAck: () => { acked = true; return Promise.resolve(); } })),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(acked).toBe(false);
+    expect(await store.readTransport(EVENT_ID)).toBeNull(); // no durable transport work either
+  });
+
+  it('a block engaged after the pre-ACK decision stops the ACK, leaving a committed-but-unacked decision', async () => {
+    const { store, service, gate } = await newSession();
+    // Allow the receipt + pre-ACK decision asserts, then block exactly at the ACK.
+    gate.blockActionsAfter(2);
+    let acked = false;
+    await expect(
+      service.processEnvelope(slackEnvelope({ onAck: () => { acked = true; return Promise.resolve(); } })),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(acked).toBe(false);
+    const transport = await store.readTransport(EVENT_ID);
+    expect(transport?.state).toBe('PREACK_ROOT_BOUND'); // decision durable, ACK blocked
+    expect(transport?.transportAckRecorded).toBe(false);
+  });
+
+  it('recoverPending stops between records: it materializes the first, then the gate blocks the second (B05)', async () => {
+    const { store, grant, service, gate } = await newSession();
+    // Seed two independent TRANSPORT_ACK_RECORDED roots (two event ids) awaiting the offline materialize drain.
+    await seedAckRecordedRoot(store, grant, slackEnvelope());
+    await seedSecondAckRecordedRoot(store);
+    gate.blockActionsAfter(1); // the loop asserts once per record: record #1 passes, record #2 blocks
+    await expect(service.recoverPending()).rejects.toBeInstanceOf(DomainError);
+    const first = await store.readTransport(EVENT_ID);
+    const second = await store.readTransport(SECOND_EVENT_ID);
+    expect(first?.state).toBe('MATERIALIZED');
+    expect(second?.state).toBe('TRANSPORT_ACK_RECORDED'); // untouched — recovery stopped between records
   });
 });

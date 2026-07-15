@@ -4,7 +4,7 @@ import { parseReceiveGrant } from '../../src/application/slack-pilot/contracts.j
 import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1InboundService } from '../../src/application/slack-pilot/service.js';
 import { As1SlackControl } from '../../src/operations/readiness/as1-slack-control.js';
-import { agentOfficeContext, FakeClock, FakeProfileLatchPort, slackEnvelope, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
+import { agentOfficeContext, FakeClock, FakeProfileControlPort, slackEnvelope, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
 const PROFILE = agentOfficeContext().profile;
@@ -17,7 +17,7 @@ describe('AS1 restart replay and expiry recovery', () => {
       agentOfficeContext(),
       grant,
       await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2026-07-14T22:05:00.000Z')),
-      new FakeProfileLatchPort(),
+      new FakeProfileControlPort(),
     );
     const bound = await first.processEnvelope(slackEnvelope());
     expect(bound.classification).toBe('NEW_MISSION_ROOT');
@@ -25,7 +25,7 @@ describe('AS1 restart replay and expiry recovery', () => {
     // Restart: a fresh store + service over the same durable state.
     const store2 = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2026-07-14T22:06:00.000Z'));
     expect((await store2.readReceiveGrantState(grant.receiveGrantId))?.phase).toBe('ROOT_BOUND');
-    const second = new As1InboundService(agentOfficeContext(), grant, store2, new FakeProfileLatchPort());
+    const second = new As1InboundService(agentOfficeContext(), grant, store2, new FakeProfileControlPort());
     const secondRoot = await second.processEnvelope(
       slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }),
     );
@@ -38,7 +38,7 @@ describe('AS1 restart replay and expiry recovery', () => {
     const clock = new FakeClock('2026-07-14T22:05:00.000Z');
     const store = await As1ProfileInboundStore.open(root, PROFILE, clock);
     const grant = parseReceiveGrant(validReceiveGrant()); // expiresAt 22:10
-    const service = new As1InboundService(agentOfficeContext(), grant, store, new FakeProfileLatchPort());
+    const service = new As1InboundService(agentOfficeContext(), grant, store, new FakeProfileControlPort());
 
     const first = await service.processEnvelope(slackEnvelope());
     expect(first.intakeId).not.toBeNull();

@@ -9,18 +9,34 @@
 import { DomainError } from '../../contracts/types.js';
 import { assertExactKeys, assertRecord } from '../../contracts/validation.js';
 import { redactError } from '../../application/slack-pilot/contracts.js';
-import type { As1ProfileLatchPort } from '../../application/slack-pilot/service.js';
+import type { As1ProfileControlPort } from '../../application/slack-pilot/service.js';
 import type { AgentOfficeRuntimeIdentity } from '../identity.js';
 import { As1SlackControl, type As1GlobalState, type As1ProfileSlug } from '../../operations/readiness/as1-slack-control.js';
 
 /**
- * Bind the inbound service's profile-latch port to the ONE canonical, lock-owning control record for a closed
- * profile slug (review B05). Production wires the service through this — never a second latch truth.
+ * Bind the inbound service's operational control gate to the ONE canonical, lock-owning control for a closed
+ * profile slug (review B05). Both gate forms use the control's SYNCHRONOUS, ownership-safe fail-closed
+ * predicates (no async read across a possible close). The live receive gate requires EXACTLY the RECEIVING
+ * state for this slug (a disabled/default or wrong-active-profile control is never actionable); the recovery
+ * gate permits only a non-disabled state for this slug.
  */
-export function controlProfileLatchPort(control: As1SlackControl, profileSlug: As1ProfileSlug): As1ProfileLatchPort {
+export function controlProfileControlPort(control: As1SlackControl, profileSlug: As1ProfileSlug): As1ProfileControlPort {
   return {
-    latchProfile: (reason: string): Promise<void> => control.latchProfile(profileSlug, reason),
-    isProfileLatched: (): Promise<boolean> => control.isProfileLatched(profileSlug),
+    isReceiveActionable: (): Promise<boolean> => Promise.resolve(control.isReceiveReady(profileSlug)),
+    assertReceiveActionable: (): Promise<void> => {
+      if (!control.isReceiveReady(profileSlug)) {
+        return Promise.reject(new DomainError('GATEWAY_DISABLED', 'profile is not receive-actionable: not RECEIVING for this profile, or closed/killed/latched'));
+      }
+      return Promise.resolve();
+    },
+    isReceiveRecoveryActionable: (): Promise<boolean> => Promise.resolve(control.isReceiveRecoveryReady(profileSlug)),
+    assertDrainActionable: (): Promise<void> => {
+      if (!control.isDrainReady(profileSlug)) {
+        return Promise.reject(new DomainError('GATEWAY_DISABLED', 'profile is not drain-actionable: closed/killed/latched or not a drain-permitted state'));
+      }
+      return Promise.resolve();
+    },
+    latchProfile: (reasonCode: string): Promise<void> => control.latchProfile(profileSlug, reasonCode),
   };
 }
 

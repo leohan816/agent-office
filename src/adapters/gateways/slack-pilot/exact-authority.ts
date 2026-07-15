@@ -43,6 +43,12 @@ export interface StartupIdentityInput {
    * synchronously revalidated inside the raw hello callback; a stale/changed snapshot fails the start.
    */
   readonly controlSnapshot: () => string;
+  /**
+   * REQUIRED synchronous, fail-closed control predicate bound to the exact receiving profile/state/latch
+   * (production: `As1SlackControl.isConnectReady(slug)`). It is re-checked inside the pre-event hello callback,
+   * so a default-disabled, killed, latched, or wrong-active-profile control can never pass the seal.
+   */
+  readonly connectReady: () => boolean;
 }
 
 /** The AUTHENTICATED_QUARANTINE proof — the client still cannot accept a message until every other gate passes. */
@@ -123,7 +129,9 @@ export async function verifyStartupIdentity(input: StartupIdentityInput): Promis
     profileId: profile.profileId,
     appToken: wire.appToken,
     expectedAppId: bot.appId,
-    readinessSeal: (): boolean => sealOf() === expectedSeal,
+    // The seal binds BOTH the immutable identity/control snapshot AND the synchronous fail-closed control
+    // predicate for the exact receiving profile/state/latch; either failing rejects pre-event (review B05).
+    readinessSeal: (): boolean => sealOf() === expectedSeal && input.connectReady(),
   });
   if (!connection.ok) {
     throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'socket connection or pre-event App-ID/seal proof failed');

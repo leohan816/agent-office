@@ -53,14 +53,31 @@ export interface ProcessResult {
 }
 
 /**
- * Narrow durable profile-latch port (review B05). It is the SOLE profile-latch source and is backed in
- * production by the lock-owning `As1SlackControl` canonical `failure-latch.json` record — never a second
- * truth. The service cannot be constructed into a live path without it.
+ * Narrow operational control gate (review B05). It is the SOLE control/latch source and is backed in
+ * production by the lock-owning `As1SlackControl` — never a second truth. It fails closed unless: the control
+ * is open/owned, the global kill is disengaged, the active profile (if any) is exactly this profile, and this
+ * profile is not latched. It is consulted before EVERY dequeue/ACK/mutation/materialization side effect. The
+ * service cannot be constructed into a live path without it.
  */
-export interface As1ProfileLatchPort {
-  /** Persist the irreversible profile latch (first reason preserved). Bound to this profile's closed slug. */
-  latchProfile(reason: string): Promise<void>;
-  isProfileLatched(): Promise<boolean>;
+export interface As1ProfileControlPort {
+  /** True iff a LIVE inbound envelope/ACK may proceed now (RECEIVING for this exact profile). Entry check. */
+  isReceiveActionable(): Promise<boolean>;
+  /** Assert the same; throws GATEWAY_DISABLED otherwise. Immediately before each live-receive side effect. */
+  assertReceiveActionable(): Promise<void>;
+  /**
+   * True iff a `PREACK_PENDING` record may ADVANCE now (non-disabled active state for this profile). When
+   * false the record is left untouched — never advanced while disconnected/disabled — and it must not prevent
+   * later ACK-recorded records from draining. Not a throw: the recovery loop skips instead.
+   */
+  isReceiveRecoveryActionable(): Promise<boolean>;
+  /**
+   * Assert the OFFLINE post-ACK drain gate for a `TRANSPORT_ACK_RECORDED` record: owned, unlatched, globally
+   * clean, permitted in DISABLED_CLEAN (expired + disconnected) or an active state — no Socket reopen, no
+   * active-profile inference. Throws GATEWAY_DISABLED otherwise.
+   */
+  assertDrainActionable(): Promise<void>;
+  /** Persist the irreversible profile latch with a stable bounded reason CODE (first reason preserved). */
+  latchProfile(reasonCode: string): Promise<void>;
 }
 
 interface ExtractedEvent {
@@ -94,7 +111,7 @@ export class As1InboundService {
     private readonly context: As1ProfileRuntimeContext,
     private readonly grant: As1PilotReceiveGrantV1,
     private readonly store: As1ProfileInboundStore,
-    private readonly latchPort: As1ProfileLatchPort,
+    private readonly gate: As1ProfileControlPort,
   ) {}
 
   public isLatched(): boolean {
@@ -181,10 +198,9 @@ export class As1InboundService {
   }
 
   public async processEnvelope(envelope: As1InboundEnvelope): Promise<ProcessResult> {
-    // Enforce the durable profile latch before any side effect (dequeue/ACK/materialize). The canonical latch
-    // survives restart — it is not a private in-memory boolean — and once set is never cleared here (review B05).
-    if (this.latched || (await this.latchPort.isProfileLatched())) {
-      this.latched = true;
+    // Graceful entry gate: control open/owned, no global kill, active profile matches, this profile not latched.
+    // The gate is re-asserted immediately before every subsequent side effect below (review B05).
+    if (this.latched || !(await this.gate.isReceiveActionable())) {
       return { acked: false, classification: 'PROFILE_LATCHED', intakeId: null, latched: true };
     }
     if (envelope.envelopeId.length === 0) {
@@ -201,26 +217,29 @@ export class As1InboundService {
       }
       return await this.handleContinuation(envelope, classification.extracted);
     } catch (error) {
-      // A durable corruption/capacity failure persists the profile latch before surfacing (review B05).
+      // A durable corruption/capacity failure persists the profile latch with a STABLE bounded reason code —
+      // never a raw error message — before surfacing (review B05).
       if (error instanceof DomainError && error.code === 'STORE_QUARANTINED') {
-        await this.latchProfile(`store quarantined: ${error.message}`);
+        await this.latchProfile('STORE_QUARANTINED');
       }
       throw error;
     }
   }
 
-  private async latchProfile(reason: string): Promise<void> {
-    await this.latchPort.latchProfile(reason);
+  private async latchProfile(reasonCode: string): Promise<void> {
+    await this.gate.latchProfile(reasonCode);
     this.latched = true;
   }
 
   private async handleRejection(envelope: As1InboundEnvelope, reason: string, latch: boolean): Promise<ProcessResult> {
+    await this.gate.assertReceiveActionable();
     await this.store.recordDenialAudit(reason, null, envelope.envelopeId);
     if (latch) {
       // An authenticated-profile identity contradiction persists a durable latch and refuses; it is not ACKed.
       await this.latchProfile(reason);
       return { acked: false, classification: reason, intakeId: null, latched: true };
     }
+    await this.gate.assertReceiveActionable();
     await envelope.acknowledge();
     return { acked: true, classification: reason, intakeId: null, latched: false };
   }
@@ -236,6 +255,7 @@ export class As1InboundService {
   }
 
   private async handleRoot(envelope: As1InboundEnvelope, extracted: ExtractedEvent): Promise<ProcessResult> {
+    await this.gate.assertReceiveActionable();
     const receipt = await this.store.persistReceipt(extracted.eventId, envelope.payload, extracted.text);
     const rootKey = this.rootKeyFor(extracted.ts);
     const observed: As1TransportObserved = {
@@ -281,6 +301,7 @@ export class As1InboundService {
         return this.handleRejection(envelope, 'REJECTED_THREAD_CORRELATION', false);
       }
     }
+    await this.gate.assertReceiveActionable();
     const receipt = await this.store.persistReceipt(extracted.eventId, envelope.payload, extracted.text);
     const rootKey = this.rootKeyFor(threadTs);
     const observed: As1TransportObserved = {
@@ -349,8 +370,11 @@ export class As1InboundService {
     );
     const startState = record.state;
 
+    // Re-assert the control gate immediately before EACH side effect below (pre-ACK mutation, ACK,
+    // materialization) — a global kill or profile latch engaged after the entry check blocks the next step.
     // 1. PREACK_PENDING -> committed pre-ACK decision (the sole receive-expiry linearization is inside decide()).
     if (record.state === 'PREACK_PENDING') {
+      await this.gate.assertReceiveActionable();
       record = await this.store.commitPreAckDecision(extracted.eventId, await decide());
     }
 
@@ -361,6 +385,7 @@ export class As1InboundService {
       record.state === 'PREACK_CONTINUATION_CONSUMED' ||
       record.state === 'PREACK_REJECTED'
     ) {
+      await this.gate.assertReceiveActionable();
       await envelope.acknowledge();
       acked = true;
       record = await this.store.commitTransportAck(extracted.eventId);
@@ -370,9 +395,11 @@ export class As1InboundService {
     if (record.state === 'TRANSPORT_ACK_RECORDED') {
       if (!acked) {
         // A prior attempt recorded the ACK but crashed before this step; reproduce only the durable ACK.
+        await this.gate.assertReceiveActionable();
         await envelope.acknowledge();
         acked = true;
       }
+      await this.gate.assertReceiveActionable();
       if (record.preAckDecision === 'REJECTED') {
         await this.store.commitTerminalNoIntake(extracted.eventId);
       } else {
@@ -383,6 +410,7 @@ export class As1InboundService {
 
     // 4. Already terminal on entry (a fully processed prior delivery): reproduce only the durable ACK.
     if (!acked && (record.state === 'MATERIALIZED' || record.state === 'TERMINAL_NO_INTAKE')) {
+      await this.gate.assertReceiveActionable();
       await envelope.acknowledge();
       acked = true;
     }
@@ -408,17 +436,24 @@ export class As1InboundService {
   public async recoverPending(): Promise<void> {
     if (this.latched) return;
     for (const record of await this.store.listNonTerminalTransport()) {
+      // Record-kind-aware recovery gate, re-checked between loop items (review B05):
       if (record.state === 'PREACK_PENDING') {
-        await this.recoverPreAckDecision(record);
+        // Advance a PREACK_PENDING record ONLY under an active/unexpired receive recovery gate. While
+        // disconnected/disabled it is left untouched (skipped) and must not block later ACK-recorded drains.
+        if (await this.gate.isReceiveRecoveryActionable()) {
+          await this.recoverPreAckDecision(record);
+        }
       } else if (record.state === 'TRANSPORT_ACK_RECORDED') {
+        // A durable ACK decision may drain offline (incl. DISABLED_CLEAN after expiry), never reopening a Socket.
+        await this.gate.assertDrainActionable();
         if (record.preAckDecision === 'REJECTED') {
           await this.store.commitTerminalNoIntake(record.eventId);
         } else {
           await this.materializeFromTransport(record);
         }
       }
-      // A committed pre-ACK decision that is not yet ACK-recorded waits for the exact Slack retry to reproduce
-      // the durable transport decision; recovery does not ACK it (design §15.1 step 3).
+      // A committed pre-ACK-but-unACKed decision (PREACK_ROOT_BOUND/CONTINUATION_CONSUMED/REJECTED) is left
+      // untouched for the exact Slack retry to reproduce the durable transport decision (design §15.1 step 3).
     }
   }
 

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
 import { As1SlackControl } from '../../src/operations/readiness/as1-slack-control.js';
-import { As1GatewayComposition, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
+import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
 import { parseAs1Cli, runAs1Cli } from '../../src/runtime/as1-slack-pilot/cli.js';
 import { FakeClock, secretText, validSecretValues, writeSecretFile } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
@@ -211,6 +211,87 @@ describe('AS1 control durable-state integrity (B05)', () => {
     const reopened = await reopenControl(root, '2026-07-14T22:05:00.000Z');
     expect(await reopened.isProfileLatched('agent-office-advisor')).toBe(true);
     await reopened.close();
+  });
+});
+
+describe('AS1 receive/recovery control gate (B05)', () => {
+  it('the receive gate is closed by default-disabled, wrong active profile, kill, and close', async () => {
+    const { control } = await makeControl(); // DISABLED_DEFAULT
+    const gate = controlProfileControlPort(control, 'agent-office-advisor');
+    // Fail-open fix: a default-disabled control (activeProfileSlug null) is NOT receive-actionable.
+    expect(await gate.isReceiveActionable()).toBe(false);
+    await expect(gate.assertReceiveActionable()).rejects.toThrow(DomainError);
+
+    await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
+    await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+    await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
+    expect(await gate.isReceiveActionable()).toBe(true); // exactly RECEIVING for this profile
+
+    // The same RECEIVING state is NOT actionable for the OTHER closed profile.
+    const wrong = controlProfileControlPort(control, 'foundation-advisor');
+    expect(await wrong.isReceiveActionable()).toBe(false);
+    await expect(wrong.assertReceiveActionable()).rejects.toThrow(DomainError);
+
+    await control.engageGlobalKill('kill');
+    expect(await gate.isReceiveActionable()).toBe(false); // a global kill closes the gate
+    await control.close();
+    expect(await gate.isReceiveActionable()).toBe(false); // a closed control fails closed
+    await expect(gate.assertDrainActionable()).rejects.toThrow(DomainError);
+  });
+
+  it('a durably latched profile closes the receive, recovery, and drain gates', async () => {
+    const { control } = await makeControl();
+    await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
+    await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+    await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
+    const gate = controlProfileControlPort(control, 'agent-office-advisor');
+    expect(await gate.isReceiveActionable()).toBe(true);
+    await control.latchProfile('agent-office-advisor', 'evidence rewrite');
+    expect(await gate.isReceiveActionable()).toBe(false);
+    expect(await gate.isReceiveRecoveryActionable()).toBe(false);
+    await expect(gate.assertReceiveActionable()).rejects.toThrow(DomainError);
+    await expect(gate.assertDrainActionable()).rejects.toThrow(DomainError);
+    await control.close();
+  });
+
+  it('offline drain: DISABLED_CLEAN permits post-ACK drain but denies PREACK_PENDING recovery and live receive (B05)', async () => {
+    const { control } = await makeControl();
+    await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
+    await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+    await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
+    await control.shutdown(); // drains to DISABLED_CLEAN (expired + disconnected)
+    expect(control.getState()).toBe('DISABLED_CLEAN');
+    const gate = controlProfileControlPort(control, 'agent-office-advisor');
+    await expect(gate.assertDrainActionable()).resolves.toBeUndefined(); // post-ACK materialization permitted
+    expect(await gate.isReceiveRecoveryActionable()).toBe(false); // PREACK_PENDING recovery denied while disabled
+    expect(await gate.isReceiveActionable()).toBe(false); // live receive denied
+    await control.close();
+    await expect(gate.assertDrainActionable()).rejects.toThrow(DomainError); // a closed control fails closed
+  });
+
+  it('denies a cross-profile drain while another profile is the active RECEIVING profile (B05)', async () => {
+    const { control } = await makeControl();
+    await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
+    await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+    await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE'); // agent-office active
+    // The bound-to-agent-office drain is permitted; the foundation drain is NOT (wrong active profile).
+    await expect(controlProfileControlPort(control, 'agent-office-advisor').assertDrainActionable()).resolves.toBeUndefined();
+    await expect(controlProfileControlPort(control, 'foundation-advisor').assertDrainActionable()).rejects.toThrow(DomainError);
+    await control.close();
+  });
+
+  it('the pre-event hello seal requires EXACTLY AUTHENTICATING_ONE_PROFILE (B05)', async () => {
+    const { control } = await makeControl();
+    const slug = 'agent-office-advisor';
+    expect(control.isConnectReady(slug)).toBe(false); // DISABLED_DEFAULT
+    await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', slug);
+    expect(control.isConnectReady(slug)).toBe(false); // RECEIVE_GRANTED is not the hello state
+    await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+    expect(control.isConnectReady(slug)).toBe(true); // exactly AUTHENTICATING
+    expect(control.isConnectReady('foundation-advisor')).toBe(false); // wrong active profile
+    await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
+    expect(control.isConnectReady(slug)).toBe(false); // already RECEIVING is not the hello state
+    await control.close();
   });
 });
 

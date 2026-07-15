@@ -41,6 +41,7 @@ function startupInput(
     web,
     socket,
     controlSnapshot: STABLE_CONTROL,
+    connectReady: (): boolean => true,
     ...overrides,
   };
 }
@@ -126,6 +127,16 @@ describe('AS1 startup pair verification (pre-event boundary)', () => {
     const changingControl = (): string => `control-snapshot-${(snapshot += 1)}`; // differs between precompute and hello
     const error = await grabDomainError(() =>
       verifyStartupIdentity(startupInput(web, socket, wire(world), { controlSnapshot: changingControl })),
+    );
+    expect(error.code).toBe('AUTHORITY_ARTIFACT_INVALID');
+    expect(socket.lastSealOk).toBe(false);
+  });
+
+  it('rejects the pre-event seal when the control is not connect-ready (default-disabled / wrong active profile)', async () => {
+    const { world, web, socket } = fakeWireWorld();
+    // A fail-closed control predicate (e.g. DISABLED_DEFAULT, or a different active profile) blocks the seal.
+    const error = await grabDomainError(() =>
+      verifyStartupIdentity(startupInput(web, socket, wire(world), { connectReady: (): boolean => false })),
     );
     expect(error.code).toBe('AUTHORITY_ARTIFACT_INVALID');
     expect(socket.lastSealOk).toBe(false);

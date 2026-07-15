@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parseReceiveGrant } from '../../src/application/slack-pilot/contracts.js';
 import { As1ProfileInboundStore, type As1PilotReceiveGrantStateV1 } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1InboundService } from '../../src/application/slack-pilot/service.js';
-import { agentOfficeContext, FakeClock, FakeProfileLatchPort, slackEnvelope, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
+import { agentOfficeContext, FakeClock, FakeProfileControlPort, slackEnvelope, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
 async function makeService(startIso = '2026-07-14T22:05:00.000Z') {
@@ -11,7 +11,7 @@ async function makeService(startIso = '2026-07-14T22:05:00.000Z') {
   const clock = new FakeClock(startIso);
   const store = await As1ProfileInboundStore.open(root, agentOfficeContext().profile, clock);
   const grant = parseReceiveGrant(validReceiveGrant());
-  const latchPort = new FakeProfileLatchPort();
+  const latchPort = new FakeProfileControlPort();
   const service = new As1InboundService(agentOfficeContext(), grant, store, latchPort);
   return { root, clock, store, grant, service, latchPort };
 }

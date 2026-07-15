@@ -120,6 +120,7 @@ class AsyncMutex {
 /** The AS1 lifecycle owner. Persists global control and per-profile latches; never auto-resets a latch. */
 export class As1SlackControl {
   private readonly mutex = new AsyncMutex();
+  private readonly profileLatchCache = new Map<As1ProfileSlug, boolean>();
   private lock: WriterLock | null;
   private released = false;
 
@@ -151,7 +152,9 @@ export class As1SlackControl {
     try {
       const integrity = await validateStartupState(canonicalRoot, format.stateRootId);
       if (integrity !== 'FRESH') {
-        return new As1SlackControl(canonicalRoot, format.stateRootId, clock, integrity.control, lock);
+        const instance = new As1SlackControl(canonicalRoot, format.stateRootId, clock, integrity.control, lock);
+        await instance.loadLatchCache();
+        return instance;
       }
       const control: As1GlobalControlV1 = {
         schemaVersion: CONTROL_SCHEMA,
@@ -166,11 +169,65 @@ export class As1SlackControl {
       await instance.persist();
       await instance.initializeProfileLatches();
       await instance.persistEstablishedMarker();
+      await instance.loadLatchCache();
       return instance;
     } catch (error) {
       await lock.release();
       throw error;
     }
+  }
+
+  /** Seed the synchronous profile-latch cache from the durable canonical records (single-writer consistent). */
+  private async loadLatchCache(): Promise<void> {
+    for (const slug of AS1_PROFILE_SLUGS) {
+      this.profileLatchCache.set(slug, await this.isProfileLatched(slug));
+    }
+  }
+
+  // ── Synchronous, ownership-safe readiness predicates (review B05). No async read across a possible close;
+  // the profile-latch state is served from the single-writer cache updated on latchProfile. ───────────────
+  /** Owned + not globally killed + not profile-latched for this slug. Does NOT check the active slug/state. */
+  private ownedClean(profileSlug: string): As1ProfileSlug | null {
+    const slug = AS1_PROFILE_SLUGS.find((s) => s === profileSlug);
+    if (slug === undefined) return null;
+    if (this.released || this.lock === null || this.isGloballyLatched()) return null;
+    if (this.profileLatchCache.get(slug) === true) return null;
+    return slug;
+  }
+
+  /** The pre-event hello/authentication-quarantine seal: owned/clean, active slug, and EXACTLY
+   *  AUTHENTICATING_ONE_PROFILE — not RECEIVE_GRANTED (pre-connect) nor RECEIVING (already live) — so a caller
+   *  cannot skip or replay lifecycle transitions. Fail-closed and synchronous. */
+  public isConnectReady(profileSlug: string): boolean {
+    const slug = this.ownedClean(profileSlug);
+    return slug !== null && this.control.activeProfileSlug === slug && this.control.state === 'AUTHENTICATING_ONE_PROFILE';
+  }
+
+  /** Live receive readiness: EXACTLY RECEIVING_ONE_PROFILE for the active bound slug. A disabled/default or
+   *  wrong-active-profile control is never actionable for an inbound envelope or ACK (fail-open fix). */
+  public isReceiveReady(profileSlug: string): boolean {
+    const slug = this.ownedClean(profileSlug);
+    return slug !== null && this.control.activeProfileSlug === slug && this.control.state === 'RECEIVING_ONE_PROFILE';
+  }
+
+  /** PREACK_PENDING recovery readiness: owned/clean, active slug, and a NON-disabled (active) state. When
+   *  disconnected/disabled a PREACK_PENDING record is left untouched (never advanced). Synchronous. */
+  public isReceiveRecoveryReady(profileSlug: string): boolean {
+    const slug = this.ownedClean(profileSlug);
+    return slug !== null && this.control.activeProfileSlug === slug && stateIsActive(this.control.state);
+  }
+
+  /** Offline post-ACK drain readiness (design §12.3/§15.1): owned/clean for the service's fixed profile, never
+   *  reopening a Socket. In DISABLED_CLEAN (expired + disconnected) no active profile is asserted; in an active
+   *  RECEIVING/DRAINING state the active profile MUST be this exact slug (no cross-profile drain). Synchronous. */
+  public isDrainReady(profileSlug: string): boolean {
+    const slug = this.ownedClean(profileSlug);
+    if (slug === null) return false;
+    if (this.control.state === 'DISABLED_CLEAN') return true;
+    if (this.control.state === 'RECEIVING_ONE_PROFILE' || this.control.state === 'DRAINING') {
+      return this.control.activeProfileSlug === slug;
+    }
+    return false;
   }
 
   /**
@@ -272,7 +329,10 @@ export class As1SlackControl {
       if (existing !== null) {
         // Parse before preserving: a malformed true must not silently return, a malformed false must not overwrite.
         const parsed = parseProfileLatch(existing, slug);
-        if (parsed.latched) return; // preserve the first latch; never overwrite it
+        if (parsed.latched) {
+          this.profileLatchCache.set(slug, true);
+          return; // preserve the first latch; never overwrite it
+        }
       }
       await writeAtomicCanonicalJson(target, {
         schemaVersion: PROFILE_LATCH_SCHEMA,
@@ -281,6 +341,7 @@ export class As1SlackControl {
         reason: boundedReason,
         latchedAt: this.clock.now(),
       });
+      this.profileLatchCache.set(slug, true);
     });
   }
 

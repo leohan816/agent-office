@@ -24,7 +24,7 @@ import type {
   As1WsClientOptions,
   As1WsLike,
 } from '../../src/adapters/gateways/slack-pilot/socket-client.js';
-import type { As1ProfileLatchPort, As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
+import type { As1ProfileControlPort, As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
 import { DomainError } from '../../src/contracts/types.js';
 import type { As1TmuxPort, As1TmuxPreflight } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
 import type {
@@ -540,26 +540,61 @@ export function slackEnvelope(options: EnvelopeOptions = {}): As1InboundEnvelope
 
 /** Runtime context for the Agent Office profile using the synthetic wire world identities. */
 /**
- * Strict in-memory profile-latch port. It preserves the first bounded reason and is durable across "restart"
- * when the SAME instance is shared between service instances (it models the one canonical latch source).
+ * Strict in-memory operational control gate. It preserves the first bounded reason and is durable across
+ * "restart" when the SAME instance is shared between service instances (it models the one canonical source).
+ * `blockActionsAfter(n)` lets the first n assertActionable() calls pass then blocks — used to deterministically
+ * simulate a global kill / profile latch engaged AFTER the entry check, between bounded side effects.
  */
-export class FakeProfileLatchPort implements As1ProfileLatchPort {
+export class FakeProfileControlPort implements As1ProfileControlPort {
   private latched = false;
   private firstReason: string | null = null;
+  private entryBlocked = false;
+  private allowedActions = Number.POSITIVE_INFINITY;
+  private actionCalls = 0;
 
-  public latchProfile(reason: string): Promise<void> {
-    if (typeof reason !== 'string' || reason.length === 0 || reason.length > 512) {
-      return Promise.reject(new DomainError('INVALID_SCHEMA', 'profile latch reason must be a bounded non-empty string'));
-    }
-    if (!this.latched) {
-      this.latched = true;
-      this.firstReason = reason;
+  /** Block the graceful entry check (isActionable) — simulates a latch/kill already present at entry. */
+  public blockEntry(): void {
+    this.entryBlocked = true;
+  }
+
+  /** Allow the first n assertActionable() side-effect gates, then block every one after. */
+  public blockActionsAfter(n: number): void {
+    this.allowedActions = n;
+  }
+
+  public isReceiveActionable(): Promise<boolean> {
+    return Promise.resolve(!this.entryBlocked && !this.latched);
+  }
+
+  public assertReceiveActionable(): Promise<void> {
+    return this.assertActionable();
+  }
+
+  public isReceiveRecoveryActionable(): Promise<boolean> {
+    return Promise.resolve(!this.entryBlocked && !this.latched && this.actionCalls < this.allowedActions);
+  }
+
+  public assertDrainActionable(): Promise<void> {
+    return this.assertActionable();
+  }
+
+  private assertActionable(): Promise<void> {
+    this.actionCalls += 1;
+    if (this.latched || this.actionCalls > this.allowedActions) {
+      return Promise.reject(new DomainError('GATEWAY_DISABLED', 'fake control gate blocked this side effect'));
     }
     return Promise.resolve();
   }
 
-  public isProfileLatched(): Promise<boolean> {
-    return Promise.resolve(this.latched);
+  public latchProfile(reasonCode: string): Promise<void> {
+    if (typeof reasonCode !== 'string' || reasonCode.length === 0 || reasonCode.length > 512) {
+      return Promise.reject(new DomainError('INVALID_SCHEMA', 'profile latch reason code must be a bounded non-empty string'));
+    }
+    if (!this.latched) {
+      this.latched = true;
+      this.firstReason = reasonCode;
+    }
+    return Promise.resolve();
   }
 
   public reason(): string | null {
