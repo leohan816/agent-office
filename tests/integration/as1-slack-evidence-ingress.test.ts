@@ -10,6 +10,7 @@ import {
 import {
   As1EvidenceIngress,
   buildEvidenceAuthority,
+  sourceArtifactRefToEvidenceRef,
   type As1AcceptedAuthorityRecords,
 } from '../../src/application/slack-pilot/evidence-ingress.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
@@ -17,6 +18,7 @@ import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
 import {
   AO_ACK_BINDINGS,
   AO_EVIDENCE_PREFIX,
+  aoResultArtifact,
   evidenceRef,
   FakeClock,
   FakeEvidenceLatch,
@@ -36,6 +38,8 @@ const AUTHORITY = {
   intakeId: 'as1-intake-0001',
   sourceEventId: 'Ev0AGENTOFFICE01',
   pointerHash: `sha256:${'4'.repeat(64)}`,
+  rootTs: '1720000000.000100',
+  receiveGrantExpiresAt: '2026-07-14T22:10:00.000Z',
   acceptedAck: { ...AO_ACK_BINDINGS },
   receiveGrantSourceCommit: 'a'.repeat(40),
   pointerDeliveryGrantSourceCommit: 'b'.repeat(40),
@@ -257,11 +261,15 @@ describe('AS1 evidence ingress — cross-stage binding (not mere stage presence)
   it('quarantines and latches a RESULT that closes an intake the Advisor rejected', async () => {
     const { ingress, latch } = await makeIngress();
     await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
-    // A prior INTAKE exists, but it was REJECTED_BY_ADVISOR — a RESULT may not close it.
-    expect(
-      (await ingress.ingest('INTAKE', validAdvisorIntake({ classification: 'REJECTED_BY_ADVISOR' }), evidenceRef('intake.json'))).outcome,
-    ).toBe('ACCEPTED');
-    const bad = await ingress.ingest('RESULT', validAdvisorResult(), evidenceRef('result.json'));
+    // A prior INTAKE exists, but it was REJECTED_BY_ADVISOR — a RESULT may not close it. The RESULT binds the
+    // EXACT rejected-intake envelope hash so we reach the not-accepted gate (not the envelope-mismatch gate).
+    const rejectedIntake = validAdvisorIntake({ classification: 'REJECTED_BY_ADVISOR' });
+    expect((await ingress.ingest('INTAKE', rejectedIntake, evidenceRef('intake.json'))).outcome).toBe('ACCEPTED');
+    const bad = await ingress.ingest(
+      'RESULT',
+      validAdvisorResult({ acceptedIntakeEvidenceHash: hashCanonical(rejectedIntake) }),
+      evidenceRef('result.json'),
+    );
     expect(bad.outcome).toBe('QUARANTINED');
     expect(bad.reason).toBe('EVIDENCE_RESULT_INTAKE_NOT_ACCEPTED');
     expect(latch.latched).toBe(true);
@@ -362,6 +370,8 @@ describe('AS1 evidence authority — production derivation from typed artifacts 
     expect(authority.intakeId).toBe('as1-intake-0001');
     expect(authority.sourceEventId).toBe('Ev0AGENTOFFICE01');
     expect(authority.pointerHash).toBe(H('4'));
+    expect(authority.rootTs).toBe('1720000000.000100');
+    expect(authority.receiveGrantExpiresAt).toBe('2026-07-14T22:10:00.000Z');
     expect(authority.receiveGrantSourceCommit).toBe('a'.repeat(40));
     expect(authority.pointerDeliveryGrantSourceCommit).toBe('b'.repeat(40));
     // The derived acceptedAck matches the shared §13.1 fixture on every field EXCEPT the two values the factory
@@ -393,5 +403,210 @@ describe('AS1 evidence authority — production derivation from typed artifacts 
     for (const [index, records] of cases.entries()) {
       expect(() => buildEvidenceAuthority(records), `case ${String(index)}`).toThrow(DomainError);
     }
+  });
+});
+
+/** A RESULT with a caller-supplied result artifact, kept internally consistent (outbound record + hash). */
+function resultWithArtifact(artifact: Record<string, unknown>, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const outboundRecord = {
+    kind: 'RESULT',
+    intakeId: 'as1-intake-0001',
+    resultId: 'result-0001',
+    terminalStatus: 'COMPLETED',
+    resultArtifact: artifact,
+    summary: 'Mission complete; result artifact committed and pushed.',
+  };
+  return validAdvisorResult({ resultArtifact: artifact, outboundRecord, outboundRecordHash: hashCanonical(outboundRecord), ...extra });
+}
+
+async function acceptAckIntake(ingress: As1EvidenceIngress): Promise<void> {
+  expect((await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'))).outcome).toBe('ACCEPTED');
+  expect((await ingress.ingest('INTAKE', validAdvisorIntake(), evidenceRef('intake.json'))).outcome).toBe('ACCEPTED');
+}
+
+describe('AS1 evidence ingress — §13.3 option-A bindings (B06)', () => {
+  it('passes the two authority source commits to the verifier on every provenance call', async () => {
+    const { ingress, verifier } = await makeIngress();
+    await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+    expect(verifier.calls.length).toBeGreaterThan(0);
+    expect(verifier.calls[0]?.snapshotCommits).toEqual(['a'.repeat(40), 'b'.repeat(40)]);
+  });
+
+  it('maps a canonical SourceArtifactRef into the verifier As1EvidenceRef with exact field equality', () => {
+    const ref = { repository: 'agent-office', commit: 'c'.repeat(40), path: 'a/b/c.json', sha256: `sha256:${'6'.repeat(64)}` };
+    expect(sourceArtifactRefToEvidenceRef(ref)).toEqual({
+      repositoryId: ref.repository,
+      sourceCommit: ref.commit,
+      path: ref.path,
+      blobSha256: ref.sha256,
+    });
+  });
+
+  it('binds the EXACT accepted ACK checkpoint id and envelope hash on an INTAKE', async () => {
+    for (const [override, code] of [
+      [{ acceptedAckEvidenceId: 'ev-ack-9999' }, 'EVIDENCE_INTAKE_ACK_EVIDENCE_MISMATCH'],
+      [{ acceptedAckEnvelopeHash: `sha256:${'9'.repeat(64)}` }, 'EVIDENCE_INTAKE_ACK_ENVELOPE_MISMATCH'],
+    ] as const) {
+      const { ingress, latch } = await makeIngress();
+      await ingress.ingest('ACK', validAdvisorAck(), evidenceRef('ack.json'));
+      const bad = await ingress.ingest('INTAKE', validAdvisorIntake(override), evidenceRef('intake.json'));
+      expect(bad.outcome, code).toBe('QUARANTINED');
+      expect(bad.reason, code).toBe(code);
+      expect(latch.latched, code).toBe(true);
+    }
+  });
+
+  it('binds the EXACT accepted INTAKE checkpoint id and envelope hash on a RESULT', async () => {
+    for (const [override, code] of [
+      [{ acceptedIntakeEvidenceId: 'ev-intake-9999' }, 'EVIDENCE_RESULT_INTAKE_EVIDENCE_MISMATCH'],
+      [{ acceptedIntakeEvidenceHash: `sha256:${'9'.repeat(64)}` }, 'EVIDENCE_RESULT_INTAKE_ENVELOPE_MISMATCH'],
+    ] as const) {
+      const { ingress, latch } = await makeIngress();
+      await acceptAckIntake(ingress);
+      const bad = await ingress.ingest('RESULT', validAdvisorResult(override), evidenceRef('result.json'));
+      expect(bad.outcome, code).toBe('QUARANTINED');
+      expect(bad.reason, code).toBe(code);
+      expect(latch.latched, code).toBe(true);
+    }
+  });
+
+  it('rejects a RESULT whose embedded outbound record disagrees, or whose hash does not bind it', async () => {
+    const { ingress } = await makeIngress();
+    const disagreeing = validAdvisorResult({
+      outboundRecord: {
+        kind: 'RESULT',
+        intakeId: 'as1-intake-0001',
+        resultId: 'result-9999', // disagrees with the RESULT resultId
+        terminalStatus: 'COMPLETED',
+        resultArtifact: aoResultArtifact(),
+        summary: 'x',
+      },
+    });
+    expect((await ingress.ingest('RESULT', disagreeing, evidenceRef('r1.json'))).reason).toBe('EVIDENCE_SCHEMA_REJECTED');
+    const wrongHash = validAdvisorResult({ outboundRecordHash: `sha256:${'9'.repeat(64)}` });
+    expect((await ingress.ingest('RESULT', wrongHash, evidenceRef('r2.json'))).reason).toBe('EVIDENCE_SCHEMA_REJECTED');
+  });
+
+  it('verifies the durable result SourceArtifactRef through the SAME Git/content authority chain, and latches', async () => {
+    const { ingress, verifier, latch } = await makeIngress();
+    await acceptAckIntake(ingress);
+    // Only the result artifact fails snapshot descent; the RESULT evidence's own ref still passes.
+    verifier.setForPath('result-artifact.json', { descendsFromBothSnapshots: false });
+    const bad = await ingress.ingest('RESULT', validAdvisorResult(), evidenceRef('result.json'));
+    expect(bad.outcome).toBe('QUARANTINED');
+    expect(bad.reason).toBe('EVIDENCE_RESULT_ARTIFACT_SNAPSHOT_DESCENT');
+    expect(latch.latched).toBe(true);
+  });
+
+  it('rejects a result artifact outside the grant-fixed repository or prefix', async () => {
+    for (const [artifact, code] of [
+      [aoResultArtifact({ repository: 'some-other-repo' }), 'EVIDENCE_RESULT_ARTIFACT_WRONG_REPOSITORY'],
+      [aoResultArtifact({ path: 'advisor/jobs/other/result-artifact.json' }), 'EVIDENCE_RESULT_ARTIFACT_WRONG_PREFIX'],
+    ] as const) {
+      const { ingress, latch } = await makeIngress();
+      await acceptAckIntake(ingress);
+      const bad = await ingress.ingest('RESULT', resultWithArtifact(artifact), evidenceRef('result.json'));
+      expect(bad.outcome, code).toBe('QUARANTINED');
+      expect(bad.reason, code).toBe(code);
+      expect(latch.latched, code).toBe(true);
+    }
+  });
+
+  it('rejects a RESULT whose consumed-question-reply count disagrees with the derived set', async () => {
+    const { ingress, latch } = await makeIngress();
+    await acceptAckIntake(ingress);
+    // No consumed questions exist, so the derived set is empty; the RESULT claims one.
+    const bad = await ingress.ingest(
+      'RESULT',
+      validAdvisorResult({ consumedQuestionReplyCount: 1, consumedQuestionReplySetHash: hashCanonical([]) }),
+      evidenceRef('result.json'),
+    );
+    expect(bad.outcome).toBe('QUARANTINED');
+    expect(bad.reason).toBe('EVIDENCE_RESULT_CONSUMED_COUNT_MISMATCH');
+    expect(latch.latched).toBe(true);
+  });
+
+  it('accepts ACK -> INTAKE -> QUESTION -> RESULT and idempotently opens the profile-local pending question', async () => {
+    const { ingress, store } = await makeIngress();
+    await acceptAckIntake(ingress);
+    expect((await ingress.ingest('QUESTION', validAdvisorQuestion(), evidenceRef('question.json'))).outcome).toBe('ACCEPTED');
+    // The QUESTION opened a profile-local pending question bound to the authority root + receive-grant expiry.
+    const opened = await store.findOpenQuestionForRoot('1720000000.000100');
+    expect(opened?.questionId).toBe('q-0001');
+    expect(opened?.expiresAt).toBe('2026-07-14T22:10:00.000Z');
+    // Re-observing the identical QUESTION is idempotent — it does NOT open a second question.
+    expect((await ingress.ingest('QUESTION', validAdvisorQuestion(), evidenceRef('question.json'))).outcome).toBe('ACCEPTED');
+    const again = await store.findOpenQuestionForRoot('1720000000.000100');
+    expect(again?.openedAt).toBe(opened?.openedAt);
+    // The default RESULT (no consumed replies) closes the intake.
+    expect((await ingress.ingest('RESULT', validAdvisorResult(), evidenceRef('result.json'))).outcome).toBe('ACCEPTED');
+  });
+
+  it('accepts a RESULT that binds a consumed-question-reply set derived from CONSUMED questions + materialized replies', async () => {
+    const { ingress, store } = await makeIngress();
+    const grant = parseReceiveGrant(validReceiveGrant());
+    await acceptAckIntake(ingress);
+    expect((await ingress.ingest('QUESTION', validAdvisorQuestion(), evidenceRef('question.json'))).outcome).toBe('ACCEPTED');
+
+    // Materialize a continuation reply for q-0001 and consume the pending question against it.
+    const replyEventId = 'Ev0REPLY000001';
+    await store.openTransport(replyEventId, `envelope-${replyEventId}`, `sha256:${'d'.repeat(64)}`, `sha256:${'e'.repeat(64)}`, {
+      candidateKind: 'CONTINUATION',
+      sourceEventId: replyEventId,
+      rootTs: '1720000000.000100',
+      rootKeyHash: `sha256:${'a'.repeat(64)}`,
+      receiptArtifactRef: 'indexes/as1-slack-pilot/profiles/agent-office-advisor/receipts/r1.json',
+      receiptArtifactHash: `sha256:${'b'.repeat(64)}`,
+      messageArtifactRef: 'indexes/as1-slack-pilot/profiles/agent-office-advisor/messages/m1.json',
+      messageArtifactHash: `sha256:${'c'.repeat(64)}`,
+    });
+    await store.commitPreAckDecision(replyEventId, {
+      decision: 'CONTINUATION_CONSUMED',
+      terminalReason: null,
+      bindingStateHash: `sha256:${'f'.repeat(64)}`,
+      continuation: { kind: 'CLARIFICATION', originalIntakeId: 'as1-intake-0001', questionId: 'q-0001' },
+    });
+    await store.commitTransportAck(replyEventId);
+    await store.commitMaterialized(replyEventId, 'as1-intake-cont-01', 'artifacts/as1-slack-pilot/agent-office-advisor/pointers/pc/pointer.json');
+    const consumed = await store.consumeQuestion(grant, '1720000000.000100', replyEventId);
+    expect(consumed.outcome).toBe('CONSUMED');
+
+    const expectedSet = [
+      {
+        questionId: 'q-0001',
+        expectedResponseKind: 'CLARIFICATION',
+        consumedBySourceEventId: replyEventId,
+        continuationKind: 'CLARIFICATION',
+        continuationIntakeId: 'as1-intake-cont-01',
+      },
+    ];
+    const accepted = await ingress.ingest(
+      'RESULT',
+      validAdvisorResult({ consumedQuestionReplyCount: 1, consumedQuestionReplySetHash: hashCanonical(expectedSet) }),
+      evidenceRef('result.json'),
+    );
+    expect(accepted.outcome).toBe('ACCEPTED');
+  });
+});
+
+describe('AS1 pending-question exact-idempotency (B06)', () => {
+  it('returns the existing record on an identical re-open, and rejects a divergent openedAt', async () => {
+    const root = await makeStateRoot();
+    const profile = selectProfile('AGENT_OFFICE_ADVISOR');
+    const store = await As1ProfileInboundStore.open(root, profile, new FakeClock('2026-07-14T22:06:00.000Z'));
+    const opening = {
+      questionId: 'q-idem-0001',
+      rootTs: '1720000000.000100',
+      expectedResponseKind: 'CLARIFICATION' as const,
+      evidenceRef: 'advisor/jobs/20260714_as1/runtime-evidence/agent-office-advisor/q-idem.json',
+      evidenceHash: `sha256:${'7'.repeat(64)}`,
+      openedAt: '2026-07-14T22:06:05.000Z',
+      expiresAt: '2026-07-14T22:10:00.000Z',
+    };
+    const first = await store.openQuestion(opening);
+    const again = await store.openQuestion(opening);
+    expect(again.openedAt).toBe(first.openedAt);
+    // A divergent openedAt on the same questionId is a durable contradiction, not a silent second question.
+    await expect(store.openQuestion({ ...opening, openedAt: '2026-07-14T22:06:06.000Z' })).rejects.toBeInstanceOf(DomainError);
   });
 });

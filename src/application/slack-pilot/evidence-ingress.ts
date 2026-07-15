@@ -10,11 +10,13 @@
 // ancestry, premature stage, wrong profile, wrong actor lineage, or wrong root quarantines the profile.
 // Foundation evidence must carry roleInstanceId foundation-advisor-20260714-01; the historical
 // foundation-advisor join key is invalid for Foundation output.
-import { DomainError } from '../../contracts/types.js';
-import { assertExactKeys, assertRecord, requireEnum } from '../../contracts/validation.js';
+import { DomainError, type SourceArtifactRef } from '../../contracts/types.js';
+import { assertExactKeys, assertRecord, requireEnum, requireInteger } from '../../contracts/validation.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import {
   requireArtifactRef,
+  requireBoundedMessageText,
+  requireGitCommit,
   requireOpaqueId,
   requireSha256,
   requireUtc,
@@ -54,9 +56,13 @@ export interface As1EvidenceProvenance {
   readonly descendsFromBothSnapshots: boolean;
 }
 
-/** Read-only Git provenance verifier. Uses closed argv, shell:false, fixed env, bounded output. */
+/**
+ * Read-only Git provenance verifier. Uses closed argv, shell:false, fixed env, bounded output. The two frozen
+ * authority snapshot commits are passed on EVERY call (from the accepted authority), not baked into a
+ * separately-constructed verifier, so the descent proof is always bound to this evidence's exact authority.
+ */
 export interface As1GitProvenanceVerifier {
-  verify(ref: As1EvidenceRef): Promise<As1EvidenceProvenance>;
+  verify(ref: As1EvidenceRef, snapshotCommits: readonly string[]): Promise<As1EvidenceProvenance>;
 }
 
 /** The immutable authority chain the evidence must bind to — taken from the accepted pointer-delivery grant. */
@@ -68,6 +74,10 @@ export interface As1EvidenceAuthority {
   readonly intakeId: string;
   readonly sourceEventId: string;
   readonly pointerHash: string;
+  /** The immutable root correlation Slack timestamp — used to idempotently open the profile-local question. */
+  readonly rootTs: string;
+  /** The accepted receive grant's expiry — the exact bound the profile-local pending question inherits. */
+  readonly receiveGrantExpiresAt: string;
   /**
    * A typed, construction-trusted snapshot of the accepted immutable authority/store state (the accepted
    * receive-grant binding, pilot, pointer-delivery grant, root correlation, pointer ref, terminal transport
@@ -107,11 +117,37 @@ export interface As1AckBindings {
   readonly consumedLeaseId: string;
 }
 
+/**
+ * The embedded, closed RESULT outbound record (design §13.3). It is validated at ingest and B07 sends EXACTLY
+ * this parsed record — there is no pre-send reconstruction and therefore no send-time circular dependency. Its
+ * durable result reference is the repository's canonical `SourceArtifactRef` (repository/commit/path/sha256).
+ */
+export interface As1ResultOutboundRecord {
+  readonly kind: 'RESULT';
+  readonly intakeId: string;
+  readonly resultId: string;
+  readonly terminalStatus: string;
+  readonly resultArtifact: SourceArtifactRef;
+  readonly summary: string;
+}
+
 export type As1EvidenceEnvelope =
   | (As1EvidenceCommon & As1AckBindings & { readonly kind: 'ACK'; readonly sourceEventId: string; readonly pointerHash: string; readonly advisorAckId: string; readonly acknowledgedAt: string })
-  | (As1EvidenceCommon & { readonly kind: 'INTAKE'; readonly advisorAckId: string; readonly classification: string; readonly recordedAt: string })
-  | (As1EvidenceCommon & { readonly kind: 'QUESTION'; readonly questionId: string; readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE'; readonly recordedAt: string })
-  | (As1EvidenceCommon & { readonly kind: 'RESULT'; readonly resultId: string; readonly terminalStatus: string; readonly resultArtifactRef: string; readonly recordedAt: string });
+  | (As1EvidenceCommon & { readonly kind: 'INTAKE'; readonly advisorAckId: string; readonly acceptedAckEvidenceId: string; readonly acceptedAckEnvelopeHash: string; readonly classification: string; readonly recordedAt: string })
+  | (As1EvidenceCommon & { readonly kind: 'QUESTION'; readonly questionId: string; readonly questionKind: string; readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE'; readonly questionText: string; readonly recordedAt: string })
+  | (As1EvidenceCommon & {
+      readonly kind: 'RESULT';
+      readonly resultId: string;
+      readonly terminalStatus: string;
+      readonly acceptedIntakeEvidenceId: string;
+      readonly acceptedIntakeEvidenceHash: string;
+      readonly resultArtifact: SourceArtifactRef;
+      readonly consumedQuestionReplyCount: number;
+      readonly consumedQuestionReplySetHash: string;
+      readonly outboundRecord: As1ResultOutboundRecord;
+      readonly outboundRecordHash: string;
+      readonly recordedAt: string;
+    });
 
 const ACK_KEYS = [
   'schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'sourceEventId',
@@ -121,9 +157,19 @@ const ACK_KEYS = [
   'receiveGrantId', 'receiveGrantBindingHash', 'pilotId', 'pointerDeliveryGrantId', 'rootCorrelationHash',
   'pointerArtifactRef', 'transportJournalRef', 'transportJournalHash', 'consumedDeliveryGrantId', 'consumedLeaseId',
 ] as const;
-const INTAKE_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'advisorAckId', 'classification', 'recordedAt'] as const;
-const QUESTION_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'questionId', 'expectedResponseKind', 'recordedAt'] as const;
-const RESULT_KEYS = ['schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId', 'resultId', 'terminalStatus', 'resultArtifactRef', 'recordedAt'] as const;
+const INTAKE_KEYS = [
+  'schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId',
+  'advisorAckId', 'acceptedAckEvidenceId', 'acceptedAckEnvelopeHash', 'classification', 'recordedAt',
+] as const;
+const QUESTION_KEYS = [
+  'schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId',
+  'questionId', 'questionKind', 'expectedResponseKind', 'questionText', 'recordedAt',
+] as const;
+const RESULT_KEYS = [
+  'schemaVersion', 'evidenceId', 'profileId', 'advisorTeam', 'actorId', 'roleInstanceId', 'intakeId',
+  'resultId', 'terminalStatus', 'acceptedIntakeEvidenceId', 'acceptedIntakeEvidenceHash', 'resultArtifact',
+  'consumedQuestionReplyCount', 'consumedQuestionReplySetHash', 'outboundRecord', 'outboundRecordHash', 'recordedAt',
+] as const;
 
 const SCHEMA_VERSIONS: Record<As1EvidenceKind, string> = {
   ACK: 'agent-office.as1-advisor-ack.v1',
@@ -145,6 +191,58 @@ export const INTAKE_CLASSIFICATIONS = [
   'DECISION_RESPONSE_RECORDED',
   'REJECTED_BY_ADVISOR',
 ] as const;
+
+const SOURCE_ARTIFACT_REF_KEYS = ['repository', 'commit', 'path', 'sha256'] as const;
+
+/**
+ * Parse the repository's canonical `SourceArtifactRef` (src/contracts/types.ts): exact keys repository/commit/
+ * path/sha256. This is the reviewed contract shape — NOT the verifier-internal As1EvidenceRef. AS1 authority is
+ * `agent-office`, so this does not reuse the foundation-docs-only tmux parser.
+ */
+function requireSourceArtifactRef(value: unknown, label: string): SourceArtifactRef {
+  assertRecord(value, label);
+  assertExactKeys(value, SOURCE_ARTIFACT_REF_KEYS, label);
+  return {
+    repository: requireOpaqueId(value.repository, `${label}.repository`),
+    commit: requireGitCommit(value.commit, `${label}.commit`),
+    path: requireArtifactRef(value.path, `${label}.path`),
+    sha256: requireSha256(value.sha256, `${label}.sha256`),
+  };
+}
+
+/**
+ * Map a validated canonical `SourceArtifactRef` into the verifier-internal `As1EvidenceRef` at the provenance
+ * boundary — a pure field rename (repository→repositoryId, commit→sourceCommit, sha256→blobSha256) with no
+ * revalidation. Kept separate so ACK/pointer evidence refs are never re-shaped and the canonical contract is not
+ * redefined; the equality-preserving field map is exercised directly in tests.
+ */
+export function sourceArtifactRefToEvidenceRef(ref: SourceArtifactRef): As1EvidenceRef {
+  return { repositoryId: ref.repository, sourceCommit: ref.commit, path: ref.path, blobSha256: ref.sha256 };
+}
+
+const RESULT_OUTBOUND_KEYS = ['kind', 'intakeId', 'resultId', 'terminalStatus', 'resultArtifact', 'summary'] as const;
+
+/** Parse the embedded closed RESULT outbound record (design §13.3): exact keys, bounded summary, exact artifact. */
+function requireResultOutboundRecord(value: unknown, label: string): As1ResultOutboundRecord {
+  assertRecord(value, label);
+  assertExactKeys(value, RESULT_OUTBOUND_KEYS, label);
+  if (value.kind !== 'RESULT') {
+    throw new DomainError('INVALID_SCHEMA', `${label}.kind must be RESULT`);
+  }
+  return {
+    kind: 'RESULT',
+    intakeId: requireOpaqueId(value.intakeId, `${label}.intakeId`),
+    resultId: requireOpaqueId(value.resultId, `${label}.resultId`),
+    terminalStatus: requireOpaqueId(value.terminalStatus, `${label}.terminalStatus`),
+    resultArtifact: requireSourceArtifactRef(value.resultArtifact, `${label}.resultArtifact`),
+    summary: requireBoundedMessageText(value.summary, `${label}.summary`),
+  };
+}
+
+/** True only when two canonical SourceArtifactRefs are byte-identical on every field. */
+function sourceArtifactRefEqual(a: SourceArtifactRef, b: SourceArtifactRef): boolean {
+  return a.repository === b.repository && a.commit === b.commit && a.path === b.path && a.sha256 === b.sha256;
+}
 
 /**
  * Validate an evidence record against its EXACT full schema, the selected profile's immutable lineage, and
@@ -202,6 +300,8 @@ export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, pro
         ...common,
         kind: 'INTAKE',
         advisorAckId: requireOpaqueId(value.advisorAckId, 'INTAKE.advisorAckId'),
+        acceptedAckEvidenceId: requireOpaqueId(value.acceptedAckEvidenceId, 'INTAKE.acceptedAckEvidenceId'),
+        acceptedAckEnvelopeHash: requireSha256(value.acceptedAckEnvelopeHash, 'INTAKE.acceptedAckEnvelopeHash'),
         classification: requireEnum(value.classification, INTAKE_CLASSIFICATIONS, 'INTAKE.classification'),
         recordedAt: requireUtc(value.recordedAt, 'INTAKE.recordedAt'),
       };
@@ -210,23 +310,57 @@ export function parseEvidenceEnvelope(kind: As1EvidenceKind, value: unknown, pro
         ...common,
         kind: 'QUESTION',
         questionId: requireOpaqueId(value.questionId, 'QUESTION.questionId'),
+        questionKind: requireOpaqueId(value.questionKind, 'QUESTION.questionKind'),
         expectedResponseKind: requireEnum(value.expectedResponseKind, ['CLARIFICATION', 'DECISION_RESPONSE'] as const, 'QUESTION.expectedResponseKind'),
+        questionText: requireBoundedMessageText(value.questionText, 'QUESTION.questionText'),
         recordedAt: requireUtc(value.recordedAt, 'QUESTION.recordedAt'),
       };
     case 'RESULT':
-      return {
-        ...common,
-        kind: 'RESULT',
-        resultId: requireOpaqueId(value.resultId, 'RESULT.resultId'),
-        terminalStatus: requireOpaqueId(value.terminalStatus, 'RESULT.terminalStatus'),
-        resultArtifactRef: requireArtifactRef(value.resultArtifactRef, 'RESULT.resultArtifactRef'),
-        recordedAt: requireUtc(value.recordedAt, 'RESULT.recordedAt'),
-      };
+      return parseResultEnvelope(common, value);
     default: {
       const exhaustive: never = kind;
       throw new DomainError('INVALID_SCHEMA', `unknown evidence kind ${String(exhaustive)}`);
     }
   }
+}
+
+/**
+ * Parse and internally validate the closed RESULT envelope (design §13.3): the exact durable result
+ * SourceArtifactRef, the consumed-question-reply count + canonical set hash, and the embedded closed RESULT
+ * outbound record — whose fields must agree with the RESULT and whose canonical hash must equal outboundRecordHash.
+ */
+function parseResultEnvelope(common: As1EvidenceCommon, value: Record<string, unknown>): As1EvidenceEnvelope {
+  const resultId = requireOpaqueId(value.resultId, 'RESULT.resultId');
+  const terminalStatus = requireOpaqueId(value.terminalStatus, 'RESULT.terminalStatus');
+  const resultArtifact = requireSourceArtifactRef(value.resultArtifact, 'RESULT.resultArtifact');
+  const outboundRecord = requireResultOutboundRecord(value.outboundRecord, 'RESULT.outboundRecord');
+  const outboundRecordHash = requireSha256(value.outboundRecordHash, 'RESULT.outboundRecordHash');
+  // The embedded outbound record must agree with the RESULT it belongs to, and its canonical hash must bind it.
+  if (
+    outboundRecord.intakeId !== common.intakeId ||
+    outboundRecord.resultId !== resultId ||
+    outboundRecord.terminalStatus !== terminalStatus ||
+    !sourceArtifactRefEqual(outboundRecord.resultArtifact, resultArtifact)
+  ) {
+    throw new DomainError('INVALID_SCHEMA', 'RESULT.outboundRecord fields disagree with the RESULT evidence');
+  }
+  if (hashCanonical(outboundRecord) !== outboundRecordHash) {
+    throw new DomainError('INVALID_SCHEMA', 'RESULT.outboundRecordHash does not bind the embedded outbound record');
+  }
+  return {
+    ...common,
+    kind: 'RESULT',
+    resultId,
+    terminalStatus,
+    acceptedIntakeEvidenceId: requireOpaqueId(value.acceptedIntakeEvidenceId, 'RESULT.acceptedIntakeEvidenceId'),
+    acceptedIntakeEvidenceHash: requireSha256(value.acceptedIntakeEvidenceHash, 'RESULT.acceptedIntakeEvidenceHash'),
+    resultArtifact,
+    consumedQuestionReplyCount: requireInteger(value.consumedQuestionReplyCount, 'RESULT.consumedQuestionReplyCount', 0),
+    consumedQuestionReplySetHash: requireSha256(value.consumedQuestionReplySetHash, 'RESULT.consumedQuestionReplySetHash'),
+    outboundRecord,
+    outboundRecordHash,
+    recordedAt: requireUtc(value.recordedAt, 'RESULT.recordedAt'),
+  };
 }
 
 /** Compare every §13.1 ACK binding to the accepted authority snapshot; returns a stable code on any mismatch. */
@@ -259,11 +393,20 @@ function correlationOf(envelope: As1EvidenceEnvelope): Readonly<Record<string, s
     case 'ACK':
       return { advisorAckId: envelope.advisorAckId, sourceEventId: envelope.sourceEventId, pointerHash: envelope.pointerHash };
     case 'INTAKE':
-      return { advisorAckId: envelope.advisorAckId, classification: envelope.classification };
+      return {
+        advisorAckId: envelope.advisorAckId,
+        acceptedAckEvidenceId: envelope.acceptedAckEvidenceId,
+        classification: envelope.classification,
+      };
     case 'QUESTION':
-      return { questionId: envelope.questionId, expectedResponseKind: envelope.expectedResponseKind };
+      return { questionId: envelope.questionId, questionKind: envelope.questionKind, expectedResponseKind: envelope.expectedResponseKind };
     case 'RESULT':
-      return { resultId: envelope.resultId, terminalStatus: envelope.terminalStatus, resultArtifactRef: envelope.resultArtifactRef };
+      return {
+        resultId: envelope.resultId,
+        terminalStatus: envelope.terminalStatus,
+        resultArtifactPath: envelope.resultArtifact.path,
+        resultArtifactSha256: envelope.resultArtifact.sha256,
+      };
     default: {
       const exhaustive: never = envelope;
       throw new DomainError('INVALID_SCHEMA', `unknown evidence kind ${String(exhaustive)}`);
@@ -275,9 +418,11 @@ function correlationOf(envelope: As1EvidenceEnvelope): Readonly<Record<string, s
  * Bind a genuinely-new stage to the EXACT persisted facts of its accepted predecessors (review B06). This runs
  * only after the closed stage order already proved the predecessors are present, so every branch here is a
  * referenced-id/fact check, not a presence check:
- *   • INTAKE  → its advisorAckId must equal the exact accepted ACK's advisorAckId.
+ *   • INTAKE  → its advisorAckId + acceptedAckEvidenceId + acceptedAckEnvelopeHash must match the EXACT accepted
+ *     ACK checkpoint record (id + canonical envelope hash), not merely any ACK.
  *   • QUESTION → its questionId must not collide with an already-accepted, differing question.
- *   • RESULT  → the accepted intake it closes must be one the Advisor accepted, never one it rejected.
+ *   • RESULT  → its acceptedIntakeEvidenceId + acceptedIntakeEvidenceHash must match the EXACT accepted INTAKE
+ *     checkpoint, and that intake must be one the Advisor accepted, never one it rejected.
  * A wrong referenced fact returns a stable bounded code; the caller quarantines AND durably latches.
  */
 function bindToAcceptedChain(
@@ -290,7 +435,10 @@ function bindToAcceptedChain(
     case 'INTAKE': {
       const ack = acceptedForIntake.find((e) => e.evidenceKind === 'ACK');
       if (ack === undefined) return 'EVIDENCE_ORDER_INTAKE_NEEDS_ACK';
-      return envelope.advisorAckId === ack.correlation.advisorAckId ? null : 'EVIDENCE_INTAKE_ACK_MISMATCH';
+      if (envelope.advisorAckId !== ack.correlation.advisorAckId) return 'EVIDENCE_INTAKE_ACK_MISMATCH';
+      if (envelope.acceptedAckEvidenceId !== ack.evidenceId) return 'EVIDENCE_INTAKE_ACK_EVIDENCE_MISMATCH';
+      if (envelope.acceptedAckEnvelopeHash !== ack.envelopeHash) return 'EVIDENCE_INTAKE_ACK_ENVELOPE_MISMATCH';
+      return null;
     }
     case 'QUESTION': {
       const clash = acceptedForIntake.find(
@@ -301,7 +449,10 @@ function bindToAcceptedChain(
     case 'RESULT': {
       const intake = acceptedForIntake.find((e) => e.evidenceKind === 'INTAKE');
       if (intake === undefined) return 'EVIDENCE_ORDER_RESULT_NEEDS_INTAKE';
-      return intake.correlation.classification === 'REJECTED_BY_ADVISOR' ? 'EVIDENCE_RESULT_INTAKE_NOT_ACCEPTED' : null;
+      if (envelope.acceptedIntakeEvidenceId !== intake.evidenceId) return 'EVIDENCE_RESULT_INTAKE_EVIDENCE_MISMATCH';
+      if (envelope.acceptedIntakeEvidenceHash !== intake.envelopeHash) return 'EVIDENCE_RESULT_INTAKE_ENVELOPE_MISMATCH';
+      if (intake.correlation.classification === 'REJECTED_BY_ADVISOR') return 'EVIDENCE_RESULT_INTAKE_NOT_ACCEPTED';
+      return null;
     }
     default: {
       const exhaustive: never = envelope;
@@ -427,6 +578,8 @@ export function buildEvidenceAuthority(records: As1AcceptedAuthorityRecords): As
     intakeId: pdg.intakeId,
     sourceEventId: pdg.sourceEventId,
     pointerHash: pdg.pointerHash,
+    rootTs: root.rootTs,
+    receiveGrantExpiresAt: rg.expiresAt,
     acceptedAck,
     receiveGrantSourceCommit: rg.authoritySourceCommit,
     pointerDeliveryGrantSourceCommit: pdg.authoritySourceCommit,
@@ -440,6 +593,22 @@ export interface EvidenceIngestResult {
   /** A stable bounded reason CODE on quarantine — never raw detail (review B06). `ok` on acceptance. */
   readonly reason: string;
   readonly sequence: number | null;
+}
+
+/** The RESULT variant of the closed evidence envelope union. */
+type As1ResultEnvelope = Extract<As1EvidenceEnvelope, { kind: 'RESULT' }>;
+
+/** The accepted-evidence checkpoint entry the ingress appends (matches As1ProfileInboundStore.appendAcceptedEvidence). */
+interface As1AcceptedEvidenceEntry {
+  readonly evidenceKind: string;
+  readonly evidenceId: string;
+  readonly intakeId: string;
+  readonly blobSha256: string;
+  readonly sourceCommit: string;
+  readonly repositoryId: string;
+  readonly path: string;
+  readonly envelopeHash: string;
+  readonly correlation: Readonly<Record<string, string>>;
 }
 
 /** Profile-bound, ordered, immutable evidence ingress. Fails closed AND durably latches on any defect. */
@@ -483,13 +652,9 @@ export class As1EvidenceIngress {
     }
 
     // Real read-only Git/content provenance: every gate must hold, including a byte-for-byte blob content
-    // match and descent from BOTH grant source commits (bound into the verifier snapshots) (review B06).
-    const provenance = await this.verifier.verify(ref);
-    if (!provenance.upstreamAncestral) return this.quarantine('EVIDENCE_NOT_ANCESTRAL');
-    if (!provenance.firstAddition) return this.quarantine('EVIDENCE_NOT_FIRST_ADDITION');
-    if (provenance.dirty) return this.quarantine('EVIDENCE_DIRTY_TREE');
-    if (!provenance.contentVerified) return this.quarantine('EVIDENCE_CONTENT_MISMATCH');
-    if (!provenance.descendsFromBothSnapshots) return this.quarantine('EVIDENCE_SNAPSHOT_DESCENT');
+    // match and descent from BOTH grant source commits — passed per call from the accepted authority (review B06).
+    const provenanceCode = await this.verifyProvenance(ref);
+    if (provenanceCode !== null) return this.quarantine(provenanceCode);
 
     // The full canonical envelope hash is bound so a re-observation must match on EVERY field, not a partial
     // tuple; the per-kind canonical correlation facts are persisted so a later stage can bind the EXACT
@@ -509,14 +674,10 @@ export class As1EvidenceIngress {
 
     // Re-observing the EXACT same committed evidence is a normal polling/restart case: after full provenance
     // validation, route a same-evidenceId submission through exact checkpoint equality BEFORE stage-order.
-    // An exact match is idempotent ACCEPTED; any same-id envelope/ref divergence durably latches (review B06).
+    // An exact match is idempotent ACCEPTED (and re-runs the idempotent post-accept side effect); any same-id
+    // envelope/ref divergence durably latches (review B06).
     if (accepted.some((e) => e.evidenceId === envelope.evidenceId)) {
-      try {
-        const sequence = await this.store.appendAcceptedEvidence(entry);
-        return { outcome: 'ACCEPTED', reason: 'ok', sequence };
-      } catch {
-        return this.quarantine('EVIDENCE_DUPLICATE_DIVERGENCE');
-      }
+      return this.acceptAndFinalize(envelope, entry, ref, 'EVIDENCE_DUPLICATE_DIVERGENCE');
     }
 
     // A genuinely new evidence id must satisfy the closed stage order for its intake.
@@ -526,19 +687,93 @@ export class As1EvidenceIngress {
 
     // Beyond mere stage PRESENCE, each new stage must bind the EXACT referenced facts of its accepted
     // predecessors via their persisted canonical correlation (review B06): an INTAKE binds the exact accepted
-    // ACK's advisorAckId; a QUESTION may not diverge from an already-accepted question of the same id; a RESULT
-    // may only close an intake the Advisor actually accepted (never a rejected one). Existing-stage-presence is
-    // insufficient — a wrong referenced id/fact quarantines and latches even though the predecessor exists.
+    // ACK checkpoint; a QUESTION may not diverge from an already-accepted question of the same id; a RESULT
+    // binds the exact accepted INTAKE checkpoint and may only close an intake the Advisor accepted. Existing
+    // stage-presence is insufficient — a wrong referenced id/fact quarantines and latches even though it exists.
     const bindingCode = bindToAcceptedChain(envelope, acceptedForIntake);
     if (bindingCode !== null) return this.quarantine(bindingCode);
 
-    try {
-      const sequence = await this.store.appendAcceptedEvidence(entry);
-      return { outcome: 'ACCEPTED', reason: 'ok', sequence };
-    } catch {
-      // A capacity failure (or a race-losing divergence) is a durable contradiction — latch the profile.
-      return this.quarantine('EVIDENCE_APPEND_QUARANTINED');
+    // A RESULT additionally binds its durable result SourceArtifactRef (verified through the SAME Git/content
+    // authority chain) and the deterministically derived consumed-question-reply set (count + canonical hash).
+    if (envelope.kind === 'RESULT') {
+      const resultCode = await this.bindResult(envelope);
+      if (resultCode !== null) return this.quarantine(resultCode);
     }
+
+    return this.acceptAndFinalize(envelope, entry, ref, 'EVIDENCE_APPEND_QUARANTINED');
+  }
+
+  /**
+   * Append the accepted-evidence checkpoint, then run the idempotent post-accept side effect: for a QUESTION,
+   * exact-idempotently open the profile-local pending question from the authority root/expiry and the evidence
+   * ref/hash (design §13.3). Running it on BOTH the fresh and re-observed paths closes the crash gap between the
+   * checkpoint append and the question open on restart.
+   */
+  private async acceptAndFinalize(
+    envelope: As1EvidenceEnvelope,
+    entry: As1AcceptedEvidenceEntry,
+    ref: As1EvidenceRef,
+    appendFailCode: string,
+  ): Promise<EvidenceIngestResult> {
+    let sequence: number;
+    try {
+      sequence = await this.store.appendAcceptedEvidence(entry);
+    } catch {
+      return this.quarantine(appendFailCode);
+    }
+    if (envelope.kind === 'QUESTION') {
+      try {
+        await this.store.openQuestion({
+          questionId: envelope.questionId,
+          rootTs: this.authority.rootTs,
+          expectedResponseKind: envelope.expectedResponseKind,
+          evidenceRef: ref.path,
+          evidenceHash: ref.blobSha256,
+          openedAt: envelope.recordedAt,
+          expiresAt: this.authority.receiveGrantExpiresAt,
+        });
+      } catch {
+        return this.quarantine('EVIDENCE_QUESTION_OPEN_QUARANTINED');
+      }
+    }
+    return { outcome: 'ACCEPTED', reason: 'ok', sequence };
+  }
+
+  /** Verify the RESULT's durable result artifact and bind the deterministically derived consumed-reply set. */
+  private async bindResult(envelope: As1ResultEnvelope): Promise<string | null> {
+    const artifactRef = sourceArtifactRefToEvidenceRef(envelope.resultArtifact);
+    if (artifactRef.repositoryId !== this.authority.authorityRepositoryId) return 'EVIDENCE_RESULT_ARTIFACT_WRONG_REPOSITORY';
+    const expectedPrefix = `${this.authority.evidencePrefix}/${envelope.intakeId}/`;
+    if (!artifactRef.path.startsWith(expectedPrefix) || artifactRef.path.includes('..')) return 'EVIDENCE_RESULT_ARTIFACT_WRONG_PREFIX';
+    const provCode = await this.verifyProvenance(artifactRef, 'EVIDENCE_RESULT_ARTIFACT');
+    if (provCode !== null) return provCode;
+
+    let replies: readonly unknown[];
+    try {
+      replies = await this.store.deriveConsumedQuestionReplies(this.authority.rootTs, envelope.intakeId);
+    } catch {
+      return 'EVIDENCE_RESULT_CONSUMED_SET_QUARANTINED';
+    }
+    if (envelope.consumedQuestionReplyCount !== replies.length) return 'EVIDENCE_RESULT_CONSUMED_COUNT_MISMATCH';
+    if (envelope.consumedQuestionReplySetHash !== hashCanonical(replies)) return 'EVIDENCE_RESULT_CONSUMED_SET_MISMATCH';
+    return null;
+  }
+
+  /**
+   * Run the real read-only Git/content provenance check, passing the two frozen authority snapshot commits per
+   * call (review B06). Returns a stable bounded `<prefix>_*` code on the first unmet gate, or null when all hold.
+   */
+  private async verifyProvenance(ref: As1EvidenceRef, prefix = 'EVIDENCE'): Promise<string | null> {
+    const p = await this.verifier.verify(ref, [
+      this.authority.receiveGrantSourceCommit,
+      this.authority.pointerDeliveryGrantSourceCommit,
+    ]);
+    if (!p.upstreamAncestral) return `${prefix}_NOT_ANCESTRAL`;
+    if (!p.firstAddition) return `${prefix}_NOT_FIRST_ADDITION`;
+    if (p.dirty) return `${prefix}_DIRTY_TREE`;
+    if (!p.contentVerified) return `${prefix}_CONTENT_MISMATCH`;
+    if (!p.descendsFromBothSnapshots) return `${prefix}_SNAPSHOT_DESCENT`;
+    return null;
   }
 
   private checkStageOrder(kind: As1EvidenceKind, priorKinds: readonly string[]): string | null {

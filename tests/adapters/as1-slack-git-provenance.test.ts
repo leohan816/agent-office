@@ -59,8 +59,8 @@ function refFor(commit: string): As1EvidenceRef {
 describe('AS1 real read-only Git/content provenance verifier (B06)', () => {
   it('verifies a committed, upstream-ancestral, single-addition, snapshot-descended blob byte-for-byte', async () => {
     const repo = await makeRepo();
-    const verifier = new NodeAs1GitProvenanceVerifier(repo.root, 'agent-office', 'HEAD', repo.snapshots, nodeGitRunner());
-    const result = await verifier.verify(refFor(repo.evidenceCommit));
+    const verifier = new NodeAs1GitProvenanceVerifier(repo.root, 'agent-office', 'HEAD', nodeGitRunner());
+    const result = await verifier.verify(refFor(repo.evidenceCommit), repo.snapshots);
     expect(result).toStrictEqual({
       upstreamAncestral: true,
       firstAddition: true,
@@ -72,18 +72,20 @@ describe('AS1 real read-only Git/content provenance verifier (B06)', () => {
 
   it('fails content verification when the claimed blob hash does not match the committed bytes', async () => {
     const repo = await makeRepo();
-    const verifier = new NodeAs1GitProvenanceVerifier(repo.root, 'agent-office', 'HEAD', repo.snapshots, nodeGitRunner());
-    const result = await verifier.verify({ ...refFor(repo.evidenceCommit), blobSha256: `sha256:${'9'.repeat(64)}` });
+    const verifier = new NodeAs1GitProvenanceVerifier(repo.root, 'agent-office', 'HEAD', nodeGitRunner());
+    const result = await verifier.verify({ ...refFor(repo.evidenceCommit), blobSha256: `sha256:${'9'.repeat(64)}` }, repo.snapshots);
     expect(result.contentVerified).toBe(false);
   });
 
   it('denies everything for a wrong repository id, a malformed commit, or an unsafe path', async () => {
     const repo = await makeRepo();
-    const verifier = new NodeAs1GitProvenanceVerifier(repo.root, 'agent-office', 'HEAD', repo.snapshots, nodeGitRunner());
+    const verifier = new NodeAs1GitProvenanceVerifier(repo.root, 'agent-office', 'HEAD', nodeGitRunner());
     const denied = { upstreamAncestral: false, firstAddition: false, dirty: true, contentVerified: false, descendsFromBothSnapshots: false };
-    expect(await verifier.verify({ ...refFor(repo.evidenceCommit), repositoryId: 'other' })).toStrictEqual(denied);
-    expect(await verifier.verify({ ...refFor(repo.evidenceCommit), sourceCommit: 'not-a-sha' })).toStrictEqual(denied);
-    expect(await verifier.verify({ ...refFor(repo.evidenceCommit), path: '../escape.json' })).toStrictEqual(denied);
+    expect(await verifier.verify({ ...refFor(repo.evidenceCommit), repositoryId: 'other' }, repo.snapshots)).toStrictEqual(denied);
+    expect(await verifier.verify({ ...refFor(repo.evidenceCommit), sourceCommit: 'not-a-sha' }, repo.snapshots)).toStrictEqual(denied);
+    expect(await verifier.verify({ ...refFor(repo.evidenceCommit), path: '../escape.json' }, repo.snapshots)).toStrictEqual(denied);
+    // Missing/short snapshot commit list denies as well (no descent proof possible).
+    expect(await verifier.verify(refFor(repo.evidenceCommit), [repo.snapshots[0]])).toStrictEqual(denied);
   });
 
   it('denies a snapshot-descent when the source commit does not descend from both frozen snapshots (fake runner)', async () => {
@@ -101,8 +103,8 @@ describe('AS1 real read-only Git/content provenance verifier (B06)', () => {
       }
       return Promise.resolve({ code: 1, stdout: Buffer.from('') });
     };
-    const verifier = new NodeAs1GitProvenanceVerifier('/repo', 'agent-office', 'origin/main', ['b'.repeat(40), 'c'.repeat(40)], runner);
-    const result = await verifier.verify(refFor('d'.repeat(40)));
+    const verifier = new NodeAs1GitProvenanceVerifier('/repo', 'agent-office', 'origin/main', runner);
+    const result = await verifier.verify(refFor('d'.repeat(40)), ['b'.repeat(40), 'c'.repeat(40)]);
     expect(result.upstreamAncestral).toBe(true);
     expect(result.contentVerified).toBe(true);
     expect(result.descendsFromBothSnapshots).toBe(false);

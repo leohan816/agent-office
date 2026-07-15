@@ -33,6 +33,7 @@ import type {
   As1GitProvenanceVerifier,
 } from '../../src/application/slack-pilot/evidence-ingress.js';
 import { selectProfile } from '../../src/application/slack-pilot/profiles.js';
+import { hashCanonical } from '../../src/persistence/file-store/hashing.js';
 import { uuidV7 } from './fixtures.js';
 
 /** Deterministic, advanceable trusted-local clock + UUIDv7 generator for AS1 synthetic tests. */
@@ -790,6 +791,9 @@ export const AO_ACK_BINDINGS = {
   consumedLeaseId: 'as1-lease-0001',
 } as const;
 
+/** The canonical envelope hash of the DEFAULT accepted ACK / INTAKE evidence — what the checkpoint records. */
+export const AO_ACK_ENVELOPE_HASH = hashCanonical(validAdvisorAck());
+
 export function validAdvisorIntake(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     schemaVersion: 'agent-office.as1-advisor-intake.v1',
@@ -797,6 +801,8 @@ export function validAdvisorIntake(overrides: Record<string, unknown> = {}): Rec
     ...AO_LINEAGE,
     intakeId: 'as1-intake-0001',
     advisorAckId: 'ack-0001',
+    acceptedAckEvidenceId: 'ev-ack-0001',
+    acceptedAckEnvelopeHash: AO_ACK_ENVELOPE_HASH,
     classification: 'ACCEPTED_NEW_MISSION',
     recordedAt: '2026-07-14T22:06:10.000Z',
     ...overrides,
@@ -810,13 +816,38 @@ export function validAdvisorQuestion(overrides: Record<string, unknown> = {}): R
     ...AO_LINEAGE,
     intakeId: 'as1-intake-0001',
     questionId: 'q-0001',
+    questionKind: 'CLARIFICATION_REQUEST',
     expectedResponseKind: 'CLARIFICATION',
+    questionText: 'Please confirm the target branch before I proceed.',
     recordedAt: '2026-07-14T22:06:20.000Z',
     ...overrides,
   };
 }
 
+/** The canonical envelope hash of the DEFAULT accepted INTAKE evidence — what a RESULT binds to. */
+export const AO_INTAKE_ENVELOPE_HASH = hashCanonical(validAdvisorIntake());
+
+/** The DEFAULT durable result SourceArtifactRef (canonical repository/commit/path/sha256 shape). */
+export function aoResultArtifact(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    repository: 'agent-office',
+    commit: 'c'.repeat(40),
+    path: `${AO_EVIDENCE_PREFIX}/as1-intake-0001/result-artifact.json`,
+    sha256: `sha256:${'6'.repeat(64)}`,
+    ...overrides,
+  };
+}
+
 export function validAdvisorResult(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const resultArtifact = aoResultArtifact();
+  const outboundRecord = {
+    kind: 'RESULT',
+    intakeId: 'as1-intake-0001',
+    resultId: 'result-0001',
+    terminalStatus: 'COMPLETED',
+    resultArtifact,
+    summary: 'Mission complete; result artifact committed and pushed.',
+  };
   return {
     schemaVersion: 'agent-office.as1-advisor-result.v1',
     evidenceId: 'ev-result-0001',
@@ -824,7 +855,13 @@ export function validAdvisorResult(overrides: Record<string, unknown> = {}): Rec
     intakeId: 'as1-intake-0001',
     resultId: 'result-0001',
     terminalStatus: 'COMPLETED',
-    resultArtifactRef: `${AO_EVIDENCE_PREFIX}/as1-intake-0001/result.json`,
+    acceptedIntakeEvidenceId: 'ev-intake-0001',
+    acceptedIntakeEvidenceHash: AO_INTAKE_ENVELOPE_HASH,
+    resultArtifact,
+    consumedQuestionReplyCount: 0,
+    consumedQuestionReplySetHash: hashCanonical([]),
+    outboundRecord,
+    outboundRecordHash: hashCanonical(outboundRecord),
     recordedAt: '2026-07-14T22:06:30.000Z',
     ...overrides,
   };
@@ -850,12 +887,23 @@ export class FakeGitVerifier implements As1GitProvenanceVerifier {
     descendsFromBothSnapshots: true,
   };
 
+  /** Every (ref.path, snapshotCommits) pair the ingress asked to verify — lets a test assert the wiring. */
+  public readonly calls: { path: string; snapshotCommits: readonly string[] }[] = [];
+  private readonly pathOverrides: { match: string; provenance: As1EvidenceProvenance }[] = [];
+
   public set(partial: Partial<As1EvidenceProvenance>): void {
     this.provenance = { ...this.provenance, ...partial };
   }
 
-  public verify(): Promise<As1EvidenceProvenance> {
-    return Promise.resolve(this.provenance);
+  /** Return a distinct provenance only for refs whose path contains `match` (e.g. isolate the result artifact). */
+  public setForPath(match: string, partial: Partial<As1EvidenceProvenance>): void {
+    this.pathOverrides.push({ match, provenance: { ...this.provenance, ...partial } });
+  }
+
+  public verify(ref: As1EvidenceRef, snapshotCommits: readonly string[]): Promise<As1EvidenceProvenance> {
+    this.calls.push({ path: ref.path, snapshotCommits });
+    const override = this.pathOverrides.find((o) => ref.path.includes(o.match));
+    return Promise.resolve(override?.provenance ?? this.provenance);
   }
 }
 

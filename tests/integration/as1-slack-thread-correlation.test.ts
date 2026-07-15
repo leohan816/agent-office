@@ -28,6 +28,7 @@ async function openClarification(store: As1ProfileInboundStore, grant: ReturnTyp
     expectedResponseKind: 'CLARIFICATION',
     evidenceRef: 'advisor/jobs/20260714_as1/runtime-evidence/agent-office-advisor/q-0001',
     evidenceHash: `sha256:${'7'.repeat(64)}`,
+    openedAt: '2026-07-14T22:03:00.000Z',
     expiresAt: grant.expiresAt,
   });
 }
@@ -73,6 +74,7 @@ describe('AS1 thread correlation', () => {
       expectedResponseKind: 'DECISION_RESPONSE',
       evidenceRef: 'advisor/jobs/20260714_as1/runtime-evidence/agent-office-advisor/q-0002',
       evidenceHash: `sha256:${'6'.repeat(64)}`,
+      openedAt: '2026-07-14T22:03:00.000Z',
       expiresAt: grant.expiresAt,
     });
     const reply = await service.processEnvelope(
@@ -160,6 +162,7 @@ describe('AS1 continuation intake — durable kind binding (design §11)', () =>
       expectedResponseKind: 'DECISION_RESPONSE',
       evidenceRef: 'advisor/jobs/20260714_as1/runtime-evidence/agent-office-advisor/q-0003',
       evidenceHash: `sha256:${'5'.repeat(64)}`,
+      openedAt: '2026-07-14T22:03:00.000Z',
       expiresAt: grant.expiresAt,
     });
     // Text mimics a "new mission" instruction; the durable kind must still be DECISION_RESPONSE.

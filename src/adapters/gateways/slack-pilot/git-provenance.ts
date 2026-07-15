@@ -86,15 +86,15 @@ export class NodeAs1GitProvenanceVerifier implements As1GitProvenanceVerifier {
     private readonly repoRoot: string,
     private readonly expectedRepositoryId: string,
     private readonly upstreamRef: string,
-    private readonly frozenSnapshotCommits: readonly string[],
     private readonly run: As1GitRunner = nodeGitRunner(),
   ) {}
 
-  public async verify(ref: As1EvidenceRef): Promise<As1EvidenceProvenance> {
-    // Nothing below can be selected by Slack; the repo/upstream/snapshots are fixed at construction.
+  public async verify(ref: As1EvidenceRef, snapshotCommits: readonly string[]): Promise<As1EvidenceProvenance> {
+    // Nothing below can be selected by Slack; the repo/upstream are fixed at construction and the two frozen
+    // authority snapshot commits are supplied per call by the accepted authority (never caller/Slack input).
     if (ref.repositoryId !== this.expectedRepositoryId) return DENY_ALL;
     if (!GIT_SHA1.test(ref.sourceCommit) || !SAFE_PATH.test(ref.path) || ref.path.includes('..')) return DENY_ALL;
-    if (this.frozenSnapshotCommits.length !== 2 || !this.frozenSnapshotCommits.every((c) => GIT_SHA1.test(c))) {
+    if (snapshotCommits.length !== 2 || !snapshotCommits.every((c) => GIT_SHA1.test(c))) {
       return DENY_ALL;
     }
 
@@ -117,9 +117,9 @@ export class NodeAs1GitProvenanceVerifier implements As1GitProvenanceVerifier {
       const status = await this.run(this.repoRoot, ['status', '--porcelain', '--', ref.path]);
       const dirty = status.code !== 0 || nonEmptyLines(status.stdout).length > 0;
 
-      // The source commit descends from BOTH frozen authority snapshot commits.
+      // The source commit descends from BOTH frozen authority snapshot commits supplied by the authority.
       let descendsFromBothSnapshots = true;
-      for (const snap of this.frozenSnapshotCommits) {
+      for (const snap of snapshotCommits) {
         const r = await this.run(this.repoRoot, ['merge-base', '--is-ancestor', snap, ref.sourceCommit]);
         if (r.code !== 0) descendsFromBothSnapshots = false;
       }

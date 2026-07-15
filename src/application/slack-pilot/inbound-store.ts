@@ -136,6 +136,19 @@ export interface As1RootCorrelationV1 {
 }
 
 /**
+ * One canonical consumed-question-reply fact for a root/intake (design §13.3): a CONSUMED pending question
+ * joined to its EXACT MATERIALIZED continuation transport record. The RESULT evidence binds the count and the
+ * canonical hash of the sorted set of these; a consumed question with no matching materialized reply fails closed.
+ */
+export interface As1ConsumedQuestionReplyV1 {
+  readonly questionId: string;
+  readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE';
+  readonly consumedBySourceEventId: string;
+  readonly continuationKind: 'CLARIFICATION' | 'DECISION_RESPONSE';
+  readonly continuationIntakeId: string;
+}
+
+/**
  * The durable checkpoint of one accepted Advisor evidence artifact (design §13). Each record fixes the full
  * canonical envelope identity (repository/path/commit/blob/hash) AND the per-kind canonical correlation facts
  * a later stage must bind to — e.g. an ACK's advisorAckId, an INTAKE's bound advisorAckId, a QUESTION's
@@ -546,10 +559,29 @@ export class As1ProfileInboundStore {
     readonly expectedResponseKind: 'CLARIFICATION' | 'DECISION_RESPONSE';
     readonly evidenceRef: string;
     readonly evidenceHash: string;
+    readonly openedAt: string;
     readonly expiresAt: string;
   }): Promise<As1PendingQuestionV1> {
     return this.mutex.run(async () => {
       const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
+      // Exact-idempotent restart: a re-open of the SAME questionId with identical immutable opening fields
+      // (root, response kind, evidence ref/hash, openedAt, expiresAt) returns the existing record (the ingress
+      // re-observes accepted QUESTION evidence on restart); any divergence on the same id is a durable
+      // contradiction, never a silent second question. The state/consumed fields stay lifecycle-managed.
+      const existing = questions.find((q) => q.questionId === question.questionId);
+      if (existing !== undefined) {
+        if (
+          existing.rootTs !== question.rootTs ||
+          existing.expectedResponseKind !== question.expectedResponseKind ||
+          existing.evidenceRef !== question.evidenceRef ||
+          existing.evidenceHash !== question.evidenceHash ||
+          existing.openedAt !== question.openedAt ||
+          existing.expiresAt !== question.expiresAt
+        ) {
+          throw new DomainError('STORE_QUARANTINED', 'pending question id re-opened with a different root/binding');
+        }
+        return existing;
+      }
       const openForRoot = questions.filter((q) => q.rootTs === question.rootTs && q.state === 'OPEN');
       if (openForRoot.length >= LIMITS.OPEN_QUESTIONS_PER_ROOT) {
         throw new DomainError('INVALID_TRANSITION', 'a root already has an open pending question');
@@ -565,7 +597,7 @@ export class As1ProfileInboundStore {
         evidenceRef: question.evidenceRef,
         evidenceHash: question.evidenceHash,
         state: 'OPEN',
-        openedAt: this.clock.now(),
+        openedAt: question.openedAt,
         expiresAt: question.expiresAt,
         consumedAt: null,
         consumedBySourceEventId: null,
@@ -578,6 +610,46 @@ export class As1ProfileInboundStore {
   public async findOpenQuestionForRoot(rootTs: string): Promise<As1PendingQuestionV1 | null> {
     const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
     return questions.find((q) => q.rootTs === rootTs && q.state === 'OPEN') ?? null;
+  }
+
+  /**
+   * Deterministically derive the consumed-question-reply set for a root/intake (design §13.3): every CONSUMED
+   * pending question joined to its EXACT MATERIALIZED continuation transport record (matched on questionId,
+   * originalIntakeId, rootTs, and consuming event), sorted canonically by questionId. A consumed question with
+   * no matching materialized continuation — or a missing consuming event — fails closed. Used to bind a RESULT.
+   */
+  public async deriveConsumedQuestionReplies(rootTs: string, intakeId: string): Promise<readonly As1ConsumedQuestionReplyV1[]> {
+    const questions = (await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'))).filter(
+      (q) => q.rootTs === rootTs && q.state === 'CONSUMED',
+    );
+    const transports = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+    const entries: As1ConsumedQuestionReplyV1[] = [];
+    for (const q of questions) {
+      if (q.consumedBySourceEventId === null) {
+        throw new DomainError('STORE_QUARANTINED', 'consumed question has no recorded consuming event');
+      }
+      const reply = transports.find(
+        (r) =>
+          r.state === 'MATERIALIZED' &&
+          r.continuation !== null &&
+          r.continuation.questionId === q.questionId &&
+          r.continuation.originalIntakeId === intakeId &&
+          r.observed.rootTs === rootTs &&
+          r.eventId === q.consumedBySourceEventId,
+      );
+      if (reply?.continuation == null || reply.intakeId === null) {
+        throw new DomainError('STORE_QUARANTINED', 'consumed question lacks its exact materialized continuation transport record');
+      }
+      entries.push({
+        questionId: q.questionId,
+        expectedResponseKind: q.expectedResponseKind,
+        consumedBySourceEventId: q.consumedBySourceEventId,
+        continuationKind: reply.continuation.kind,
+        continuationIntakeId: reply.intakeId,
+      });
+    }
+    entries.sort((a, b) => (a.questionId < b.questionId ? -1 : a.questionId > b.questionId ? 1 : 0));
+    return entries;
   }
 
   /**
