@@ -347,6 +347,8 @@ export class FakeAs1Ws implements As1WsLike {
   public readonly closeCalls: { code: number; reason: string }[] = [];
   public terminateCalls = 0;
   public removeAllCalls = 0;
+  /** When true, close() records the call but does NOT emit a confirming `close` event (models a hung close). */
+  public suppressCloseEvent = false;
   private readonly listeners = new Map<string, ((...args: unknown[]) => void)[]>();
 
   public on(event: string, listener: (...args: unknown[]) => void): void {
@@ -361,6 +363,7 @@ export class FakeAs1Ws implements As1WsLike {
 
   public close(code: number, reason: string): void {
     this.closeCalls.push({ code, reason });
+    if (!this.suppressCloseEvent) this.emit('close');
   }
 
   public terminate(): void {

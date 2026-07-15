@@ -158,6 +158,13 @@ export class As1RawSocketTransport implements As1SocketPort {
   private generation = 0;
   private handler: ((envelope: As1InboundEnvelope) => Promise<void>) | null = null;
   private profileId = '';
+  // Profile-local bounded FIFO admission (review B08): at most INMEMORY_QUEUE_PER_PROFILE queued, at most
+  // INFLIGHT_SIDE_EFFECTS_PER_PROFILE handler in flight. Admission stops on disconnect/latch; nothing crosses
+  // profiles (this transport is per profile) and nothing queued is replayed after a stop.
+  private readonly queue: (() => Promise<void>)[] = [];
+  private inFlightCount = 0;
+  private readonly inFlightRunning = new Set<Promise<void>>();
+  private admitting = false;
 
   public constructor(
     private readonly opener: As1ConnectionsOpener,
@@ -233,6 +240,7 @@ export class As1RawSocketTransport implements As1SocketPort {
             return;
           }
           this.phase = 'EVENT_RECEIVE_READY';
+          this.admitting = true;
           done.settled = true;
           clearTimeout(timer);
           resolve({ ok: true });
@@ -249,20 +257,80 @@ export class As1RawSocketTransport implements As1SocketPort {
   }
 
   public async disconnect(): Promise<void> {
+    // Stop admission immediately and DROP any queued-but-unstarted callbacks — a stopped profile never replays
+    // them later, even after a reconnect (design §7.5).
+    this.admitting = false;
+    this.queue.length = 0;
     const socket = this.socket;
-    this.socket = null;
     if (socket === null) {
       this.phase = 'CLOSED';
       return;
     }
+    // DRAINING keeps the SAME socket + generation bound so the accepted in-flight handler's ACK still works.
     this.phase = 'DRAINING';
-    try {
-      socket.close(1000, 'AS1_STOP');
-    } finally {
-      socket.removeAllListeners();
-      this.phase = 'CLOSED';
+    const drained = await this.awaitWithin([...this.inFlightRunning], LIMITS.DRAIN_DEADLINE_MS);
+    if (!drained) {
+      // Drain deadline exceeded: fail closed — force-terminate and stay LATCHED, never a clean CLOSED.
+      this.log.record(this.profileId, 'DRAINING', 'REJECTED_DRAIN_DEADLINE');
+      this.forceTerminateAndLatch(socket);
+      return;
     }
-    await Promise.resolve();
+    // Close and CONFIRM within SHUTDOWN_DEADLINE_MS; an unconfirmed close force-terminates and stays LATCHED.
+    const confirmed = await this.closeAndConfirm(socket, LIMITS.SHUTDOWN_DEADLINE_MS);
+    if (!confirmed) {
+      this.log.record(this.profileId, 'DRAINING', 'REJECTED_CLOSE_UNCONFIRMED');
+      this.forceTerminateAndLatch(socket);
+      return;
+    }
+    this.socket = null;
+    socket.removeAllListeners();
+    this.phase = 'CLOSED';
+  }
+
+  /** Immediate force-termination: abnormal terminate + LATCHED (never a confirmed CLOSED). */
+  private forceTerminateAndLatch(socket: As1WsLike): void {
+    this.admitting = false;
+    this.queue.length = 0;
+    this.phase = 'LATCHED';
+    try {
+      socket.terminate();
+    } catch {
+      // The socket is already gone; the durable state remains LATCHED.
+    }
+    socket.removeAllListeners();
+    if (this.socket === socket) this.socket = null;
+  }
+
+  /** Await all promises within `deadlineMs`; true if they all settled, false on timeout. */
+  private async awaitWithin(promises: readonly Promise<void>[], deadlineMs: number): Promise<boolean> {
+    if (promises.length === 0) return true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), deadlineMs);
+    });
+    const outcome = await Promise.race([Promise.allSettled(promises).then((): 'done' => 'done'), timeout]);
+    if (timer !== undefined) clearTimeout(timer);
+    return outcome === 'done';
+  }
+
+  /** Close the socket and resolve true only on a confirmed `close` within `deadlineMs`, else false. */
+  private closeAndConfirm(socket: As1WsLike, deadlineMs: number): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(ok);
+      };
+      const timer = setTimeout(() => finish(false), deadlineMs);
+      socket.on('close', () => finish(true));
+      try {
+        socket.close(1000, 'AS1_STOP');
+      } catch {
+        finish(false);
+      }
+    });
   }
 
   private dispatchAfterReady(socket: As1WsLike, generation: number, text: string): void {
@@ -288,14 +356,55 @@ export class As1RawSocketTransport implements As1SocketPort {
       return;
     }
     const handler = this.handler;
-    if (handler === null) return;
-    void handler({
+    if (handler === null || !this.admitting) return;
+    // Bounded profile-local admission: an overflow of the FIFO queue is a fail-closed latch, never a silent drop
+    // or an unbounded concurrent handler.
+    if (this.queue.length >= LIMITS.INMEMORY_QUEUE_PER_PROFILE) {
+      this.log.record(this.profileId, 'EVENT_RECEIVE_READY', 'REJECTED_QUEUE_OVERFLOW');
+      this.latch(socket, 1008, 'inbound queue overflow');
+      return;
+    }
+    const item: As1InboundEnvelope = {
       envelopeId: envelope.envelopeId,
       payload: envelope.payload,
       retryAttempt: envelope.retryAttempt,
       retryReason: envelope.retryReason,
       acknowledge: this.buildAck(socket, generation, envelope.envelopeId),
-    });
+    };
+    this.queue.push(() => handler(item));
+    this.pump();
+  }
+
+  /** Start queued handlers up to the EXACT declared in-flight bound (INFLIGHT_SIDE_EFFECTS_PER_PROFILE=1), FIFO. */
+  private pump(): void {
+    while (this.inFlightCount < LIMITS.INFLIGHT_SIDE_EFFECTS_PER_PROFILE && this.queue.length > 0) {
+      const task = this.queue.shift();
+      if (task === undefined) break;
+      this.inFlightCount += 1;
+      const running = this.runHandler(task);
+      this.inFlightRunning.add(running);
+      void running.finally(() => {
+        this.inFlightCount -= 1;
+        this.inFlightRunning.delete(running);
+        this.pump();
+      });
+    }
+  }
+
+  /**
+   * Run one accepted handler. An unclassified handler failure is FAIL-CLOSED (design §7.5): record only a stable
+   * redacted code, stop admission, drop queued work, and latch/close the profile socket — never continue.
+   */
+  private async runHandler(task: () => Promise<void>): Promise<void> {
+    try {
+      await task();
+    } catch {
+      const socket = this.socket;
+      this.log.record(this.profileId, this.phase, 'REJECTED_HANDLER_FAILURE');
+      this.admitting = false;
+      this.queue.length = 0;
+      if (socket !== null) this.disconnectAndLatch(socket, 1011);
+    }
   }
 
   /** One-use ACK closure bound to socket generation and the exact envelope_id (design §7.8). */
@@ -335,6 +444,8 @@ export class As1RawSocketTransport implements As1SocketPort {
   }
 
   private disconnectAndLatch(socket: As1WsLike, closeCode = 1008): void {
+    this.admitting = false;
+    this.queue.length = 0;
     this.phase = 'LATCHED';
     try {
       socket.close(closeCode, 'AS1_LATCH');

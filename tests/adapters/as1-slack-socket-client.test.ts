@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
 import {
@@ -229,5 +229,122 @@ describe('AS1 raw socket transport — URL and bounded fetch gates', () => {
       expect(line).not.toContain('AWRONGAPPID01');
       expect(line).not.toContain('xapp');
     }
+  });
+});
+
+// C (review B08) — profile-local bounded FIFO admission: one handler in flight, 32-deep queue, fail-closed on
+// overflow / handler failure, and a bounded drain + confirmed close (or forced termination) on disconnect.
+describe('AS1 raw socket transport — bounded profile-local admission (B08)', () => {
+  async function readyWith(onEnvelope: (env: As1InboundEnvelope) => Promise<void>) {
+    const opener = new FakeConnectionsOpener();
+    const factory = new FakeAs1WebSocketFactory();
+    const fakeWs = new FakeAs1Ws();
+    factory.setNext(fakeWs);
+    const logs: string[] = [];
+    const transport = new As1RawSocketTransport(opener, factory, { record: (p, ph, r) => logs.push(`${p}|${ph}|${r}`) }, () => 100_000);
+    transport.onEnvelope(onEnvelope);
+    const promise = transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    fakeWs.emit('open');
+    fakeWs.emit('message', helloFrame(APP_ID), false);
+    await promise;
+    return { transport, fakeWs, logs };
+  }
+
+  it('processes envelopes FIFO with observed max concurrency of exactly one', async () => {
+    const order: string[] = [];
+    const gates: (() => void)[] = [];
+    let live = 0;
+    let maxLive = 0;
+    const { fakeWs } = await readyWith((env) => {
+      live += 1;
+      maxLive = Math.max(maxLive, live);
+      order.push(`start:${env.envelopeId}`);
+      return new Promise<void>((resolve) => gates.push(() => { live -= 1; order.push(`end:${env.envelopeId}`); resolve(); }));
+    });
+    fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    fakeWs.emit('message', eventFrame('Env2', APP_ID), false);
+    fakeWs.emit('message', eventFrame('Env3', APP_ID), false);
+    expect(order).toEqual(['start:Env1']); // only one started
+    gates[0]?.(); await flush();
+    gates[1]?.(); await flush();
+    gates[2]?.(); await flush();
+    expect(order).toEqual(['start:Env1', 'end:Env1', 'start:Env2', 'end:Env2', 'start:Env3', 'end:Env3']);
+    expect(maxLive).toBe(1); // never more than one handler in flight
+  });
+
+  it('latches (1008) on inbound queue overflow at the 33rd queued callback', async () => {
+    const { transport, fakeWs } = await readyWith(() => new Promise<void>(() => undefined)); // blocks in flight forever
+    for (let i = 1; i <= 33; i += 1) fakeWs.emit('message', eventFrame(`Env${String(i)}`, APP_ID), false); // 1 in flight + 32 queued
+    expect(transport.getPhase()).not.toBe('LATCHED');
+    fakeWs.emit('message', eventFrame('Env34', APP_ID), false); // the 33rd queued callback → overflow
+    expect(transport.getPhase()).toBe('LATCHED');
+    expect(fakeWs.closeCalls.some((c) => c.code === 1008)).toBe(true);
+  });
+
+  it('fails closed (latch + drop queued) when a handler rejects', async () => {
+    const started: string[] = [];
+    const { transport, fakeWs } = await readyWith((env) => {
+      started.push(env.envelopeId);
+      return Promise.reject(new Error('handler blew up'));
+    });
+    fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    fakeWs.emit('message', eventFrame('Env2', APP_ID), false); // queued behind the failing one
+    await flush();
+    expect(transport.getPhase()).toBe('LATCHED');
+    expect(started).toEqual(['Env1']); // the queued Env2 was dropped, never started
+    // A frame after the latch is not admitted.
+    fakeWs.emit('message', eventFrame('Env3', APP_ID), false);
+    await flush();
+    expect(started).toEqual(['Env1']);
+  });
+
+  it('disconnect stops admission, drops queued callbacks, and confirms the close (no replay after reconnect)', async () => {
+    const started: string[] = [];
+    const gates: (() => void)[] = [];
+    const { transport, fakeWs } = await readyWith((env) => {
+      started.push(env.envelopeId);
+      return new Promise<void>((resolve) => gates.push(resolve));
+    });
+    fakeWs.emit('message', eventFrame('Env1', APP_ID), false); // in flight
+    fakeWs.emit('message', eventFrame('Env2', APP_ID), false); // queued
+    gates[0]?.(); // let the in-flight finish so the drain completes fast
+    await transport.disconnect();
+    expect(transport.getPhase()).toBe('CLOSED');
+    expect(started).toEqual(['Env1']); // Env2 dropped, never started
+    // A frame after stop is never replayed/admitted.
+    fakeWs.emit('message', eventFrame('Env3', APP_ID), false);
+    await flush();
+    expect(started).toEqual(['Env1']);
+  });
+
+  it('force-terminates and stays LATCHED when the in-flight handler misses the drain deadline', async () => {
+    const { transport, fakeWs } = await readyWith(() => new Promise<void>(() => undefined)); // never finishes
+    fakeWs.emit('message', eventFrame('Env1', APP_ID), false);
+    vi.useFakeTimers();
+    try {
+      const disc = transport.disconnect();
+      await vi.advanceTimersByTimeAsync(15_000); // DRAIN_DEADLINE_MS
+      await disc;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(fakeWs.terminateCalls).toBeGreaterThan(0);
+    expect(transport.getPhase()).toBe('LATCHED');
+  });
+
+  it('force-terminates and stays LATCHED when the close is not confirmed within the shutdown deadline', async () => {
+    const { transport, fakeWs } = await readyWith(() => Promise.resolve());
+    fakeWs.suppressCloseEvent = true; // the socket never confirms the close
+    vi.useFakeTimers();
+    try {
+      const disc = transport.disconnect();
+      await vi.advanceTimersByTimeAsync(15_000); // SHUTDOWN_DEADLINE_MS
+      await disc;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(fakeWs.terminateCalls).toBeGreaterThan(0);
+    expect(transport.getPhase()).toBe('LATCHED');
   });
 });
