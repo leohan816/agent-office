@@ -91,8 +91,8 @@ substitute for the pre-event app-token proof.
 | Node 24 platform WebSocket | Runtime is Node `v24.18.0`, but the public constructor exposes no `maxPayload`, fragment-count, or buffered-chunk option. The complete message is presented only at the JS `message` callback. | Supported API but `NOT_BOUNDED_ENOUGH`; it does not prove the frozen pre-callback 32-KiB raw-message/memory boundary and is not selected. |
 | `ws@8.21.1` public package root | Exact npm artifact SHA512 is `sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==`. Its public client options document `maxPayload`, `maxBufferedChunks`, `maxFragments`, `perMessageDeflate`, `handshakeTimeout`, redirects, UTF-8 validation, and a finite force-close timeout. | Supported bounded transport. Exact configuration below prevents an over-limit/over-part message from reaching the consumer `message` callback. |
 | `ws@8.21.1` release evidence | Release `8.21.0` introduced `maxBufferedChunks` and `maxFragments` to fix remote memory exhaustion; release `8.21.1` additionally counts empty fragments and reduces defaults. | Exact `8.21.1` is the minimum selected pin. Earlier `8.x` versions and version ranges are forbidden. |
-| `@types/ws@8.18.1` | Exact npm artifact SHA512 is `sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==`. It types the public client, `maxPayload`, compression, redirect, handshake, UTF-8, and close APIs, but predates the two new part-count fields. | Add as an exact dev dependency. A local structural intersection adds only the two documented `8.21.1` fields; no `any`, cast, deep import, or `skipLibCheck` exception is allowed. |
-| Project TypeScript configuration | `target: ES2024`, `module/moduleResolution: NodeNext`, `strict: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`, and `skipLibCheck: false`. | The ESM package-root import plus exact structural two-field type extension must compile unchanged under TypeScript `6.0.3`; no suppression is permitted. |
+| `@types/ws@8.18.1` | Exact npm artifact SHA512 is `sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==`. It types the public client, `maxPayload`, compression, redirect, handshake, UTF-8, and close APIs, but omits exactly three selected public runtime options used by this design: `closeTimeout`, `maxBufferedChunks`, and `maxFragments`. | Add as an exact dev dependency. A local structural intersection adds exactly those three documented runtime fields; no `any`, cast, module augmentation, deep import, suppression, or `skipLibCheck` exception is allowed. |
+| Project TypeScript configuration | `target: ES2024`, `module/moduleResolution: NodeNext`, `strict: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`, and `skipLibCheck: false`. | The ESM package-root import, exact structural three-field type extension, direct public constructor call, and public `terminate()` call must compile unchanged under TypeScript `6.0.3`; no suppression is permitted. |
 
 The `@slack/socket-mode` internals above are cited only to reject unsupported
 behavior. The recommended contract relies on package-root declarations,
@@ -349,21 +349,34 @@ custom server-identity function, `rejectUnauthorized` override, or environment-
 selected option is permitted. The URL is already validated and is passed
 unchanged. `binaryType` is fixed to `nodebuffer`.
 
-`@types/ws@8.18.1` does not yet declare the two options introduced in `ws`
-8.21.0. Strict code therefore defines only this local structural extension:
+`@types/ws@8.18.1` does not declare exactly three selected public runtime
+options used by this literal: `closeTimeout`, `maxBufferedChunks`, and
+`maxFragments`. Strict code therefore defines only this local structural
+extension:
 
 ```text
 WebSocket.ClientOptions & {
+  readonly closeTimeout: 5_000;
   readonly maxBufferedChunks: 64;
   readonly maxFragments: 64;
 }
 ```
 
-The immutable literal must `satisfies` that intersection and is passed directly
-to the public constructor. `as any`, `unknown` coercion, module augmentation,
-`@ts-ignore`, deep imports, and `skipLibCheck` changes are forbidden. This keeps
-the published runtime options visible to strict TypeScript without pretending
-the older declaration already contains them.
+The immutable literal must use `as const satisfies` against that intersection
+and is passed directly to the public constructor. `as any`, `unknown`
+coercion, module augmentation, `@ts-ignore`, deep imports, and `skipLibCheck`
+changes are forbidden. This keeps the three published runtime options visible
+to strict TypeScript without pretending the older declaration already contains
+them.
+
+Mandatory type-contract evidence is an exact package-root NodeNext no-emit
+compile probe against `ws@8.21.1` and `@types/ws@8.18.1` under TypeScript
+`6.0.3`, all repository strict options, and `skipLibCheck: false`. The probe
+imports only from package root `ws`, defines the full immutable options literal
+with `as const satisfies` against the intersection above, passes it to a direct
+`new WebSocket(..., options)` call, and includes a public `terminate()` call on
+that client. It must compile with zero diagnostics and without `any`, casts,
+module augmentation, deep imports, suppressions, or configuration weakening.
 
 Public `ws` behavior supplies three independent pre-emission gates:
 
@@ -549,8 +562,14 @@ All tests are synthetic, deterministic, and no-network. Real `fetch`, real
 1. Static/package test: no production import of `@slack/socket-mode`, no deep
    Slack/Undici/`ws` import, no private member access, exact Socket SDK removal,
    and only exact `ws@8.21.1` + dev `@types/ws@8.18.1` additions.
-2. Compile with TypeScript `6.0.3`, `skipLibCheck:false`; run lint, targeted tests,
-   full tests, and build under Node 24.
+2. Run the exact package-root NodeNext no-emit compile probe with `ws@8.21.1`,
+   `@types/ws@8.18.1`, TypeScript `6.0.3`, all repository strict options, and
+   `skipLibCheck:false`. It must use the three-field local intersection and
+   immutable `as const satisfies` literal, pass that literal in a direct
+   `new WebSocket(..., options)` call, include a public `terminate()` call, and
+   produce zero diagnostics without `any`, casts, module augmentation, deep
+   imports, suppressions, or configuration weakening. Then run lint, targeted
+   tests, full tests, and build under Node 24.
 3. Correct bot/app pairing reaches `EVENT_RECEIVE_READY` only after exact hello
    App-ID equality and a synchronous readiness-seal check.
 4. Correct/correct, swapped bot, swapped app, both swapped, foreign workspace,
@@ -694,7 +713,7 @@ evidence for those findings.
 |---|---|
 | Node platform WebSocket has no public pre-callback payload/part caps. | It is explicitly rejected and absent from production imports. No Reviewer discretion or risk acceptance can select it under this delta. |
 | Slack may extend hello/debug fields. | Exact unknown-key rejection and remain disconnected until a reviewed parser update. |
-| `ws@8.21.1` is a new security-critical direct dependency and its two part-count options are newer than `@types/ws@8.18.1`. | Exact immutable pin/integrities, public-doc/release inspection, local two-field structural type, strict compile with no casts/suppressions, exact option-spy tests, lockfile/audit, and full independent transport delta review. Any failure blocks activation; it is not accepted risk. |
+| `ws@8.21.1` is a new security-critical direct dependency, and `@types/ws@8.18.1` omits exactly three selected runtime options used here: `closeTimeout` plus the two newer part-count options. | Exact immutable pin/integrities, public-doc/release inspection, local three-field structural type, exact package-root NodeNext strict compile probe with direct constructor and public `terminate()` calls and no casts/suppressions, exact option-spy tests, lockfile/audit, and full independent transport delta review. Any failure blocks activation; it is not accepted risk. |
 | A future edit omits/widens `maxPayload`, `maxBufferedChunks`, `maxFragments`, or enables compression. | Exact literal/static test plus constructor-spy test fails; default disconnected. No configuration surface may override the literals. |
 | The peer exceeds payload/fragment/chunk bounds. | `ws` receiver errors before `message`; close/latch with stable code, no hello/event parse, no ACK, no retry. |
 | Closing handshake stalls. | Exact 5-second public `closeTimeout` force-terminates; shared 15-second lifecycle deadline and public `terminate()` are secondary hard stops; no reconnect. |
