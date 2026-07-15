@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -252,5 +252,65 @@ describe('AS1 operational control gate (B05)', () => {
     const second = await store.readTransport(SECOND_EVENT_ID);
     expect(first?.state).toBe('MATERIALIZED');
     expect(second?.state).toBe('TRANSPORT_ACK_RECORDED'); // untouched — recovery stopped between records
+  });
+});
+
+// B08 — persisted per-profile state is strictly parsed on read (exact keys/types/hashes/phases); a corrupted,
+// tampered, or extra-keyed record fails closed as STORE_QUARANTINED and is never trusted downstream.
+describe('AS1 strict on-read parsing (B08)', () => {
+  const OUTBOX = 'indexes/as1-slack-pilot/profiles/agent-office-advisor/slack-outbox.json';
+  const QUESTIONS = 'indexes/as1-slack-pilot/profiles/agent-office-advisor/pending-questions.json';
+
+  async function freshStore() {
+    const root = await makeStateRoot();
+    const store = await As1ProfileInboundStore.open(root, PROFILE, new FakeClock('2026-07-14T22:06:00.000Z'));
+    return { root, store };
+  }
+
+  it('rejects an illegal phase, an extra key, and a malformed hash in a persisted outbox record', async () => {
+    const base = { outboundId: 'out-1', phase: 'PREPARED', requestHash: null, responseHash: null, recordedAt: '2026-07-14T22:06:00.000Z' };
+    for (const corrupt of [
+      { ...base, phase: 'BOGUS_PHASE' }, // not a legal outbox phase
+      { ...base, injected: 'x' }, // an unknown extra key (exact-key parsing)
+      { ...base, requestHash: 'not-a-sha256' }, // a malformed hash
+    ]) {
+      const { root, store } = await freshStore();
+      await store.recordOutboxPhase('out-1', 'PREPARED'); // create the index, then corrupt the file bytes
+      await writeFile(path.join(root, OUTBOX), JSON.stringify([corrupt]));
+      await expect(store.readOutboxRecord('out-1'), JSON.stringify(corrupt)).rejects.toBeInstanceOf(DomainError);
+    }
+  });
+
+  it('rejects a corrupted pending-question record on read', async () => {
+    const { root, store } = await freshStore();
+    await store.openQuestion({
+      questionId: 'q1',
+      rootTs: ROOT_TS,
+      expectedResponseKind: 'CLARIFICATION',
+      evidenceRef: 'advisor/jobs/x/q.json',
+      evidenceHash: `sha256:${'7'.repeat(64)}`,
+      openedAt: '2026-07-14T22:06:00.000Z',
+      expiresAt: '2026-07-14T22:10:00.000Z',
+    });
+    // An illegal expectedResponseKind enum value must fail closed on the next read.
+    await writeFile(
+      path.join(root, QUESTIONS),
+      JSON.stringify([
+        {
+          schemaVersion: 'agent-office.as1-pending-question.v1',
+          questionId: 'q1',
+          rootTs: ROOT_TS,
+          expectedResponseKind: 'INVALID_KIND',
+          evidenceRef: 'advisor/jobs/x/q.json',
+          evidenceHash: `sha256:${'7'.repeat(64)}`,
+          state: 'OPEN',
+          openedAt: '2026-07-14T22:06:00.000Z',
+          expiresAt: '2026-07-14T22:10:00.000Z',
+          consumedAt: null,
+          consumedBySourceEventId: null,
+        },
+      ]),
+    );
+    await expect(store.findOpenQuestionForRoot(ROOT_TS)).rejects.toBeInstanceOf(DomainError);
   });
 });

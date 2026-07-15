@@ -21,8 +21,17 @@ import { GENESIS_EVENT_HASH, hashCanonical, isSha256 } from '../../persistence/f
 import { ensurePrivateDirectory, isNodeError, resolveContainedPath } from '../../persistence/file-store/path-safety.js';
 import { ImmutableArtifactStore, type ImmutableArtifactReceipt } from '../../persistence/file-store/artifact-store.js';
 import type { AgentOfficeRuntimeIdentity } from '../../runtime/identity.js';
-import { LIMITS } from './contracts.js';
+import {
+  LIMITS,
+  requireArtifactRef,
+  requireGitCommit,
+  requireOpaqueId,
+  requireSha256,
+  requireSlackTs,
+  requireUtc,
+} from './contracts.js';
 import type { As1PilotReceiveGrantV1 } from './contracts.js';
+import { assertExactKeys, assertRecord, requireEnum, requireInteger } from '../../contracts/validation.js';
 import type { As1Profile } from './profiles.js';
 
 const ARTIFACT_KIND = 'as1-slack-pilot';
@@ -305,6 +314,283 @@ export interface ConsumeQuestionResult {
   readonly question: As1PendingQuestionV1 | null;
 }
 
+// ── Strict on-read record parsers (review B08) ───────────────────────────────────────────────────────────────
+// Persisted per-profile state is NEVER blind-cast. Every durable index is validated on read against its EXACT
+// keys, field types, hashes, enums, and phases; a corrupted/tampered/legacy record fails closed (the readers
+// wrap any failure as STORE_QUARANTINED) instead of being trusted downstream.
+function reqNullableOpaqueId(value: unknown, label: string): string | null {
+  return value === null ? null : requireOpaqueId(value, label);
+}
+function reqNullableSha256(value: unknown, label: string): string | null {
+  return value === null ? null : requireSha256(value, label);
+}
+function reqNullableUtc(value: unknown, label: string): string | null {
+  return value === null ? null : requireUtc(value, label);
+}
+function reqNullableArtifactRef(value: unknown, label: string): string | null {
+  return value === null ? null : requireArtifactRef(value, label);
+}
+function reqNullableSlackTs(value: unknown, label: string): string | null {
+  return value === null ? null : requireSlackTs(value, label);
+}
+function reqSchema<T extends string>(value: unknown, expected: T, label: string): T {
+  if (value !== expected) throw new DomainError('STORE_QUARANTINED', `${label} schemaVersion is not ${expected}`);
+  return expected;
+}
+function reqBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new DomainError('STORE_QUARANTINED', `${label} must be a boolean`);
+  return value;
+}
+function reqRootLimit(value: unknown, label: string): 1 {
+  if (requireInteger(value, label, 1) !== 1) throw new DomainError('STORE_QUARANTINED', `${label} must be 1`);
+  return 1;
+}
+/** A bounded opaque byte string (correlation facts are byte-derived from an already-validated envelope). */
+function reqBoundedString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.length === 0 || Buffer.byteLength(value, 'utf8') > LIMITS.ARTIFACT_REF_MAX_BYTES) {
+    throw new DomainError('STORE_QUARANTINED', `${label} is not a bounded string`);
+  }
+  return value;
+}
+const AS1_PROFILE_IDS = ['AGENT_OFFICE_ADVISOR', 'FOUNDATION_ADVISOR'] as const;
+/** Passthrough for a legacy/audit index whose ONLY read semantics is presence/capacity, not field trust. */
+function passthroughRecord(value: unknown): unknown {
+  return value;
+}
+
+function parseDedupeRecord(value: unknown): As1DedupeRecordV1 {
+  assertRecord(value, 'as1 dedupe record');
+  assertExactKeys(
+    value,
+    ['schemaVersion', 'profileId', 'envelopeId', 'teamId', 'apiAppId', 'eventId', 'rawEnvelopeHash', 'innerEventHash', 'firstReceivedAt', 'lastReceivedAt', 'preAckClass', 'receiveGrantStateHash', 'intakeId', 'terminalReason'],
+    'as1 dedupe record',
+  );
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-inbound-dedupe.v1', 'as1 dedupe record'),
+    profileId: requireEnum(value.profileId, AS1_PROFILE_IDS, 'dedupe.profileId'),
+    envelopeId: requireOpaqueId(value.envelopeId, 'dedupe.envelopeId'),
+    teamId: requireOpaqueId(value.teamId, 'dedupe.teamId'),
+    apiAppId: requireOpaqueId(value.apiAppId, 'dedupe.apiAppId'),
+    eventId: requireOpaqueId(value.eventId, 'dedupe.eventId'),
+    rawEnvelopeHash: requireSha256(value.rawEnvelopeHash, 'dedupe.rawEnvelopeHash'),
+    innerEventHash: requireSha256(value.innerEventHash, 'dedupe.innerEventHash'),
+    firstReceivedAt: requireUtc(value.firstReceivedAt, 'dedupe.firstReceivedAt'),
+    lastReceivedAt: requireUtc(value.lastReceivedAt, 'dedupe.lastReceivedAt'),
+    preAckClass: requireOpaqueId(value.preAckClass, 'dedupe.preAckClass'),
+    receiveGrantStateHash: reqNullableSha256(value.receiveGrantStateHash, 'dedupe.receiveGrantStateHash'),
+    intakeId: reqNullableOpaqueId(value.intakeId, 'dedupe.intakeId'),
+    terminalReason: reqNullableOpaqueId(value.terminalReason, 'dedupe.terminalReason'),
+  };
+}
+
+function parseReceiveGrantState(value: unknown): As1PilotReceiveGrantStateV1 {
+  assertRecord(value, 'as1 receive-grant state');
+  assertExactKeys(
+    value,
+    ['schemaVersion', 'receiveGrantId', 'pilotId', 'profileId', 'phase', 'rootLimit', 'rootSlotConsumed', 'boundSourceEventId', 'boundRootTs', 'boundRootKeyHash', 'boundReceiptArtifactRef', 'boundReceiptArtifactHash', 'boundMessageArtifactHash', 'boundAt', 'previousStateHash', 'stateHash', 'version'],
+    'as1 receive-grant state',
+  );
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-pilot-receive-grant-state.v1', 'as1 receive-grant state'),
+    receiveGrantId: requireOpaqueId(value.receiveGrantId, 'state.receiveGrantId'),
+    pilotId: requireOpaqueId(value.pilotId, 'state.pilotId'),
+    profileId: requireEnum(value.profileId, AS1_PROFILE_IDS, 'state.profileId'),
+    phase: requireEnum(value.phase, AS1_RECEIVE_PHASES, 'state.phase'),
+    rootLimit: reqRootLimit(value.rootLimit, 'state.rootLimit'),
+    rootSlotConsumed: reqBoolean(value.rootSlotConsumed, 'state.rootSlotConsumed'),
+    boundSourceEventId: reqNullableOpaqueId(value.boundSourceEventId, 'state.boundSourceEventId'),
+    boundRootTs: reqNullableSlackTs(value.boundRootTs, 'state.boundRootTs'),
+    boundRootKeyHash: reqNullableSha256(value.boundRootKeyHash, 'state.boundRootKeyHash'),
+    boundReceiptArtifactRef: reqNullableArtifactRef(value.boundReceiptArtifactRef, 'state.boundReceiptArtifactRef'),
+    boundReceiptArtifactHash: reqNullableSha256(value.boundReceiptArtifactHash, 'state.boundReceiptArtifactHash'),
+    boundMessageArtifactHash: reqNullableSha256(value.boundMessageArtifactHash, 'state.boundMessageArtifactHash'),
+    boundAt: reqNullableUtc(value.boundAt, 'state.boundAt'),
+    previousStateHash: requireSha256(value.previousStateHash, 'state.previousStateHash'),
+    stateHash: requireSha256(value.stateHash, 'state.stateHash'),
+    version: requireInteger(value.version, 'state.version', 0),
+  };
+}
+
+function parsePendingQuestion(value: unknown): As1PendingQuestionV1 {
+  assertRecord(value, 'as1 pending question');
+  assertExactKeys(
+    value,
+    ['schemaVersion', 'questionId', 'rootTs', 'expectedResponseKind', 'evidenceRef', 'evidenceHash', 'state', 'openedAt', 'expiresAt', 'consumedAt', 'consumedBySourceEventId'],
+    'as1 pending question',
+  );
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-pending-question.v1', 'as1 pending question'),
+    questionId: requireOpaqueId(value.questionId, 'question.questionId'),
+    rootTs: requireSlackTs(value.rootTs, 'question.rootTs'),
+    expectedResponseKind: requireEnum(value.expectedResponseKind, ['CLARIFICATION', 'DECISION_RESPONSE'] as const, 'question.expectedResponseKind'),
+    evidenceRef: requireArtifactRef(value.evidenceRef, 'question.evidenceRef'),
+    evidenceHash: requireSha256(value.evidenceHash, 'question.evidenceHash'),
+    state: requireEnum(value.state, ['OPEN', 'CONSUMED'] as const, 'question.state'),
+    openedAt: requireUtc(value.openedAt, 'question.openedAt'),
+    expiresAt: requireUtc(value.expiresAt, 'question.expiresAt'),
+    consumedAt: reqNullableUtc(value.consumedAt, 'question.consumedAt'),
+    consumedBySourceEventId: reqNullableOpaqueId(value.consumedBySourceEventId, 'question.consumedBySourceEventId'),
+  };
+}
+
+function parseRootCorrelation(value: unknown): As1RootCorrelationV1 {
+  assertRecord(value, 'as1 root correlation');
+  assertExactKeys(value, ['schemaVersion', 'rootTs', 'rootKeyHash', 'sourceEventId', 'receiveGrantId', 'bindingStateHash', 'intakeId', 'createdAt'], 'as1 root correlation');
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-root-correlation.v1', 'as1 root correlation'),
+    rootTs: requireSlackTs(value.rootTs, 'root.rootTs'),
+    rootKeyHash: requireSha256(value.rootKeyHash, 'root.rootKeyHash'),
+    sourceEventId: requireOpaqueId(value.sourceEventId, 'root.sourceEventId'),
+    receiveGrantId: requireOpaqueId(value.receiveGrantId, 'root.receiveGrantId'),
+    bindingStateHash: requireSha256(value.bindingStateHash, 'root.bindingStateHash'),
+    intakeId: requireOpaqueId(value.intakeId, 'root.intakeId'),
+    createdAt: requireUtc(value.createdAt, 'root.createdAt'),
+  };
+}
+
+function parseTransportObserved(value: unknown): As1TransportObserved {
+  assertRecord(value, 'as1 transport observed');
+  assertExactKeys(value, ['candidateKind', 'sourceEventId', 'rootTs', 'rootKeyHash', 'receiptArtifactRef', 'receiptArtifactHash', 'messageArtifactRef', 'messageArtifactHash'], 'as1 transport observed');
+  return {
+    candidateKind: requireEnum(value.candidateKind, ['ROOT', 'CONTINUATION'] as const, 'observed.candidateKind'),
+    sourceEventId: requireOpaqueId(value.sourceEventId, 'observed.sourceEventId'),
+    rootTs: requireSlackTs(value.rootTs, 'observed.rootTs'),
+    rootKeyHash: requireSha256(value.rootKeyHash, 'observed.rootKeyHash'),
+    receiptArtifactRef: requireArtifactRef(value.receiptArtifactRef, 'observed.receiptArtifactRef'),
+    receiptArtifactHash: requireSha256(value.receiptArtifactHash, 'observed.receiptArtifactHash'),
+    messageArtifactRef: requireArtifactRef(value.messageArtifactRef, 'observed.messageArtifactRef'),
+    messageArtifactHash: requireSha256(value.messageArtifactHash, 'observed.messageArtifactHash'),
+  };
+}
+
+function parseContinuationBinding(value: unknown): As1TransportContinuationBinding {
+  assertRecord(value, 'as1 continuation binding');
+  assertExactKeys(value, ['kind', 'originalIntakeId', 'questionId'], 'as1 continuation binding');
+  return {
+    kind: requireEnum(value.kind, ['CLARIFICATION', 'DECISION_RESPONSE'] as const, 'continuation.kind'),
+    originalIntakeId: requireOpaqueId(value.originalIntakeId, 'continuation.originalIntakeId'),
+    questionId: requireOpaqueId(value.questionId, 'continuation.questionId'),
+  };
+}
+
+function parseTransportRecord(value: unknown): As1TransportRecordV1 {
+  assertRecord(value, 'as1 transport record');
+  assertExactKeys(
+    value,
+    ['schemaVersion', 'eventId', 'envelopeId', 'state', 'rawEnvelopeHash', 'innerEventHash', 'observed', 'preAckDecision', 'terminalReason', 'bindingStateHash', 'continuation', 'transportAckRecorded', 'intakeId', 'pointerArtifactRef', 'recordedAt', 'ackedAt', 'materializedAt'],
+    'as1 transport record',
+  );
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-transport-record.v1', 'as1 transport record'),
+    eventId: requireOpaqueId(value.eventId, 'transport.eventId'),
+    envelopeId: requireOpaqueId(value.envelopeId, 'transport.envelopeId'),
+    state: requireEnum(value.state, AS1_TRANSPORT_STATES, 'transport.state'),
+    rawEnvelopeHash: requireSha256(value.rawEnvelopeHash, 'transport.rawEnvelopeHash'),
+    innerEventHash: requireSha256(value.innerEventHash, 'transport.innerEventHash'),
+    observed: parseTransportObserved(value.observed),
+    preAckDecision: value.preAckDecision === null ? null : requireEnum(value.preAckDecision, ['ROOT_BOUND', 'CONTINUATION_CONSUMED', 'REJECTED'] as const, 'transport.preAckDecision'),
+    terminalReason: reqNullableOpaqueId(value.terminalReason, 'transport.terminalReason'),
+    bindingStateHash: reqNullableSha256(value.bindingStateHash, 'transport.bindingStateHash'),
+    continuation: value.continuation === null ? null : parseContinuationBinding(value.continuation),
+    transportAckRecorded: reqBoolean(value.transportAckRecorded, 'transport.transportAckRecorded'),
+    intakeId: reqNullableOpaqueId(value.intakeId, 'transport.intakeId'),
+    pointerArtifactRef: reqNullableArtifactRef(value.pointerArtifactRef, 'transport.pointerArtifactRef'),
+    recordedAt: requireUtc(value.recordedAt, 'transport.recordedAt'),
+    ackedAt: reqNullableUtc(value.ackedAt, 'transport.ackedAt'),
+    materializedAt: reqNullableUtc(value.materializedAt, 'transport.materializedAt'),
+  };
+}
+
+function parseDeliveryAuthorityConsumption(value: unknown): As1DeliveryAuthorityConsumptionV1 {
+  assertRecord(value, 'as1 delivery-authority consumption');
+  assertExactKeys(value, ['schemaVersion', 'pointerDeliveryGrantId', 'leaseId', 'consumedAt'], 'as1 delivery-authority consumption');
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-delivery-authority-consumption.v1', 'as1 delivery-authority consumption'),
+    pointerDeliveryGrantId: requireOpaqueId(value.pointerDeliveryGrantId, 'consumption.pointerDeliveryGrantId'),
+    leaseId: requireOpaqueId(value.leaseId, 'consumption.leaseId'),
+    consumedAt: requireUtc(value.consumedAt, 'consumption.consumedAt'),
+  };
+}
+
+const TMUX_FACTS_KEYS = [
+  'receiveGrantId', 'receiveGrantBindingHash', 'pointerDeliveryGrantId', 'leaseId', 'pilotId', 'profileId', 'advisorTeam',
+  'actorId', 'roleInstanceId', 'intakeId', 'sourceEventId', 'pointerHash', 'destinationHash', 'governanceSnapshotHash',
+  'registrySnapshotHash', 'globalControlSnapshotHash', 'profileLatchSnapshotHash', 'pointerDeliveryGrantSnapshotHash',
+] as const;
+
+function parseTmuxDeliveryFacts(value: unknown): As1TmuxDeliveryFacts {
+  assertRecord(value, 'as1 tmux delivery facts');
+  assertExactKeys(value, TMUX_FACTS_KEYS, 'as1 tmux delivery facts');
+  return {
+    receiveGrantId: requireOpaqueId(value.receiveGrantId, 'facts.receiveGrantId'),
+    receiveGrantBindingHash: requireSha256(value.receiveGrantBindingHash, 'facts.receiveGrantBindingHash'),
+    pointerDeliveryGrantId: requireOpaqueId(value.pointerDeliveryGrantId, 'facts.pointerDeliveryGrantId'),
+    leaseId: requireOpaqueId(value.leaseId, 'facts.leaseId'),
+    pilotId: requireOpaqueId(value.pilotId, 'facts.pilotId'),
+    profileId: requireOpaqueId(value.profileId, 'facts.profileId'),
+    advisorTeam: requireOpaqueId(value.advisorTeam, 'facts.advisorTeam'),
+    actorId: requireOpaqueId(value.actorId, 'facts.actorId'),
+    roleInstanceId: requireOpaqueId(value.roleInstanceId, 'facts.roleInstanceId'),
+    intakeId: requireOpaqueId(value.intakeId, 'facts.intakeId'),
+    sourceEventId: requireOpaqueId(value.sourceEventId, 'facts.sourceEventId'),
+    pointerHash: requireSha256(value.pointerHash, 'facts.pointerHash'),
+    destinationHash: requireSha256(value.destinationHash, 'facts.destinationHash'),
+    governanceSnapshotHash: requireSha256(value.governanceSnapshotHash, 'facts.governanceSnapshotHash'),
+    registrySnapshotHash: requireSha256(value.registrySnapshotHash, 'facts.registrySnapshotHash'),
+    globalControlSnapshotHash: requireSha256(value.globalControlSnapshotHash, 'facts.globalControlSnapshotHash'),
+    profileLatchSnapshotHash: requireSha256(value.profileLatchSnapshotHash, 'facts.profileLatchSnapshotHash'),
+    pointerDeliveryGrantSnapshotHash: requireSha256(value.pointerDeliveryGrantSnapshotHash, 'facts.pointerDeliveryGrantSnapshotHash'),
+  };
+}
+
+function parseTmuxDeliveryRecord(value: unknown): As1TmuxDeliveryRecordV1 {
+  assertRecord(value, 'as1 tmux delivery record');
+  assertExactKeys(value, ['schemaVersion', 'deliveryId', 'phase', 'boundFacts', 'recordedAt'], 'as1 tmux delivery record');
+  return {
+    schemaVersion: reqSchema(value.schemaVersion, 'agent-office.as1-tmux-delivery.v1', 'as1 tmux delivery record'),
+    deliveryId: requireOpaqueId(value.deliveryId, 'tmux.deliveryId'),
+    phase: requireOpaqueId(value.phase, 'tmux.phase'),
+    boundFacts: parseTmuxDeliveryFacts(value.boundFacts),
+    recordedAt: requireUtc(value.recordedAt, 'tmux.recordedAt'),
+  };
+}
+
+function parseAcceptedEvidence(value: unknown): As1AcceptedEvidenceRecordV1 {
+  assertRecord(value, 'as1 accepted evidence');
+  assertExactKeys(value, ['evidenceKind', 'evidenceId', 'intakeId', 'blobSha256', 'sourceCommit', 'repositoryId', 'path', 'envelopeHash', 'correlation', 'sequence', 'acceptedAt'], 'as1 accepted evidence');
+  assertRecord(value.correlation, 'accepted-evidence.correlation');
+  const rawCorrelation = value.correlation;
+  const correlation: Record<string, string> = {};
+  for (const key of Object.keys(rawCorrelation)) {
+    correlation[key] = reqBoundedString(rawCorrelation[key], `accepted-evidence.correlation.${key}`);
+  }
+  return {
+    evidenceKind: requireEnum(value.evidenceKind, ['ACK', 'INTAKE', 'QUESTION', 'RESULT'] as const, 'accepted-evidence.evidenceKind'),
+    evidenceId: requireOpaqueId(value.evidenceId, 'accepted-evidence.evidenceId'),
+    intakeId: requireOpaqueId(value.intakeId, 'accepted-evidence.intakeId'),
+    blobSha256: requireSha256(value.blobSha256, 'accepted-evidence.blobSha256'),
+    sourceCommit: requireGitCommit(value.sourceCommit, 'accepted-evidence.sourceCommit'),
+    repositoryId: requireOpaqueId(value.repositoryId, 'accepted-evidence.repositoryId'),
+    path: requireArtifactRef(value.path, 'accepted-evidence.path'),
+    envelopeHash: requireSha256(value.envelopeHash, 'accepted-evidence.envelopeHash'),
+    correlation,
+    sequence: requireInteger(value.sequence, 'accepted-evidence.sequence', 1),
+    acceptedAt: requireUtc(value.acceptedAt, 'accepted-evidence.acceptedAt'),
+  };
+}
+
+function parseOutboxRecord(value: unknown): As1OutboxRecordV1 {
+  assertRecord(value, 'as1 outbox record');
+  assertExactKeys(value, ['outboundId', 'phase', 'requestHash', 'responseHash', 'recordedAt'], 'as1 outbox record');
+  return {
+    outboundId: requireOpaqueId(value.outboundId, 'outbox.outboundId'),
+    phase: requireEnum(value.phase, ['PREPARED', 'REQUEST_STARTED', 'RESPONSE_RECORDED', 'MANUAL_RECONCILIATION_REQUIRED'] as const, 'outbox.phase'),
+    requestHash: reqNullableSha256(value.requestHash, 'outbox.requestHash'),
+    responseHash: reqNullableSha256(value.responseHash, 'outbox.responseHash'),
+    recordedAt: requireUtc(value.recordedAt, 'outbox.recordedAt'),
+  };
+}
+
 /** Serialize all per-profile mutations to one linearizable sequence (security §15). */
 class AsyncMutex {
   private tail: Promise<void> = Promise.resolve();
@@ -386,7 +672,7 @@ export class As1ProfileInboundStore {
   /** Insert both dedupe identities atomically (design §8.3). Duplicate on same bytes; corruption on new bytes. */
   public async insertDedupe(input: DedupeInput): Promise<DedupeOutcome> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray<As1DedupeRecordV1>(this.indexPath('inbound-dedupe.json'));
+      const records = await this.readJsonArray(this.indexPath('inbound-dedupe.json'), parseDedupeRecord);
       const now = this.clock.now();
       const byEnvelope = records.find((r) => r.envelopeId === input.envelopeId);
       const byEvent = records.find(
@@ -577,7 +863,7 @@ export class As1ProfileInboundStore {
     readonly expiresAt: string;
   }): Promise<As1PendingQuestionV1> {
     return this.mutex.run(async () => {
-      const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
+      const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion);
       // Exact-idempotent restart: a re-open of the SAME questionId with identical immutable opening fields
       // (root, response kind, evidence ref/hash, openedAt, expiresAt) returns the existing record (the ingress
       // re-observes accepted QUESTION evidence on restart); any divergence on the same id is a durable
@@ -622,7 +908,7 @@ export class As1ProfileInboundStore {
   }
 
   public async findOpenQuestionForRoot(rootTs: string): Promise<As1PendingQuestionV1 | null> {
-    const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
+    const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion);
     return questions.find((q) => q.rootTs === rootTs && q.state === 'OPEN') ?? null;
   }
 
@@ -633,10 +919,10 @@ export class As1ProfileInboundStore {
    * no matching materialized continuation — or a missing consuming event — fails closed. Used to bind a RESULT.
    */
   public async deriveConsumedQuestionReplies(rootTs: string, intakeId: string): Promise<readonly As1ConsumedQuestionReplyV1[]> {
-    const questions = (await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'))).filter(
+    const questions = (await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion)).filter(
       (q) => q.rootTs === rootTs && q.state === 'CONSUMED',
     );
-    const transports = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+    const transports = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
     const entries: As1ConsumedQuestionReplyV1[] = [];
     for (const q of questions) {
       if (q.consumedBySourceEventId === null) {
@@ -678,7 +964,7 @@ export class As1ProfileInboundStore {
   ): Promise<ConsumeQuestionResult> {
     return this.mutex.run(async () => {
       this.assertGrantBelongsToProfile(grant);
-      const questions = await this.readJsonArray<As1PendingQuestionV1>(this.indexPath('pending-questions.json'));
+      const questions = await this.readJsonArray(this.indexPath('pending-questions.json'), parsePendingQuestion);
       const index = questions.findIndex((q) => q.rootTs === rootTs && q.state === 'OPEN');
       const open = index >= 0 ? questions[index] : undefined;
       if (open === undefined) {
@@ -709,7 +995,7 @@ export class As1ProfileInboundStore {
   // ── Root correlation (design §10) ─────────────────────────────────────────
   public async recordRootCorrelation(record: Omit<As1RootCorrelationV1, 'schemaVersion' | 'createdAt'>): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray<As1RootCorrelationV1>(this.indexPath('root-correlations.json'));
+      const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation);
       if (records.some((r) => r.rootTs === record.rootTs)) return;
       if (records.length >= LIMITS.INTAKE_CORRELATIONS_PER_PROFILE) {
         throw new DomainError('STORE_QUARANTINED', 'root-correlation capacity exhausted; no silent eviction');
@@ -725,12 +1011,12 @@ export class As1ProfileInboundStore {
 
   /** Resolve the immutable accepted root correlation for an intake (design §10/§14 outbound root binding). */
   public async findRootByIntakeId(intakeId: string): Promise<As1RootCorrelationV1 | null> {
-    const records = await this.readJsonArray<As1RootCorrelationV1>(this.indexPath('root-correlations.json'));
+    const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation);
     return records.find((r) => r.intakeId === intakeId) ?? null;
   }
 
   public async findRootByThreadTs(threadTs: string): Promise<As1RootCorrelationV1 | null> {
-    const records = await this.readJsonArray<As1RootCorrelationV1>(this.indexPath('root-correlations.json'));
+    const records = await this.readJsonArray(this.indexPath('root-correlations.json'), parseRootCorrelation);
     return records.find((r) => r.rootTs === threadTs) ?? null;
   }
 
@@ -748,7 +1034,7 @@ export class As1ProfileInboundStore {
     observed: As1TransportObserved,
   ): Promise<As1TransportRecordV1> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+      const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
       const existing = records.find((r) => r.eventId === eventId);
       if (existing !== undefined) {
         if (
@@ -859,13 +1145,13 @@ export class As1ProfileInboundStore {
   }
 
   public async readTransport(eventId: string): Promise<As1TransportRecordV1 | null> {
-    const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+    const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
     return records.find((r) => r.eventId === eventId) ?? null;
   }
 
   /** Every non-terminal transport record, oldest first — the input to bounded startup recovery (§15.1). */
   public async listNonTerminalTransport(): Promise<readonly As1TransportRecordV1[]> {
-    const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+    const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
     return records.filter((r) => r.state !== 'MATERIALIZED' && r.state !== 'TERMINAL_NO_INTAKE');
   }
 
@@ -876,7 +1162,7 @@ export class As1ProfileInboundStore {
     update: (existing: As1TransportRecordV1) => As1TransportRecordV1,
   ): Promise<As1TransportRecordV1> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray<As1TransportRecordV1>(this.indexPath('transport-journal.json'));
+      const records = await this.readJsonArray(this.indexPath('transport-journal.json'), parseTransportRecord);
       const index = records.findIndex((r) => r.eventId === eventId);
       const existing = index >= 0 ? records[index] : undefined;
       if (existing === undefined) {
@@ -900,7 +1186,7 @@ export class As1ProfileInboundStore {
   // ── Minimal denial audit (design §9) ──────────────────────────────────────
   public async recordDenialAudit(reason: string, eventId: string | null, envelopeId: string | null): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray<unknown>(this.indexPath('denial-audit.json'));
+      const records = await this.readJsonArray(this.indexPath('denial-audit.json'), passthroughRecord);
       if (records.length >= LIMITS.DENIAL_AUDIT_PER_PROFILE) {
         throw new DomainError('STORE_QUARANTINED', 'denial-audit capacity exhausted; no silent eviction');
       }
@@ -938,7 +1224,7 @@ export class As1ProfileInboundStore {
    */
   public async recordTmuxPhase(deliveryId: string, phase: string, facts?: As1TmuxDeliveryFacts): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray<As1TmuxDeliveryRecordV1>(this.indexPath('tmux-delivery.json'));
+      const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord);
       const index = records.findIndex((r) => r.deliveryId === deliveryId);
       const now = this.clock.now();
       if (index < 0) {
@@ -979,7 +1265,7 @@ export class As1ProfileInboundStore {
   }
 
   public async readTmuxPhase(deliveryId: string): Promise<string | null> {
-    const records = await this.readJsonArray<As1TmuxDeliveryRecordV1>(this.indexPath('tmux-delivery.json'));
+    const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord);
     return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
   }
 
@@ -999,7 +1285,7 @@ export class As1ProfileInboundStore {
    */
   public async recordOutboxPhase(outboundId: string, phase: string, hashes?: As1OutboxHashes): Promise<void> {
     await this.mutex.run(async () => {
-      const records = await this.readJsonArray<As1OutboxRecordV1>(this.indexPath('slack-outbox.json'));
+      const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord);
       const index = records.findIndex((r) => r.outboundId === outboundId);
       const prior = index >= 0 ? records[index] : undefined;
       const record: As1OutboxRecordV1 = {
@@ -1023,12 +1309,12 @@ export class As1ProfileInboundStore {
   }
 
   public async readOutboxPhase(outboundId: string): Promise<string | null> {
-    const records = await this.readJsonArray<As1OutboxRecordV1>(this.indexPath('slack-outbox.json'));
+    const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord);
     return records.find((r) => r.outboundId === outboundId)?.phase ?? null;
   }
 
   public async readOutboxRecord(outboundId: string): Promise<As1OutboxRecordV1 | null> {
-    const records = await this.readJsonArray<As1OutboxRecordV1>(this.indexPath('slack-outbox.json'));
+    const records = await this.readJsonArray(this.indexPath('slack-outbox.json'), parseOutboxRecord);
     return records.find((r) => r.outboundId === outboundId) ?? null;
   }
 
@@ -1046,7 +1332,7 @@ export class As1ProfileInboundStore {
     readonly correlation: Readonly<Record<string, string>>;
   }): Promise<number> {
     return this.mutex.run(async () => {
-      const records = await this.readJsonArray<As1AcceptedEvidenceRecordV1>(this.indexPath('evidence-ingress-checkpoint.json'));
+      const records = await this.readJsonArray(this.indexPath('evidence-ingress-checkpoint.json'), parseAcceptedEvidence);
       const existing = records.find((r) => r.evidenceId === entry.evidenceId);
       if (existing !== undefined) {
         // Exact duplicate equality: the re-accepted evidence must match on the FULL canonical envelope hash
@@ -1078,7 +1364,7 @@ export class As1ProfileInboundStore {
   }
 
   public async readAcceptedEvidence(): Promise<readonly As1AcceptedEvidenceRecordV1[]> {
-    return this.readJsonArray<As1AcceptedEvidenceRecordV1>(this.indexPath('evidence-ingress-checkpoint.json'));
+    return this.readJsonArray(this.indexPath('evidence-ingress-checkpoint.json'), parseAcceptedEvidence);
   }
 
   /**
@@ -1089,13 +1375,14 @@ export class As1ProfileInboundStore {
     return this.mutex.run(async () => {
       // Fail closed on legacy two-file consumption state: a prior version's separately-written grant/lease
       // indexes must never be silently ignored, or already-consumed authority could be re-delivered.
-      const legacyGrants = await this.readJsonArray<unknown>(this.indexPath('pointer-delivery-grant-consumption.json'));
-      const legacyLeases = await this.readJsonArray<unknown>(this.indexPath('readiness-lease-consumption.json'));
+      const legacyGrants = await this.readJsonArray(this.indexPath('pointer-delivery-grant-consumption.json'), passthroughRecord);
+      const legacyLeases = await this.readJsonArray(this.indexPath('readiness-lease-consumption.json'), passthroughRecord);
       if (legacyGrants.length > 0 || legacyLeases.length > 0) {
         throw new DomainError('STORE_QUARANTINED', 'legacy delivery-authority consumption state present; requires a reviewed migration');
       }
-      const records = await this.readJsonArray<As1DeliveryAuthorityConsumptionV1>(
+      const records = await this.readJsonArray(
         this.indexPath('delivery-authority-consumption.json'),
+        parseDeliveryAuthorityConsumption,
       );
       if (records.some((r) => r.pointerDeliveryGrantId === pointerDeliveryGrantId || r.leaseId === leaseId)) {
         return false;
@@ -1129,7 +1416,7 @@ export class As1ProfileInboundStore {
   }
 
   private async loadReceiveChain(receiveGrantId: string): Promise<As1PilotReceiveGrantStateV1[]> {
-    const records = await this.readJsonArray<As1PilotReceiveGrantStateV1>(this.receiveStatePath(receiveGrantId));
+    const records = await this.readJsonArray(this.receiveStatePath(receiveGrantId), parseReceiveGrantState);
     let previous: string = GENESIS_EVENT_HASH;
     for (const [index, record] of records.entries()) {
       if (
@@ -1193,7 +1480,12 @@ export class As1ProfileInboundStore {
     return hashCanonical(rest);
   }
 
-  private async readJsonArray<T>(relative: string): Promise<T[]> {
+  /**
+   * Read a durable per-profile index and STRICTLY parse every record (review B08). No blind `as T[]` cast: each
+   * entry passes an exact-key/type/hash/phase parser, and ANY validation failure (or an over-capacity file) fails
+   * closed as STORE_QUARANTINED so a corrupted/tampered/legacy index is never trusted downstream.
+   */
+  private async readJsonArray<T>(relative: string, parse: (value: unknown, index: number) => T): Promise<T[]> {
     const target = await resolveContainedPath(this.stateRoot, relative, { allowMissingLeaf: true });
     let handle: import('node:fs/promises').FileHandle;
     try {
@@ -1208,7 +1500,14 @@ export class As1ProfileInboundStore {
       if (!Array.isArray(parsed)) {
         throw new DomainError('STORE_QUARANTINED', 'profile index is not an array');
       }
-      return parsed as T[];
+      return parsed.map((item, index) => {
+        try {
+          return parse(item, index);
+        } catch (error) {
+          if (error instanceof DomainError && error.code === 'STORE_QUARANTINED') throw error;
+          throw new DomainError('STORE_QUARANTINED', `profile index ${relative} record ${String(index)} failed strict validation`);
+        }
+      });
     } finally {
       await handle.close();
     }
