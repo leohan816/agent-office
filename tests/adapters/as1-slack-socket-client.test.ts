@@ -496,3 +496,73 @@ describe('AS1 raw socket transport — owning-control DEQUEUE gate + durable lat
     expect(ctx.durableLatches.some((r) => r.includes('handler failure'))).toBe(true);
   });
 });
+
+// B05 re-review V5 (AS1-PATCH-V5-05): every malformed/unexpected post-hello transport state and every post-ready
+// raw error/close must DURABLY latch (persist the owning profile latch, retain LATCHED through shutdown), not be
+// logged-and-ignored. A control predicate that rejects at dequeue must also fail closed. On 4cf967d these cases
+// stayed EVENT_RECEIVE_READY with an empty durableLatches list (Reviewer-reproduced).
+describe('AS1 raw socket transport — receive-ready fail-closed durable latching (B05 V5)', () => {
+  async function ready(
+    onEnvelope: (env: As1InboundEnvelope) => Promise<void> = () => Promise.resolve(),
+    control: () => Promise<boolean> = () => Promise.resolve(true),
+  ): Promise<ReturnType<typeof makeTransport>> {
+    const ctx = makeTransport(control);
+    ctx.transport.onEnvelope(onEnvelope);
+    const promise = ctx.transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    ctx.fakeWs.emit('open');
+    ctx.fakeWs.emit('message', helloFrame(APP_ID), false);
+    await promise;
+    return ctx;
+  }
+
+  it('a malformed JSON frame after ready durably latches (not logged-and-ignored)', async () => {
+    const ctx = await ready();
+    ctx.fakeWs.emit('message', Buffer.from('{', 'utf8'), false);
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('malformed frame after ready'))).toBe(true);
+    expect(ctx.fakeWs.closeCalls.length).toBeGreaterThan(0);
+    // A subsequent shutdown must NOT downgrade LATCHED to CLOSED.
+    await ctx.transport.disconnect();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+  });
+
+  it('a well-formed but invalid Events API envelope after ready durably latches', async () => {
+    const ctx = await ready();
+    ctx.fakeWs.emit('message', Buffer.from('{"unexpected":"frame"}', 'utf8'), false);
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('invalid events-api envelope after ready'))).toBe(true);
+  });
+
+  it('a raw socket error after ready durably latches', async () => {
+    const ctx = await ready();
+    ctx.fakeWs.emit('error', new Error('provider stream error'));
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('raw socket error after ready'))).toBe(true);
+  });
+
+  it('a raw socket close after ready durably latches', async () => {
+    const ctx = await ready();
+    ctx.fakeWs.suppressCloseEvent = true; // avoid the fake's own close() re-emit; emit the provider close directly
+    ctx.fakeWs.emit('close');
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('raw socket close after ready'))).toBe(true);
+  });
+
+  it('an owning control that REJECTS at dequeue fails closed durably and runs no queued handler', async () => {
+    const ran: string[] = [];
+    const ctx = await ready(
+      (env) => { ran.push(env.envelopeId); return Promise.resolve(); },
+      () => Promise.reject(new Error('control store unavailable')),
+    );
+    ctx.fakeWs.emit('message', eventFrame('EnvX', APP_ID), false);
+    await flush();
+    expect(ran).toEqual([]);
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('control not actionable at dequeue'))).toBe(true);
+  });
+});

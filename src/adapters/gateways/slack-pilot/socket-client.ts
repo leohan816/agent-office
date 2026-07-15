@@ -254,10 +254,23 @@ export class As1RawSocketTransport implements As1SocketPort {
         if (this.phase === 'WS_CONNECTING' && this.generation === generation) this.phase = 'HELLO_QUARANTINE';
       });
       socket.on('error', () => {
+        // A post-ready raw error on the LIVE receive socket is a fail-closed durable latch (review B05 V5);
+        // before ready it fails the start. No reconnect/retry.
+        if (this.phase === 'EVENT_RECEIVE_READY') {
+          void this.disconnectAndLatch(socket, 1011, 'raw socket error after ready');
+          return;
+        }
         rejectOnce(1008, 'ws error before ready');
       });
       socket.on('close', () => {
-        if (!done.settled && this.phase !== 'EVENT_RECEIVE_READY') rejectOnce(1008, 'closed before ready');
+        // A post-ready raw close (the provider dropped the live receive socket) is a fail-closed durable latch;
+        // a close before ready fails the start; a close during a controlled DRAINING/CLOSED shutdown is expected
+        // and is handled by disconnect()/closeAndConfirm, not here.
+        if (this.phase === 'EVENT_RECEIVE_READY') {
+          void this.disconnectAndLatch(socket, 1008, 'raw socket close after ready');
+          return;
+        }
+        if (!done.settled) rejectOnce(1008, 'closed before ready');
       });
       socket.on('message', (...args: unknown[]) => {
         const data = args[0];
@@ -410,7 +423,10 @@ export class As1RawSocketTransport implements As1SocketPort {
     try {
       value = parseTrustedJson(text);
     } catch {
+      // A malformed post-hello frame is a protocol-corrupt live stream: fail closed with a durable owning-profile
+      // latch, never logged-and-ignored (review B05 V5). No reconnect/retry/fallback.
       this.log.record(this.profileId, 'EVENT_RECEIVE_READY', 'REJECTED_MALFORMED_FRAME');
+      this.latch(socket, 1008, 'malformed frame after ready');
       return;
     }
     if (isDisconnectFrame(value)) {
@@ -424,7 +440,9 @@ export class As1RawSocketTransport implements As1SocketPort {
       const parsed = parseEventsApiValue(value);
       envelope = { envelopeId: parsed.envelopeId, payload: parsed.callback, retryAttempt: parsed.retryAttempt, retryReason: parsed.retryReason };
     } catch {
+      // A well-formed but invalid/unexpected Events API envelope after ready is also a fail-closed durable latch.
       this.log.record(this.profileId, 'EVENT_RECEIVE_READY', 'REJECTED_ENVELOPE');
+      this.latch(socket, 1008, 'invalid events-api envelope after ready');
       return;
     }
     const handler = this.handler;
@@ -461,7 +479,14 @@ export class As1RawSocketTransport implements As1SocketPort {
         // DEQUEUE gate: check the owning control BEFORE removing anything from the FIFO. A profile killed/latched/
         // disabled/wrong-active stops admission, drops queued work (never replayed), and durably latches — the
         // task is never dequeued or run under stale authority.
-        if (!(await this.control())) {
+        let deliverable: boolean;
+        try {
+          deliverable = await this.control();
+        } catch {
+          // A control predicate that REJECTS at dequeue fails closed exactly like one that returns false (B05 V5).
+          deliverable = false;
+        }
+        if (!deliverable) {
           const socket = this.socket;
           this.log.record(this.profileId, this.phase, 'REJECTED_CONTROL_NOT_ACTIONABLE');
           this.admitting = false;
