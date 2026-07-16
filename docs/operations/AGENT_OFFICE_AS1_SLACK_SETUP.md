@@ -12,10 +12,12 @@ lifecycle commands in section 7 (via the `as1:slack-pilot` CLI) are committed
 **implementation under independent review** — source that has passed design
 review and is being re-reviewed after a security patch, not yet accepted for a
 live rehearsal — and they default to disconnected: they open no Slack connection
-on their own. The committed descriptor is `enabled: false`; live connection and
-owner setup remain unauthorized until the independent implementation/security
-review passes, the Advisor records the owner gate, and the Advisor supplies one
-exact committed/pushed unexpired `As1PilotReceiveGrantV1` for one profile.
+on their own. The committed descriptor is `enabled: false`. Leo has reported
+`OWNER_SETUP_COMPLETE`; that completed owner setup does not by itself authorize a
+live connection. Live connection remains unauthorized until the independent
+implementation/security review passes, the Advisor records the owner gate, and
+the Advisor supplies one exact committed/pushed unexpired `As1PilotReceiveGrantV1`
+for one profile.
 `redacted-check` runs today and performs local syntax validation only — it is
 not a live identity proof.
 
@@ -226,8 +228,10 @@ Command semantics after implementation:
 - `stop` is a zero-operand observer verb. It signals the running foreground
   owner ONLY through the sealed pidfd bridge (never a numeric-PID kill), which
   drives the owner's clean drain — stop inbound acceptance, drain exact
-  already-durable work to a bounded deadline, close both Socket Mode clients, and
-  leave unresolved work for restart-safe replay — then proves exact owner-lock
+  already-durable work to a bounded deadline, close the ONE selected profile's
+  Socket Mode client (no second profile or client is ever active concurrently
+  under the single common writer lock), and leave unresolved work for restart-safe
+  replay — then proves exact owner-lock
   removal within the fixed shutdown deadline before reporting `STOPPED_CLEAN`
   (otherwise `STOP_TIMEOUT`/`NO_LIVE_OWNER`/`STALE_OR_AMBIGUOUS_OWNER`). An exact
   `TRANSPORT_ACK_RECORDED` decision may materialize locally without rechecking
