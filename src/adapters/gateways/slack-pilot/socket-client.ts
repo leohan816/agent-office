@@ -171,6 +171,11 @@ export class As1RawSocketTransport implements As1SocketPort {
   private admitting = false;
   // A single pump loop runs at a time; the async owning-control DEQUEUE check must not be raced (review B05).
   private pumping = false;
+  // Phase B authenticated-quarantine arm (design §6 steps 7–8): after a verified hello + seal the transport stays in
+  // AUTHENTICATED_QUARANTINE and parses/queues/ACKs NOTHING until a one-use armReceive() — called only after the
+  // composition durably persists RECEIVING_ONE_PROFILE. At most ONE raw post-hello frame is held UNPARSED meanwhile.
+  private heldFrame: string | null = null;
+  private armed = false;
 
   private latchPersisted = false;
   // The single durable-latch persistence promise — tracked so clean shutdown/disconnect AWAITS it before returning
@@ -243,6 +248,9 @@ export class As1RawSocketTransport implements As1SocketPort {
     this.generation += 1;
     const generation = this.generation;
     this.phase = 'WS_CONNECTING';
+    // A fresh receive session: nothing is held or armed yet (design §6).
+    this.heldFrame = null;
+    this.armed = false;
     const deadlineAt = this.now() + LIMITS.STARTUP_IDENTITY_TIMEOUT_MS;
     let url: string;
     try {
@@ -324,7 +332,10 @@ export class As1RawSocketTransport implements As1SocketPort {
         // start via the startup closure; AFTER ready — and during a post-ready drain — it must follow the SAME
         // fail-closed durable-latch path, never the now-inert startup rejection that would leave it admitted
         // (review B05 V6-05A).
-        const afterReady = this.phase === 'EVENT_RECEIVE_READY' || this.phase === 'DRAINING';
+        const afterReady =
+          this.phase === 'EVENT_RECEIVE_READY' ||
+          this.phase === 'DRAINING' ||
+          (this.phase === 'AUTHENTICATED_QUARANTINE' && done.settled);
         if (isBinary || !Buffer.isBuffer(data)) {
           if (afterReady) {
             this.log.record(this.profileId, this.phase, 'REJECTED_BINARY_FRAME');
@@ -361,11 +372,23 @@ export class As1RawSocketTransport implements As1SocketPort {
             rejectOnce(1008, 'readiness seal failed');
             return;
           }
-          this.phase = 'EVENT_RECEIVE_READY';
-          this.admitting = true;
+          // Phase B (design §6 steps 7–8): a verified hello + seal SUCCEEDS the connect but leaves the transport in
+          // AUTHENTICATED_QUARANTINE. No Events API frame is parsed, queued, or ACKed until the composition durably
+          // arms receive via armReceive(); admission stays OFF here.
           done.settled = true;
           clearTimeout(timer);
           resolve({ ok: true });
+          return;
+        }
+        if (this.phase === 'AUTHENTICATED_QUARANTINE') {
+          // The hello/arm interval: hold at MOST one already-bounded raw post-hello frame WITHOUT parsing it while
+          // the durable arm is in flight; a second frame latches and closes (design §6). No ACK is possible here.
+          if (this.heldFrame !== null) {
+            this.log.record(this.profileId, this.phase, 'REJECTED_SECOND_PREARM_FRAME');
+            this.latch(socket, 1008, 'second frame before receive arm');
+            return;
+          }
+          this.heldFrame = text;
           return;
         }
         if (this.phase === 'EVENT_RECEIVE_READY') {
@@ -376,6 +399,34 @@ export class As1RawSocketTransport implements As1SocketPort {
         this.latch(socket, 1008, 'unexpected data frame');
       });
     });
+  }
+
+  /**
+   * One-use Phase B receive arm (design §6 step 8). The composition calls this ONLY after it has durably persisted
+   * RECEIVING_ONE_PROFILE and re-checked the selected profile/control/latch facts. It transitions the verified
+   * AUTHENTICATED_QUARANTINE transport to EVENT_RECEIVE_READY, enables admission, and — if exactly one raw frame was
+   * held during the arm interval — parses THAT one frame through the normal post-ready path. A second arm, a wrong
+   * phase, or a missing socket fails closed; no event could be parsed or ACKed before this call. This method is on
+   * the concrete transport only (never on As1SocketPort), so no fake/port is forced to grow an arm seam.
+   */
+  public armReceive(): void {
+    if (this.armed) {
+      throw new DomainError('IDEMPOTENCY_KEY_REUSED', 'receive arm is one-use and was already consumed');
+    }
+    const socket = this.socket;
+    if (this.phase !== 'AUTHENTICATED_QUARANTINE' || socket === null) {
+      throw new DomainError('INVALID_TRANSITION', 'receive arm requires an authenticated-quarantine transport');
+    }
+    this.armed = true;
+    const generation = this.generation;
+    this.phase = 'EVENT_RECEIVE_READY';
+    this.admitting = true;
+    const held = this.heldFrame;
+    this.heldFrame = null;
+    if (held !== null) {
+      // On a successful arm the ONE held raw frame is parsed through the normal path (design §6).
+      this.dispatchAfterReady(socket, generation, held);
+    }
   }
 
   /** Release ONLY this generation's pre-Socket reservation back to the clean CLOSED/no-Socket state (review B05 V7).

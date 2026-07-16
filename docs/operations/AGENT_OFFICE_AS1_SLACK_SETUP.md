@@ -272,3 +272,93 @@ global kill switch, revoke both app-level tokens, and require manual
 reconciliation. Rollback never edits Exact Delivery v2 history,
 reuses a retired/expired/latched receive grant, pointer-delivery grant, lease,
 or consumed capability, or silently clears durable evidence.
+
+## 10. Phase B private-pilot foreground state root and lifecycle
+
+This section is the exact owner instruction for the Phase B private pilot. It is
+an operator procedure only; it authorizes no connection and activates no pilot.
+The committed descriptor stays `enabled: false` / `receiveGrantRef: null` until a
+separately Advisor-authorized value-only activation commit sets it.
+
+### 10.1 Owner state root
+
+The one approved Phase B state root is
+`/home/leo/.local/state/agent-office/as1-slack-pilot`. The owner prepares it
+OUTSIDE every repository with a private umask and mode `0700`, then exports the
+exact literal to every closed command:
+
+```sh
+umask 077
+install -d -m 0700 /home/leo/.local/state/agent-office/as1-slack-pilot
+export AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot
+```
+
+The CLI requires an absolute, real, owner-UID, non-symlink root with the existing
+`agent-office.state-root.v1` marker and state-root ID `as1-slack-pilot`. A
+repository path, `/tmp`, a shared/group-writable directory, a symlink, a second
+arbitrary root, or a relative path fails closed. No secret is stored below this
+root. Only `start` and `redacted-check` read `AS1_SLACK_STATE_ROOT` and the
+descriptor's exact secret path; the observer verbs resolve only the fixed
+construction-bound state-root literal above and accept no operand.
+
+### 10.2 Mutation-free capability gate
+
+Before any state-root mutation, `start` and `redacted-check` run the pinned
+`/usr/bin/python3.14` interpreter capability probe (the sealed pidfd bridge). Any
+non-success maps to the single redacted code `LIFECYCLE_CAPABILITY_UNAVAILABLE`
+and process exit `2`, leaving an absent state root absent and an existing root
+byte-unchanged with no writer-lock residue.
+
+### 10.3 Closed foreground start
+
+`start` is a foreground process that holds the writer lock for its whole lifetime
+and installs the clean SIGINT/SIGTERM and one fixed SIGUSR2 incident handler
+before any side effect. So the writer-lock record's owner argv is exact, the live
+start uses the direct five-item Node invocation (the state-root assignment is
+environment, not argv), never an `npm`/shell wrapper, alternate worktree, or
+relative entry:
+
+```sh
+AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot \
+  /home/leo/.nvm/versions/node/v24.18.0/bin/node \
+  /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001/dist/core/runtime/as1-slack-pilot/cli.js \
+  start --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+```
+
+`start` remains disconnected unless a separately authorized value-only activation
+has set the descriptor `enabled: true` with exactly one committed/pushed
+receive-grant ref. The CLI cannot select a profile or mint/complete a grant.
+
+### 10.4 Zero-operand clean stop and durable incident kill
+
+`stop` and `incident-kill` are ZERO-operand observer commands (no `--env-file`,
+PID, signal, profile, path, destination, or reason). Each resolves only the fixed
+owner writer lock and signals the running foreground owner through the sealed
+pidfd bridge — never a numeric-PID `kill`:
+
+```sh
+node dist/core/runtime/as1-slack-pilot/cli.js stop
+node dist/core/runtime/as1-slack-pilot/cli.js incident-kill
+```
+
+- `stop` sends the clean SIGTERM through one Linux pidfd, then waits the fixed
+  `10,000 ms` deadline for the exact lock inode to disappear, returning only
+  `STOPPED_CLEAN`, `STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`, or `STOP_TIMEOUT`.
+- `incident-kill` sends the fixed SIGUSR2 through one Linux pidfd. The owner
+  synchronously closes every admission gate, durably engages the irreversible
+  global kill (`OPERATOR_INCIDENT_KILL`, `DISABLED_LATCHED`), then bounded-shuts
+  down. It returns only `INCIDENT_KILL_ENGAGED`, `INCIDENT_KILL_ALREADY_ENGAGED`,
+  `STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`, `INCIDENT_KILL_PERSIST_FAILED`, or
+  `INCIDENT_KILL_TIMEOUT`. A durable latch has no reset or startup auto-recovery.
+
+`status` is read-only and prints only stable state/reason codes — never an ID,
+path, grant value, token fact, Slack response, or tmux coordinate. `restart` is
+live-disabled: it fails closed without opening Web/Socket/tmux. Only a separately
+issued foreground `start` may begin either private pilot.
+
+### 10.5 Sequential two-pilot rule
+
+Exactly one profile is live at a time. Run the Agent Office pilot, then stop and
+audit it, before a new value-only activation names the Foundation receive grant
+and its pilot runs. A failure in one pilot never authorizes switching to the
+other. There is no automatic restart, reconnect, or rollover.

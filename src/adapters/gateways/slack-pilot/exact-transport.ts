@@ -1,26 +1,46 @@
-// AS1 Multi-Team Slack Pilot — separate exact tmux pointer transport journal and runner.
+// AS1 Multi-Team Slack Pilot — exact tmux pointer transport: pinned-byte seal, three complete destination
+// observations, and the closed one-use delivery journal (Phase B, design §9).
 //
-// Canonical design: docs/integration/AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_DESIGN.md §12.7 (journal), §13
-// (evidence); docs/security/AGENT_OFFICE_AS1_SLACK_SECURITY_AUTHORITY_MODEL.md §13 (tmux mutation).
-// This is a SEPARATE transport from Exact Delivery v2. The runner exposes only: structured preflight,
-// buffer-exists check for an internally derived private name, load an internally derived pointer file,
-// paste the validated buffer to the leased pane, send Enter to the leased pane, and delete an unpasted
-// buffer under exact recovery proof. It has no capture-pane, run-shell, new-session, arbitrary argv,
-// generic target, or caller-supplied file path. Journal durability precedes each side effect;
-// PASTE_STARTED is the no-retry boundary. The delivery grant and lease are consumed before the first
-// mutation and can never be reused, even if the attempt fails before paste. Target change between
-// preflights, dead/copy-mode pane, input-off, synchronized panes, or an expired capability stops before
-// paste. Any interrupted nonterminal journal becomes MANUAL_RECONCILIATION_REQUIRED and is never resumed.
+// Canonical design: docs/integration/AGENT_OFFICE_AS1_PHASE_B_LIVE_COMPOSITION_DESIGN_DELTA.md §9 and
+// docs/security/AGENT_OFFICE_AS1_SLACK_SECURITY_AUTHORITY_MODEL.md §13 (tmux mutation). This is a SEPARATE
+// transport from Exact Delivery v2. Phase B boundedly repairs F01–F03 in this already-listed path WITHOUT
+// changing Exact Delivery v2 or any durable AS1 schema: the pointer is opened once no-follow under the exact
+// private mode and 32-KiB scoped-writer ceiling; its on-disk canonical-plus-one-LF bytes, the delivery grant's
+// `pointerHash`, and the content-addressed filename all share ONE raw SHA-256; those pinned bytes alone reach a
+// closed tmux stdin (never a path reopen); the selected closed profile binds session/workspace/command; and all
+// 15 live destination facts are compared in TWO complete precommit observations plus ONE complete post-load
+// observation immediately before PASTE_STARTED. Every failure through the final precommit identity check has
+// zero tmux mutation, no PREPARED record, and unconsumed authority; a post-load divergence is postcommit manual
+// reconciliation with no paste, Enter, cleanup-as-rejection, or retry. PASTE_STARTED remains the no-retry
+// boundary. The complete fixed `/usr/bin/tmux` argv set uses shell:false with no capture/show pane, show-buffer,
+// run-shell, new-session, arbitrary argv, caller file/bytes/target, generic command, or message-body input.
+import { constants } from 'node:fs';
+import { lstat, open } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+
 import { DomainError } from '../../../contracts/types.js';
-import { hashCanonical } from '../../../persistence/file-store/hashing.js';
-import { parseContainedPointerRef, redactError } from '../../../application/slack-pilot/contracts.js';
-import type { As1PointerDeliveryGrantV1 } from '../../../application/slack-pilot/contracts.js';
+import { assertExactKeys, assertRecord } from '../../../contracts/validation.js';
+import { canonicalBytes } from '../../../persistence/file-store/canonical-json.js';
+import { hashCanonical, sha256Bytes } from '../../../persistence/file-store/hashing.js';
+import { resolveContainedPath } from '../../../persistence/file-store/path-safety.js';
+import {
+  LIMITS,
+  parseContainedPointerRef,
+  redactError,
+  requireArtifactRef,
+  requireOpaqueId,
+  requireSha256,
+  requireUtc,
+} from '../../../application/slack-pilot/contracts.js';
+import type { As1AdvisorPointerV1, As1PointerDeliveryGrantV1 } from '../../../application/slack-pilot/contracts.js';
 import type { As1TmuxDeliveryFacts, As1TmuxDeliveryPhase } from '../../../application/slack-pilot/inbound-store.js';
+import type { As1Profile, As1ProfileId } from '../../../application/slack-pilot/profiles.js';
 import {
   assertCapabilityUsable,
   assertDeliveryChainConsistent,
   assertPointerGrantSnapshot,
   createDeliveryCapability,
+  parseTmuxDestination,
   type As1AdvisorReadinessLeaseV1,
   type As1DeliveryCapability,
   type As1TmuxDestination,
@@ -30,10 +50,11 @@ import {
 // as As1TmuxDeliveryPhase, so the sequence and the durable record can never diverge (review B08).
 
 // Every nonterminal phase is interrupted-unsafe: on re-entry it becomes MANUAL_RECONCILIATION_REQUIRED and is
-// never silently resumed or retried (design §12.7). Only a fresh (null) or terminal journal proceeds/returns.
+// never silently resumed or retried (design §9.4). Only a fresh (null) or terminal journal proceeds/returns.
 const INTERRUPTED_NONTERMINAL_PHASES: readonly string[] = ['PREPARED', 'BUFFER_LOADED', 'PASTE_STARTED', 'PASTE_CONFIRMED', 'SUBMIT_STARTED'];
 
-/** Live tmux facts read by a structured preflight (no pane content is ever captured). */
+// ── LEGACY Phase A port shape (retained ONLY so the frozen fake in tests/helpers/as1-slack-fakes.ts still
+// compiles). The Phase B transport uses `As1TmuxObservationPort` below; nothing in src constructs this shape. ──
 export interface As1TmuxPreflight {
   readonly sessionId: string;
   readonly windowId: string;
@@ -47,7 +68,6 @@ export interface As1TmuxPreflight {
   readonly synchronizePanes: boolean;
 }
 
-/** The only tmux operations AS1 can perform. Every argument is an internally derived, validated value. */
 export interface As1TmuxPort {
   preflight(paneId: string): Promise<As1TmuxPreflight>;
   bufferExists(bufferName: string): Promise<boolean>;
@@ -57,12 +77,24 @@ export interface As1TmuxPort {
   deleteBuffer(bufferName: string): Promise<void>;
 }
 
+/**
+ * The Phase B tmux observation/mutation port (design §9.3). Every operation targets ONLY the construction-derived
+ * pane; `observe` returns all 15 live destination facts through the exact-key decoder; `loadVerifiedBuffer`
+ * accepts ONLY the already-pinned bytes (never a path); paste/enter/delete carry no caller file/bytes/target.
+ */
+export interface As1TmuxObservationPort {
+  observe(paneId: string): Promise<As1TmuxDestination>;
+  bufferExists(bufferName: string): Promise<boolean>;
+  loadVerifiedBuffer(bufferName: string, pinnedBytes: Buffer): Promise<void>;
+  pasteBuffer(bufferName: string, paneId: string): Promise<void>;
+  sendEnter(paneId: string): Promise<void>;
+  deleteBuffer(bufferName: string): Promise<void>;
+}
+
 /** Durable per-profile tmux journal + one-use delivery-authority consumption (implemented by the store). */
 export interface As1DeliveryJournal {
-  /** Record a phase; the invariant facts are bound on the first (PREPARED) write and preserved thereafter. */
   recordTmuxPhase(deliveryId: string, phase: As1TmuxDeliveryPhase, facts?: As1TmuxDeliveryFacts): Promise<void>;
   readTmuxPhase(deliveryId: string): Promise<string | null>;
-  /** Consume the grant + lease exactly once. Returns false if either was already consumed (reuse). */
   consumeDeliveryAuthority(pointerDeliveryGrantId: string, leaseId: string): Promise<boolean>;
 }
 
@@ -90,21 +122,16 @@ export function deliveryJournalFacts(capability: As1DeliveryCapability): As1Tmux
   };
 }
 
-/**
- * The accepted provenance/content seal (implemented in B06). The transport ALWAYS consults it before any side
- * effect, so a direct call can never bypass the reviewed Git/content provenance gate. `grant.pointerHash`
- * echoed back to its own grant is not proof of durable pointer bytes; this gate is.
- */
+/** The accepted provenance/content seal (B06). The transport ALWAYS consults it before any side effect. */
 export interface As1DeliveryProvenanceGate {
   assertAccepted(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): Promise<void>;
 }
 
 /**
- * The exact owning-profile operational control, bound to the transport at construction (review B05). It is the
- * lock-holding canonical control for THIS profile; `isDeliverable()` is false when the profile is not lock-owned,
- * disabled/disconnected, globally killed, or durably latched. The transport re-checks it immediately before EVERY
- * delivery side effect — journal mutation, authority consumption, buffer lookup/deletion/load, paste, and Enter —
- * so a kill/latch engaged between two adjacent boundaries prevents the next mutation. It is never a caller value.
+ * The construction-bound live control/latch actionability predicate (design §5.3). The transport re-checks it
+ * immediately before EVERY delivery side effect — every observation, PREPARED, authority consumption, buffer
+ * lookup/deletion/load, paste, and Enter — so a kill/latch/incident engaged between two adjacent boundaries
+ * prevents the next mutation. It is never a caller value and its live record is never serialized.
  */
 export interface As1DeliveryControlPort {
   isDeliverable(): Promise<boolean>;
@@ -118,10 +145,7 @@ export interface As1DeliveryResult {
   readonly reason: string;
 }
 
-/**
- * The internally derived delivery target. Profile, delivery identity, private buffer name, and contained
- * pointer file path are all a pure function of the validated pointer-delivery grant — never a caller value.
- */
+/** The internally derived delivery target — a pure function of the validated grant, never a caller value. */
 interface As1DeliveryTarget {
   readonly profileStateSlug: string;
   readonly deliveryId: string;
@@ -129,52 +153,200 @@ interface As1DeliveryTarget {
   readonly pointerFilePath: string;
 }
 
-/**
- * Derive the whole delivery target from the grant alone (review B04): the profile/delivery identity come from
- * the SINGLE shared `parseContainedPointerRef` parser (design §12.6), and the private buffer name is derived
- * from that slug + delivery id. No divergent local pointer parsing.
- */
 function deriveDeliveryTarget(grant: As1PointerDeliveryGrantV1): As1DeliveryTarget {
   const { profileStateSlug, deliveryId, pointerFilePath } = parseContainedPointerRef(grant);
   return { profileStateSlug, deliveryId, bufferName: `as1-${profileStateSlug}-${deliveryId}`, pointerFilePath };
 }
 
-function preflightMatchesDestination(preflight: As1TmuxPreflight, destination: As1TmuxDestination): boolean {
+// ── Pointer byte seal (design §9.2) ──────────────────────────────────────────────────────────────────────────
+const ADVISOR_POINTER_KEYS = [
+  'schemaVersion',
+  'receiveGrantId',
+  'receiveGrantBindingHash',
+  'pilotId',
+  'profileId',
+  'intakeId',
+  'intakeKind',
+  'sourceEventId',
+  'rootCorrelationHash',
+  'intakeArtifactRef',
+  'intakeArtifactHash',
+  'recordedAt',
+] as const;
+const AS1_INTAKE_KINDS = ['NEW_MISSION', 'CLARIFICATION', 'DECISION_RESPONSE'] as const;
+const AS1_PROFILE_ID_SET: ReadonlySet<string> = new Set<string>(['AGENT_OFFICE_ADVISOR', 'FOUNDATION_ADVISOR']);
+
+/** Strict exact-key `agent-office.as1-advisor-pointer.v1` decoder (design §9.2 step 4). Never a build/free shape. */
+function parseStrictAdvisorPointer(value: unknown): As1AdvisorPointerV1 {
+  assertRecord(value, 'as1 advisor pointer');
+  assertExactKeys(value, ADVISOR_POINTER_KEYS, 'as1 advisor pointer');
+  if (value.schemaVersion !== 'agent-office.as1-advisor-pointer.v1') {
+    throw new DomainError('INVALID_SCHEMA', 'as1 advisor pointer schemaVersion is unsupported');
+  }
+  if (typeof value.profileId !== 'string' || !AS1_PROFILE_ID_SET.has(value.profileId)) {
+    throw new DomainError('FORBIDDEN_TARGET', 'as1 advisor pointer profileId is not a closed literal');
+  }
+  if (typeof value.intakeKind !== 'string' || !(AS1_INTAKE_KINDS as readonly string[]).includes(value.intakeKind)) {
+    throw new DomainError('INVALID_SCHEMA', 'as1 advisor pointer intakeKind is not a reviewed literal');
+  }
+  return {
+    schemaVersion: 'agent-office.as1-advisor-pointer.v1',
+    receiveGrantId: requireOpaqueId(value.receiveGrantId, 'pointer receiveGrantId'),
+    receiveGrantBindingHash: requireSha256(value.receiveGrantBindingHash, 'pointer receiveGrantBindingHash'),
+    pilotId: requireOpaqueId(value.pilotId, 'pointer pilotId'),
+    profileId: value.profileId as As1ProfileId,
+    intakeId: requireOpaqueId(value.intakeId, 'pointer intakeId'),
+    intakeKind: value.intakeKind as As1AdvisorPointerV1['intakeKind'],
+    sourceEventId: requireOpaqueId(value.sourceEventId, 'pointer sourceEventId'),
+    rootCorrelationHash: requireSha256(value.rootCorrelationHash, 'pointer rootCorrelationHash'),
+    intakeArtifactRef: requireArtifactRef(value.intakeArtifactRef, 'pointer intakeArtifactRef'),
+    intakeArtifactHash: requireSha256(value.intakeArtifactHash, 'pointer intakeArtifactHash'),
+    recordedAt: requireUtc(value.recordedAt, 'pointer recordedAt'),
+  };
+}
+
+/** The pinned pointer: the exact on-disk bytes plus the retained-descriptor identity facts for the pre-commit check. */
+interface PinnedPointer {
+  readonly bytes: Buffer;
+  readonly rawSha256: string;
+  readonly absolutePath: string;
+  readonly device: bigint;
+  readonly inode: bigint;
+}
+
+/** The 32-KiB scoped-writer pointer ceiling (design §9.2 step 3) — NOT the 1-MiB durable-index ceiling. */
+const POINTER_LEAF_MAX_BYTES = 32 * 1024;
+
+/**
+ * Open, validate, hash, correlate, and PIN the exact pointer bytes (design §9.2). Any failure is a precommit
+ * POINTER_ARTIFACT_INVALID that leaves the journal absent, authority unconsumed, and tmux untouched.
+ */
+async function pinPointer(stateRoot: string, grant: As1PointerDeliveryGrantV1, target: As1DeliveryTarget): Promise<PinnedPointer> {
+  const invalid = (message: string): never => {
+    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', message);
+  };
+  // 1. Validate every parent as contained, non-symlink; then open the leaf ONCE with O_RDONLY | O_NOFOLLOW.
+  const absolutePath = await resolveContainedPath(stateRoot, target.pointerFilePath).catch(() =>
+    invalid('pointer artifact path is not contained'),
+  );
+  const handle = await open(absolutePath, constants.O_RDONLY | constants.O_NOFOLLOW).catch(() =>
+    invalid('pointer artifact could not be opened no-follow'),
+  );
+  try {
+    // 3. fstat: owner-UID regular file, one link, no group/other bits at all, inclusive length 1..32 KiB.
+    const st = await handle.stat({ bigint: true });
+    const currentUid = process.getuid?.();
+    if (
+      !st.isFile() ||
+      st.nlink !== 1n ||
+      (Number(st.mode) & 0o077) !== 0 ||
+      (currentUid !== undefined && Number(st.uid) !== currentUid) ||
+      st.size < 1n ||
+      st.size > BigInt(POINTER_LEAF_MAX_BYTES)
+    ) {
+      return invalid('pointer artifact is not an owner-only one-link regular file within the 32-KiB bound');
+    }
+    const size = Number(st.size);
+    // 4. Read exactly `size` bytes from the retained descriptor; require the exact count and EOF.
+    const buffer = Buffer.allocUnsafe(size + 1);
+    const first = await handle.read(buffer, 0, size + 1, 0);
+    if (first.bytesRead !== size) return invalid('pointer artifact byte count changed under the retained descriptor');
+    const onDiskBytes = buffer.subarray(0, size);
+    let parsed: unknown;
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(onDiskBytes);
+      parsed = JSON.parse(text);
+    } catch {
+      return invalid('pointer artifact is not valid UTF-8 JSON');
+    }
+    const strictlyParsedPointer = parseStrictAdvisorPointer(parsed);
+    // 5. Require the on-disk bytes to equal EXACTLY canonical(pointer) + one LF — one terminal LF, nothing else.
+    const canonical = Buffer.concat([canonicalBytes(strictlyParsedPointer), Buffer.from('\n', 'utf8')]);
+    if (!onDiskBytes.equals(canonical)) {
+      return invalid('pointer artifact is not canonical-plus-one-LF bytes');
+    }
+    // 6. One raw SHA-256 binds the grant hash AND the content-addressed leaf filename.
+    const rawSha256 = sha256Bytes(onDiskBytes);
+    if (grant.pointerHash !== rawSha256) return invalid('pointer artifact raw hash does not equal the grant pointerHash');
+    const leafName = absolutePath.slice(absolutePath.lastIndexOf('/') + 1);
+    if (leafName !== `${rawSha256.slice('sha256:'.length)}.json`) {
+      return invalid('pointer artifact leaf is not the content-addressed filename');
+    }
+    // 7. Exact pointer correlations to the grant (receive grant/binding, pilot, profile, intake, source, root).
+    if (
+      strictlyParsedPointer.receiveGrantId !== grant.receiveGrantId ||
+      strictlyParsedPointer.receiveGrantBindingHash !== grant.receiveGrantBindingHash ||
+      strictlyParsedPointer.pilotId !== grant.pilotId ||
+      strictlyParsedPointer.profileId !== grant.profileId ||
+      strictlyParsedPointer.intakeId !== grant.intakeId ||
+      strictlyParsedPointer.sourceEventId !== grant.sourceEventId ||
+      strictlyParsedPointer.rootCorrelationHash !== grant.rootCorrelationHash
+    ) {
+      return invalid('pointer artifact correlations do not match the delivery grant');
+    }
+    return { bytes: onDiskBytes, rawSha256, absolutePath, device: st.dev, inode: st.ino };
+  } finally {
+    await handle.close().catch(() => undefined);
+  }
+}
+
+/**
+ * Immediately before the pre-commit boundary, lstat the contained leaf and require its device/inode/type/owner/
+ * link facts to still match the retained descriptor. Replacement before this check is POINTER_ARTIFACT_INVALID;
+ * replacement after it cannot change the operation because the path is never reopened and only pinned bytes load.
+ */
+async function assertPinnedIdentityUnchanged(pinned: PinnedPointer): Promise<void> {
+  const invalid = (): never => {
+    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer artifact identity changed before the pre-commit boundary');
+  };
+  const current = await lstat(pinned.absolutePath, { bigint: true }).catch(() => invalid());
+  const currentUid = process.getuid?.();
+  if (
+    !current.isFile() ||
+    current.dev !== pinned.device ||
+    current.ino !== pinned.inode ||
+    current.nlink !== 1n ||
+    (Number(current.mode) & 0o077) !== 0 ||
+    (currentUid !== undefined && Number(current.uid) !== currentUid)
+  ) {
+    invalid();
+  }
+}
+
+/** All 15 live destination facts must equal the lease destination exactly (design §9.3). Canonical-hash equality. */
+function observationEquals(observation: As1TmuxDestination, destination: As1TmuxDestination): boolean {
+  return hashCanonical(observation) === hashCanonical(destination);
+}
+
+/** The lease destination must bind the selected closed profile's session/workspace/command (design §9.3). */
+function leaseDestinationMatchesProfile(destination: As1TmuxDestination, profile: As1Profile): boolean {
   return (
-    preflight.paneId === destination.paneId &&
-    preflight.panePid === destination.panePid &&
-    preflight.sessionId === destination.sessionId &&
-    preflight.windowId === destination.windowId &&
-    preflight.workspace === destination.workspace &&
-    preflight.currentCommand === destination.currentCommand &&
-    !preflight.paneDead &&
-    !preflight.paneInMode &&
-    !preflight.inputOff &&
-    !preflight.synchronizePanes
+    destination.sessionName === profile.sessionName &&
+    destination.workspace === profile.workspace &&
+    destination.currentCommand === profile.currentCommand
   );
 }
 
 /**
- * The exact tmux transport. Its trusted collaborators — the fresh clock, the tmux port, and the durable
- * journal — are bound once at construction (composition or a test), so a per-delivery call can never select
- * the clock, target, capability, buffer, or path. `deliver` accepts only two validated authority artifacts.
+ * The exact tmux transport (Phase B). Its trusted collaborators — fresh clock, selected profile, state root,
+ * observation port, durable journal, provenance gate, live control predicate, and durable latch — are bound once
+ * at construction, so a per-delivery call can never select the clock, target, capability, buffer, path, or bytes.
  */
 export class As1ExactTransport {
   public constructor(
     private readonly clock: () => string,
-    private readonly port: As1TmuxPort,
+    /** The state root the contained pointer ref resolves below (design §9.2). Construction-bound. */
+    private readonly stateRoot: string,
+    /** The selected closed profile whose session/workspace/command the lease destination must bind (design §9.3). */
+    private readonly selectedProfile: As1Profile,
+    private readonly port: As1TmuxObservationPort,
     private readonly journal: As1DeliveryJournal,
     private readonly provenance: As1DeliveryProvenanceGate,
-    /** Mandatory owning-profile operational control, re-checked before every side effect (review B05). */
     private readonly control: As1DeliveryControlPort,
-    /** Mandatory durable profile latch — a journal/consumption STORE_QUARANTINED never surfaces unlatched (B08). */
     private readonly latch: (reason: string) => Promise<void>,
   ) {}
 
-  /** Deliver exactly one pointer through the reviewed journal. Never retries a paste (design §12.7). */
   public async deliver(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): Promise<As1DeliveryResult> {
-    // A durable STORE_QUARANTINED from the journal or the delivery-authority consumption must latch the profile
-    // and fail closed as manual reconciliation, never surface unlatched or silently continue (review B08).
     try {
       return await this.deliverInner(grant, lease);
     } catch (error) {
@@ -187,145 +359,317 @@ export class As1ExactTransport {
   }
 
   private async deliverInner(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): Promise<As1DeliveryResult> {
-    const { clock, port, journal } = this;
-
-    // Internal derivation only — nothing below is caller-selectable (review B04). Every gate reads a fresh
-    // trusted clock at the moment of the side effect, not a single caller-supplied timestamp.
-    const { deliveryId, bufferName, pointerFilePath } = deriveDeliveryTarget(grant);
-    assertDeliveryChainConsistent(grant, lease, grant.pointerHash, clock());
-    // The lease's pointer-delivery-grant snapshot must equal the canonical grant bytes — proven inline so no
-    // caller and no permissive gate can bypass it — and the accepted content/Git seal (B06) is then mandatory.
-    assertPointerGrantSnapshot(grant, lease);
-    await this.provenance.assertAccepted(grant, lease);
-    // §12.6: the first exact preflight is driven by the reviewed lease destination, BEFORE any capability.
+    const { clock, journal } = this;
+    const target = deriveDeliveryTarget(grant);
+    const { deliveryId, bufferName } = target;
     const destination = lease.destination;
 
-    // Entry re-check: the owning control must be actionable before even the durable journal READ (review B05).
-    if (!(await this.control.isDeliverable())) {
-      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'owning control not actionable at delivery entry' };
-    }
+    const stopped = (reason: string): As1DeliveryResult => ({ phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason });
+
+    // Step 1: validate grant/lease/provenance and the unchanged frozen evidence hashes.
+    assertDeliveryChainConsistent(grant, lease, grant.pointerHash, clock());
+    assertPointerGrantSnapshot(grant, lease);
+    await this.provenance.assertAccepted(grant, lease);
+
+    // Entry re-check + terminal/interrupted journal handling (unchanged one-use/no-retry semantics).
+    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable at delivery entry');
     const prior = await journal.readTmuxPhase(deliveryId);
-    if (prior === 'TRANSPORT_RECORDED') {
-      return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'terminal' };
-    }
+    if (prior === 'TRANSPORT_RECORDED') return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'terminal' };
     if (prior === 'MANUAL_RECONCILIATION_REQUIRED') {
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'terminal' };
     }
     if (prior !== null && INTERRUPTED_NONTERMINAL_PHASES.includes(prior)) {
-      // Any interrupted nonterminal journal is never resumed or retried — it requires manual reconciliation.
       await journal.recordTmuxPhase(deliveryId, 'MANUAL_RECONCILIATION_REQUIRED');
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'interrupted nonterminal journal' };
     }
 
-    // Owning-profile control is re-checked immediately before EVERY side effect (review B05); a kill/latch
-    // engaged after entry stops the next mutation. Before the first preflight nothing is journaled → clean stop.
-    if (!(await this.control.isDeliverable())) {
-      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'owning control not actionable before preflight' };
-    }
-    // The bounded first preflight and the one-use authority consumption happen BEFORE any durable tmux journal.
-    // A stop here leaves no nonterminal journal (nothing to reconcile) and the authority stays unconsumed.
-    const firstPreflight = await port.preflight(destination.paneId);
-    if (!preflightMatchesDestination(firstPreflight, destination)) {
-      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'destination mismatch at first preflight' };
+    // Step 2: live predicate + the exact selected-profile destination invariant (both precommit).
+    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before pointer pin');
+    if (!leaseDestinationMatchesProfile(destination, this.selectedProfile)) {
+      return stopped('lease destination is not bound to the selected profile session/workspace/command');
     }
 
-    // §12.6: create the live capability ONLY after static validation and the first exact preflight.
+    // Step 3: open, validate, hash, correlate, and PIN the pointer bytes.
+    let pinned: PinnedPointer;
+    try {
+      pinned = await pinPointer(this.stateRoot, grant, target);
+    } catch (error) {
+      return stopped(`pointer artifact invalid: ${redactError(error).code}`);
+    }
+
+    // Step 4: require the live predicate, then complete destination observation ONE (all 15 fields, fresh clock).
+    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before observation one');
+    const observationOne = await this.port.observe(destination.paneId);
+    if (!this.clockLive(lease)) return stopped('lease expired before observation one');
+    if (!observationEquals(observationOne, destination)) return stopped('destination mismatch at observation one');
+
+    // Step 5: without intervening work/mutation, require the live predicate and complete observation TWO.
+    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before observation two');
+    const observationTwo = await this.port.observe(destination.paneId);
+    if (!this.clockLive(lease)) return stopped('lease expired before observation two');
+    if (!observationEquals(observationTwo, destination)) return stopped('destination mismatch at observation two');
+
+    // Step 6: confirm the pinned descriptor/path identity and the live predicate one final time (still precommit).
+    try {
+      await assertPinnedIdentityUnchanged(pinned);
+    } catch (error) {
+      return stopped(`pointer artifact invalid: ${redactError(error).code}`);
+    }
+    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before PREPARED');
+
     const capability = createDeliveryCapability(grant, lease, clock());
     const facts = deliveryJournalFacts(capability);
-    // Only an actual, in-bounds capability expiry becomes a controlled expiry outcome. An unparseable clock
-    // or any other unexpected error is NOT swallowed — it fails closed and stays visible (review B04).
     const expiry = Date.parse(capability.expiresAt);
     const live = (): boolean => {
       const nowMs = Date.parse(clock());
-      if (Number.isNaN(nowMs)) {
-        throw new DomainError('INVALID_SCHEMA', 'the trusted delivery clock returned an unparseable timestamp');
-      }
+      if (Number.isNaN(nowMs)) throw new DomainError('INVALID_SCHEMA', 'the trusted delivery clock returned an unparseable timestamp');
       return nowMs < expiry;
     };
+    if (!live()) return stopped('capability expired before PREPARED');
 
-    // Committed. Past PREPARED, a non-DELIVERED outcome is never a silent nonterminal journal: it persists
-    // MANUAL_RECONCILIATION_REQUIRED immediately, because the no-retry rule forbids resuming it later.
+    // Step 7: create the capability, record PREPARED, then atomically consume the grant + lease (committed).
+    await journal.recordTmuxPhase(deliveryId, 'PREPARED', facts);
     const manual = async (reason: string): Promise<As1DeliveryResult> => {
       await journal.recordTmuxPhase(deliveryId, 'MANUAL_RECONCILIATION_REQUIRED');
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason };
     };
-
-    if (!live()) return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'capability expired before PREPARED' };
-    if (!(await this.control.isDeliverable())) {
-      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'owning control not actionable before PREPARED' };
-    }
-
-    // Durably record PREPARED (binding the invariant facts) BEFORE consuming authority, so a crash in the
-    // consume gap leaves a visible PREPARED (→ manual reconciliation on restart), never an unjournaled
-    // consumption (design §12.5/§12.7, review B04).
-    await journal.recordTmuxPhase(deliveryId, 'PREPARED', facts);
-
-    // §12.5: consume the grant + lease before the first tmux mutation. An already-consumed authority cannot
-    // resume this journal under the no-retry rule, so it is recorded as manual reconciliation, not a silent stop.
     if (!live()) return manual('capability expired before authority consumption');
     if (!(await this.control.isDeliverable())) return manual('owning control not actionable before authority consumption');
     const consumed = await journal.consumeDeliveryAuthority(capability.pointerDeliveryGrantId, capability.leaseId);
-    if (!consumed) {
-      return manual('delivery authority already consumed');
-    }
+    if (!consumed) return manual('delivery authority already consumed');
 
+    // Step 8: inspect/delete only the derived unpasted buffer under recovery proof, load ONLY the pinned bytes.
     if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer lookup');
-    if (await port.bufferExists(bufferName)) {
-      // Cleanup is allowed here because the journal proves paste has not started and the first preflight matched.
+    if (await this.port.bufferExists(bufferName)) {
       if (!live()) return manual('capability expired before buffer cleanup');
       if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer cleanup');
-      await port.deleteBuffer(bufferName);
+      await this.port.deleteBuffer(bufferName);
     }
     if (!live()) return manual('capability expired before buffer load');
     if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer load');
-    await port.loadBuffer(bufferName, pointerFilePath);
+    await this.port.loadVerifiedBuffer(bufferName, pinned.bytes);
     if (!(await this.control.isDeliverable())) return manual('owning control not actionable before BUFFER_LOADED record');
     await journal.recordTmuxPhase(deliveryId, 'BUFFER_LOADED', facts);
 
-    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before second preflight');
-    const secondPreflight = await port.preflight(destination.paneId);
-    if (!preflightMatchesDestination(secondPreflight, destination)) {
-      // A fresh preflight that does not prove the same destination forbids buffer cleanup (design §12.7).
-      return manual('destination changed at second preflight');
+    // Step 9: complete destination observation THREE after buffer load; compare to lease + both precommit ones.
+    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before observation three');
+    const observationThree = await this.port.observe(destination.paneId);
+    if (!live()) return manual('capability expired before observation three');
+    if (
+      !observationEquals(observationThree, destination) ||
+      !observationEquals(observationThree, observationOne) ||
+      !observationEquals(observationThree, observationTwo)
+    ) {
+      return manual('destination changed at the post-load observation three');
     }
 
+    // Step 10: only an exact match may record PASTE_STARTED, paste, and send Enter (the no-retry boundary).
     if (!live()) return manual('capability expired before paste');
     if (!(await this.control.isDeliverable())) return manual('owning control not actionable before paste');
-
-    // No-retry boundary: record PASTE_STARTED durably before the paste side effect. Past this line, any
-    // failure — including an expired capability or an owning-control kill/latch at a fresh check before paste or
-    // Enter — is manual reconciliation (the catch below records it; the mutation never repeats).
     await journal.recordTmuxPhase(deliveryId, 'PASTE_STARTED', facts);
     try {
-      await this.assertDeliverableOrThrow(); // owning control re-checked immediately before the paste mutation
-      assertCapabilityUsable(capability, clock()); // fresh capability check immediately before the paste mutation
-      await port.pasteBuffer(bufferName, destination.paneId);
-      await this.assertDeliverableOrThrow(); // re-checked before the PASTE_CONFIRMED record
+      await this.assertDeliverableOrThrow();
+      assertCapabilityUsable(capability, clock());
+      await this.port.pasteBuffer(bufferName, destination.paneId);
+      await this.assertDeliverableOrThrow();
       await journal.recordTmuxPhase(deliveryId, 'PASTE_CONFIRMED', facts);
-      await this.assertDeliverableOrThrow(); // re-checked before the SUBMIT_STARTED record
+      await this.assertDeliverableOrThrow();
       await journal.recordTmuxPhase(deliveryId, 'SUBMIT_STARTED', facts);
-      await this.assertDeliverableOrThrow(); // owning control re-checked immediately before the Enter mutation
-      assertCapabilityUsable(capability, clock()); // fresh capability check immediately before the Enter mutation
-      await port.sendEnter(destination.paneId);
-      await this.assertDeliverableOrThrow(); // re-checked before the terminal TRANSPORT_RECORDED record
+      await this.assertDeliverableOrThrow();
+      assertCapabilityUsable(capability, clock());
+      await this.port.sendEnter(destination.paneId);
+      await this.assertDeliverableOrThrow();
       await journal.recordTmuxPhase(deliveryId, 'TRANSPORT_RECORDED', facts);
       return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'ok' };
     } catch (error) {
-      // Ambiguous or expired side effect after PASTE_STARTED: never repeat paste or Enter (design §12.7, §11).
       await journal.recordTmuxPhase(deliveryId, 'MANUAL_RECONCILIATION_REQUIRED');
-      return {
-        phase: 'MANUAL_RECONCILIATION_REQUIRED',
-        outcome: 'MANUAL_RECONCILIATION_REQUIRED',
-        reason: redactError(error).code,
-      };
+      return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: redactError(error).code };
     }
   }
 
-  /** Re-check the owning-profile control at a post-PASTE_STARTED mutation boundary; a kill/latch throws so the
-   * no-retry catch records MANUAL_RECONCILIATION_REQUIRED rather than repeating a paste or Enter (review B05). */
+  /** A fresh trusted-clock check against BOTH the grant and lease exclusive expiries (design §9.3 freshness). */
+  private clockLive(lease: As1AdvisorReadinessLeaseV1): boolean {
+    const nowMs = Date.parse(this.clock());
+    if (Number.isNaN(nowMs)) throw new DomainError('INVALID_SCHEMA', 'the trusted delivery clock returned an unparseable timestamp');
+    return nowMs < Date.parse(lease.expiresAt);
+  }
+
   private async assertDeliverableOrThrow(): Promise<void> {
     if (!(await this.control.isDeliverable())) {
       throw new DomainError('GATEWAY_DISABLED', 'owning control not actionable at a tmux mutation boundary');
     }
   }
+}
+
+// ── Production NodeAs1TmuxPort (design §9.2/§9.4) — never exercised by an automated test (live rehearsal only). ──
+const TMUX_BINARY = '/usr/bin/tmux';
+const TMUX_FIELD_SEP = '\u001f';
+const AS1_TMUX_OBSERVE_FORMAT = [
+  '#{session_id}',
+  '#{window_id}',
+  '#{pane_id}',
+  '#{q:session_name}',
+  '#{q:window_name}',
+  '#{window_index}',
+  '#{pane_index}',
+  '#{q:pane_current_path}',
+  '#{q:pane_current_command}',
+  '#{pane_pid}',
+  '#{pane_dead}',
+  '#{pane_in_mode}',
+  '#{pane_input_off}',
+  '#{synchronize-panes}',
+  '#{window_activity}',
+].join(TMUX_FIELD_SEP);
+const PANE_ID = /^%[0-9]+$/u;
+const AS1_BUFFER_NAME = /^as1-(?:agent-office-advisor|foundation-advisor)-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+
+interface As1TmuxRunResult {
+  readonly code: number;
+  readonly stdout: Buffer;
+}
+
+/** Run one bounded, closed-argv `/usr/bin/tmux` command with an optional closed stdin. Injectable for proof. */
+export type As1TmuxRunner = (argv: readonly string[], stdin: Buffer | null) => Promise<As1TmuxRunResult>;
+
+export function nodeTmuxRunner(): As1TmuxRunner {
+  return (argv: readonly string[], stdin: Buffer | null): Promise<As1TmuxRunResult> =>
+    new Promise<As1TmuxRunResult>((resolve, reject) => {
+      const child = spawn(TMUX_BINARY, [...argv], {
+        shell: false,
+        env: { PATH: '/usr/bin:/bin', LC_ALL: 'C' },
+        stdio: [stdin === null ? 'ignore' : 'pipe', 'pipe', 'ignore'],
+      });
+      const chunks: Buffer[] = [];
+      let total = 0;
+      let failed = false;
+      const fail = (): void => {
+        if (failed) return;
+        failed = true;
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* already gone */
+        }
+        reject(new DomainError('GATEWAY_DISABLED', 'exact tmux operation failed'));
+      };
+      const timer = setTimeout(fail, LIMITS.SUBPROCESS_TIMEOUT_MS);
+      child.stdout?.on('data', (chunk: Buffer) => {
+        total += chunk.byteLength;
+        if (total > LIMITS.SUBPROCESS_OUTPUT_MAX_BYTES) {
+          fail();
+          return;
+        }
+        chunks.push(chunk);
+      });
+      child.once('error', fail);
+      child.once('close', (code) => {
+        if (failed) return;
+        clearTimeout(timer);
+        resolve({ code: code ?? 1, stdout: Buffer.concat(chunks) });
+      });
+      const stdin_ = child.stdin;
+      if (stdin !== null && stdin_ !== null) {
+        stdin_.on('error', () => undefined);
+        stdin_.end(stdin);
+      }
+    });
+}
+
+export class NodeAs1TmuxPort implements As1TmuxObservationPort {
+  public constructor(private readonly run: As1TmuxRunner = nodeTmuxRunner()) {}
+
+  public async observe(paneId: string): Promise<As1TmuxDestination> {
+    this.assertPane(paneId);
+    const result = await this.run(['display-message', '-p', '-t', paneId, '-F', AS1_TMUX_OBSERVE_FORMAT], null);
+    if (result.code !== 0) throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'tmux observation failed');
+    const text = decodeTmuxUtf8(result.stdout);
+    const fields = text.replace(/\n$/u, '').split(TMUX_FIELD_SEP);
+    if (fields.length !== 15) throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'tmux observation field count mismatched');
+    const [sessionId, windowId, pane, sessionName, windowName, windowIndex, paneIndex, workspace, currentCommand, panePid, paneDead, paneInMode, inputOff, synchronizePanes, activityTime] =
+      fields as [string, string, string, string, string, string, string, string, string, string, string, string, string, string, string];
+    return parseTmuxDestination(
+      {
+        sessionName,
+        sessionId,
+        windowName,
+        windowId,
+        windowIndex: tmuxInt(windowIndex),
+        paneId: pane,
+        paneIndex: tmuxInt(paneIndex),
+        panePid: tmuxInt(panePid),
+        workspace,
+        currentCommand,
+        paneDead: tmuxBool(paneDead),
+        paneInMode: tmuxBool(paneInMode),
+        inputOff: tmuxBool(inputOff),
+        synchronizePanes: tmuxBool(synchronizePanes),
+        activityTime,
+      },
+      'as1 tmux observation',
+    );
+  }
+
+  public async bufferExists(bufferName: string): Promise<boolean> {
+    this.assertBuffer(bufferName);
+    const result = await this.run(['list-buffers', '-F', '#{buffer_name}'], null);
+    if (result.code !== 0) throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'tmux buffer listing failed');
+    const names = decodeTmuxUtf8(result.stdout).split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+    return names.includes(bufferName);
+  }
+
+  public async loadVerifiedBuffer(bufferName: string, pinnedBytes: Buffer): Promise<void> {
+    this.assertBuffer(bufferName);
+    // Load ONLY the already-pinned bytes through a closed stdin (`-`); never a path, temporary, or caller buffer.
+    const result = await this.run(['load-buffer', '-b', bufferName, '-'], pinnedBytes);
+    if (result.code !== 0) throw new DomainError('GATEWAY_DISABLED', 'tmux load-buffer failed');
+  }
+
+  public async pasteBuffer(bufferName: string, paneId: string): Promise<void> {
+    this.assertBuffer(bufferName);
+    this.assertPane(paneId);
+    const result = await this.run(['paste-buffer', '-p', '-b', bufferName, '-t', paneId, '-d'], null);
+    if (result.code !== 0) throw new DomainError('GATEWAY_DISABLED', 'tmux paste-buffer failed');
+  }
+
+  public async sendEnter(paneId: string): Promise<void> {
+    this.assertPane(paneId);
+    const result = await this.run(['send-keys', '-t', paneId, 'Enter'], null);
+    if (result.code !== 0) throw new DomainError('GATEWAY_DISABLED', 'tmux send-keys failed');
+  }
+
+  public async deleteBuffer(bufferName: string): Promise<void> {
+    this.assertBuffer(bufferName);
+    const result = await this.run(['delete-buffer', '-b', bufferName], null);
+    if (result.code !== 0) throw new DomainError('GATEWAY_DISABLED', 'tmux delete-buffer failed');
+  }
+
+  private assertPane(paneId: string): void {
+    if (!PANE_ID.test(paneId)) throw new DomainError('FORBIDDEN_TARGET', 'tmux pane id is not the internally derived pane');
+  }
+
+  private assertBuffer(bufferName: string): void {
+    if (!AS1_BUFFER_NAME.test(bufferName)) throw new DomainError('FORBIDDEN_TARGET', 'tmux buffer name is not the internally derived name');
+  }
+}
+
+function decodeTmuxUtf8(bytes: Buffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'tmux output is not valid UTF-8');
+  }
+}
+
+function tmuxInt(value: string): number {
+  if (!/^(?:0|[1-9][0-9]{0,18})$/u.test(value)) {
+    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'tmux integer field is malformed');
+  }
+  return Number.parseInt(value, 10);
+}
+
+function tmuxBool(value: string): boolean {
+  if (value === '1') return true;
+  if (value === '0') return false;
+  throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'tmux boolean field is not 0 or 1');
 }

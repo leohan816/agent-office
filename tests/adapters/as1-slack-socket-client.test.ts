@@ -72,6 +72,11 @@ function makeTransport(control: () => Promise<boolean> = () => Promise.resolve(t
   return { opener, factory, fakeWs, logs, transport, received, durableLatches };
 }
 
+/**
+ * Connect through a verified hello (leaving the transport in AUTHENTICATED_QUARANTINE), then perform the Phase B
+ * one-use receive arm so the transport reaches EVENT_RECEIVE_READY exactly as the composition arms it after the
+ * durable RECEIVING transition. Tests that need the pre-arm quarantine drive connect+hello directly and skip arm.
+ */
 async function connectReady(seal: () => boolean = () => true): Promise<ReturnType<typeof makeTransport>> {
   const ctx = makeTransport();
   const promise = ctx.transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: seal });
@@ -79,11 +84,65 @@ async function connectReady(seal: () => boolean = () => true): Promise<ReturnTyp
   ctx.fakeWs.emit('open');
   ctx.fakeWs.emit('message', helloFrame(APP_ID), false);
   await promise;
+  ctx.transport.armReceive();
   return ctx;
 }
 
+describe('AS1 raw socket transport — Phase B authenticated quarantine + receive arm (design §6)', () => {
+  async function connectHelloOnly(seal: () => boolean = () => true): Promise<ReturnType<typeof makeTransport>> {
+    const ctx = makeTransport();
+    const promise = ctx.transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: seal });
+    await flush();
+    ctx.fakeWs.emit('open');
+    ctx.fakeWs.emit('message', helloFrame(APP_ID), false);
+    await promise;
+    return ctx;
+  }
+
+  it('a verified hello leaves the transport in AUTHENTICATED_QUARANTINE, not receive-ready', async () => {
+    const ctx = await connectHelloOnly();
+    expect(ctx.transport.getPhase()).toBe('AUTHENTICATED_QUARANTINE');
+  });
+
+  it('parses/ACKs NOTHING before the arm and delivers the one held frame only after armReceive', async () => {
+    const ctx = await connectHelloOnly();
+    ctx.fakeWs.emit('message', eventFrame('Env0AGENTOFFICE1', APP_ID), false); // held raw, not parsed/delivered/ACKed
+    await flush();
+    expect(ctx.received).toHaveLength(0);
+    expect(ctx.fakeWs.sent).toHaveLength(0);
+    ctx.transport.armReceive();
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+    expect(ctx.received).toHaveLength(1); // the one held frame is now parsed through the normal path
+  });
+
+  it('the zero-held-frame normal case: arm with nothing held, then a normal event delivers', async () => {
+    const ctx = await connectHelloOnly();
+    ctx.transport.armReceive();
+    ctx.fakeWs.emit('message', eventFrame('Env0AGENTOFFICE1', APP_ID), false);
+    await flush();
+    expect(ctx.received).toHaveLength(1);
+  });
+
+  it('a SECOND frame before the arm latches and closes (fail closed)', async () => {
+    const ctx = await connectHelloOnly();
+    ctx.fakeWs.emit('message', eventFrame('Env1', APP_ID), false); // held
+    ctx.fakeWs.emit('message', eventFrame('Env2', APP_ID), false); // second before arm → latch
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.received).toHaveLength(0);
+  });
+
+  it('armReceive is one-use and requires an authenticated-quarantine transport', async () => {
+    const ctx = await connectHelloOnly();
+    ctx.transport.armReceive();
+    expect(() => ctx.transport.armReceive()).toThrow(DomainError); // one-use
+    const fresh = makeTransport();
+    expect(() => fresh.transport.armReceive()).toThrow(DomainError); // wrong phase (never connected)
+  });
+});
+
 describe('AS1 raw socket transport — identity boundary', () => {
-  it('reaches receive-ready only after exact hello App-ID equality and the readiness seal', async () => {
+  it('reaches receive-ready only after exact hello App-ID equality, the readiness seal, and the arm', async () => {
     const { transport, received } = await connectReady();
     expect(transport.getPhase()).toBe('EVENT_RECEIVE_READY');
     expect(received).toHaveLength(0);
@@ -282,6 +341,7 @@ describe('AS1 raw socket transport — bounded profile-local admission (B08)', (
     fakeWs.emit('open');
     fakeWs.emit('message', helloFrame(APP_ID), false);
     await promise;
+    transport.armReceive();
     return { transport, fakeWs, logs, durableLatches };
   }
 
@@ -404,6 +464,7 @@ describe('AS1 raw socket transport — owning-control DEQUEUE gate + durable lat
     ctx.fakeWs.emit('open');
     ctx.fakeWs.emit('message', helloFrame(APP_ID), false);
     await promise;
+    ctx.transport.armReceive();
     return ctx;
   }
 
@@ -476,6 +537,7 @@ describe('AS1 raw socket transport — owning-control DEQUEUE gate + durable lat
     fakeWs.emit('open');
     fakeWs.emit('message', helloFrame(APP_ID), false);
     await promise;
+    transport.armReceive();
     fakeWs.emit('message', Buffer.from('{"type":"disconnect","reason":"refresh_requested"}', 'utf8'), false);
     await flush();
     await transport.disconnect(); // awaits the (failed) durable-latch persistence
@@ -516,6 +578,7 @@ describe('AS1 raw socket transport — receive-ready fail-closed durable latchin
     ctx.fakeWs.emit('open');
     ctx.fakeWs.emit('message', helloFrame(APP_ID), false);
     await promise;
+    ctx.transport.armReceive();
     return ctx;
   }
 
@@ -641,6 +704,7 @@ describe('AS1 raw socket transport — receive-ready binary/oversize + generatio
     gen2.emit('open');
     gen2.emit('message', helloFrame(APP_ID), false);
     await p2;
+    ctx.transport.armReceive();
     expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
 
     const latchesBefore = ctx.durableLatches.length;
@@ -740,6 +804,7 @@ describe('AS1 raw socket transport — pre-Socket connect reservation (B05 V7)',
     gen1.emit('open');
     gen1.emit('message', helloFrame(APP_ID), false);
     await p1;
+    ctx.transport.armReceive();
     expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
     gen1.emit('message', eventFrame('EnvReserveA', APP_ID), false);
     await flush();
@@ -763,6 +828,7 @@ describe('AS1 raw socket transport — pre-Socket connect reservation (B05 V7)',
     gen.emit('open');
     gen.emit('message', helloFrame(APP_ID), false);
     await p2;
+    ctx.transport.armReceive();
     expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
   });
 
@@ -803,6 +869,7 @@ describe('AS1 raw socket transport — pre-Socket connect reservation (B05 V7)',
     gen2.emit('open');
     gen2.emit('message', helloFrame(APP_ID), false);
     await p2;
+    transport.armReceive();
     expect(transport.getPhase()).toBe('EVENT_RECEIVE_READY');
   });
 

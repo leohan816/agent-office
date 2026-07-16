@@ -14,6 +14,7 @@ import { DomainError } from '../../contracts/types.js';
 import { assertExactKeys, assertRecord, requireEnum } from '../../contracts/validation.js';
 import { LIMITS } from '../../application/slack-pilot/contracts.js';
 import { assertUtcTimestamp } from '../../domain/time/index.js';
+import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import { writeAtomicCanonicalJson } from '../../persistence/file-store/atomic-file.js';
 import {
   ensurePrivateDirectory,
@@ -124,6 +125,13 @@ export class As1SlackControl {
   private readonly profileLatchCache = new Map<As1ProfileSlug, boolean>();
   private lock: WriterLock | null;
   private released = false;
+  /**
+   * The SYNCHRONOUS operator-incident gate (Phase B, design §11.2). It starts open and is closed synchronously by
+   * the SIGUSR2 handler BEFORE the durable global kill persists, so no new receive/poll/delivery/evidence/outbound
+   * side effect can begin in the window between the synchronous close and the durable `DISABLED_LATCHED` write. A
+   * closed gate fails every admission predicate closed; only a clean SIGTERM/SIGINT stop leaves it open to drain.
+   */
+  private incidentGateOpen = true;
 
   private constructor(
     private readonly stateRoot: string,
@@ -141,7 +149,11 @@ export class As1SlackControl {
    * and released only by `close()`. There is no way to obtain a live mutable control without its owned lock,
    * and a closed control rejects every mutation. Release on every failure path.
    */
-  public static async open(stateRoot: string, clock: AgentOfficeRuntimeIdentity): Promise<As1SlackControl> {
+  public static async open(
+    stateRoot: string,
+    clock: AgentOfficeRuntimeIdentity,
+    options: { readonly retainLockForForeground?: boolean } = {},
+  ): Promise<As1SlackControl> {
     const canonicalRoot = await validateStateRoot(stateRoot);
     const format = await readStateRootFormat(canonicalRoot);
     await ensurePrivateDirectory(canonicalRoot, INDEX_DIR);
@@ -149,6 +161,9 @@ export class As1SlackControl {
       buildId: 'as1-slack-pilot',
       stateRootId: format.stateRootId,
       acquiredAt: clock.now(),
+      // The Phase B foreground owner retains its exact close-on-exec O_EXCL descriptor for the process lifetime
+      // (design §11.1); a one-shot command leaves it closed exactly as in Phase A.
+      retainForForeground: options.retainLockForForeground === true,
     });
     try {
       const integrity = await validateStartupState(canonicalRoot, format.stateRootId);
@@ -192,6 +207,9 @@ export class As1SlackControl {
     const slug = AS1_PROFILE_SLUGS.find((s) => s === profileSlug);
     if (slug === undefined) return null;
     if (this.released || this.lock === null || this.isGloballyLatched()) return null;
+    // The synchronous operator-incident gate closes every admission predicate the instant SIGUSR2 fires, before
+    // the durable kill persists (design §11.2). A clean stop never closes it, so drain still proceeds.
+    if (!this.incidentGateOpen) return null;
     if (this.profileLatchCache.get(slug) === true) return null;
     return slug;
   }
@@ -232,6 +250,69 @@ export class As1SlackControl {
   }
 
   /**
+   * The Phase B construction-bound LIVE delivery actionability predicate (design §5.3). It is the SINGLE current
+   * control/latch gate the composition binds into delivery/socket/outbound; it is true ONLY when the control still
+   * owns the writer lock, `state` is exactly `RECEIVING_ONE_PROFILE`, `killEngaged` is false, `latchReason` is null,
+   * `activeProfileSlug` equals the selected closed slug, the selected profile latch is exactly unlatched, and the
+   * synchronous incident gate is open. The live record and its hash are NEVER placed in a grant, capability,
+   * delivery fact, evidence artifact, or a new durable field — this predicate is evaluated fresh, never serialized.
+   */
+  public isLiveDeliveryActionable(profileSlug: string): boolean {
+    const slug = this.ownedClean(profileSlug);
+    return (
+      slug !== null &&
+      this.control.activeProfileSlug === slug &&
+      this.control.state === 'RECEIVING_ONE_PROFILE' &&
+      !this.control.killEngaged &&
+      this.control.latchReason === null
+    );
+  }
+
+  /** True while the synchronous operator-incident gate is open (design §11.2). Closes the instant SIGUSR2 fires. */
+  public isIncidentGateOpen(): boolean {
+    return this.incidentGateOpen;
+  }
+
+  /**
+   * Synchronously close the operator-incident admission gate (design §11.2). Called first, inside the SIGUSR2
+   * handler, so no new side effect can begin before the durable global kill persists. Idempotent and never reopened.
+   */
+  public closeIncidentGate(): void {
+    this.incidentGateOpen = false;
+  }
+
+  /**
+   * Operator incident kill (design §11.2): synchronously close the incident gate, then durably engage the
+   * irreversible global kill with the fixed internal reason `OPERATOR_INCIDENT_KILL`, preserving any first durable
+   * kill reason. It never transitions the killed control to `DISABLED_CLEAN`. Serialized through the same mutex.
+   */
+  public async operatorIncidentKill(): Promise<void> {
+    this.closeIncidentGate();
+    await this.engageGlobalKill('OPERATOR_INCIDENT_KILL');
+  }
+
+  /**
+   * A redacted control/latch observation for `status` (design §5.3/§11.1.3). Emits only stable state vocabulary and
+   * booleans — never an ID, path, grant value, token fact, Slack response, or tmux coordinate.
+   */
+  public redactedObservation(profileSlug: string): {
+    readonly state: As1GlobalState;
+    readonly killEngaged: boolean;
+    readonly incidentGateOpen: boolean;
+    readonly activeProfileMatchesSelected: boolean;
+    readonly deliveryActionable: boolean;
+  } {
+    const slug = AS1_PROFILE_SLUGS.find((s) => s === profileSlug) ?? null;
+    return {
+      state: this.control.state,
+      killEngaged: this.isGloballyLatched(),
+      incidentGateOpen: this.incidentGateOpen,
+      activeProfileMatchesSelected: slug !== null && this.control.activeProfileSlug === slug,
+      deliveryActionable: slug !== null && this.isLiveDeliveryActionable(slug),
+    };
+  }
+
+  /**
    * Release the owned process lock and mark the control closed. Idempotent. Serialized through the SAME mutex
    * as every mutation, so it can never release the lock while a queued or in-flight durable mutation runs; any
    * mutation queued after close observes the released state and fails closed.
@@ -258,6 +339,15 @@ export class As1SlackControl {
 
   public getState(): As1GlobalState {
     return this.control.state;
+  }
+
+  /**
+   * A LIVE control-record snapshot hash for the startup hello seal (design §5.3). It is recomputed from the current
+   * in-memory control record — never a frozen grant field — is stable across the connect window (the control stays
+   * AUTHENTICATING_ONE_PROFILE), and is deliberately distinct from the receive grant's frozen globalControlSnapshotHash.
+   */
+  public liveControlSnapshotHash(): string {
+    return hashCanonical(this.control);
   }
 
   public getActiveProfileSlug(): As1ProfileSlug | null {

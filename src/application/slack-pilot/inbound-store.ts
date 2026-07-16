@@ -1623,6 +1623,16 @@ export class As1ProfileInboundStore {
     return records.find((r) => r.deliveryId === deliveryId)?.phase ?? null;
   }
 
+  /**
+   * Read the FULL typed terminal tmux delivery record (Phase B, design §12.6). Read-only additive accessor for
+   * `buildEvidenceAuthority`: it returns the exact stored `As1TmuxDeliveryRecordV1` (phase + bound facts) without
+   * changing any record shape or path. Returns null when no delivery journal exists for this delivery id.
+   */
+  public async readTmuxDeliveryRecord(deliveryId: string): Promise<As1TmuxDeliveryRecordV1 | null> {
+    const records = await this.readJsonArray(this.indexPath('tmux-delivery.json'), parseTmuxDeliveryRecord(this.profile), LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE);
+    return records.find((r) => r.deliveryId === deliveryId) ?? null;
+  }
+
   // ── Durable outbound Slack outbox (design §14) ────────────────────────────
   public async persistOutboundArtifact(outboundId: string, rendered: unknown): Promise<ImmutableArtifactReceipt> {
     return this.artifacts.putScopedCanonicalJson(
@@ -1768,6 +1778,20 @@ export class As1ProfileInboundStore {
       await this.writeJsonArray(this.indexPath('delivery-authority-consumption.json'), [...records, record]);
       return true;
     });
+  }
+
+  /**
+   * Read the single atomic delivery-grant/lease consumption record (Phase B, design §12.5). Read-only additive
+   * accessor for `buildEvidenceAuthority`: it returns the exact stored `As1DeliveryAuthorityConsumptionV1` without
+   * changing any record shape or path. Returns null when the delivery authority has not been consumed.
+   */
+  public async readDeliveryAuthorityConsumption(pointerDeliveryGrantId: string): Promise<As1DeliveryAuthorityConsumptionV1 | null> {
+    const records = await this.readJsonArray(
+      this.indexPath('delivery-authority-consumption.json'),
+      parseDeliveryAuthorityConsumption,
+      LIMITS.POINTER_LEASE_CAPABILITY_JOURNAL_PER_PROFILE,
+    );
+    return records.find((r) => r.pointerDeliveryGrantId === pointerDeliveryGrantId) ?? null;
   }
 
   private assertGrantBelongsToProfile(grant: As1PilotReceiveGrantV1): void {

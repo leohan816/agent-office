@@ -8,6 +8,7 @@ import { DomainError } from '../../src/contracts/types.js';
 import { As1SlackControl } from '../../src/operations/readiness/as1-slack-control.js';
 import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
 import { parseAs1Cli, runAs1Cli } from '../../src/runtime/as1-slack-pilot/cli.js';
+import { probeCapability, signalOwner, WriterLock } from '../../src/persistence/file-store/writer-lock.js';
 import { FakeClock, secretText, validSecretValues, writeSecretFile } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
 
@@ -302,32 +303,31 @@ describe('AS1 composition restart and lock ownership (B05)', () => {
     const root = await makeStateRoot();
     const composition = await As1GatewayComposition.open(parseRuntimeDescriptor(await committedDescriptor()), { stateRoot: root, clock: clock() });
     await composition.stop();
-    expect(() => composition.start()).toThrow(DomainError);
+    await expect(composition.start()).rejects.toThrow(DomainError);
     await expect(composition.stop()).rejects.toThrow(DomainError);
-    await expect(composition.restart()).rejects.toThrow(DomainError);
+    expect(() => composition.restartDisabled()).toThrow(DomainError);
   });
 
-  it('restart reopens under the same trusted options and stays disconnected in Phase A', async () => {
+  it('restart is live-disabled and returns a fail-closed result without opening a live connection (§11.1.3)', async () => {
     const root = await makeStateRoot();
     const composition = await As1GatewayComposition.open(parseRuntimeDescriptor(await committedDescriptor()), { stateRoot: root, clock: clock() });
-    const result = await composition.restart();
+    const result = composition.restartDisabled();
     expect(result.connected).toBe(false);
     expect(result.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
     await composition.close();
   });
 
-  it('restart stays closed and unusable when the reopen fails its integrity check (B05)', async () => {
+  it('incident-kill engages the durable irreversible global kill and closes the incident gate (§11.2)', async () => {
     const root = await makeStateRoot();
     const composition = await As1GatewayComposition.open(parseRuntimeDescriptor(await committedDescriptor()), { stateRoot: root, clock: clock() });
-    // Corrupt the durable marker so the restart's reopen integrity check fails deterministically.
-    await writeFile(
-      path.join(root, CONTROL_DIR, 'control-established.json'),
-      JSON.stringify({ schemaVersion: 'agent-office.WRONG.v1', stateRootId: 'as1-slack-pilot', establishedAt: '2026-07-14T22:00:00.000Z' }),
-      'utf8',
-    );
-    await expect(composition.restart()).rejects.toThrow();
-    expect(() => composition.start()).toThrow(DomainError); // no reuse without ownership
-    await composition.close();
+    const status = await composition.incidentKill();
+    expect(status.killEngaged).toBe(true);
+    expect(status.incidentGateOpen).toBe(false);
+    expect(status.state).toBe('DISABLED_LATCHED');
+    // A fresh process still sees the durable latch — no automatic reset.
+    const restarted = await reopenControl(root, '2026-07-14T22:30:00.000Z');
+    expect(restarted.isGloballyLatched()).toBe(true);
+    await restarted.close();
   });
 });
 
@@ -349,7 +349,7 @@ describe('AS1 default-disabled composition and CLI', () => {
       clock: new FakeClock('2026-07-14T22:00:00.000Z'),
     });
     try {
-      const result = composition.start();
+      const result = await composition.start();
       expect(result.connected).toBe(false);
       expect(result.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
       expect(composition.status().liveConnection).toBe('NOT_STARTED');
@@ -369,7 +369,7 @@ describe('AS1 default-disabled composition and CLI', () => {
     await second.close();
   });
 
-  it('even a descriptor with a grant ref does not connect in Phase A', async () => {
+  it('a descriptor with a grant ref but no live dependencies never connects (fail-closed)', async () => {
     const root = await makeStateRoot();
     const descriptor = parseRuntimeDescriptor({
       ...committedDescriptorSync(),
@@ -378,9 +378,9 @@ describe('AS1 default-disabled composition and CLI', () => {
     });
     const composition = await As1GatewayComposition.open(descriptor, { stateRoot: root, clock: new FakeClock('2026-07-14T22:00:00.000Z') });
     try {
-      const result = composition.start();
+      const result = await composition.start();
       expect(result.connected).toBe(false);
-      expect(result.reason).toBe('LIVE_START_REQUIRES_SEPARATE_AUTHORIZATION');
+      expect(result.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
     } finally {
       await composition.close();
     }
@@ -392,6 +392,12 @@ describe('AS1 default-disabled composition and CLI', () => {
     expect(() => parseAs1Cli(['start'])).toThrow(DomainError);
     expect(() => parseAs1Cli(['start', '--profile', 'FOUNDATION_ADVISOR', '--env-file', '/x'])).toThrow(DomainError);
     expect(() => parseAs1Cli(['start', '--env-file', '/x', '--env-file', '/y'])).toThrow(DomainError);
+    // Phase B zero-operand observer verbs accept no operand at all.
+    expect(parseAs1Cli(['stop'])).toStrictEqual({ command: 'stop', envFilePath: null });
+    expect(parseAs1Cli(['incident-kill'])).toStrictEqual({ command: 'incident-kill', envFilePath: null });
+    expect(parseAs1Cli(['status'])).toStrictEqual({ command: 'status', envFilePath: null });
+    expect(() => parseAs1Cli(['stop', '--env-file', '/x'])).toThrow(DomainError);
+    expect(() => parseAs1Cli(['incident-kill', '5'])).toThrow(DomainError);
   });
 
   it('status output is redacted and reports no live connection', async () => {
@@ -400,8 +406,8 @@ describe('AS1 default-disabled composition and CLI', () => {
       stateRoot: root,
       clock: new FakeClock('2026-07-14T22:00:00.000Z'),
     });
-    const result = await runAs1Cli({ command: 'status', envFilePath: '/x/as1.env' }, composition);
-    expect(result.lines).toContain('LIVE_CONNECTION: NOT_STARTED');
+    const result = await runAs1Cli({ command: 'status', envFilePath: null }, composition);
+    expect(result.lines).toContain('REASON: LIVE_CONNECTION_NOT_STARTED');
     expect(result.lines.join('\n')).not.toContain('xoxb');
     expect(result.lines.join('\n')).not.toContain('TWORKSPACE001');
     await composition.close();
@@ -455,4 +461,80 @@ describe('AS1 durable global-control corruption normalization (B08)', () => {
       expect(await openRejectionCode(root, '2026-07-14T23:00:00.000Z')).toBe('STORE_QUARANTINED');
     });
   }
+});
+
+describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§11.1)', () => {
+  it('executes the sealed byte-identified literal through the pinned interpreter FD and returns CAPABILITY_READY', async () => {
+    // The mutation-free capability probe verifies the exact interpreter object, hashes and pins its no-follow FD,
+    // executes that same FD as child /proc/self/fd/3, and self-pidfd polls — signalling nothing.
+    const result = await probeCapability();
+    expect(result.operation).toBe('CAPABILITY_PROBE');
+    expect(result.outcome).toBe('CAPABILITY_READY');
+    expect(result.ok).toBe(true);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('the mutation-free probe is repeatable and never signals a process', async () => {
+    const first = await probeCapability();
+    const second = await probeCapability();
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+  });
+
+  it('a signal request against an absent owner lock fails closed as OWNER_EXITED before any signal', async () => {
+    const root = await makeStateRoot();
+    const result = await signalOwner(path.join(root, 'locks', 'absent-writer.lock'), 'CLEAN_STOP');
+    expect(result.ok).toBe(false);
+    expect(result.outcome).toBe('OWNER_EXITED');
+  });
+
+  it('retains a close-on-exec descriptor for a foreground lock and releases it under identity agreement', async () => {
+    const root = await makeStateRoot();
+    const lock = await WriterLock.acquire(root, {
+      buildId: 'as1-slack-pilot',
+      stateRootId: 'test-state-root',
+      acquiredAt: '2026-07-14T22:00:00.000Z',
+      retainForForeground: true,
+    });
+    expect(typeof lock.retainedFd()).toBe('number');
+    await lock.release(); // no-follow reopen must agree on device/inode/type/owner/one-link/mode/bytes
+    expect(lock.retainedFd()).toBeNull();
+  });
+
+  it('a one-shot (non-foreground) acquire closes its descriptor but still releases the same v1 record', async () => {
+    const root = await makeStateRoot();
+    const lock = await WriterLock.acquire(root, {
+      buildId: 'as1-slack-pilot',
+      stateRootId: 'test-state-root',
+      acquiredAt: '2026-07-14T22:00:00.000Z',
+    });
+    expect(lock.retainedFd()).toBeNull();
+    await lock.release();
+  });
+
+  it('a second foreground acquire on the same root fails closed until the first releases', async () => {
+    const root = await makeStateRoot();
+    const first = await WriterLock.acquire(root, {
+      buildId: 'as1-slack-pilot',
+      stateRootId: 'test-state-root',
+      acquiredAt: '2026-07-14T22:00:00.000Z',
+      retainForForeground: true,
+    });
+    await expect(
+      WriterLock.acquire(root, {
+        buildId: 'as1-slack-pilot',
+        stateRootId: 'test-state-root',
+        acquiredAt: '2026-07-14T22:00:01.000Z',
+        retainForForeground: true,
+      }),
+    ).rejects.toThrow();
+    await first.release();
+    const second = await WriterLock.acquire(root, {
+      buildId: 'as1-slack-pilot',
+      stateRootId: 'test-state-root',
+      acquiredAt: '2026-07-14T22:00:02.000Z',
+      retainForForeground: true,
+    });
+    await second.release();
+  });
 });
