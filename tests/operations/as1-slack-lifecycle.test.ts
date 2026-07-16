@@ -7,10 +7,30 @@ import { describe, expect, it } from 'vitest';
 import { DomainError } from '../../src/contracts/types.js';
 import { As1SlackControl } from '../../src/operations/readiness/as1-slack-control.js';
 import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
-import { parseAs1Cli, runAs1Cli } from '../../src/runtime/as1-slack-pilot/cli.js';
-import { probeCapability, signalOwner, WriterLock } from '../../src/persistence/file-store/writer-lock.js';
+import { parseAs1Cli, runAs1Cli, runObserverSignal } from '../../src/runtime/as1-slack-pilot/cli.js';
+import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.js';
+import {
+  deriveSignalRequest,
+  probeCapability,
+  WriterLock,
+  type As1BridgeChildOutput,
+  type As1BridgeResult,
+} from '../../src/persistence/file-store/writer-lock.js';
 import { FakeClock, secretText, validSecretValues, writeSecretFile } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
+
+const BRIDGE_RESULT_SCHEMA = 'agent-office.as1-pidfd-bridge-result.v1';
+/** Craft a canonical bridge child output (F05 strict-decode / deadline tests). */
+function craftBridgeOutput(record: Record<string, unknown>, code: number): As1BridgeChildOutput {
+  return {
+    stdout: Buffer.concat([canonicalBytes(record), Buffer.from('\n', 'utf8')]),
+    stderrBytes: 0,
+    code,
+    signal: null,
+    timedOut: false,
+    overflow: false,
+  };
+}
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 
@@ -481,11 +501,82 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     expect(second.ok).toBe(true);
   });
 
-  it('a signal request against an absent owner lock fails closed as OWNER_EXITED before any signal', async () => {
+  it('signal-key derivation against an absent owner lock fails closed as OWNER_EXITED (no signal, no pidfd)', async () => {
     const root = await makeStateRoot();
-    const result = await signalOwner(path.join(root, 'locks', 'absent-writer.lock'), 'CLEAN_STOP');
+    const derived = await deriveSignalRequest(path.join(root, 'locks', 'absent-writer.lock'));
+    expect(derived.ok).toBe(false);
+    if (!derived.ok) expect(derived.outcome).toBe('OWNER_EXITED');
+  });
+
+  it('signal-key derivation rejects a wrong-mode owner lock as OWNER_MISMATCH (no signal)', async () => {
+    const root = await makeStateRoot();
+    const lockPath = path.join(root, 'locks', 'writer.lock');
+    await writeFile(lockPath, '{"schemaVersion":"agent-office.writer-lock.v1","pid":1}\n', { mode: 0o644 });
+    const derived = await deriveSignalRequest(lockPath);
+    expect(derived.ok).toBe(false);
+    if (!derived.ok) expect(derived.outcome).toBe('OWNER_MISMATCH');
+  });
+
+  it('F05: the strict bridge decoder rejects a failure result whose keys are not exactly {operation,outcome,schemaVersion}', async () => {
+    const bad = await probeCapability({
+      childRunner: () => Promise.resolve(craftBridgeOutput({ extra: 'x', outcome: 'OWNER_MISMATCH', schemaVersion: BRIDGE_RESULT_SCHEMA }, 66)),
+    });
+    expect(bad.outcome).toBe('INTERNAL_ERROR'); // wrong third key → never a trusted outcome
+    const unparsed = await probeCapability({
+      childRunner: () => Promise.resolve(craftBridgeOutput({ operation: 'UNPARSED', outcome: 'REQUEST_REJECTED', schemaVersion: BRIDGE_RESULT_SCHEMA }, 64)),
+    });
+    expect(unparsed.outcome).toBe('REQUEST_REJECTED'); // operation === UNPARSED is the reviewed accepted sentinel
+    expect(unparsed.ok).toBe(false);
+  });
+
+  it('F05: a bridge result arriving after the total-operation deadline is BRIDGE_TIMEOUT even on exit 0 (late success is failure)', async () => {
+    let t = 0;
+    const monoClock = (): number => {
+      const value = t;
+      t += 5_000; // the completion reading exceeds the 3,000 ms total-operation bound
+      return value;
+    };
+    const success = craftBridgeOutput({ operation: 'CAPABILITY_PROBE', outcome: 'CAPABILITY_READY', pythonVersion: '3.14.4', schemaVersion: BRIDGE_RESULT_SCHEMA }, 0);
+    const result: As1BridgeResult = await probeCapability({ nowMs: monoClock, childRunner: () => Promise.resolve(success) });
+    expect(result.outcome).toBe('BRIDGE_TIMEOUT');
     expect(result.ok).toBe(false);
-    expect(result.outcome).toBe('OWNER_EXITED');
+  });
+
+  it('F05: release rejects a JSON-equivalent but NONCANONICAL lock tampering (exact-byte ownership)', async () => {
+    const root = await makeStateRoot();
+    const lock = await WriterLock.acquire(root, { buildId: 'as1-slack-pilot', stateRootId: 'test-state-root', acquiredAt: '2026-07-14T22:00:00.000Z' });
+    const lockPath = path.join(root, 'locks', 'writer.lock');
+    const record = JSON.parse(await readFile(lockPath, 'utf8')) as Record<string, unknown>;
+    // Same JSON value, reversed key order → JSON-equivalent but not the exact canonical-plus-one-LF bytes.
+    await writeFile(lockPath, `${JSON.stringify(record, Object.keys(record).sort().reverse())}\n`, { mode: 0o600 });
+    await expect(lock.release()).rejects.toThrow(/exact canonical-plus-one-LF record owned by this process/);
+  });
+
+  it('F05: the observer STOP proves lock removal after SIGNAL_SENT (STOPPED_CLEAN vs STOP_TIMEOUT)', async () => {
+    const sent = (): Promise<As1BridgeResult> => Promise.resolve({ ok: true, operation: 'CLEAN_STOP', outcome: 'SIGNAL_SENT', exitCode: 0 });
+    const clean = await runObserverSignal('CLEAN_STOP', { signal: sent, lockRemoved: () => Promise.resolve(true), nowMs: () => 0, delay: () => Promise.resolve() });
+    expect(clean.ok).toBe(true);
+    expect(clean.lines.join('|')).toContain('STOPPED_CLEAN');
+    let t = 0;
+    const overrun = (): number => {
+      const value = t;
+      t += 6_000;
+      return value;
+    };
+    const timedOut = await runObserverSignal('CLEAN_STOP', { signal: sent, lockRemoved: () => Promise.resolve(false), nowMs: overrun, delay: () => Promise.resolve() });
+    expect(timedOut.ok).toBe(false);
+    expect(timedOut.lines.join('|')).toContain('STOP_TIMEOUT');
+  });
+
+  it('F05: incident-kill proves the durable killed state after lock removal; an absent owner maps to NO_LIVE_OWNER', async () => {
+    const sent = (): Promise<As1BridgeResult> => Promise.resolve({ ok: true, operation: 'INCIDENT_KILL', outcome: 'SIGNAL_SENT', exitCode: 0 });
+    const engaged = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(true), nowMs: () => 0, delay: () => Promise.resolve() });
+    expect(engaged.lines.join('|')).toContain('INCIDENT_KILL_ENGAGED');
+    const notKilled = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(false), nowMs: () => 0, delay: () => Promise.resolve() });
+    expect(notKilled.ok).toBe(false);
+    expect(notKilled.lines.join('|')).toContain('STALE_OR_AMBIGUOUS_OWNER');
+    const absent = await runObserverSignal('CLEAN_STOP', { signal: () => Promise.resolve({ ok: false, operation: 'CLEAN_STOP', outcome: 'OWNER_EXITED', exitCode: null }) });
+    expect(absent.lines.join('|')).toContain('NO_LIVE_OWNER');
   });
 
   it('retains a close-on-exec descriptor for a foreground lock and releases it under identity agreement', async () => {

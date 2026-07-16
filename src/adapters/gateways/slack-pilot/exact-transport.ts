@@ -205,13 +205,39 @@ function parseStrictAdvisorPointer(value: unknown): As1AdvisorPointerV1 {
   };
 }
 
-/** The pinned pointer: the exact on-disk bytes plus the retained-descriptor identity facts for the pre-commit check. */
-interface PinnedPointer {
-  readonly bytes: Buffer;
-  readonly rawSha256: string;
-  readonly absolutePath: string;
-  readonly device: bigint;
-  readonly inode: bigint;
+/**
+ * The pinned pointer: the exact on-disk bytes plus the RETAINED no-follow descriptor (F04). The descriptor is
+ * held open through the final precommit identity proof — so the proof compares `lstat` of the path against the
+ * still-open fd's own facts (an unlink/inode-reuse cannot spoof it) — and is closed EXACTLY after that proof on
+ * every path (`close()` is idempotent, so the deliver `finally` is a safe net for reject-before-proof paths).
+ */
+class PinnedPointer {
+  private handleClosed = false;
+  public constructor(
+    public readonly bytes: Buffer,
+    public readonly rawSha256: string,
+    public readonly absolutePath: string,
+    private readonly handle: import('node:fs/promises').FileHandle,
+  ) {}
+
+  /** The RETAINED descriptor's own identity facts (its inode cannot change under an open fd). */
+  public async retainedIdentity(): Promise<{
+    readonly dev: bigint;
+    readonly ino: bigint;
+    readonly nlink: bigint;
+    readonly mode: bigint;
+    readonly uid: bigint;
+    readonly isFile: boolean;
+  }> {
+    const st = await this.handle.stat({ bigint: true });
+    return { dev: st.dev, ino: st.ino, nlink: st.nlink, mode: st.mode, uid: st.uid, isFile: st.isFile() };
+  }
+
+  public async close(): Promise<void> {
+    if (this.handleClosed) return;
+    this.handleClosed = true;
+    await this.handle.close().catch(() => undefined);
+  }
 }
 
 /** The 32-KiB scoped-writer pointer ceiling (design §9.2 step 3) — NOT the 1-MiB durable-index ceiling. */
@@ -284,9 +310,11 @@ async function pinPointer(stateRoot: string, grant: As1PointerDeliveryGrantV1, t
     ) {
       return invalid('pointer artifact correlations do not match the delivery grant');
     }
-    return { bytes: onDiskBytes, rawSha256, absolutePath, device: st.dev, inode: st.ino };
-  } finally {
+    // F04: the descriptor stays OPEN through the final precommit identity proof; it is closed exactly after it.
+    return new PinnedPointer(onDiskBytes, rawSha256, absolutePath, handle);
+  } catch (error) {
     await handle.close().catch(() => undefined);
+    throw error;
   }
 }
 
@@ -296,21 +324,33 @@ async function pinPointer(stateRoot: string, grant: As1PointerDeliveryGrantV1, t
  * replacement after it cannot change the operation because the path is never reopened and only pinned bytes load.
  */
 async function assertPinnedIdentityUnchanged(pinned: PinnedPointer): Promise<void> {
-  const invalid = (): never => {
-    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer artifact identity changed before the pre-commit boundary');
-  };
-  const current = await lstat(pinned.absolutePath, { bigint: true }).catch(() => invalid());
-  const currentUid = process.getuid?.();
-  if (
-    !current.isFile() ||
-    current.dev !== pinned.device ||
-    current.ino !== pinned.inode ||
-    current.nlink !== 1n ||
-    (Number(current.mode) & 0o077) !== 0 ||
-    (currentUid !== undefined && Number(current.uid) !== currentUid)
-  ) {
-    invalid();
+  try {
+    // Compare the CURRENT path against the RETAINED descriptor's own facts (F04): device, inode, regular type,
+    // owner, one link, and private mode. Because the fd is still open, its inode cannot be reused; an unlink +
+    // re-create at the path would change `lstat` device/inode away from the retained fd and reject here.
+    const retained = await pinned.retainedIdentity();
+    const current = await lstat(pinned.absolutePath, { bigint: true });
+    const currentUid = process.getuid?.();
+    if (
+      !current.isFile() ||
+      !retained.isFile ||
+      current.dev !== retained.dev ||
+      current.ino !== retained.ino ||
+      current.nlink !== 1n ||
+      retained.nlink !== 1n ||
+      (Number(current.mode) & 0o077) !== 0 ||
+      (Number(retained.mode) & 0o077) !== 0 ||
+      (currentUid !== undefined && (Number(current.uid) !== currentUid || Number(retained.uid) !== currentUid))
+    ) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer artifact identity changed before the pre-commit boundary');
+    }
+  } catch (error) {
+    await pinned.close();
+    if (error instanceof DomainError) throw error;
+    throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer artifact identity proof failed');
   }
+  // Close the retained descriptor EXACTLY after a successful proof (F04).
+  await pinned.close();
 }
 
 /** All 15 live destination facts must equal the lease destination exactly (design §9.3). Canonical-hash equality. */
@@ -397,17 +437,25 @@ export class As1ExactTransport {
       return stopped(`pointer artifact invalid: ${redactError(error).code}`);
     }
 
-    // Step 4: require the live predicate, then complete destination observation ONE (all 15 fields, fresh clock).
-    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before observation one');
+    // The retained pointer descriptor must be closed on any pre-identity-proof reject (F04); after a successful
+    // proof, assertPinnedIdentityUnchanged has already closed it.
+    const stopClosingPin = async (reason: string): Promise<As1DeliveryResult> => {
+      await pinned.close();
+      return stopped(reason);
+    };
+
+    // Step 4: require the live predicate, then complete destination observation ONE (all 15 fields). Every
+    // fresh-clock gate checks BOTH the grant AND lease exclusive expiries (F04).
+    if (!(await this.control.isDeliverable())) return stopClosingPin('owning control not actionable before observation one');
     const observationOne = await this.port.observe(destination.paneId);
-    if (!this.clockLive(lease)) return stopped('lease expired before observation one');
-    if (!observationEquals(observationOne, destination)) return stopped('destination mismatch at observation one');
+    if (!this.clockLive(grant, lease)) return stopClosingPin('grant or lease expired before observation one');
+    if (!observationEquals(observationOne, destination)) return stopClosingPin('destination mismatch at observation one');
 
     // Step 5: without intervening work/mutation, require the live predicate and complete observation TWO.
-    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before observation two');
+    if (!(await this.control.isDeliverable())) return stopClosingPin('owning control not actionable before observation two');
     const observationTwo = await this.port.observe(destination.paneId);
-    if (!this.clockLive(lease)) return stopped('lease expired before observation two');
-    if (!observationEquals(observationTwo, destination)) return stopped('destination mismatch at observation two');
+    if (!this.clockLive(grant, lease)) return stopClosingPin('grant or lease expired before observation two');
+    if (!observationEquals(observationTwo, destination)) return stopClosingPin('destination mismatch at observation two');
 
     // Step 6: confirm the pinned descriptor/path identity and the live predicate one final time (still precommit).
     try {
@@ -443,6 +491,11 @@ export class As1ExactTransport {
     if (await this.port.bufferExists(bufferName)) {
       if (!live()) return manual('capability expired before buffer cleanup');
       if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer cleanup');
+      // F04 recovery proof: delete a pre-existing buffer ONLY when the durable journal proves this delivery is at
+      // the pre-paste PREPARED window (authorized unpasted residue). Any other phase fails closed to manual.
+      if ((await journal.readTmuxPhase(deliveryId)) !== 'PREPARED') {
+        return manual('pre-existing tmux buffer without recovery-authorized PREPARED journal');
+      }
       await this.port.deleteBuffer(bufferName);
     }
     if (!live()) return manual('capability expired before buffer load');
@@ -487,11 +540,11 @@ export class As1ExactTransport {
     }
   }
 
-  /** A fresh trusted-clock check against BOTH the grant and lease exclusive expiries (design §9.3 freshness). */
-  private clockLive(lease: As1AdvisorReadinessLeaseV1): boolean {
+  /** A fresh trusted-clock check against BOTH the grant AND lease exclusive expiries (design §9.3 freshness, F04). */
+  private clockLive(grant: As1PointerDeliveryGrantV1, lease: As1AdvisorReadinessLeaseV1): boolean {
     const nowMs = Date.parse(this.clock());
     if (Number.isNaN(nowMs)) throw new DomainError('INVALID_SCHEMA', 'the trusted delivery clock returned an unparseable timestamp');
-    return nowMs < Date.parse(lease.expiresAt);
+    return nowMs < Date.parse(grant.expiresAt) && nowMs < Date.parse(lease.expiresAt);
   }
 
   private async assertDeliverableOrThrow(): Promise<void> {

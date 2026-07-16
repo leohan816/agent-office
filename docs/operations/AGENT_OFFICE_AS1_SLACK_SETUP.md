@@ -1,21 +1,23 @@
 # AS1 Multi-Team Slack Pilot Setup
 
-Status: `PHASE_A_IMPLEMENTATION_CANDIDATE__PENDING_INDEPENDENT_REVIEW__DEFAULT_DISCONNECTED`
+Status: `PHASE_B_PRIVATE_LEO_ONLY_LIVE_COMPOSITION__IMPLEMENTATION_UNDER_INDEPENDENT_REVIEW__DEFAULT_DISCONNECTED`
 
 Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
 This is the non-secret owner Setup Pack for two private Slack Socket Mode apps.
 It does not create a pilot receive grant, activate a client, connect to Slack,
 create pointer-delivery authority or a runtime capability, start Agent Office,
-or authorize a real pilot. The lifecycle commands in section 7 exist in Phase A
-(via the `as1:slack-pilot` CLI) as an **implementation candidate** — committed
-source pending an independent Reviewer PASS, not yet independently reviewed or
-accepted — and they default to disconnected: they open no Slack connection on
-their own. Live connection and owner setup remain unauthorized until the
-independent implementation/security review passes, the Advisor records the owner
-gate, and the Advisor supplies one exact committed/pushed unexpired
-`As1PilotReceiveGrantV1` for one profile. `redacted-check` runs today and
-performs local syntax validation only — it is not a live identity proof.
+or authorize a real pilot. The Phase B private-Leo-only live-composition
+lifecycle commands in section 7 (via the `as1:slack-pilot` CLI) are committed
+**implementation under independent review** — source that has passed design
+review and is being re-reviewed after a security patch, not yet accepted for a
+live rehearsal — and they default to disconnected: they open no Slack connection
+on their own. The committed descriptor is `enabled: false`; live connection and
+owner setup remain unauthorized until the independent implementation/security
+review passes, the Advisor records the owner gate, and the Advisor supplies one
+exact committed/pushed unexpired `As1PilotReceiveGrantV1` for one profile.
+`redacted-check` runs today and performs local syntax validation only — it is
+not a live identity proof.
 
 ## 1. Fixed pilot boundary
 
@@ -182,19 +184,29 @@ disconnected.
 
 ## 7. Lifecycle commands
 
-These command forms exist in Phase A via the `as1:slack-pilot` CLI as an
-implementation candidate (committed source pending an independent Reviewer PASS,
-not yet independently reviewed or accepted). They run today but default to
-disconnected — they open no Slack connection on their own, and `start` fails
-closed absent every gate below:
+These Phase B command forms exist via the `as1:slack-pilot` CLI as committed
+implementation under independent review (source that passed design review and is
+being re-reviewed after a security patch, not yet accepted for a live rehearsal).
+They run today but default to disconnected — they open no Slack connection on
+their own, and `start` fails closed absent every gate below. Only `start` and
+`redacted-check` accept the exact `--env-file <path>`; `stop`, `incident-kill`,
+`status`, and the live-disabled `restart` are ZERO-operand observer verbs that
+resolve only the construction-bound fixed owner state root and reject any
+operand (no state-root, secret, profile, PID, signal, destination, or reason):
 
 ```sh
 npm run as1:slack-pilot -- start --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
-npm run as1:slack-pilot -- stop --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
-npm run as1:slack-pilot -- restart --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
-npm run as1:slack-pilot -- status --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
 npm run as1:slack-pilot -- redacted-check --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+npm run as1:slack-pilot -- stop
+npm run as1:slack-pilot -- incident-kill
+npm run as1:slack-pilot -- status
+npm run as1:slack-pilot -- restart
 ```
+
+`start` also requires the `AS1_SLACK_STATE_ROOT` environment value to equal the
+exact fixed owner state root, and requires `--env-file` to equal the committed
+descriptor's secret path; it resolves the descriptor from a fixed installed
+module path independent of the working directory.
 
 Command semantics after implementation:
 
@@ -211,21 +223,31 @@ Command semantics after implementation:
   tmux destination, lease, capability, or delivery-grant authority. With no
   exact grant ref, the default remains disconnected. The CLI cannot select a
   profile or mint/complete a grant.
-- `stop` stops inbound acceptance, drains exact already-durable work to a
-  bounded deadline, closes both Socket Mode clients, and leaves unresolved work
-  for restart-safe replay. An exact `TRANSPORT_ACK_RECORDED` decision may
-  materialize locally without rechecking current receive-grant expiry. Stop
-  preserves the receive-grant root binding and all pointer-delivery-grant/lease
-  consumption.
-- `restart` performs a successful clean `stop`, exact state recovery, and then
-  evaluates the fresh live-start gate. Only the same still-unexpired receive
-  grant may reauthenticate and reopen its Socket. If that grant is expired,
-  restart must remain disconnected but may run a bounded offline drain that
-  materializes each exact `TRANSPORT_ACK_RECORDED` decision once; it cannot
-  bind/consume new receive state. This local drain is not grant renewal or
-  reuse. Restart never renews a grant/root slot or clears dedupe, journal,
-  outbox, delivery-grant/lease/capability consumption, or failure latches.
-- `status` reports process/profile states and stable reason codes only. It never
+- `stop` is a zero-operand observer verb. It signals the running foreground
+  owner ONLY through the sealed pidfd bridge (never a numeric-PID kill), which
+  drives the owner's clean drain — stop inbound acceptance, drain exact
+  already-durable work to a bounded deadline, close both Socket Mode clients, and
+  leave unresolved work for restart-safe replay — then proves exact owner-lock
+  removal within the fixed shutdown deadline before reporting `STOPPED_CLEAN`
+  (otherwise `STOP_TIMEOUT`/`NO_LIVE_OWNER`/`STALE_OR_AMBIGUOUS_OWNER`). An exact
+  `TRANSPORT_ACK_RECORDED` decision may materialize locally without rechecking
+  current receive-grant expiry. The drain preserves the receive-grant root
+  binding and all pointer-delivery-grant/lease consumption.
+- `incident-kill` is a zero-operand observer verb. It signals the owner through
+  the same sealed bridge to synchronously close the incident gate and durably
+  engage the irreversible global kill, then proves both owner-lock removal and
+  the durable killed state before reporting `INCIDENT_KILL_ENGAGED` (otherwise a
+  stable timeout/ambiguous code). It never resets a latch and never transitions
+  the killed control to `DISABLED_CLEAN`.
+- `restart` is LIVE-DISABLED in Phase B. This supersedes any earlier live-restart
+  wording: `restart` opens no Slack connection, performs no reconnect, and simply
+  reports `RESTART_LIVE_DISABLED` (see section 10). After a clean stop, only a
+  new separately authorized foreground `start` may re-open the composition; any
+  later manual start replays immutable journals under existing authority and
+  never renews a grant/root slot, reconnects, or clears dedupe, journal, outbox,
+  delivery-grant/lease/capability consumption, or failure latches.
+- `status` is a zero-operand read-only observer verb. It reports process/profile
+  states and stable reason codes only, never opening Web/Socket/tmux, and never
   prints configuration values, Slack payloads, or raw grant identity values.
 
 No lifecycle command creates a Mission, pilot receive grant, post-intake

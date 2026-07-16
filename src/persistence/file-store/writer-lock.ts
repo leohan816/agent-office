@@ -18,6 +18,7 @@ import { link, lstat, open, readFile, realpath, unlink } from 'node:fs/promises'
 import path from 'node:path';
 import { randomBytes, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
 
 import { canonicalBytes, canonicalize } from './canonical-json.js';
 import { StoreError } from './errors.js';
@@ -55,6 +56,12 @@ const BRIDGE_RESULT_SCHEMA = 'agent-office.as1-pidfd-bridge-result.v1';
 const BRIDGE_ENV: Readonly<Record<string, string>> = { LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' };
 /** The fixed proc-fd pathname the child execs — it resolves the verified inherited interpreter file description. */
 const AS1_PROC_SELF_FD_3 = '/proc/self/fd/3';
+/**
+ * The exact construction-bound owner writer-lock path (design §5.1/§11.1) — the SAME `LOCK_PATH` the sealed
+ * literal hardcodes. The production observer signal boundary uses ONLY this fixed path; no caller-selected lock
+ * path exists at the production surface (F05).
+ */
+export const AS1_FIXED_OWNER_LOCK_PATH = '/home/leo/.local/state/agent-office/as1-slack-pilot/locks/writer.lock';
 /** Linux `O_CLOEXEC` (0o2000000) — Node opens every fd close-on-exec; this value is only used to VERIFY the bit. */
 const LINUX_O_CLOEXEC = 0o2_000_000;
 /** The fixed owner-shutdown deadline the observer CLI waits for lock removal after a same-pidfd send (§11.1.2). */
@@ -634,16 +641,21 @@ interface VerifiedInterpreter {
  * (design §11.1.1 steps 1–3). realpath/lstat/open-once/exact-fstat-tuple/hash-through-EOF/re-lstat-identity all
  * complete before the caller may spawn; any drift or elapsed pre-spawn deadline fails before child creation.
  */
-async function verifyAndOpenInterpreter(deadlineMs: number): Promise<VerifiedInterpreter> {
+async function verifyAndOpenInterpreter(deadlineMonoMs: number): Promise<VerifiedInterpreter> {
+  // F05: the MONOTONIC pre-spawn deadline is checked at every async step — realpath/lstat/open/fstat/hash/re-lstat
+  // can each overrun, and the final check happens immediately before returning (the caller then spawns).
+  const overrun = (): boolean => performance.now() > deadlineMonoMs;
+  if (overrun()) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
   const resolved = await realpath(AS1_INTERPRETER_PATH);
-  if (resolved !== AS1_INTERPRETER_PATH) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
+  if (resolved !== AS1_INTERPRETER_PATH || overrun()) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
   const pre = await lstat(AS1_INTERPRETER_PATH);
-  if (pre.isSymbolicLink() || !pre.isFile()) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
+  if (pre.isSymbolicLink() || !pre.isFile() || overrun()) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
   const handle = await open(
     AS1_INTERPRETER_PATH,
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK | LINUX_O_CLOEXEC,
   );
   try {
+    if (overrun()) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
     const st = await handle.stat();
     if (
       !st.isFile() ||
@@ -653,7 +665,8 @@ async function verifyAndOpenInterpreter(deadlineMs: number): Promise<VerifiedInt
       st.nlink !== INTERPRETER_NLINK ||
       st.dev !== INTERPRETER_DEVICE ||
       st.ino !== INTERPRETER_INODE ||
-      st.size !== INTERPRETER_SIZE
+      st.size !== INTERPRETER_SIZE ||
+      overrun()
     ) {
       throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
     }
@@ -661,7 +674,7 @@ async function verifyAndOpenInterpreter(deadlineMs: number): Promise<VerifiedInt
     const buffer = Buffer.allocUnsafe(HASH_CHUNK_BYTES);
     let total = 0;
     for (;;) {
-      if (Date.now() > deadlineMs) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
+      if (overrun()) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
       const { bytesRead } = await handle.read(buffer, 0, HASH_CHUNK_BYTES, total);
       if (bytesRead === 0) break;
       total += bytesRead;
@@ -672,7 +685,7 @@ async function verifyAndOpenInterpreter(deadlineMs: number): Promise<VerifiedInt
     if (`sha256:${hash.digest('hex')}` !== INTERPRETER_SHA256) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
     // Immediately before spawn, re-lstat the fixed pathname and require its device/inode to equal the open FD.
     const post = await lstat(AS1_INTERPRETER_PATH);
-    if (post.dev !== st.dev || post.ino !== st.ino) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
+    if (post.dev !== st.dev || post.ino !== st.ino || overrun()) throw new BridgeFailure('CAPABILITY_UNAVAILABLE');
     return { handle, fd: handle.fd };
   } catch (error) {
     await handle.close().catch(() => undefined);
@@ -680,7 +693,8 @@ async function verifyAndOpenInterpreter(deadlineMs: number): Promise<VerifiedInt
   }
 }
 
-interface ChildOutput {
+/** The raw child output the bridge decoder consumes. Exported so deterministic tests can inject a child runner. */
+export interface As1BridgeChildOutput {
   readonly stdout: Buffer;
   readonly stderrBytes: number;
   readonly code: number | null;
@@ -690,12 +704,22 @@ interface ChildOutput {
 }
 
 /**
+ * Test-only bridge injection seams (F05): a fake child runner (to exercise the strict result decoder without the
+ * real interpreter) and a monotonic clock (to exercise the whole-operation deadline). NEVER used in production —
+ * the CLI/composition call `probeCapability()`/`signalFixedOwner()` with no options, so the real verified spawn runs.
+ */
+export interface As1BridgeRunOptions {
+  readonly childRunner?: (requestBytes: Buffer) => Promise<As1BridgeChildOutput>;
+  readonly nowMs?: () => number;
+}
+
+/**
  * Spawn the verified interpreter as `/proc/self/fd/3` with the exact argv/env/stdio, write one canonical
  * request + LF to closed stdin, and drain stdout/stderr under the fixed caps and the direct-child deadline.
  * A byte 513 from either pipe or the elapsed child deadline SIGKILLs the direct child (never the owner).
  */
-function runVerifiedChild(fd: number, requestBytes: Buffer): Promise<ChildOutput> {
-  return new Promise<ChildOutput>((resolve) => {
+function runVerifiedChild(fd: number, requestBytes: Buffer): Promise<As1BridgeChildOutput> {
+  return new Promise<As1BridgeChildOutput>((resolve) => {
     const child = spawn(AS1_PROC_SELF_FD_3, ['-I', '-S', '-c', PIDFD_BRIDGE_SOURCE], {
       cwd: '/',
       env: { ...BRIDGE_ENV },
@@ -718,7 +742,7 @@ function runVerifiedChild(fd: number, requestBytes: Buffer): Promise<ChildOutput
       timedOut = true;
       killChild();
     }, CHILD_DEADLINE_MS);
-    const finish = (output: Omit<ChildOutput, 'timedOut' | 'overflow'>): void => {
+    const finish = (output: Omit<As1BridgeChildOutput, 'timedOut' | 'overflow'>): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -759,7 +783,7 @@ function runVerifiedChild(fd: number, requestBytes: Buffer): Promise<ChildOutput
 }
 
 /** Parse and validate the bridge's single canonical result line for the requested operation. */
-function parseBridgeResult(operation: As1BridgeOperation, output: ChildOutput): As1BridgeResult {
+function parseBridgeResult(operation: As1BridgeOperation, output: As1BridgeChildOutput): As1BridgeResult {
   if (output.timedOut) return { ok: false, operation, outcome: 'BRIDGE_TIMEOUT', exitCode: output.code };
   if (output.overflow) return { ok: false, operation, outcome: 'INTERNAL_ERROR', exitCode: output.code };
   if (output.signal !== null) return { ok: false, operation, outcome: 'INTERNAL_ERROR', exitCode: null };
@@ -803,15 +827,27 @@ function parseBridgeResult(operation: As1BridgeOperation, output: ChildOutput): 
     }
     return { ok: true, operation, outcome, exitCode: 0 };
   }
-  // A well-formed failure result: exactly {operation, outcome, schemaVersion}; operation is the parsed op or UNPARSED.
-  if (Object.keys(record).length !== 3) return { ok: false, operation, outcome: 'INTERNAL_ERROR', exitCode: output.code };
+  // A well-formed failure result: EXACTLY the keys {operation, outcome, schemaVersion}, and the `operation` value
+  // is the requested operation or the reviewed `UNPARSED` sentinel (F05 — not merely a key count).
+  const failKeys = Object.keys(record).sort();
+  if (
+    failKeys.length !== 3 ||
+    failKeys[0] !== 'operation' ||
+    failKeys[1] !== 'outcome' ||
+    failKeys[2] !== 'schemaVersion' ||
+    (record.operation !== operation && record.operation !== 'UNPARSED')
+  ) {
+    return { ok: false, operation, outcome: 'INTERNAL_ERROR', exitCode: output.code };
+  }
   return { ok: false, operation, outcome, exitCode: output.code };
 }
 
 /** Run one bridge operation with an internally derived request; never a caller-selectable executable or argv. */
-async function runBridge(operation: As1BridgeOperation, signalKeys?: SignalRequestKeys): Promise<As1BridgeResult> {
+async function runBridge(operation: As1BridgeOperation, signalKeys?: SignalRequestKeys, options?: As1BridgeRunOptions): Promise<As1BridgeResult> {
   assertBridgeLiteralIdentity();
-  const startedAt = Date.now();
+  // F05: a MONOTONIC whole-operation clock. It is checked immediately before spawn and on EVERY completion path.
+  const now = options?.nowMs ?? ((): number => performance.now());
+  const startedMono = now();
   const requestValue: Record<string, unknown> =
     operation === 'CAPABILITY_PROBE'
       ? { operation, schemaVersion: BRIDGE_REQUEST_SCHEMA }
@@ -820,18 +856,26 @@ async function runBridge(operation: As1BridgeOperation, signalKeys?: SignalReque
   if (requestBytes.byteLength - 1 > REQUEST_MAX_BYTES || requestBytes.byteLength > STDIN_MAX_BYTES) {
     return { ok: false, operation, outcome: 'REQUEST_REJECTED', exitCode: null };
   }
+
+  // Deterministic-test injection seam: decode a crafted child output through the SAME strict decoder + deadline.
+  if (options?.childRunner !== undefined) {
+    const output = await options.childRunner(requestBytes);
+    if (now() - startedMono > TOTAL_OPERATION_DEADLINE_MS) return { ok: false, operation, outcome: 'BRIDGE_TIMEOUT', exitCode: output.code };
+    return parseBridgeResult(operation, output);
+  }
+
   let interpreter: VerifiedInterpreter;
   try {
-    interpreter = await verifyAndOpenInterpreter(startedAt + PRE_SPAWN_DEADLINE_MS);
+    interpreter = await verifyAndOpenInterpreter(startedMono + PRE_SPAWN_DEADLINE_MS);
   } catch (error) {
     return { ok: false, operation, outcome: error instanceof BridgeFailure ? error.outcome : 'CAPABILITY_UNAVAILABLE', exitCode: null };
   }
   try {
+    // Checked immediately BEFORE spawn: a pre-spawn overrun never creates the child (F05).
+    if (now() - startedMono > PRE_SPAWN_DEADLINE_MS) return { ok: false, operation, outcome: 'BRIDGE_TIMEOUT', exitCode: null };
     const output = await runVerifiedChild(interpreter.fd, requestBytes);
-    if (Date.now() - startedAt > TOTAL_OPERATION_DEADLINE_MS && !(output.code === 0)) {
-      // A total-operation overrun that did not already resolve as a clean success is ambiguous, never success.
-      return { ok: false, operation, outcome: 'BRIDGE_TIMEOUT', exitCode: output.code };
-    }
+    // On EVERY completion path a total-operation overrun is failure — even a code-0 late success (F05).
+    if (now() - startedMono > TOTAL_OPERATION_DEADLINE_MS) return { ok: false, operation, outcome: 'BRIDGE_TIMEOUT', exitCode: output.code };
     return parseBridgeResult(operation, output);
   } finally {
     await interpreter.handle.close().catch(() => undefined);
@@ -843,8 +887,8 @@ async function runBridge(operation: As1BridgeOperation, signalKeys?: SignalReque
  * self pidfd and a zero-event poll; it never signals. Runs before ANY state-root mutation. Every non-success maps
  * to a single redacted result; the caller translates that to `LIFECYCLE_CAPABILITY_UNAVAILABLE`.
  */
-export function probeCapability(): Promise<As1BridgeResult> {
-  return runBridge('CAPABILITY_PROBE');
+export function probeCapability(options?: As1BridgeRunOptions): Promise<As1BridgeResult> {
+  return runBridge('CAPABILITY_PROBE', undefined, options);
 }
 
 interface SignalRequestKeys {
@@ -885,11 +929,19 @@ const OWNER_LOCK_MAX_BYTES = 4_096;
  * controlled. It then runs the sealed literal, which reopens the same fixed lock, opens one pidfd, observes the
  * owner twice through that pidfd, and sends only the fixed signal through that same incarnation.
  */
-export async function signalOwner(lockPath: string, operation: 'CLEAN_STOP' | 'INCIDENT_KILL'): Promise<As1BridgeResult> {
-  let keys: SignalRequestKeys;
+export type As1SignalDerivation =
+  | { readonly ok: true; readonly keys: SignalRequestKeys }
+  | { readonly ok: false; readonly outcome: string };
+
+/**
+ * Non-signaling derivation (design §11.1.3, F05): no-follow open and strictly parse the owner-UID private one-link
+ * lock, require its exact bytes/device/inode and the caller UID, read `/proc/<pid>/stat` start ticks, and derive
+ * the seven signal-request keys — or a redacted failure outcome. It NEVER opens a pidfd or sends a signal, so it
+ * is exported for deterministic derivation tests with a controllable lock path.
+ */
+export async function deriveSignalRequest(lockPath: string): Promise<As1SignalDerivation> {
   try {
     const handle = await open(lockPath, constants.O_RDONLY | constants.O_NOFOLLOW);
-    let record: Record<string, unknown>;
     let device: bigint;
     let inode: bigint;
     let digest: string;
@@ -912,7 +964,7 @@ export async function signalOwner(lockPath: string, operation: 'CLEAN_STOP' | 'I
       inode = st.ino;
       const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new BridgeFailure('OWNER_MISMATCH');
-      record = parsed as Record<string, unknown>;
+      const record = parsed as Record<string, unknown>;
       if (record.schemaVersion !== 'agent-office.writer-lock.v1' || typeof record.pid !== 'number' || !Number.isInteger(record.pid)) {
         throw new BridgeFailure('OWNER_MISMATCH');
       }
@@ -922,19 +974,40 @@ export async function signalOwner(lockPath: string, operation: 'CLEAN_STOP' | 'I
       await handle.close().catch(() => undefined);
     }
     const startTicks = await readOwnerStartTicks(pid);
-    keys = {
-      expectedLockDevice: device.toString(10),
-      expectedLockInode: inode.toString(10),
-      expectedLockSha256: digest,
-      expectedOwnerPid: pid,
-      expectedOwnerStartTicks: startTicks,
+    return {
+      ok: true,
+      keys: {
+        expectedLockDevice: device.toString(10),
+        expectedLockInode: inode.toString(10),
+        expectedLockSha256: digest,
+        expectedOwnerPid: pid,
+        expectedOwnerStartTicks: startTicks,
+      },
     };
   } catch (error) {
-    if (error instanceof BridgeFailure) return { ok: false, operation, outcome: error.outcome, exitCode: null };
-    if (isNodeError(error, 'ENOENT')) return { ok: false, operation, outcome: 'OWNER_EXITED', exitCode: null };
-    return { ok: false, operation, outcome: 'OWNER_MISMATCH', exitCode: null };
+    if (error instanceof BridgeFailure) return { ok: false, outcome: error.outcome };
+    if (isNodeError(error, 'ENOENT')) return { ok: false, outcome: 'OWNER_EXITED' };
+    return { ok: false, outcome: 'OWNER_MISMATCH' };
   }
-  return runBridge(operation, keys);
+}
+
+/** Internal: derive from a lock path, then run the sealed bridge. Not exported — the production surface is fixed. */
+async function signalOwnerAtLock(
+  lockPath: string,
+  operation: 'CLEAN_STOP' | 'INCIDENT_KILL',
+  options?: As1BridgeRunOptions,
+): Promise<As1BridgeResult> {
+  const derived = await deriveSignalRequest(lockPath);
+  if (!derived.ok) return { ok: false, operation, outcome: derived.outcome, exitCode: null };
+  return runBridge(operation, derived.keys, options);
+}
+
+/**
+ * The PRODUCTION observer signal boundary (design §11.1.3, F05). It targets ONLY the construction-bound fixed owner
+ * lock — no caller-selected lock path exists at this surface. `options` is a test-only decode/deadline seam.
+ */
+export function signalFixedOwner(operation: 'CLEAN_STOP' | 'INCIDENT_KILL', options?: As1BridgeRunOptions): Promise<As1BridgeResult> {
+  return signalOwnerAtLock(AS1_FIXED_OWNER_LOCK_PATH, operation, options);
 }
 
 export interface WriterLockMetadata {
@@ -1051,9 +1124,11 @@ export class WriterLock {
         ) {
           throw new StoreError('STATE_ROOT_INVALID', 'writer lock identity changed unexpectedly before release');
         }
+        // F05: require the RAW bytes to equal the exact canonical-plus-one-LF record this owner acquired — a
+        // JSON-equivalent but noncanonical tampering must NOT be unlinked as the owned record.
         const bytes = await reopened.readFile();
-        if (canonicalize(JSON.parse(bytes.toString('utf8')) as unknown) !== canonicalize(this.metadata)) {
-          throw new StoreError('STATE_ROOT_INVALID', 'writer lock ownership changed unexpectedly');
+        if (!bytes.equals(Buffer.concat([canonicalBytes(this.metadata), Buffer.from('\n', 'utf8')]))) {
+          throw new StoreError('STATE_ROOT_INVALID', 'writer lock bytes are not the exact canonical-plus-one-LF record owned by this process');
         }
       } finally {
         await reopened.close().catch(() => undefined);
@@ -1065,11 +1140,12 @@ export class WriterLock {
       this.released = true;
       return;
     }
-    const current = await readFile(this.lockPath, 'utf8').catch((error: unknown) => {
+    const current = await readFile(this.lockPath).catch((error: unknown) => {
       throw new StoreError('STATE_ROOT_INVALID', 'writer lock disappeared before release', { cause: error });
     });
-    if (canonicalize(JSON.parse(current) as unknown) !== canonicalize(this.metadata)) {
-      throw new StoreError('STATE_ROOT_INVALID', 'writer lock ownership changed unexpectedly');
+    // F05: exact canonical-plus-one-LF raw-byte identity (see the foreground path above).
+    if (!current.equals(Buffer.concat([canonicalBytes(this.metadata), Buffer.from('\n', 'utf8')]))) {
+      throw new StoreError('STATE_ROOT_INVALID', 'writer lock bytes are not the exact canonical-plus-one-LF record owned by this process');
     }
     await unlink(this.lockPath);
     await fsyncDirectory(path.dirname(this.lockPath));

@@ -1,4 +1,4 @@
-import { chmod, writeFile } from 'node:fs/promises';
+import { chmod, link, symlink, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -66,6 +66,7 @@ class FakeObservationPort implements As1TmuxObservationPort {
   private pasteThrows = false;
   private onLoadHook: (() => void) | null = null;
   private onPasteHook: (() => void) | null = null;
+  private onFirstObserveHook: (() => void | Promise<void>) | null = null;
 
   public constructor(private readonly base: As1TmuxDestination) {}
 
@@ -84,10 +85,15 @@ class FakeObservationPort implements As1TmuxObservationPort {
   public onPaste(fn: () => void): void {
     this.onPasteHook = fn;
   }
+  /** Fire once, at the first observation (between the pin and the precommit identity proof) — F04 races. */
+  public onFirstObserve(fn: () => void | Promise<void>): void {
+    this.onFirstObserveHook = fn;
+  }
 
-  public observe(): Promise<As1TmuxDestination> {
+  public async observe(): Promise<As1TmuxDestination> {
     this.observeCalls += 1;
-    return Promise.resolve(this.queue.shift() ?? this.base);
+    if (this.observeCalls === 1 && this.onFirstObserveHook !== null) await this.onFirstObserveHook();
+    return this.queue.shift() ?? this.base;
   }
   public bufferExists(): Promise<boolean> {
     return Promise.resolve(this.bufferPresent);
@@ -445,5 +451,100 @@ describe('AS1 delivery-authority consumption invariants', () => {
     const legacy = path.join(root, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/pointer-delivery-grant-consumption.json');
     await writeFile(legacy, JSON.stringify([{ id: 'as1-pdg-legacy', consumedAt: NOW }]), 'utf8');
     await expect(store.consumeDeliveryAuthority('as1-pdg-new', 'as1-lease-new')).rejects.toBeInstanceOf(DomainError);
+  });
+});
+
+// F04 delta-review: retained-descriptor pointer proof, BOTH-authority freshness at every observation, and
+// recovery-authorized buffer deletion. The grant-expiry and recovery-gate cases FAIL on candidate 317d82e.
+describe('AS1 exact transport — F04 adversarial pointer/recovery matrix', () => {
+  it('fails closed when the GRANT expires between observations (both authorities are checked, not only the lease)', async () => {
+    const root = await makeStateRoot();
+    const store = await As1ProfileInboundStore.open(root, AGENT_OFFICE, new FakeClock(NOW));
+    const fixture = await pinnedDelivery(store, root);
+    // A short 2-second grant whose expiry falls between observations, with a longer 20-second lease.
+    const grant = parsePointerDeliveryGrant(
+      validPointerDeliveryGrant({ pointerArtifactRef: fixture.grant.pointerArtifactRef, pointerHash: fixture.grant.pointerHash, issuedAt: NOW, expiresAt: '2026-07-14T22:03:07.000Z' }),
+    );
+    const lease = parseReadinessLease(
+      validReadinessLease({ pointerHash: fixture.grant.pointerHash, pointerDeliveryGrantSnapshotHash: hashCanonical(grant), observedAt: NOW, issuedAt: NOW, expiresAt: '2026-07-14T22:03:25.000Z' }),
+    );
+    let now = NOW;
+    const port = new FakeObservationPort(baseDestination());
+    port.onFirstObserve(() => {
+      now = '2026-07-14T22:03:10.000Z'; // past the 2s grant, before the 20s lease
+    });
+    const transport = new As1ExactTransport(() => now, root, AGENT_OFFICE, port, store, ACCEPTING_GATE, DELIVERABLE, NOOP_LATCH);
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('STOPPED_BEFORE_PASTE');
+    expect(result.reason).toContain('grant or lease expired');
+    expect(port.observeCalls).toBe(1); // stopped at the grant check on observation one — never reached observation two
+    expect(await store.readTmuxPhase(DELIVERY_ID)).toBeNull();
+  });
+
+  it('deletes a pre-existing buffer ONLY under a recovery-authorized PREPARED journal', async () => {
+    const { store, port, grant, lease, root } = await makeTransport();
+    port.setBufferPresent();
+    let readCalls = 0;
+    // A spy journal: real store, but the buffer-recovery re-read reports a NON-PREPARED phase.
+    const spyJournal: As1DeliveryJournal = {
+      recordTmuxPhase: (id, phase, facts) => store.recordTmuxPhase(id, phase, facts),
+      consumeDeliveryAuthority: (g, l) => store.consumeDeliveryAuthority(g, l),
+      readTmuxPhase: (id) => {
+        readCalls += 1;
+        return readCalls === 1 ? store.readTmuxPhase(id) : Promise.resolve('BUFFER_LOADED');
+      },
+    };
+    const transport = new As1ExactTransport(() => NOW, root, AGENT_OFFICE, port, spyJournal, ACCEPTING_GATE, DELIVERABLE, NOOP_LATCH);
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(port.deleteCalls).toBe(0); // NOT deleted — no recovery authorization
+    expect(port.pasteCalls).toBe(0);
+  });
+
+  it('a pre-existing buffer with a real PREPARED journal is authorized residue and is deleted before load', async () => {
+    const { transport, port, grant, lease } = await makeTransport();
+    port.setBufferPresent();
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('DELIVERED');
+    expect(port.deleteCalls).toBe(1);
+  });
+
+  it('a symlink at the pointer leaf fails closed (no-follow open)', async () => {
+    const { transport, port, grant, lease, pointerLeafPath } = await makeTransport();
+    await unlink(pointerLeafPath);
+    await symlink('/etc/hostname', pointerLeafPath);
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('STOPPED_BEFORE_PASTE');
+    expect(port.pasteCalls).toBe(0);
+  });
+
+  it('a hardlinked pointer leaf (link count 2) fails closed', async () => {
+    const { transport, port, grant, lease, pointerLeafPath } = await makeTransport();
+    await link(pointerLeafPath, `${path.dirname(pointerLeafPath)}/hardlink-copy.json`);
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('STOPPED_BEFORE_PASTE');
+    expect(port.pasteCalls).toBe(0);
+  });
+
+  it('a pointer leaf larger than 32 KiB fails the size gate; a 32,768-byte leaf passes it (then fails later gates)', async () => {
+    const over = await makeTransport();
+    await writeFile(over.pointerLeafPath, Buffer.alloc(32 * 1024 + 1, 0x20), { mode: 0o600 });
+    expect((await over.transport.deliver(over.grant, over.lease)).outcome).toBe('STOPPED_BEFORE_PASTE');
+    const at = await makeTransport();
+    // Exactly 32,768 bytes passes the size gate and is rejected only by the canonical/hash gates (still STOPPED).
+    await writeFile(at.pointerLeafPath, Buffer.alloc(32 * 1024, 0x20), { mode: 0o600 });
+    expect((await at.transport.deliver(at.grant, at.lease)).outcome).toBe('STOPPED_BEFORE_PASTE');
+  });
+
+  it('replacing the pinned leaf between the pin and the identity proof fails closed (retained descriptor)', async () => {
+    const { store, transport, port, grant, lease, pointerLeafPath } = await makeTransport();
+    port.onFirstObserve(async () => {
+      await unlink(pointerLeafPath);
+      await writeFile(pointerLeafPath, Buffer.from('{"replaced":true}\n', 'utf8'), { mode: 0o600 });
+    });
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('STOPPED_BEFORE_PASTE');
+    expect(port.pasteCalls).toBe(0);
+    expect(await store.readTmuxPhase(DELIVERY_ID)).toBeNull(); // never reached PREPARED
   });
 });
