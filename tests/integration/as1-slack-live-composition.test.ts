@@ -327,6 +327,31 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     }
   });
 
+  it('F03 (Patch 2A): a readiness lease that diverges after delivery blocks evidence/outbound and latches the profile', async () => {
+    const { stateRoot, composition, socket, gitSource, receiveGrantHashes } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const store = await As1ProfileInboundStore.open(stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(validReceiveGrant(receiveGrantHashes)), selectProfile('AGENT_OFFICE_ADVISOR'), intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      gitSource.set(`${base}/readiness-lease.json`, lease);
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+
+      // The accepted lease diverges (rewrite/deletion) BEFORE evidence ingress — which the real owner calls directly.
+      // Evidence/outbound must NOT proceed, and the selected profile durably latches.
+      gitSource.divergePaths.add(`${base}/readiness-lease.json`);
+      await expect(composition.ingestEvidenceAndProject()).rejects.toThrow(/readiness lease diverged/u);
+      const latchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');
+      expect((JSON.parse(latchRaw) as { readonly latched: boolean }).latched).toBe(true);
+    } finally {
+      await composition.stop();
+    }
+  });
+
   it('rejects a second top-level root (one root-to-result round trip per channel)', async () => {
     const { composition, socket } = await startAgentOfficeComposition();
     try {

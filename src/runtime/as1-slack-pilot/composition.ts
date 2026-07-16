@@ -31,7 +31,9 @@ import {
 import { parseSecretConfigFile, type As1SecretConfig } from '../../adapters/gateways/slack-pilot/secret-config.js';
 import {
   As1StartupIdentityVerifier,
+  assertPointerGrantSnapshot,
   parseReadinessLease,
+  type As1AdvisorReadinessLeaseV1,
   type As1ProfileWireIdentity,
   type As1ReceiveGrantProvenanceGate,
 } from '../../adapters/gateways/slack-pilot/exact-authority.js';
@@ -546,6 +548,25 @@ export class As1GatewayComposition {
     const deliveryGrant = parsePointerDeliveryGrant(JSON.parse(grantObs.bytes.toString('utf8')));
     const { deliveryId } = parseContainedPointerRef(deliveryGrant);
 
+    // F03 (Patch 2A): evidence ALSO requires the already-accepted readiness lease, re-observed with its retained
+    // (firstAddCommit, blobSha256) pair BEFORE any evidence/outbound. The real owner reaches this method directly
+    // (without a second deliverPending), so the lease must be re-proven here too: a divergent/deleted/dirty/rewritten
+    // lease latches the profile and fails closed, and the re-observed lease is parsed and proven to be the SAME lease
+    // bound to the accepted delivery authority — acceptance is never inferred from the stored pair alone.
+    if (this.acceptedLease === null) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted readiness lease');
+    }
+    const leaseObs = await deps.gitSource.observe(`${base}/readiness-lease.json`, this.acceptedLease);
+    if (leaseObs.status === 'DIVERGED') {
+      await this.control.latchProfile(live.slug, `readiness lease diverged at evidence: ${leaseObs.reason}`);
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease diverged post-acceptance');
+    }
+    if (leaseObs.status !== 'READY' || leaseObs.bytes === null) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease is not ready for evidence authority');
+    }
+    const evidenceLease = parseReadinessLease(JSON.parse(leaseObs.bytes.toString('utf8')));
+    this.assertLeaseBoundToDelivery(evidenceLease, deliveryGrant);
+
     const receiveGrantState = await live.store.readReceiveGrantState(live.grant.receiveGrantId);
     const terminalDelivery = await live.store.readTmuxDeliveryRecord(deliveryId);
     const rootCorrelation = await live.store.findRootByIntakeId(intakeId);
@@ -770,6 +791,36 @@ export class As1GatewayComposition {
       grant.profileLatchSnapshotHash !== live.grant.profileLatchSnapshotHash
     ) {
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer-delivery grant does not bind the accepted receive grant');
+    }
+  }
+
+  /**
+   * The re-observed readiness lease must be the SAME lease bound to the accepted delivery authority (design §9.1/§12.5,
+   * Patch 2A). Byte-identity from the accepted pair is necessary but not sufficient, so the binding is proven
+   * explicitly: the canonical `assertPointerGrantSnapshot` proves `lease.pointerDeliveryGrantSnapshotHash` equals the
+   * exact delivery-grant bytes, and the COMPLETE shared-field comparison (the same immutable identity/lineage/snapshot
+   * fields `assertDeliveryChainConsistent` binds — ids, pilot, profile, intake, source, pointer hash, receive-grant
+   * binding, team/actor/role, and authority/registry snapshots) must agree. The exclusive-expiry clock is deliberately
+   * NOT re-checked here: a lease already accepted at delivery time may legitimately have expired by evidence time.
+   */
+  private assertLeaseBoundToDelivery(lease: As1AdvisorReadinessLeaseV1, deliveryGrant: As1PointerDeliveryGrantV1): void {
+    assertPointerGrantSnapshot(deliveryGrant, lease);
+    if (
+      lease.pointerDeliveryGrantId !== deliveryGrant.pointerDeliveryGrantId ||
+      lease.receiveGrantId !== deliveryGrant.receiveGrantId ||
+      lease.pilotId !== deliveryGrant.pilotId ||
+      lease.profileId !== deliveryGrant.profileId ||
+      lease.intakeId !== deliveryGrant.intakeId ||
+      lease.sourceEventId !== deliveryGrant.sourceEventId ||
+      lease.pointerHash !== deliveryGrant.pointerHash ||
+      lease.receiveGrantBindingHash !== deliveryGrant.receiveGrantBindingHash ||
+      lease.advisorTeam !== deliveryGrant.advisorTeam ||
+      lease.actorId !== deliveryGrant.actorId ||
+      lease.roleInstanceId !== deliveryGrant.roleInstanceId ||
+      lease.registrySnapshotHash !== deliveryGrant.registrySnapshotHash ||
+      lease.authoritySnapshotHash !== deliveryGrant.governanceSnapshotHash
+    ) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 're-observed readiness lease is not bound to the accepted delivery authority');
     }
   }
 
