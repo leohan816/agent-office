@@ -1,20 +1,24 @@
 # Agent Office AS1 Phase B Live Composition Design Delta
 
-Status: `REVIEW_READY_PATCHED_DESIGN_ONLY`
+Status: `REVIEW_READY_PATCHED_2_DESIGN_ONLY`
 
 Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
-Pass: `PHASE_B_SECURITY_TRANSPORT_DESIGN_PATCH`
+Pass: `PHASE_B_SECURITY_TRANSPORT_DESIGN_PATCH_2`
 
-Authority: committed Designer patch handoff
-`50_PHASE_B_DESIGN_PATCH_HANDOFF.md` at
-`ab0e4123a4faeb3e3abc7472542d2a2e92389435`
+Authority: committed Designer patch-2 handoff
+`53_PHASE_B_DESIGN_PATCH_2_HANDOFF.md` at
+`83edeae64075a7fc1454a6e9cad5e952d3cd0a98`
 
-Reviewed design commit:
+First patched design and exact parent:
+`7ed79bbfd7deea0f8458a3965734ebd1de98eb35`
+
+Original reviewed design commit:
 `3d359639c4d819f1c601481245daa81d5de9d5fc`
 
 Independent `NEEDS_PATCH` input:
-`49_PHASE_B_DESIGN_REVIEW_RESULT.md` at governance commit `b84393e`
+`52_PHASE_B_DESIGN_DELTA_REVIEW_RESULT.md` at governance commit
+`66deeebe234ddd65e8737e4fd2d1887e8c3a6cf7`
 
 Active scope correction:
 `47B_PHASE_B_SCOPE_AUDIT_AND_DESIGN_CORRECTION.md` at
@@ -36,13 +40,15 @@ composition and operator wiring.
 
 The reviewed Phase A contracts support the Phase B pilot without a database,
 authority-schema change, Registry change, Exact Delivery v2 change, systemd
-unit, HTTP/UI surface, or external product-code change. This patch closes all
-five findings from the independent review: it separates frozen evidence
-authority from live actionability, seals the exact pointer bytes loaded into
-tmux, binds every destination fact and the selected profile, makes incident
-kill executable, and proves process ownership across PID reuse. The
-implementation may therefore proceed only after a new independent design
-review and a new exact Advisor implementation handoff.
+unit, HTTP/UI surface, or external product-code change. This second patch
+preserves the same Reviewer's closed F01 frozen-authority/live-actionability
+contract and closed F04 incident-kill contract. It closes the three remaining
+document defects: F02-D1 now mirrors the scoped pointer writer's exact persisted
+representation; F03-R1 restores a complete fresh post-load destination proof;
+and F05-D1 binds both fixed signals to one Linux process incarnation without a
+coarse timestamp comparison or numeric-PID signal handoff. Implementation may
+therefore proceed only after the exact same Reviewer accepts this delta and the
+Advisor issues a new exact implementation handoff.
 
 The delta is deliberately small:
 
@@ -51,12 +57,13 @@ The delta is deliberately small:
 2. assemble the existing store, service, Slack Web/Socket, exact delivery,
    evidence-ingress, and outbox modules into one foreground process;
 3. add the missing production Git-artifact reader and narrow AS1 tmux port,
-   including pinned pointer bytes and complete fresh destination proof;
+   including exact scoped-writer pointer bytes, two complete precommit
+   destination observations, and one complete post-load/pre-paste observation;
 4. keep the Socket in authenticated quarantine until the durable receive state
    is armed;
 5. make the closed lifecycle CLI work with a long-running process, including
-   distinct fixed clean-stop and durable incident-kill actions with exact
-   process-incarnation proof;
+   distinct fixed clean-stop and durable incident-kill actions whose exact
+   owner proof and fixed signal share one Linux `pidfd` incarnation;
 6. document the owner state root and the two strictly sequential rehearsals.
 
 The live scope is one configured Slack workspace, Leo as the only authorized
@@ -69,8 +76,10 @@ Phase B preserves the already-reviewed identity, secret, fail-closed, dedupe,
 exact-tmux, and same-thread-result protections only as needed for those two
 private runs; it does not generalize them.
 
-This is not a `HOLD`: the gaps are adapter/composition gaps, not material
-contract, authority, or security redesigns.
+This is not a `HOLD`: the authorized Linux target supplies `pidfd_open(2)` and
+`pidfd_send_signal(2)` through a fixed standard-library bridge that fits in the
+already-listed writer-lock/lifecycle paths. It needs no package, helper path,
+schema, listener, generic command surface, or implementation-map expansion.
 
 Corrected active implementation-map count: `14` paths. Estimated implementation
 and focused synthetic validation time: `3-5 hours`, excluding time waiting for
@@ -124,16 +133,16 @@ not current edit permission.
 | `src/runtime/as1-slack-pilot/cli.ts` | Keep a closed verb-specific grammar and fixed descriptor/state-root construction; reject descriptor/profile/grant/PID/signal/path/reason overrides; hold explicit `start` in foreground; implement distinct lock-bound zero-operand `stop` and `incident-kill`, plus read-only `status`; keep `restart` live-disabled. |
 | `src/adapters/gateways/slack-pilot/git-artifact-source.ts` | New read-only, fixed-root Git source for the receive grant, delivery grant, readiness lease, and evidence. It uses closed `/usr/bin/git` argv, never fetches, and distinguishes `NOT_READY` from accepted-artifact divergence. |
 | `src/adapters/gateways/slack-pilot/socket-client.ts` | Add authenticated-quarantine arming so no event is parsed or delivered between verified `hello` and the durable `RECEIVING_ONE_PROFILE` transition. |
-| `src/adapters/gateways/slack-pilot/exact-transport.ts` | Add the production `NodeAs1TmuxPort` behind the existing journal/one-use transport; open, validate, hash, and pin the contained pointer bytes before commitment; load only the pinned bytes through closed stdin; bind the selected profile; return and compare every destination fact in both preflights before `PREPARED`, consumption, or tmux mutation; preserve the no-retry boundary. |
+| `src/adapters/gateways/slack-pilot/exact-transport.ts` | Add the production `NodeAs1TmuxPort` behind the existing journal/one-use transport; require the scoped writer's exact canonical-plus-LF pointer bytes, raw hash, content-addressed filename, private mode, and 32-KiB bound; pin once and load only through closed stdin; bind the selected profile; perform two complete exact-key/all-15-field observations before `PREPARED` and a third complete observation after `BUFFER_LOADED` immediately before `PASTE_STARTED`; preserve manual reconciliation and the no-retry boundary. |
 | `src/application/slack-pilot/inbound-store.ts` | Add read-only typed accessors for the terminal tmux delivery record and atomic grant/lease consumption record needed by `buildEvidenceAuthority`; do not change record shapes or paths. |
 | `src/operations/readiness/as1-slack-control.ts` | Add a construction-bound live delivery-actionability predicate and redacted observation, plus the fixed operator-incident kill transition; retain the frozen authority fields, state vocabulary, transition table, latches, and lock ownership. |
-| `src/persistence/file-store/writer-lock.ts` | Add strict two-observation owner proof for the closed `stop`/`incident-kill`/`status` paths, binding the existing lock to OS process birth, UID, boot, executable inode, and exact AS1 entry; reuse `agent-office.writer-lock.v1` byte-for-byte. |
+| `src/persistence/file-store/writer-lock.ts` | Retain the original close-on-exec `O_EXCL` lock descriptor for the foreground lifetime without changing `agent-office.writer-lock.v1`; add the target-locked fixed Python-standard-library `pidfd` bridge and two same-pidfd owner observations for closed `stop`/`incident-kill`, binding lock descriptor/inode, PID start ticks, UID, boot, executable inode, exact AS1 entry, root, and build to the incarnation that receives the fixed signal. |
 | `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` | Add the exact `AS1_SLACK_STATE_ROOT` owner instruction and the closed foreground start, clean-stop, and zero-operand incident-kill procedure for the private pilot. |
 | `tests/adapters/as1-slack-socket-client.test.ts` | Prove authenticated quarantine, receive arm, pre-arm bounds, disconnect, and no pre-arm parse/ACK. |
-| `tests/integration/as1-slack-exact-transport.test.ts` | Prove exact pinned pointer bytes, no-follow/type/owner/size/grammar/correlation checks, closed stdin/argv, complete profile-bound two-preflight equality, pre-commit rejection, one-use delivery, and unchanged no-retry behavior. |
+| `tests/integration/as1-slack-exact-transport.test.ts` | Prove exact canonical-plus-one-LF pointer representation, raw hash/filename, private mode, 32-KiB boundary, no-follow/type/owner/grammar/correlation checks, pin/no-reopen and closed stdin/argv; prove profile-bound equality in two complete precommit observations plus one complete post-load/pre-paste observation, precommit rejection versus postcommit manual reconciliation, one-use delivery, and unchanged no-retry behavior. |
 | `tests/integration/as1-slack-live-composition.test.ts` | New single focused composition test: prove distinct frozen/live control records complete unchanged evidence equality only while the live predicate is actionable; then run one fixed-workspace/Leo-only Agent Office root-to-result round trip and stop followed by one isolated Foundation round trip. |
 | `tests/integration/as1-slack-git-artifact-source.test.ts` | New focused fixed-path test proving ready/not-ready observation, exact committed bytes, and no acceptance of a changed artifact. |
-| `tests/operations/as1-slack-lifecycle.test.ts` | Extend the focused lifecycle test for explicit foreground start; distinct clean stop and durable incident kill; PID-birth/executable owner proof and race rejection; bounded shutdown/lock release; live-disabled restart; and stable redacted status. |
+| `tests/operations/as1-slack-lifecycle.test.ts` | Extend the focused lifecycle test for explicit foreground start; retained original lock-descriptor ownership; fixed `pidfd` bridge availability; fast valid acquisition; distinct pidfd-bound clean stop and durable incident kill; exit/reap/PID-reuse and identity-race rejection; bounded shutdown/lock release; live-disabled restart; and stable redacted status. |
 
 No other source, test, configuration, package, lockfile, Registry, v2, UI, or
 external project path is needed. In particular, the implementation must not modify
@@ -143,8 +152,9 @@ organization Registry, Phase A contract schemas, or package dependencies.
 F03 does not require `src/adapters/gateways/slack-pilot/exact-authority.ts`.
 The selected closed `As1Profile` is already available to composition and is
 bound once into `As1ExactTransport`; the same exact-transport path owns the
-complete preflight shape and comparison. The implementation map therefore
-remains 14 paths, not 15.
+complete three-observation shape and comparison. F05's fixed bridge is a
+compile-time literal in the already-listed `writer-lock.ts`, not a helper file.
+The implementation map therefore remains 14 paths, not 15.
 
 The Worker does not modify the default-disabled descriptor; the value-only
 activation is a later exact reviewed pilot operation. No separate Phase B
@@ -335,12 +345,13 @@ the current exact control and selected latch facts and is true only when:
 
 The delivery-grant poll may parse a candidate, but it does not accept it until
 this live predicate succeeds. The exact transport evaluates it again before
-each preflight, `PREPARED`, authority consumption, buffer lookup/deletion/load,
-every journal transition, paste, and Enter. A false or unreadable predicate
-stops before the next boundary; after `PREPARED` it follows the existing manual-
-reconciliation rule. The live record and its hash are never placed in a grant,
-capability, delivery fact, evidence artifact, or new durable field. The hello
-seal continues to use its separate construction-owned authentication predicate.
+all three complete destination observations, `PREPARED`, authority consumption,
+buffer lookup/deletion/load, every journal transition, paste, and Enter. A false
+or unreadable predicate stops before the next boundary; after `PREPARED` it
+follows the existing manual-reconciliation rule. The live record and its hash
+are never placed in a grant, capability, delivery fact, evidence artifact, or
+new durable field. The hello seal continues to use its separate construction-
+owned authentication predicate.
 
 The existing common `WriterLock` and global control make simultaneous starts
 impossible. Under it, each profile keeps its own receive-grant state, receipts,
@@ -359,9 +370,11 @@ control as defined below and never skips forward.
 1. Resolve and validate the fixed state root; initialize only an owner-prepared
    fresh root; acquire its one `WriterLock`; validate the state-root marker,
    global control, and both latch records under the lock. Reject a second
-   process or stale lock. No profile is selected and no secret or network access
-   has occurred. Install the clean-stop and fixed SIGUSR2 incident handlers as
-   soon as ownership is established and before any later side effect.
+   process or stale lock. Retain and prove close-on-exec on the original lock
+   descriptor, then pass the fixed no-signal pidfd bridge capability probe. No
+   profile is selected and no secret or network access has occurred. Install
+   the clean-stop and fixed SIGUSR2 incident handlers as soon as ownership is
+   established and before any later side effect.
 2. Read the fixed descriptor and exact committed receive-grant blob. Parse it,
    derive the one profile from `grant.profileId`, validate Registry lineage,
    selected contained-root/store integrity, state-root binding, `rootLimit: 1`,
@@ -519,24 +532,39 @@ chain under new explicit authority if another attempt is wanted.
 Composition binds the exact selected profile artifact root and the durable
 pointer ref produced by that profile's just-completed materialization. The
 validated grant must name that same ref; the shared contained-pointer parser
-then derives the profile slug/delivery ID, and the private buffer name follows
-from those values. The transport accepts no path parameter. Before `PREPARED`,
-authority consumption, buffer inspection, or any tmux mutation, its
-construction-bound resolver resolves that one agreed relative ref below the
-selected artifact root and performs one bounded open:
+then derives the profile slug, delivery ID, and content-addressed JSON filename,
+and the private buffer name follows from those values. The transport accepts no
+path parameter. Before `PREPARED`, authority consumption, buffer inspection, or
+any tmux mutation, its construction-bound resolver resolves that one agreed
+relative ref below the selected artifact root and performs one bounded open:
 
 1. validate every parent as contained, owner-UID, private, and non-symlink;
 2. open the leaf once with `O_RDONLY | O_NOFOLLOW` and retain that file
-   descriptor until the byte seal is complete;
+   descriptor through the final precommit path-identity check;
 3. `fstat` the descriptor and require an owner-UID regular file, one link, no
-   group/other write permission, and a nonzero size no greater than the existing
-   `LIMITS.DURABLE_FILE_MAX_BYTES` ceiling;
-4. read once from that descriptor into an immutable in-memory `Buffer`, require
-   fatal UTF-8 decoding, and require the exact canonical JSON bytes for
-   `agent-office.as1-advisor-pointer.v1` with no missing/extra keys; and
-5. require raw-byte SHA-256 equality with `grant.pointerHash` and exact pointer
-   correlations for receive grant/binding, pilot, profile, intake, source event,
-   root correlation, and the grant-derived pointer artifact path/delivery ID.
+   group/other permission bits at all (`(mode & 0o077) === 0`), and an inclusive
+   byte length of `1..(32 * 1024)`; this is the unchanged
+   `putScopedCanonicalJson` pointer-writer ceiling, not the generic one-megabyte
+   durable-index ceiling;
+4. read only from that retained descriptor into one buffer bounded by the
+   `fstat` size, require the exact byte count and EOF, decode UTF-8 fatally,
+   parse JSON, and run the exact-key `agent-office.as1-advisor-pointer.v1`
+   decoder to produce `strictlyParsedPointer`;
+5. construct the one accepted representation with this exact formula:
+
+   ```ts
+   Buffer.concat([canonicalBytes(strictlyParsedPointer), Buffer.from("\n")])
+   ```
+
+   and require the on-disk buffer to equal it byte-for-byte. This admits exactly
+   one terminal LF and rejects a missing LF, a double LF, other trailing bytes,
+   or JSON-equivalent but noncanonical bytes;
+6. compute one `rawSha256 = sha256Bytes(onDiskBytes)`, require
+   `grant.pointerHash === rawSha256`, and require the content-addressed leaf name
+   to be exactly `${rawSha256.slice("sha256:".length)}.json`; and
+7. require exact pointer correlations for receive grant/binding, pilot, profile,
+   intake, source event, root correlation, and the grant-derived pointer
+   artifact path/delivery ID.
 
 Immediately before the pre-commit boundary, `lstat` of the contained leaf must
 still match the retained descriptor's device, inode, type, owner, and link
@@ -574,26 +602,32 @@ The lease envelope's grant/profile/lineage IDs, `readiness`, `useLimit`,
 `observedAt`, `issuedAt`, and `expiresAt` are authority metadata. They are
 validated and correlated statically but are not fabricated by tmux. Every field
 inside `lease.destination` is a security-relevant live fact and must be returned
-with an exact-key decoder by *both* structured preflights:
+with the same exact-key decoder by all three structured destination
+observations:
 
-| Live destination fact | Required rule in each preflight |
+| Live destination fact | Required rule in each of the three observations |
 |---|---|
 | `sessionName`, `sessionId` | exact lease equality; `sessionName` also equals the selected profile |
 | `windowName`, `windowId`, `windowIndex` | exact lease equality |
 | `paneId`, `paneIndex`, `panePid` | exact lease equality; the construction-derived pane ID is the only query target |
 | `workspace`, `currentCommand` | exact lease equality and exact selected-profile equality |
 | `paneDead`, `paneInMode`, `inputOff`, `synchronizePanes` | present and exactly false |
-| `activityTime` | exact lease equality and unchanged between the two preflights |
+| `activityTime` | exact lease equality and unchanged across all three observations |
 
 No destination field is metadata-only or optional. An omitted or additional
 field is a decoder failure, not a default. Freshness requires
 `observedAt <= issuedAt < expiresAt`, a maximum 30-second lease, and a fresh
-trusted-clock check after each preflight with both observations completed before
-the exclusive expiry. The second preflight follows the first without any
-journal write, authority consumption, tmux mutation, or caller work between
-them; all 15 live facts must equal the lease and each other. Any divergence,
-including only `sessionName`, an index, or `activityTime`, rejects before
-`PREPARED` and leaves authority unconsumed.
+trusted-clock check after each observation, with all three observations
+completed before the exclusive expiry. Observations one and two are complete
+precommit observations. The second follows the first without any journal write,
+authority consumption, tmux mutation, or caller work between them; divergence in
+either rejects before `PREPARED` and leaves authority unconsumed. Observation
+three is another complete query of the same construction-derived pane after
+`BUFFER_LOADED` and immediately before `PASTE_STARTED`; all 15 live facts must
+still equal the lease, the selected-profile equalities, and both prior
+observations. Because this final divergence is postcommit, it records
+`MANUAL_RECONCILIATION_REQUIRED` and performs no paste or Enter; it is never
+reported as a clean precommit rejection.
 
 ### 9.4 Closed delivery sequence
 
@@ -604,23 +638,39 @@ this exact order:
 2. require the live control/latch predicate and exact selected-profile
    destination invariant;
 3. open, validate, hash, correlate, and pin the pointer bytes;
-4. require the live predicate, then perform the first complete preflight;
-5. require the live predicate, then perform the second complete preflight;
+4. require the live predicate, then perform complete destination observation
+   one with the exact-key/all-15-field decoder and a fresh trusted clock;
+5. without intervening caller work or mutation, require the live predicate and
+   perform complete destination observation two with the identical query,
+   decoder, profile equalities, field comparisons, clock, and expiry checks;
 6. confirm the pinned descriptor/path identity and live predicate one final time;
 7. only now create the in-memory capability, record `PREPARED`, and atomically
    consume the delivery grant and lease;
 8. inspect/delete only the derived unpasted buffer when existing recovery proof
    permits, load only the pinned bytes through closed stdin, record
-   `BUFFER_LOADED`, then paste and send Enter to the same destination under the
-   existing per-boundary capability and live-predicate checks.
+   `BUFFER_LOADED`;
+9. after that load, require the live predicate and perform complete destination
+   observation three with the same construction-derived pane query, selected-
+   profile equalities, exact-key/all-15-field decoder, fresh trusted clock, and
+   exclusive lease-expiry check. Compare it with the lease and both precommit
+   observations; and
+10. only an exact match may immediately record `PASTE_STARTED`, paste, and send
+    Enter to that same destination under the existing per-boundary capability
+    and live-predicate checks.
 
 Every failure through step 6 has zero tmux mutation, no `PREPARED` record, and
-unconsumed authority. `PASTE_STARTED` remains the no-retry boundary; paste or
-Enter is never repeated. The complete fixed `/usr/bin/tmux` argv set uses
-`shell: false`, fixed environment, bounded time/output, and strict decoders. It
-has no capture/show pane, show-buffer, run-shell, new-session, arbitrary argv,
-caller file/bytes/target, generic command, or message-body input. Exact Delivery
-v2 and `NodeExactTmuxMutationRunner` remain byte- and behavior-compatible.
+unconsumed authority. A step-9 false predicate, expiry, decoder failure, target
+change after observation two, or target change during/after buffer load is
+postcommit: transition `BUFFER_LOADED` to
+`MANUAL_RECONCILIATION_REQUIRED`, leave the private buffer for manual evidence,
+perform no paste or Enter, and never retry or clean up as if it were a
+precommit rejection. `PASTE_STARTED` remains the side-effect no-retry boundary;
+paste or Enter is never repeated. The complete fixed `/usr/bin/tmux` argv set
+uses `shell: false`, fixed environment, bounded time/output, and strict
+decoders. It has no capture/show pane, show-buffer, run-shell, new-session,
+arbitrary argv, caller file/bytes/target, generic command, or message-body
+input. Exact Delivery v2 and `NodeExactTmuxMutationRunner` remain byte- and
+behavior-compatible.
 
 The terminal `TRANSPORT_RECORDED` record and atomic consumption record carry the
 receive grant's frozen control/latch hashes through the capability unchanged and
@@ -673,39 +723,104 @@ browser route, or general command endpoint.
 
 The existing writer-lock record already binds PID, boot ID, build ID,
 state-root ID, acquisition time, and an ownership token. Its exact
-`agent-office.writer-lock.v1` keys and bytes do not change. The read-only
-observer opens the construction-bound `locks/writer.lock` with no-follow,
-requires an owner-UID private one-link regular file, and strictly parses the
-existing schema.
+`agent-office.writer-lock.v1` keys, values, canonical-plus-LF bytes, and path do
+not change. Acquisition changes only the live handle invariant: the foreground
+owner retains the exact `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW` file handle
+that created `locks/writer.lock` after writing/fsyncing the existing mode-0600
+record and fsyncing its directory. Before startup continues it reads the fixed
+Linux `/proc/self/fdinfo/<fd>` projection and requires that descriptor to be
+close-on-exec. It stores the handle in `WriterLock`, never places it in child
+stdio, and does not close it until release. Release requires the retained
+descriptor and a no-follow reopen of the current path to agree on device,
+inode, regular type, owner, one link, private mode, and exact v1 bytes; it then
+unlinks, fsyncs the lock directory, and closes the retained descriptor. A crash
+closes the descriptor but leaves the existing stale-lock artifact and existing
+fail-closed recovery boundary.
 
-For `stop` and `incident-kill`, the observer makes two independent owner
-observations. Each binds the lock to this exact OS process incarnation:
+That retained original descriptor is the causal acquisition proof. A live owner
+is valid only when the process named by the unchanged lock record still holds
+exactly one close-on-exec descriptor whose device/inode is the device/inode of
+that same no-follow-opened lock. `acquiredAt` remains strictly parsed evidence,
+but process birth is not ordered against it or inode timestamps. `/proc/<pid>/stat`
+start ticks are an exact incarnation identity value only; neither integer
+`btime`, `_SC_CLK_TCK` conversion, nor subsecond clock inference participates in
+acceptance. Therefore a legitimate owner that acquires the lock immediately
+after process birth satisfies the invariant with no uncertainty window.
 
-- lock boot ID equals the current kernel boot ID; build ID is exactly
-  `as1-slack-pilot`; state-root ID is exactly `as1-slack-pilot`;
-- `/proc/<pid>/stat` supplies the boot-relative process start ticks, normalized
-  with the same boot's `btime` and `_SC_CLK_TCK`; process birth must strictly
-  precede `acquiredAt` and the lock inode creation boundary, with equality or
-  timestamp-resolution uncertainty rejected as ambiguous;
-- all `/proc/<pid>/status` UID values equal the owner UID;
-- `/proc/<pid>/exe` realpath plus device/inode equal the construction-bound
-  Node executable identity; and
-- `/proc/<pid>/cmdline` is exactly the fixed Node executable, exact AS1 CLI
-  entry module, `start`, and descriptor-bound secret-file argument. Comparison
-  is in memory and no path or argv value is rendered.
+The incarnation-stable observation-and-signal primitive is Linux `pidfd_open(2)`
+plus `pidfd_send_signal(2)`. Node does not expose the latter on this target, so
+`writer-lock.ts` contains one sealed compile-time Python source literal and two
+closed TypeScript entrypoints: clean stop and incident kill. Each invokes only
+this fixed command:
 
-Immediately before signaling, the second observation reopens and rereads the
-lock and all process facts. The lock bytes/device/inode and the tuple
-`{pid, bootId, startTicks, uid, executableDevice, executableInode, exactEntry}`
-must be identical to the first observation. A missing process, missing fact,
-stale lock, PID reuse, executable/UID/boot mismatch, exit/reuse between
-observations, changed lock, or ambiguous clock relation returns
-`STALE_OR_AMBIGUOUS_OWNER` and sends no signal. `NO_LIVE_OWNER` is the only
+```text
+/usr/bin/python3.14 -I -S -c <compile-time pidfd bridge literal>
+```
+
+Invocation uses `shell: false`, a fixed minimal environment, closed bounded
+stdin, bounded redacted stdout/stderr, and a fixed timeout. The interpreter is
+required on every use to be the fixed absolute non-symlink regular file, owned
+by UID 0 and not writable by group/other. `-I -S` excludes caller Python paths,
+site customization, and environment influence. The literal is not a script
+path or caller value. Its exact-key stdin request contains only internally
+derived expected lock/process facts and one closed action, `CLEAN_STOP` or
+`INCIDENT_KILL`; the bridge maps those internally to SIGTERM and SIGUSR2. No CLI
+token or reusable API can supply a PID, signal, profile, state root, path,
+reason, argv, module, or source text, and there is no arbitrary-execution or
+generic-signal branch. The request, every fixed `/proc` projection, and output
+have compile-time byte limits; matching-FD enumeration stops at a fixed 4,096
+entries and overflow is ambiguous rather than unbounded work.
+
+Before secrets or network, `start` runs a fixed no-signal bridge capability
+probe, including a self `pidfd_open`, pidfd-fdinfo check, and zero-event poll.
+Failure releases the lock and fails startup; there is no numeric-PID fallback.
+Read-only evidence gathered on the authorized target on 2026-07-16 proves the
+facility exists: Linux `7.0.0-27-generic` x86_64; Node `v24.18.0`;
+`/usr/bin/python3.14` Python `3.14.4`, UID 0, regular mode `0755`, SHA-256
+`b8d8288faefdd300201f43fcf00f6f539a27218eeed3a3dff5ab10b9c4c99700`;
+and standard-library `os.pidfd_open` plus `signal.pidfd_send_signal`. A real
+self-pidfd open, fdinfo identity read, and non-exit poll succeeded. No signal
+was sent by the capability check.
+
+For `stop` and `incident-kill`, the TypeScript boundary first no-follow opens
+and strictly parses the construction-bound owner-UID private one-link lock,
+requires the caller UID to equal that owner UID, validates the canonical state
+root/format marker and fixed interpreter, and derives all bridge inputs
+internally. The sealed bridge then executes this one operation:
+
+1. strictly decode the closed internal request and reopen the same lock with
+   `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`;
+2. obtain the lock-record PID and immediately call `os.pidfd_open(pid, 0)`, then
+   require its own pidfd fdinfo `Pid` to equal that PID and a zero-time poll to
+   show no `POLLIN`, `POLLHUP`, or error event;
+3. while that pidfd remains open, make owner observation one: require unchanged
+   lock bytes/device/inode/type/UID/link/private mode; exact current boot ID;
+   build and state-root IDs exactly `as1-slack-pilot`; all
+   `/proc/<pid>/status` UID values equal the owner UID; exact boot-relative
+   `startTicks`; `/proc/<pid>/exe` realpath/device/inode equal the fixed Node
+   executable; exact fixed Node/AS1-entry/`start` cmdline; and exactly one
+   `/proc/<pid>/fd` entry matching the lock device/inode whose fdinfo has the
+   retained creation handle's write-only access mode and close-on-exec bit;
+4. immediately before signaling, repeat that complete observation through the
+   same open pidfd and require the entire tuple, lock bytes/inode, held-lock-fd
+   proof, pidfd identity, and non-exit poll to equal observation one; and
+5. call only `signal.pidfd_send_signal(theSamePidfd, SIGTERM, None, 0)` for
+   `CLEAN_STOP` or
+   `signal.pidfd_send_signal(theSamePidfd, SIGUSR2, None, 0)` for
+   `INCIDENT_KILL`.
+
+The bridge never calls `kill(2)` by numeric PID. If the owner exits, becomes a
+zombie, is reaped, or its number is reused after either observation, the pidfd
+continues to name the old incarnation: poll reports exit or
+`pidfd_send_signal` returns `ESRCH`; it cannot target the replacement. A missing
+process/fact/held descriptor, stale or changed lock, duplicate matching lock
+descriptor, PID reuse, executable/UID/boot/entry/root/build mismatch, pidfd
+identity mismatch, bridge error, or interpreter drift maps to
+`STALE_OR_AMBIGUOUS_OWNER` and sends no signal. `NO_LIVE_OWNER` remains the only
 separate absent-lock status. No stale-lock recovery is implicit.
 
-After the second proof, `stop` sends only SIGTERM to that proven PID in the same
-synchronous operation, waits the fixed shutdown deadline for the exact lock
-inode to disappear, and returns only `STOPPED_CLEAN`,
+After a successful same-pidfd send, `stop` waits the fixed shutdown deadline for
+the exact lock inode to disappear and returns only `STOPPED_CLEAN`,
 `STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`, or `STOP_TIMEOUT`. It accepts no
 PID, signal, profile, path, destination, or reason, and no reusable API accepts
 an arbitrary signal.
@@ -719,11 +834,12 @@ issued foreground `start` may begin either private pilot.
 ### 11.2 Fixed operator incident kill
 
 The exact zero-operand verb is `incident-kill`. It resolves only the fixed state
-root and lock above, performs the same two-observation owner proof, and then
-sends only SIGUSR2 to that exact owner. It accepts no `--env-file`, PID, signal,
-profile, path, destination, or free-form reason. Unknown or extra tokens fail
-the closed parser. `stop` and `incident-kill` are separate code paths; neither
-is a parameterized signal command.
+root and lock above, performs both complete observations through one open pidfd,
+and sends only SIGUSR2 through that same pidfd to the proven incarnation. It
+accepts no `--env-file`, PID, signal, profile, path, destination, or free-form
+reason. Unknown or extra tokens fail the closed parser. `stop` and
+`incident-kill` are separate TypeScript entrypoints; neither is a parameterized
+signal command.
 
 On SIGUSR2, the foreground owner synchronously closes its in-memory receive,
 Git-poll, delivery, evidence, and outbound admission gates. Under its existing
@@ -810,12 +926,16 @@ and an exact Advisor live-pilot handoff. This Designer did not execute it.
    state-root/control records needed for later snapshotting but performs no Web,
    Socket, or tmux call. Require its `--env-file` path to equal the descriptor's
    one reviewed secret path. Do not print or copy values.
-4. Verify the canonical state root, format marker, control/latches, absent
+4. Run only the fixed no-signal lifecycle capability probe and require the
+   target-locked interpreter, `pidfd_open`, pidfd identity/poll semantics, and
+   `pidfd_send_signal` API to be available; record only its stable pass/fail
+   code.
+5. Verify the canonical state root, format marker, control/latches, absent
    writer lock, zero AS1 process, and zero AS1 listener.
-5. Verify both profile Registry rows, the global kill disengaged, the selected
+6. Verify both profile Registry rows, the global kill disengaged, the selected
    profile unlatched, and the other profile inactive.
-6. Verify the selected receive grant is unexpired immediately before `start`.
-7. Prove both fixed records name the same one configured workspace and Leo as
+7. Verify the selected receive grant is unexpired immediately before `start`.
+8. Prove both fixed records name the same one configured workspace and Leo as
    the sole authorized user, while each names its own immutable App/channel
    pair. No second workspace, user, App, or channel is admitted.
 
@@ -875,19 +995,28 @@ does not authorize switching to Foundation.
 - The Socket proves wrong Web/App/token pairs fail before receive, hello remains
   pre-event, arm is one-use, no pre-arm parse/ACK occurs, and the bounded raw
   handoff cannot overflow or cross generations.
-- The exact transport proves the pointer leaf is no-follow, regular, owner-only,
-  bounded, exact-canonical, correlation-correct, and raw-byte-hash-equal before
-  commitment. The Node tmux port's complete argv/stdin allowlist is asserted;
-  static scans prove no path reopen, capture/show pane, show-buffer, generic
-  command/target, caller file/path, shell, or historical fallback.
-- Both preflight decoders require every destination field. The selected profile
-  binds session/workspace/command, and both fresh preflights compare all live
-  fields before `PREPARED`, consumption, or tmux mutation.
-- The closed `stop` and `incident-kill` paths prove exact AS1 process birth,
-  executable, UID, boot, entry, and unchanged two-observation lock ownership;
-  send only their fixed signals; perform bounded shutdown; and redact stable
-  status. Neither accepts caller PID/signal/profile/path/destination/reason or
-  exposes a generic signal/reset surface.
+- The exact transport proves the pointer leaf is no-follow, regular, owner-UID,
+  one-link, exactly private by `(mode & 0o077) === 0`, and no larger than
+  `32 * 1024` bytes. It requires on-disk bytes to equal
+  `Buffer.concat([canonicalBytes(strictlyParsedPointer), Buffer.from("\n")])`
+  and requires the grant hash and content-addressed filename digest to equal
+  SHA-256 of those same raw bytes before commitment. The Node tmux port's
+  complete argv/stdin allowlist is asserted; static scans prove no path reopen,
+  capture/show pane, show-buffer, generic command/target, caller file/path,
+  shell, or historical fallback.
+- Observations one and two use the identical construction-derived query and
+  exact-key decoder, require every one of the 15 destination fields, bind
+  session/workspace/command to the selected profile, and compare all fields
+  before `PREPARED`, consumption, or tmux mutation. Observation three repeats
+  that complete proof after `BUFFER_LOADED` immediately before
+  `PASTE_STARTED`; divergence is terminal manual reconciliation with no paste,
+  Enter, cleanup-as-rejection, or retry.
+- The closed `stop` and `incident-kill` paths prove retained original lock-FD
+  ownership, executable, UID, boot, entry, root, build, and identical complete
+  observations through one open pidfd; send only their fixed signal through
+  that same pidfd; perform bounded shutdown; and redact stable status. Neither
+  accepts caller PID/signal/profile/path/destination/reason, uses a numeric-PID
+  signal fallback, or exposes a generic command/signal/reset surface.
 
 ### 13.2 Focused composition and direct regressions
 
@@ -907,26 +1036,40 @@ does not authorize switching to Foundation.
   separately actionable, and unchanged `buildEvidenceAuthority` succeeds with
   every existing equality intact. Then prove live `DRAINING`, global kill, or a
   selected-profile latch rejects before the next delivery boundary.
-- Prove pointer hash mismatch, symlink, non-regular file, wrong ownership/mode,
-  oversize, malformed grammar/correlation, and replacement before the final
-  inode check all produce zero tmux mutation, no `PREPARED`, and unconsumed
-  authority. A replacement after the final identity check must still load the
-  original pinned bytes through closed stdin and never the replacement.
-- Prove wrong-profile session/workspace/command, an omitted destination field,
-  and any field divergence between the two preflights reject before
-  `PREPARED`, consumption, or tmux mutation; exact all-field equality is the
-  only capability-creation case.
+- Prove one exact terminal LF succeeds. Prove a missing LF, double LF,
+  noncanonical-but-JSON-equivalent bytes, raw pointer-hash mismatch,
+  content-addressed filename-digest mismatch, symlink, non-regular file, wrong
+  ownership, group/other read permission, malformed grammar/correlation, and a
+  `32,769`-byte leaf fail. Prove a `32,768`-byte leaf passes the size gate and is
+  decided only by the remaining exact formula/grammar gates. Every rejection
+  before the final identity check produces zero tmux mutation, no `PREPARED`,
+  and unconsumed authority. A replacement after the final identity check must
+  still load the original pinned bytes through closed stdin and never the
+  replacement.
+- Prove wrong-profile session/workspace/command, an omitted/additional
+  destination field, and any field divergence in observations one or two reject
+  before `PREPARED`, consumption, or tmux mutation; exact all-field equality is
+  the only capability-creation case. Change the target after observation two
+  and again during/after buffer load; observation three must detect each case,
+  record `MANUAL_RECONCILIATION_REQUIRED`, perform no paste or Enter, retain the
+  postcommit private-buffer evidence, and never retry.
 - Prove one root, second-root rejection, exclusive expiry, post-ACK
-  materialization, delivery-grant/lease one-use, two live preflights, no-retry
-  ambiguity, and typed evidence-authority construction.
+  materialization, delivery-grant/lease one-use, the exact sequence of two
+  complete precommit observations plus one complete post-load/pre-paste
+  observation, no-retry ambiguity, and typed evidence-authority construction.
 - Prove the pilot path's ACK -> INTAKE -> RESULT order, immutable Git evidence,
   exact same-thread result, and replay without a second outbound.
 - Prove clean SIGTERM stop remains distinct from SIGUSR2 incident kill; the
   incident gate closes before durable kill, durable global kill fsyncs before
-  bounded shutdown, and clean stop never clears it. Prove exact owner, stale PID
-  reuse, exit/reuse between observations, wrong executable, wrong UID, wrong
-  boot, and missing/ambiguous birth facts; only the exact owner receives its
-  fixed signal. Prove stable redacted codes, no generic command/reset surface,
+  bounded shutdown, and clean stop never clears it. Prove a valid owner whose
+  process birth and lock acquisition share the same coarse clock interval is
+  accepted through the retained lock FD without a time-order test. Prove owner
+  exit, zombie/reap, and numeric-PID reuse after verification but before the
+  send cannot retarget the same pidfd; also prove stale lock, changed lock/held
+  FD, reuse between observations, wrong executable/UID/boot/entry/root/build,
+  missing facts, interpreter/API drift, and bridge failure send no signal. Prove
+  stable redacted codes, fixed interpreter/literal/request/timeout/output,
+  no package/helper file/numeric-signal fallback/generic command/reset surface,
   and that `restart` cannot open a live connection.
 - Run changed-file secret/static scans and only the directly affected Phase A
   and Exact Delivery regressions.
@@ -945,8 +1088,9 @@ stable booleans/reason codes and Git artifact refs/hashes:
 - exact identity-proof stages completed, with no IDs/tokens/URL bodies logged;
 - the one configured workspace and Leo singleton held throughout;
 - exactly one root-to-final-result round trip consumed in the fixed channel;
-- one selected-profile-bound fresh leased destination and two complete all-field
-  matching preflights before delivery commitment;
+- one selected-profile-bound fresh leased destination, two complete all-field
+  matching observations before delivery commitment, and one complete matching
+  observation after buffer load immediately before `PASTE_STARTED`;
 - one exact pinned pointer byte hash loaded through closed stdin, with the
   receive grant's frozen evidence hashes retained unchanged;
 - one terminal tmux journal or explicit manual reconciliation, never retry;
@@ -1022,30 +1166,39 @@ This design requires:
   `@slack/web-api@8.0.0` and `ws@8.21.1` adapters are sufficient.
 
 The new Git source is read-only. The new AS1 tmux port is behind the existing
-exact authority and journal. The lock observer reads an existing schema. The
-Socket arm is an adapter lifecycle transition. The two store additions are
-typed reads of existing records. These are composition changes, not authority
-or persistence redesigns.
+exact authority and journal. The writer lock retains its original handle but
+does not change the v1 record or path. The fixed `pidfd` bridge is a compile-time
+literal in the already-listed writer-lock path, uses the target's standard
+library, and adds no package, helper file, listener, or caller-controlled
+command. The Socket arm is an adapter lifecycle transition. The two store
+additions are typed reads of existing records. These are composition changes,
+not authority or persistence redesigns.
 
 ## 16. Implementation readiness and deliberately unset live facts
 
-Design state: `READY_FOR_INDEPENDENT_DESIGN_REVIEW`.
+Design state: `READY_FOR_EXACT_SAME_REVIEWER_DELTA_REVIEW`.
 
 Patch disposition submitted for independent verification:
 
 - F01 — frozen receive authority is copied unchanged through delivery/evidence;
   a separate construction-bound live predicate gates acceptance and every side
   effect.
-- F02 — the contained pointer is no-follow opened, type/owner/size/grammar/
-  correlation/hash checked, pinned, identity-rechecked, and loaded only from
-  closed stdin without a path reopen.
-- F03 — the closed profile binds immutable session/workspace/command, and all 15
-  destination facts are exact and fresh in both preflights before commitment.
-- F04 — zero-operand `incident-kill` proves the owner, sends only SIGUSR2,
-  durably kills before bounded shutdown, and remains distinct from clean stop.
-- F05 — both fixed signal paths bind the unchanged writer-lock v1 record to OS
-  process birth, executable inode, UID, boot, exact entry, and an unchanged
-  immediate second observation; stale/ambiguous ownership sends no signal.
+- F02-D1 — the contained pointer is no-follow opened under the exact private
+  mode and 32-KiB writer bound; on-disk canonical-plus-one-LF bytes, grant hash,
+  and content-addressed filename share one raw SHA-256; those pinned bytes alone
+  reach closed stdin, without a path reopen.
+- F03-R1 — the closed profile binds immutable session/workspace/command and all
+  15 destination facts in two complete precommit observations and one complete
+  post-load/pre-paste observation; final divergence is postcommit manual
+  reconciliation with no paste, Enter, or retry.
+- F04 — zero-operand `incident-kill` retains its closed contract: prove the
+  owner, send only SIGUSR2, durably kill before bounded shutdown, and remain
+  distinct from clean stop.
+- F05-D1 — both fixed signal paths bind unchanged writer-lock v1 bytes and the
+  retained original lock descriptor to exact executable/UID/boot/entry/root/
+  build facts observed twice through one open pidfd; the fixed signal is sent
+  through that same pidfd, so fast startup is accepted and exit/reap/PID reuse
+  cannot retarget it.
 
 These are Designer dispositions, not an independent PASS or final approval.
 
