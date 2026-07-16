@@ -15,9 +15,9 @@ import { assertExactKeys, assertRecord, requireEnum } from '../../contracts/vali
 import { LIMITS } from '../../application/slack-pilot/contracts.js';
 import { assertUtcTimestamp } from '../../domain/time/index.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
+import { canonicalBytes } from '../../persistence/file-store/canonical-json.js';
 import { writeAtomicCanonicalJson } from '../../persistence/file-store/atomic-file.js';
 import {
-  assertRegularOwnerOnlyFile,
   ensurePrivateDirectory,
   isNodeError,
   readStateRootFormat,
@@ -538,28 +538,79 @@ export class As1SlackControl {
 }
 
 /**
+ * Read the fixed control leaf with ONE retained no-follow descriptor and prove the killed record's identity + exact
+ * bytes on that same object (design §11.2, F05). It `fstat`s the RETAINED descriptor (never a separate `lstat`) for a
+ * regular file, current owner, owner-only mode, single link, and a `1..DURABLE_FILE_MAX_BYTES` size; reads the exact
+ * bytes from the SAME descriptor; strictly parses them (`parseControl`); and accepts only when the raw bytes equal
+ * `canonicalBytes(parsed)` plus EXACTLY one terminal LF — so a reordered, pretty-printed, whitespace-extended,
+ * multi-object, or otherwise JSON-equivalent noncanonical value is rejected. Returns the strictly parsed control on a
+ * full proof, else null.
+ */
+async function readCanonicalControlRecord(controlFile: string): Promise<As1GlobalControlV1 | null> {
+  let handle: import('node:fs/promises').FileHandle;
+  try {
+    handle = await open(controlFile, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch {
+    return null;
+  }
+  try {
+    // fstat the RETAINED descriptor itself (one-object identity proof, no separate lstat/TOCTOU).
+    const st = await handle.stat({ bigint: true });
+    const currentUid = process.getuid?.();
+    if (
+      !st.isFile() ||
+      st.nlink !== 1n ||
+      (Number(st.mode) & 0o077) !== 0 ||
+      (currentUid !== undefined && Number(st.uid) !== currentUid) ||
+      st.size < 1n ||
+      st.size > BigInt(LIMITS.DURABLE_FILE_MAX_BYTES)
+    ) {
+      return null;
+    }
+    const size = Number(st.size);
+    // Read exactly `size` bytes from the retained descriptor; a byte-count change under it is rejected.
+    const buffer = Buffer.allocUnsafe(size + 1);
+    const read = await handle.read(buffer, 0, size + 1, 0);
+    if (read.bytesRead !== size) return null;
+    const bytes = buffer.subarray(0, size);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      return null;
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+    let control: As1GlobalControlV1;
+    try {
+      control = parseControl(parsed as Record<string, unknown>);
+    } catch {
+      return null;
+    }
+    // Exact canonical-plus-one-LF proof: JSON-equivalent noncanonical bytes are NOT accepted as durable-kill proof.
+    if (!bytes.equals(Buffer.concat([canonicalBytes(control), Buffer.from('\n', 'utf8')]))) return null;
+    return control;
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
  * Strictly decode and identity-bind the durable KILLED control record for a separate-process observer proof (design
  * §11.2, F05). It validates the exact state root and its established marker (state-root binding), then reads the
- * `global-control.json` under a no-follow open with owner-only/regular/mode/size checks, a fatal-UTF-8 canonical
- * bounded decode, and the exact-key/schema/correlation `parseControl`. Only a record that is exactly
- * `DISABLED_LATCHED` with `killEngaged` is `KILLED`; a well-formed non-kill record is `NOT_KILLED`; ANY missing,
- * malformed, extra-key, wrong-owner, symlinked, oversized, replaced, or non-decoding record is `UNREADABLE` (never
- * accepted as proof). No mutation, no signal.
+ * `global-control.json` through the retained-descriptor identity + canonical-byte proof above. Only a record that is
+ * exactly `DISABLED_LATCHED` with `killEngaged` is `KILLED`; a well-formed non-kill record is `NOT_KILLED`; ANY
+ * missing, malformed, noncanonical, wrong-owner, symlinked, oversized, replaced, or non-decoding record is
+ * `UNREADABLE` (never accepted as proof). No mutation, no signal.
  */
 export async function readDurableKillProof(stateRoot: string): Promise<'KILLED' | 'NOT_KILLED' | 'UNREADABLE'> {
   try {
     const canonicalRoot = await validateStateRoot(stateRoot);
     const format = await readStateRootFormat(canonicalRoot);
-    const markerPath = await controlPath(canonicalRoot, ESTABLISHED_MARKER);
-    const marker = await readJsonRecord(markerPath);
+    const marker = await readJsonRecord(await controlPath(canonicalRoot, ESTABLISHED_MARKER));
     if (marker === null) return 'UNREADABLE';
     assertEstablishedMarker(marker, format.stateRootId);
-    const controlFile = await controlPath(canonicalRoot, 'global-control.json');
-    // Owner-only / regular / no group-or-other-mode / non-symlink check on the exact leaf before the no-follow read.
-    await assertRegularOwnerOnlyFile(controlFile);
-    const record = await readJsonRecord(controlFile);
-    if (record === null) return 'UNREADABLE';
-    const control = parseControl(record);
+    const control = await readCanonicalControlRecord(await controlPath(canonicalRoot, 'global-control.json'));
+    if (control === null) return 'UNREADABLE';
     return control.state === 'DISABLED_LATCHED' && control.killEngaged ? 'KILLED' : 'NOT_KILLED';
   } catch {
     return 'UNREADABLE';

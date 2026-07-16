@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -895,5 +895,289 @@ describe('AS1 Patch 2 — residual-defect closure (adversarial, fails on 187c715
     } finally {
       await composition.incidentKill();
     }
+  });
+});
+
+describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversarial, fails on 5a23c25c)', () => {
+  const ADVISOR_SLUG = 'agent-office-advisor';
+  const ROOT_TS = '1720000000.000100';
+
+  // A live Socket whose disconnect() REJECTS: proves cleanup never synthesizes a clean state when the Socket
+  // disconnect is ambiguous (design §11.2/§11.3, F01) — the ambiguity must surface, not be swallowed.
+  class DisconnectFailingSocket extends FakeCompositionSocket {
+    public override disconnect(): Promise<void> {
+      this.disconnected = true;
+      return Promise.reject(new DomainError('GATEWAY_DISABLED', 'socket disconnect failed during cleanup'));
+    }
+  }
+
+  interface LiveOwnerHarness {
+    readonly boundary: As1ForegroundOwnerBoundary;
+    readonly signals: Map<As1OwnerSignal, () => void>;
+    readonly stateRoot: string;
+    readonly gitSource: FakeGitSource;
+    readonly socketHolder: { current: FakeCompositionSocket | null };
+    readonly tmux: FakeTmuxObservationPort;
+    readonly grantHolder: { hashes: Record<string, string> | null };
+    fire(signal: As1OwnerSignal): void;
+  }
+
+  // A foreground-owner boundary over a COMPLETE fake production graph that reaches a live RECEIVING loop, exposing the
+  // ordered seams a test needs to deliver a SIGUSR2 incident WHILE a specific awaited boundary is in flight
+  // (init / startup / poll / delivery / evidence) and to inject cleanup (disconnect / lock-release) failures.
+  async function makeLiveOwnerHarness(options: {
+    readonly socketFactory?: () => FakeCompositionSocket;
+    readonly depOverrides?: Partial<As1CompositionDependencies>;
+    readonly installFiresIncident?: boolean; // fire SIGUSR2 from installSignalHandlers — an incident DURING control init
+    readonly onReceiveObserve?: (count: number) => void; // fires on each receive-grant observe (start=1, loop=2,3,…)
+  } = {}): Promise<LiveOwnerHarness> {
+    const stateRoot = await makeStateRoot();
+    const world = fakeWireWorld();
+    const { filePath } = await writeSecretFile(secretText(validSecretValues()));
+    const gitSource = new FakeGitSource();
+    const grantHolder: { hashes: Record<string, string> | null; grant: unknown } = { hashes: null, grant: null };
+    let receiveObserveCount = 0;
+    // Materialize the receive grant lazily at first observe (after the owner's own open established the control), then
+    // RETAIN it so every re-observe returns identical bytes and the delivery authority reuses the exact accepted
+    // binding hashes. The per-observe hook lets a test fire an incident DURING a chosen receive-grant observation.
+    gitSource.setLazy(RECEIVE_GRANT_REF, async () => {
+      if (grantHolder.grant === null) {
+        grantHolder.hashes = await boundGrantHashes(stateRoot, ADVISOR_SLUG);
+        grantHolder.grant = validReceiveGrant(grantHolder.hashes);
+      }
+      receiveObserveCount += 1;
+      options.onReceiveObserve?.(receiveObserveCount);
+      return grantHolder.grant;
+    });
+    const socketHolder: { current: FakeCompositionSocket | null } = { current: null };
+    const tmux = new FakeTmuxObservationPort(parseTmuxDestination(validDestination(), 'd'));
+    const signals = new Map<As1OwnerSignal, () => void>();
+    const boundary: As1ForegroundOwnerBoundary = {
+      descriptor: enabledDescriptor(filePath),
+      stateRoot,
+      clock: new FakeClock(CLOCK_ISO),
+      buildDeps: () =>
+        fullFakeDeps(gitSource, world, {
+          tmuxPort: tmux,
+          buildSocket: () => {
+            const socket = (options.socketFactory ?? (() => new FakeCompositionSocket()))();
+            socketHolder.current = socket;
+            return socket;
+          },
+          ...options.depOverrides,
+        }),
+      initialize: () => Promise.resolve(),
+      installSignalHandlers: (handlers) => {
+        (['SIGINT', 'SIGTERM', 'SIGUSR2'] as const).forEach((sig) => signals.set(sig, handlers[sig]));
+        // An incident that arrives during the lock-owned control-init window (before the composition's synchronous
+        // incident closer is wired) must still be honored after open() and dominate before startup.
+        if (options.installFiresIncident === true) handlers.SIGUSR2();
+        return ['SIGINT', 'SIGTERM', 'SIGUSR2'];
+      },
+      delay: () => Promise.resolve(),
+    };
+    return {
+      boundary,
+      signals,
+      stateRoot,
+      gitSource,
+      socketHolder,
+      tmux,
+      grantHolder,
+      fire: (signal) => signals.get(signal)?.(),
+    };
+  }
+
+  // Deliver ONE Leo root envelope to the live owner's captured socket and materialize a fully-bound delivery authority
+  // (grant + lease) on the shared Git source. Optional per-observe fire hooks make the grant or lease lazy so a test
+  // can deliver an incident DURING the pending delivery or during evidence re-observation.
+  async function deliverAndAuthorize(
+    h: LiveOwnerHarness,
+    opts: { readonly fireDuringGrantObserve?: () => void; readonly fireDuringLeaseObserve?: { on: number; fire: () => void } } = {},
+  ): Promise<string> {
+    const socket = h.socketHolder.current;
+    if (socket === null) throw new Error('start() has not built the socket yet');
+    await socket.deliver(slackEnvelope());
+    const store = await As1ProfileInboundStore.open(h.stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+    const root = await store.findRootByThreadTs(ROOT_TS);
+    if (root === null || h.grantHolder.hashes === null) throw new Error('no bound root / receive-grant hashes after delivery');
+    const { grant, lease } = await buildDeliveryAuthority(
+      h.stateRoot,
+      store,
+      parseReceiveGrant(validReceiveGrant(h.grantHolder.hashes)),
+      selectProfile('AGENT_OFFICE_ADVISOR'),
+      root.intakeId,
+    );
+    const base = `${AUTH_ROOT}/runtime-authority/${ADVISOR_SLUG}/${root.intakeId}`;
+    const grantPath = `${base}/pointer-delivery-grant.json`;
+    const leasePath = `${base}/readiness-lease.json`;
+    if (opts.fireDuringGrantObserve !== undefined) {
+      const fire = opts.fireDuringGrantObserve;
+      h.gitSource.setLazy(grantPath, () => {
+        fire();
+        return Promise.resolve(grant);
+      });
+    } else {
+      h.gitSource.set(grantPath, grant);
+    }
+    if (opts.fireDuringLeaseObserve !== undefined) {
+      const { on, fire } = opts.fireDuringLeaseObserve;
+      let leaseObserveCount = 0;
+      h.gitSource.setLazy(leasePath, () => {
+        leaseObserveCount += 1;
+        if (leaseObserveCount === on) fire();
+        return Promise.resolve(lease);
+      });
+    } else {
+      h.gitSource.set(leasePath, lease);
+    }
+    return base;
+  }
+
+  it('an incident during lock-owned control init dominates BEFORE startup — never a masked clean revert', async () => {
+    // A failing Web identity would make start() revert. On the pre-fix owner an incident that arrived during control
+    // init is not honored before start(); start() runs, reverts, and the outer catch hard-codes a clean DISABLED_CLEAN,
+    // MASKING the incident. The fix routes the pending incident through a durable kill BEFORE start() is ever called —
+    // the throwing Web is never reached.
+    const throwingWeb: As1WebPort = {
+      authTest: () => Promise.reject(new DomainError('AUTHORITY_ARTIFACT_INVALID', 'auth.test failed')),
+      botsInfo: () => Promise.reject(new DomainError('AUTHORITY_ARTIFACT_INVALID', 'unused on the dominated path')),
+      postMessage: () => Promise.reject(new DomainError('AUTHORITY_ARTIFACT_INVALID', 'unused on the dominated path')),
+    };
+    const h = await makeLiveOwnerHarness({ installFiresIncident: true, depOverrides: { web: throwingWeb } });
+    const result = await runForegroundOwner(h.boundary);
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('INCIDENT_KILL_ENGAGED');
+    expect(line).not.toContain('DISABLED_CLEAN'); // the incident is never masked as a clean release
+  });
+
+  it('an incident while the receive-grant is re-observed (a delivery pending) is not masked as DELIVERY_HALTED / clean', async () => {
+    // Concern #2: SIGUSR2 delivered WHILE observeReceiveGrantOnce() is awaited. The pre-fix loop closes the gate but
+    // does not resample before deliverPending(); the closed actionability predicate yields STOPPED_BEFORE_PASTE ->
+    // DELIVERY_HALTED -> a clean stop() writing DISABLED_CLEAN, masking the incident. The fix resamples after the
+    // observe await and dominates before any delivery.
+    let delivered = false;
+    const h = await makeLiveOwnerHarness({
+      onReceiveObserve: (count) => {
+        if (count === 3) h.fire('SIGUSR2'); // start=1, loop-iter-1=2, loop-iter-2 (authority now pending)=3
+      },
+    });
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: async () => {
+        if (!delivered) {
+          await deliverAndAuthorize(h);
+          delivered = true;
+        }
+      },
+    });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('INCIDENT_KILL_ENGAGED');
+    expect(line).not.toContain('DISABLED_CLEAN');
+    expect(line).not.toContain('DELIVERY_HALTED');
+  });
+
+  it('an incident DURING the pending delivery is not masked as DELIVERY_HALTED / clean', async () => {
+    // Concern #2, delivery continuation: SIGUSR2 arrives while deliverPending() is awaited (here, during the delivery
+    // grant re-observation). The pre-fix loop does not resample after deliverPending(); the fix does (line 511).
+    let delivered = false;
+    const h = await makeLiveOwnerHarness();
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: async () => {
+        if (!delivered) {
+          await deliverAndAuthorize(h, { fireDuringGrantObserve: () => h.fire('SIGUSR2') });
+          delivered = true;
+        }
+      },
+    });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('INCIDENT_KILL_ENGAGED');
+    expect(line).not.toContain('DISABLED_CLEAN');
+    expect(line).not.toContain('DELIVERY_HALTED');
+  });
+
+  it('an incident DURING evidence projection is dominated before any next operation', async () => {
+    // A SIGUSR2 delivered while ingestEvidenceAndProject() re-observes the readiness lease (lease observe #2) must be
+    // resampled immediately after evidence (line 518) — never allowed to start later work before the next top sample.
+    let delivered = false;
+    const h = await makeLiveOwnerHarness();
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: async () => {
+        if (!delivered) {
+          await deliverAndAuthorize(h, { fireDuringLeaseObserve: { on: 2, fire: () => h.fire('SIGUSR2') } });
+          delivered = true;
+        }
+      },
+    });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('INCIDENT_KILL_ENGAGED');
+    expect(line).not.toContain('DISABLED_CLEAN');
+  });
+
+  it('a Socket disconnect failure during a clean stop is reported truthfully — never a synthesized clean state', async () => {
+    // The pre-fix cleanup swallows a disconnect failure and hard-codes STATE: DISABLED_CLEAN / STOPPED_CLEAN. The fix
+    // records the DISCONNECT ambiguity and refuses to claim a proven clean release.
+    const h = await makeLiveOwnerHarness({ socketFactory: () => new DisconnectFailingSocket() });
+    let ticks = 0;
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: () => {
+        ticks += 1;
+        if (ticks === 2) h.fire('SIGTERM');
+        return Promise.resolve();
+      },
+    });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).not.toContain('STOPPED_CLEAN');
+    expect(line).toContain('CLEANUP_AMBIGUOUS');
+    expect(line).toContain('DISCONNECT');
+  });
+
+  it('a writer-lock RELEASE failure during a clean stop is reported truthfully — never a synthesized clean state', async () => {
+    // The single private writer lock disappears before cleanup; release() fails closed. The pre-fix cleanup would still
+    // report a clean release. The fix records the RELEASE ambiguity (lockReleased: false) and never claims clean.
+    const h = await makeLiveOwnerHarness();
+    let ticks = 0;
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: async () => {
+        ticks += 1;
+        if (ticks === 1) {
+          await unlink(path.join(h.stateRoot, 'locks', 'writer.lock'));
+          h.fire('SIGTERM');
+        }
+      },
+    });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).not.toContain('STOPPED_CLEAN');
+    expect(line).toContain('CLEANUP_AMBIGUOUS');
+    expect(line).toContain('RELEASE');
+  });
+
+  it('a Socket disconnect failure during an incident kill is reported truthfully — never a clean incident claim', async () => {
+    // The durable kill engages, but the Socket disconnect is ambiguous. The fix surfaces the DISCONNECT ambiguity
+    // rather than reporting a bare clean INCIDENT_KILL_ENGAGED.
+    const h = await makeLiveOwnerHarness({ socketFactory: () => new DisconnectFailingSocket() });
+    let ticks = 0;
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: () => {
+        ticks += 1;
+        if (ticks === 2) h.fire('SIGUSR2');
+        return Promise.resolve();
+      },
+    });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('CLEANUP_AMBIGUOUS');
+    expect(line).toContain('DISCONNECT');
   });
 });

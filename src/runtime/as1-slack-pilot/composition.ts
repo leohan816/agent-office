@@ -142,6 +142,19 @@ export interface As1RedactedStatus {
   readonly liveConnection: 'NOT_STARTED' | 'RECEIVING' | 'DRAINED';
 }
 
+/**
+ * A truthful owner cleanup result (design §11.2/§11.3, F01). Beyond the redacted status it records whether every
+ * cleanup step (profile latch, Socket disconnect, drain, fallback global kill, and writer-lock RELEASE) was
+ * PROVEN — so the owner never synthesizes a clean `DISABLED_CLEAN` when latch/kill/disconnect/lock-release was
+ * ambiguous. `detail` is a stable redacted terminal string; `ambiguities` lists the exact unproved cleanup steps.
+ */
+export interface As1OwnerCleanupResult extends As1RedactedStatus {
+  readonly cleanupProven: boolean;
+  readonly lockReleased: boolean;
+  readonly detail: string;
+  readonly ambiguities: readonly string[];
+}
+
 /** The socket the composition drives: the reviewed transport plus the one-use Phase B receive arm. */
 export interface As1CompositionSocketPort extends As1SocketPort {
   armReceive(): void;
@@ -217,6 +230,9 @@ export class As1GatewayComposition {
    *  delivery/evidence re-observation so a post-acceptance rewrite/deletion latches (F03). */
   private acceptedDeliveryGrant: As1AcceptedArtifact | null = null;
   private acceptedLease: As1AcceptedArtifact | null = null;
+  /** The truthful cleanup result of a self-cleaning startup revert (F01), so the owner can report it after start()
+   *  rethrows without re-opening the closed composition. Consumed exactly once. */
+  private lastCleanup: As1OwnerCleanupResult | null = null;
 
   private constructor(
     private readonly descriptor: As1RuntimeDescriptorV1,
@@ -264,29 +280,76 @@ export class As1GatewayComposition {
     this.control.closeIncidentGate();
   }
 
+  /** Consume the truthful cleanup result stored by a self-cleaning startup revert (F01). Returns null if none. */
+  public consumeLastCleanup(): As1OwnerCleanupResult | null {
+    const cleanup = this.lastCleanup;
+    this.lastCleanup = null;
+    return cleanup;
+  }
+
   /**
-   * Latch the active profile on an owner-loop security/store/provenance/tmux/evidence/outbound error and drain to a
-   * clean disabled state, releasing ownership (design §11.2/§11.3, F01). A profile-level ambiguity uses the durable
-   * profile latch; an ambiguous drain escalates to the irreversible global kill before release. Never swallows the
-   * error silently and never leaves the owner live.
+   * Drain (when requested) then RELEASE the writer lock, recording every cleanup ambiguity truthfully (design
+   * §11.2/§11.3, F01). It NEVER synthesizes a clean result: `cleanupProven` is true only when the pre-collected steps
+   * (latch/disconnect), the drain, any fallback global kill, and the lock RELEASE all succeeded. The redacted
+   * `status` is captured before release; a failed release is reflected as `lockReleased: false`.
    */
-  public async latchActiveProfileAndStop(reasonCode: string): Promise<As1RedactedStatus> {
-    this.assertOpen();
-    this.closed = true;
-    if (this.live !== null) {
-      await this.control.latchProfile(this.live.slug, `owner-loop error: ${reasonCode}`).catch(() => undefined);
-      await this.live.socket.disconnect().catch(() => undefined);
-      this.live = null;
+  private async finishCleanup(drain: boolean, fallbackReason: string, preAmbiguities: readonly string[]): Promise<As1OwnerCleanupResult> {
+    const ambiguities: string[] = [...preAmbiguities];
+    if (drain) {
+      try {
+        await this.control.shutdown();
+      } catch (error) {
+        ambiguities.push(`DRAIN:${redactError(error).code}`);
+        try {
+          await this.control.engageGlobalKill(`${fallbackReason}: ${redactError(error).code}`);
+        } catch (killError) {
+          ambiguities.push(`FALLBACK_KILL:${redactError(killError).code}`);
+        }
+      }
     }
     this.receiving = false;
-    try {
-      await this.control.shutdown();
-    } catch (error) {
-      await this.control.engageGlobalKill(`owner-loop drain ambiguous: ${redactError(error).code}`).catch(() => undefined);
-    }
     const status = this.status();
-    await this.control.close().catch(() => undefined);
-    return status;
+    let lockReleased = true;
+    try {
+      await this.control.close();
+    } catch (error) {
+      lockReleased = false;
+      ambiguities.push(`RELEASE:${redactError(error).code}`);
+    }
+    const cleanupProven = ambiguities.length === 0 && lockReleased;
+    return {
+      ...status,
+      cleanupProven,
+      lockReleased,
+      detail: cleanupProven ? 'CLEANUP_PROVEN' : `CLEANUP_AMBIGUOUS:${ambiguities.join(',')}`,
+      ambiguities,
+    };
+  }
+
+  /**
+   * Latch the active profile on an owner-loop security/store/provenance/tmux/evidence/outbound error, then drain to a
+   * clean disabled state and RELEASE ownership truthfully (design §11.2/§11.3, F01). A profile-level ambiguity uses
+   * the durable profile latch; an ambiguous drain escalates to the irreversible global kill before release. It never
+   * swallows latch/disconnect/kill/lock-release failure into a false clean claim, and never leaves the owner live.
+   */
+  public async latchActiveProfileAndStop(reasonCode: string): Promise<As1OwnerCleanupResult> {
+    this.assertOpen();
+    this.closed = true;
+    const pre: string[] = [];
+    if (this.live !== null) {
+      try {
+        await this.control.latchProfile(this.live.slug, `owner-loop error: ${reasonCode}`);
+      } catch (error) {
+        pre.push(`LATCH:${redactError(error).code}`);
+      }
+      try {
+        await this.live.socket.disconnect();
+      } catch (error) {
+        pre.push(`DISCONNECT:${redactError(error).code}`);
+      }
+      this.live = null;
+    }
+    return this.finishCleanup(true, `owner-loop drain ambiguous: ${reasonCode}`, pre);
   }
 
   private get missionAuthorityRoot(): string {
@@ -431,22 +494,61 @@ export class As1GatewayComposition {
   }
 
   /**
-   * Revert a post-transition startup failure to the legal clean state (design §6, §11.3; F02). Disconnect any
-   * quarantined Socket, drain/rollback the owned control through the legal table, and release ownership. If the
-   * rollback itself is ambiguous, engage the irreversible global kill before releasing so nothing is silently left
-   * actionable. Idempotent and best-effort: it never throws over the original startup error.
+   * Revert a post-transition startup failure and RELEASE ownership truthfully (design §6, §11.2/§11.3; F01/F02). It
+   * disconnects any quarantined Socket; if a SIGUSR2 incident closed the admission gate during startup it routes to
+   * the durable incident kill (never a clean rollback); otherwise it rolls back to the legal disabled state,
+   * escalating to the irreversible global kill on an ambiguous rollback. Every cleanup ambiguity is recorded into
+   * `lastCleanup` (consumed by the owner), so a startup failure is never reported as a synthesized clean state. It
+   * never throws over the original startup error.
    */
   private async revertStartupFailure(socket: As1CompositionSocketPort | null): Promise<void> {
-    if (socket !== null) await socket.disconnect().catch(() => undefined);
-    try {
-      await this.control.rollbackToDisabled();
-    } catch (error) {
-      await this.control.engageGlobalKill(`ambiguous startup revert: ${redactError(error).code}`).catch(() => undefined);
+    const ambiguities: string[] = [];
+    if (socket !== null) {
+      try {
+        await socket.disconnect();
+      } catch (error) {
+        ambiguities.push(`DISCONNECT:${redactError(error).code}`);
+      }
     }
     this.receiving = false;
     this.live = null;
     this.closed = true;
-    await this.control.close().catch(() => undefined);
+    if (!this.control.isIncidentGateOpen()) {
+      // A SIGUSR2 incident closed the gate during startup → durable kill, never a clean rollback.
+      try {
+        await this.control.operatorIncidentKill();
+      } catch (error) {
+        ambiguities.push(`KILL:${redactError(error).code}`);
+      }
+      if (!this.control.isGloballyLatched()) ambiguities.push('KILL_NOT_ENGAGED');
+    } else {
+      try {
+        await this.control.rollbackToDisabled();
+      } catch (error) {
+        ambiguities.push(`ROLLBACK:${redactError(error).code}`);
+        try {
+          await this.control.engageGlobalKill(`ambiguous startup revert: ${redactError(error).code}`);
+        } catch (killError) {
+          ambiguities.push(`FALLBACK_KILL:${redactError(killError).code}`);
+        }
+      }
+    }
+    const status = this.status();
+    let lockReleased = true;
+    try {
+      await this.control.close();
+    } catch (error) {
+      lockReleased = false;
+      ambiguities.push(`RELEASE:${redactError(error).code}`);
+    }
+    const cleanupProven = ambiguities.length === 0 && lockReleased;
+    this.lastCleanup = {
+      ...status,
+      cleanupProven,
+      lockReleased,
+      detail: cleanupProven ? 'CLEANUP_PROVEN' : `CLEANUP_AMBIGUOUS:${ambiguities.join(',')}`,
+      ambiguities,
+    };
   }
 
   /** The intake id the socket handler recorded for the one accepted root (design §7). */
@@ -629,31 +731,46 @@ export class As1GatewayComposition {
    * lifecycle, disconnects the selected Socket, and releases the WriterLock — in that order. An ambiguous drain
    * engages the durable global kill BEFORE the lock is released, so it is never silently forgotten.
    */
-  public async stop(): Promise<As1RedactedStatus> {
+  public async stop(): Promise<As1OwnerCleanupResult> {
     this.assertOpen();
     this.closed = true;
+    const pre: string[] = [];
     if (this.live !== null) {
-      await this.live.socket.disconnect().catch(() => undefined);
+      try {
+        await this.live.socket.disconnect();
+      } catch (error) {
+        pre.push(`DISCONNECT:${redactError(error).code}`);
+      }
     }
-    return this.drainAndRelease();
+    return this.finishCleanup(true, 'ambiguous shutdown drain', pre);
   }
 
   /**
    * Durable operator incident kill (design §11.2). Synchronously close the incident gate (no new side effect may
-   * begin), then durably engage the irreversible global kill, disconnect the Socket, and release the lock. It never
-   * transitions the killed control to DISABLED_CLEAN.
+   * begin), durably engage the irreversible global kill, disconnect the Socket, and RELEASE the lock truthfully. It
+   * never drains the killed control to DISABLED_CLEAN, and `cleanupProven` is false if the kill is not durably
+   * engaged or the lock release is ambiguous.
    */
-  public async incidentKill(): Promise<As1RedactedStatus> {
+  public async incidentKill(): Promise<As1OwnerCleanupResult> {
     this.assertOpen();
     this.control.closeIncidentGate();
     this.closed = true;
-    await this.control.operatorIncidentKill();
-    if (this.live !== null) {
-      await this.live.socket.disconnect().catch(() => undefined);
+    const pre: string[] = [];
+    try {
+      await this.control.operatorIncidentKill();
+    } catch (error) {
+      pre.push(`KILL:${redactError(error).code}`);
     }
-    const status = this.status();
-    await this.control.close();
-    return status;
+    if (!this.control.isGloballyLatched()) pre.push('KILL_NOT_ENGAGED');
+    if (this.live !== null) {
+      try {
+        await this.live.socket.disconnect();
+      } catch (error) {
+        pre.push(`DISCONNECT:${redactError(error).code}`);
+      }
+      this.live = null;
+    }
+    return this.finishCleanup(false, 'incident kill', pre);
   }
 
   /** Restart is live-disabled in Phase B (design §11.1.3): it fails closed without opening Web/Socket/tmux. */
@@ -671,20 +788,6 @@ export class As1GatewayComposition {
   public async close(): Promise<void> {
     await this.control.close();
     this.closed = true;
-  }
-
-  private async drainAndRelease(): Promise<As1RedactedStatus> {
-    try {
-      await this.control.shutdown();
-    } catch (error) {
-      await this.control.engageGlobalKill(`ambiguous shutdown drain: ${redactError(error).code}`);
-      await this.control.close();
-      throw error;
-    }
-    this.receiving = false;
-    const status = this.status();
-    await this.control.close();
-    return status;
   }
 
   private assertOpen(): void {

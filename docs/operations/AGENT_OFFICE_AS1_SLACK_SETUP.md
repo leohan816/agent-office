@@ -352,9 +352,14 @@ byte-unchanged with no writer-lock residue.
 
 ### 10.3 Closed foreground start
 
-`start` is a foreground process that holds the writer lock for its whole lifetime
-and installs the clean SIGINT/SIGTERM and one fixed SIGUSR2 incident handler
-before any side effect. So the writer-lock record's owner argv is exact, the live
+`start` is a foreground process that acquires and holds the writer lock for its
+whole lifetime. Immediately AFTER the lock is acquired — and BEFORE any lock-owned
+control initialization or live side effect — it installs the clean SIGINT/SIGTERM
+and one fixed SIGUSR2 incident handler. (A one-time pre-lock runtime `initialize`
+runs first; it performs no owner side effect and reaches no network.) A SIGUSR2
+that arrives during that post-acquire control-init window is retained and
+dominates before startup, so no incident is lost. So the writer-lock record's
+owner argv is exact, the live
 start uses the direct five-item Node invocation (the state-root assignment is
 environment, not argv), never an `npm`/shell wrapper, alternate worktree, or
 relative entry:
@@ -389,15 +394,28 @@ node dist/core/runtime/as1-slack-pilot/cli.js stop
 node dist/core/runtime/as1-slack-pilot/cli.js incident-kill
 ```
 
-- `stop` sends the clean SIGTERM through one Linux pidfd, then waits the fixed
-  `10,000 ms` deadline for the exact lock inode to disappear, returning only
-  `STOPPED_CLEAN`, `STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`, or `STOP_TIMEOUT`.
-- `incident-kill` sends the fixed SIGUSR2 through one Linux pidfd. The owner
-  synchronously closes every admission gate, durably engages the irreversible
-  global kill (`OPERATOR_INCIDENT_KILL`, `DISABLED_LATCHED`), then bounded-shuts
-  down. It returns only `INCIDENT_KILL_ENGAGED`, `INCIDENT_KILL_ALREADY_ENGAGED`,
-  `STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`, `INCIDENT_KILL_PERSIST_FAILED`, or
-  `INCIDENT_KILL_TIMEOUT`. A durable latch has no reset or startup auto-recovery.
+- `stop` sends the clean SIGTERM through one Linux pidfd, then proves the exact
+  lock inode disappears WITHIN the fixed `10,000 ms` deadline — the lock-removal
+  observation is raced against one monotonic deadline, so a blocked or
+  never-resolving read returns `STOP_TIMEOUT` within the bound rather than an
+  eventual return. It returns only `STOPPED_CLEAN`, `STALE_OR_AMBIGUOUS_OWNER`,
+  `NO_LIVE_OWNER`, or `STOP_TIMEOUT`.
+- `incident-kill` sends the fixed SIGUSR2 through one Linux pidfd. A pending
+  incident DOMINATES in the owner — before startup and after every awaited
+  boundary (receive re-observation, delivery, evidence, and the idle poll) — and
+  is routed EXACTLY ONCE through the synchronous incident-gate close and the
+  irreversible global kill (`OPERATOR_INCIDENT_KILL`, `DISABLED_LATCHED`); a later
+  clean terminal can never mask it. The owner's cleanup is reported TRUTHFULLY: if
+  the durable kill, profile latch, Socket disconnect, or writer-lock release is
+  ambiguous, the reported outcome carries that ambiguity and is never a synthesized
+  clean state. The observer then proves EXACT lock removal and the durable killed
+  record WITHIN the fixed `10,000 ms` deadline: every post-signal await is raced
+  against one monotonic, latched deadline, so a blocked or never-resolving read
+  returns `INCIDENT_KILL_TIMEOUT` within the bound rather than an eventual or
+  late-accepted success. It returns only `INCIDENT_KILL_ENGAGED`,
+  `INCIDENT_KILL_ALREADY_ENGAGED`, `STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`,
+  `INCIDENT_KILL_PERSIST_FAILED`, or `INCIDENT_KILL_TIMEOUT`. A durable latch has no
+  reset or startup auto-recovery.
 
 `status` is read-only and prints only stable state/reason codes — never an ID,
 path, grant value, token fact, Slack response, or tmux coordinate. `restart` is

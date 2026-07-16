@@ -552,18 +552,16 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     await expect(lock.release()).rejects.toThrow(/exact canonical-plus-one-LF record owned by this process/);
   });
 
+  const NEVER = (): Promise<never> => new Promise<never>(() => undefined);
+
   it('F05: the observer STOP proves lock removal after SIGNAL_SENT (STOPPED_CLEAN vs STOP_TIMEOUT)', async () => {
     const sent = (): Promise<As1BridgeResult> => Promise.resolve({ ok: true, operation: 'CLEAN_STOP', outcome: 'SIGNAL_SENT', exitCode: 0 });
-    const clean = await runObserverSignal('CLEAN_STOP', { signal: sent, lockRemoved: () => Promise.resolve(true), nowMs: () => 0, delay: () => Promise.resolve() });
+    // Removed within the bound: the deadline never fires (never-resolving timer), the lock-removal observation wins.
+    const clean = await runObserverSignal('CLEAN_STOP', { signal: sent, lockRemoved: () => Promise.resolve(true), delay: () => Promise.resolve(), deadlineTimer: NEVER });
     expect(clean.ok).toBe(true);
     expect(clean.lines.join('|')).toContain('STOPPED_CLEAN');
-    let t = 0;
-    const overrun = (): number => {
-      const value = t;
-      t += 6_000;
-      return value;
-    };
-    const timedOut = await runObserverSignal('CLEAN_STOP', { signal: sent, lockRemoved: () => Promise.resolve(false), nowMs: overrun, delay: () => Promise.resolve() });
+    // Never removed: the single monotonic deadline fires, the poll loop is bounded, and STOP_TIMEOUT is returned.
+    const timedOut = await runObserverSignal('CLEAN_STOP', { signal: sent, lockRemoved: () => Promise.resolve(false), delay: () => Promise.resolve(), deadlineTimer: () => Promise.resolve() });
     expect(timedOut.ok).toBe(false);
     expect(timedOut.lines.join('|')).toContain('STOP_TIMEOUT');
   });
@@ -573,14 +571,14 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     // Fresh engage: NOT durably killed before signaling, killed AFTER lock removal → INCIDENT_KILL_ENGAGED.
     let killReads = 0;
     const freshlyKilled = (): Promise<boolean> => Promise.resolve(killReads++ > 0);
-    const engaged = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: freshlyKilled, nowMs: () => 0, delay: () => Promise.resolve() });
+    const engaged = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: freshlyKilled, delay: () => Promise.resolve(), deadlineTimer: NEVER });
     expect(engaged.ok).toBe(true);
     expect(engaged.lines.join('|')).toContain('INCIDENT_KILL_ENGAGED');
     // Already killed BEFORE signaling → idempotent INCIDENT_KILL_ALREADY_ENGAGED.
-    const already = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(true), nowMs: () => 0, delay: () => Promise.resolve() });
+    const already = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(true), delay: () => Promise.resolve(), deadlineTimer: NEVER });
     expect(already.lines.join('|')).toContain('INCIDENT_KILL_ALREADY_ENGAGED');
     // Lock removed within the bound but the kill is never durable → INCIDENT_KILL_PERSIST_FAILED (never success).
-    const persistFailed = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(false), nowMs: () => 0, delay: () => Promise.resolve() });
+    const persistFailed = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(false), delay: () => Promise.resolve(), deadlineTimer: NEVER });
     expect(persistFailed.ok).toBe(false);
     expect(persistFailed.lines.join('|')).toContain('INCIDENT_KILL_PERSIST_FAILED');
     // An absent owner (OWNER_EXITED) → NO_LIVE_OWNER.
@@ -588,25 +586,45 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     expect(absent.lines.join('|')).toContain('NO_LIVE_OWNER');
   });
 
-  it('F05: a post-deadline lock-removal or durable-kill observation is NOT accepted (monotonic before+after each await)', async () => {
+  it('F05: a NEVER-resolving lock-removal observation is bounded by the deadline and returns INCIDENT_KILL_TIMEOUT', async () => {
     const sent = (): Promise<As1BridgeResult> => Promise.resolve({ ok: true, operation: 'INCIDENT_KILL', outcome: 'SIGNAL_SENT', exitCode: 0 });
-    // The clock advances PAST the shutdown bound during the lockRemoved await → a removal that only resolves after the
-    // deadline is rejected as INCIDENT_KILL_TIMEOUT, never accepted as proof.
-    let t = 0;
-    const overrun = (): number => {
-      const value = t;
-      t += 6_000; // > the 10s bound after two reads
-      return value;
-    };
+    // The lock-removal proof never settles; the single monotonic deadline must win the race and return the stable
+    // timeout WITHIN the bound (measuring an eventual return is not enforcement).
     const late = await runObserverSignal('INCIDENT_KILL', {
       signal: sent,
-      lockRemoved: () => Promise.resolve(true),
+      lockRemoved: NEVER,
       durableKilled: () => Promise.resolve(true),
-      nowMs: overrun,
       delay: () => Promise.resolve(),
+      deadlineTimer: () => Promise.resolve(),
     });
     expect(late.ok).toBe(false);
     expect(late.lines.join('|')).toContain('INCIDENT_KILL_TIMEOUT');
+  });
+
+  it('F05: a NEVER-resolving POST-signal durable-kill proof (after the lock is removed) is bounded by the deadline and returns INCIDENT_KILL_TIMEOUT', async () => {
+    const sent = (): Promise<As1BridgeResult> => Promise.resolve({ ok: true, operation: 'INCIDENT_KILL', outcome: 'SIGNAL_SENT', exitCode: 0 });
+    // The pre-signal idempotency read resolves (not-already-killed), then the lock is observed removed; only the
+    // POST-signal durable-kill *proof* read never settles. The same single monotonic deadline must still win THAT
+    // race and return the stable timeout WITHIN the bound — a durable-kill read past the bound is NOT proof. The
+    // short real deadline (20ms) lets microtask-immediate lock removal win first, isolating the post-signal read.
+    let durableKilledCalls = 0;
+    const late = await runObserverSignal('INCIDENT_KILL', {
+      signal: sent,
+      lockRemoved: () => Promise.resolve(true),
+      durableKilled: () => {
+        durableKilledCalls += 1;
+        // Call #1 is the pre-signal idempotency observation; call #2 is the bounded post-signal proof read.
+        return durableKilledCalls >= 2 ? NEVER() : Promise.resolve(false);
+      },
+      delay: () => Promise.resolve(),
+      deadlineTimer: () => new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 20);
+        if (typeof timer.unref === 'function') timer.unref();
+      }),
+    });
+    expect(late.ok).toBe(false);
+    expect(late.lines.join('|')).toContain('INCIDENT_KILL_TIMEOUT');
+    expect(durableKilledCalls).toBe(2);
   });
 
   it('F05: the durable-kill decoder accepts only an EXACT killed record; malformed/extra-key/non-kill is never proof', async () => {
@@ -623,6 +641,28 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     // A malformed/extra-key replacement of the killed record is NEVER accepted as proof → UNREADABLE.
     const raw = JSON.parse(await readFile(controlFile(killed.root), 'utf8')) as Record<string, unknown>;
     await writeFile(controlFile(killed.root), `${JSON.stringify({ ...raw, injected: true })}\n`, { mode: 0o600 });
+    expect(await readDurableKillProof(killed.root)).toBe('UNREADABLE');
+  });
+
+  it('F05: the durable-kill decoder rejects a JSON-EQUIVALENT but NONCANONICAL killed record (exact canonical bytes are the proof)', async () => {
+    const controlFile = (root: string): string => path.join(root, 'indexes/as1-slack-pilot/global-control.json');
+    const killed = await makeControl();
+    await killed.control.engageGlobalKill('operator incident test');
+    await killed.control.close();
+    // The EXACT canonical record (canonical bytes + one terminal LF) is the ONLY accepted durable-kill proof.
+    expect(await readDurableKillProof(killed.root)).toBe('KILLED');
+    const record = JSON.parse(await readFile(controlFile(killed.root), 'utf8')) as Record<string, unknown>;
+    // Pretty-printed: byte-different, JSON-equivalent. A JSON-only decoder would still accept it as KILLED; the exact
+    // canonical-byte decoder must reject the noncanonical whitespace as UNPROVEN.
+    await writeFile(controlFile(killed.root), `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+    expect(await readDurableKillProof(killed.root)).toBe('UNREADABLE');
+    // Reordered keys: byte-different, JSON-equivalent. Same rejection — acceptance is never inferred from the parsed
+    // value alone.
+    const reordered = Object.fromEntries(Object.entries(record).reverse());
+    await writeFile(controlFile(killed.root), `${JSON.stringify(reordered)}\n`, { mode: 0o600 });
+    expect(await readDurableKillProof(killed.root)).toBe('UNREADABLE');
+    // Whitespace-extended (a trailing space before the LF): byte-different, JSON-equivalent. Still not proof.
+    await writeFile(controlFile(killed.root), `${JSON.stringify(record)} \n`, { mode: 0o600 });
     expect(await readDurableKillProof(killed.root)).toBe('UNREADABLE');
   });
 

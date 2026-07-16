@@ -11,7 +11,6 @@
 // `incident-kill` signal the running owner ONLY through the sealed pidfd bridge (never a numeric-PID kill). Output
 // never echoes a token, prefix, length, raw ID, file contents, Slack response body, or tmux coordinate.
 import { lstat, readFile } from 'node:fs/promises';
-import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { DomainError } from '../../contracts/types.js';
@@ -50,6 +49,7 @@ import {
   parseRuntimeDescriptor,
   type As1CompositionDependencies,
   type As1CompositionSocketPort,
+  type As1OwnerCleanupResult,
   type As1RuntimeDescriptorV1,
   type As1SocketBindings,
 } from './composition.js';
@@ -132,12 +132,12 @@ export async function runAs1Cli(invocation: As1CliInvocation, composition: As1Ga
       return { command: 'start', ok: result.connected, lines: statusLines('start', result.state, result.reason) };
     }
     case 'stop': {
-      const status = await composition.stop();
-      return { command: 'stop', ok: true, lines: statusLines('stop', status.state, 'STOPPED_CLEAN') };
+      const result = await composition.stop();
+      return { command: 'stop', ok: result.cleanupProven, lines: statusLines('stop', result.state, result.cleanupProven ? 'STOPPED_CLEAN' : result.detail) };
     }
     case 'incident-kill': {
-      const status = await composition.incidentKill();
-      return { command: 'incident-kill', ok: true, lines: statusLines('incident-kill', status.state, 'INCIDENT_KILL_ENGAGED') };
+      const result = await composition.incidentKill();
+      return { command: 'incident-kill', ok: result.cleanupProven, lines: statusLines('incident-kill', result.state, result.cleanupProven ? 'INCIDENT_KILL_ENGAGED' : result.detail) };
     }
     case 'restart': {
       const result = composition.restartDisabled();
@@ -167,11 +167,17 @@ export interface As1ObserverSignalDeps {
   readonly signal: (operation: 'CLEAN_STOP' | 'INCIDENT_KILL') => Promise<As1BridgeResult>;
   readonly lockRemoved: () => Promise<boolean>;
   readonly durableKilled: () => Promise<boolean>;
-  readonly nowMs: () => number;
   readonly delay: (ms: number) => Promise<void>;
+  /** ONE monotonic post-signal deadline (F05): resolves after the fixed shutdown bound. Every post-signal await is
+   *  RACED against a single instance of it, so a never-resolving collaborator returns a stable timeout within the
+   *  bound. Production is an unref'd setTimeout; a deterministic test resolves it to fire the deadline immediately. */
+  readonly deadlineTimer: (ms: number) => Promise<void>;
 }
 
 const OBSERVER_POLL_INTERVAL_MS = 50;
+
+/** The sentinel a post-signal await resolves to when the single monotonic deadline wins the race (F05). */
+const TIMED_OUT = Symbol('as1-observer-deadline');
 
 /** Read-only: is the FIXED owner writer lock absent? An ambiguous stat is NOT proof of removal. */
 async function defaultLockRemoved(): Promise<boolean> {
@@ -193,8 +199,11 @@ const OBSERVER_DEFAULTS: As1ObserverSignalDeps = {
   signal: (operation) => signalFixedOwner(operation),
   lockRemoved: defaultLockRemoved,
   durableKilled: defaultDurableKilled,
-  nowMs: () => performance.now(),
   delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  deadlineTimer: (ms) => new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    if (typeof timer.unref === 'function') timer.unref();
+  }),
 };
 
 /**
@@ -225,28 +234,51 @@ export async function runObserverSignal(
     return line(false, 'STALE_OR_AMBIGUOUS_OWNER');
   }
 
-  // Post-signal proof (F05): prove EXACT lock removal within the fixed shutdown deadline. ONE monotonic deadline is
-  // checked BEFORE each await AND AGAIN AFTER it, so an observation that only completes past the bound is NOT
-  // accepted; the later durable-kill read is bounded identically. This proves BOTH facts within the exact bound.
-  const start = deps.nowMs();
-  const withinDeadline = (): boolean => deps.nowMs() - start <= AS1_OWNER_SHUTDOWN_DEADLINE_MS;
+  // Post-signal proof (F05): prove EXACT lock removal within the fixed shutdown deadline. ONE monotonic deadline
+  // instance is created here; EVERY post-signal await — the poll delay, each lock-removal observation, and the
+  // durable-kill read — is RACED against it. A blocked or never-resolving collaborator therefore returns a stable
+  // *_TIMEOUT within the bound (not an eventual return, and never a late success accepted after the bound).
+  // The deadline is LATCHED and raced DEADLINE-FIRST so an already-fired deadline is deterministically dominant: it
+  // can never be starved by an operation Promise that is also ready in the same microtask turn (which would otherwise
+  // spin the poll loop forever). Once fired, every subsequent await short-circuits to the timeout synchronously.
+  let deadlineFired = false;
+  // The deadline's `.then` mutates `deadlineFired` from a separate closure, so it is read back through a typed getter:
+  // control-flow analysis must not narrow the loop-top check to the initial `false` (it is genuinely reassigned).
+  const deadlineHasFired = (): boolean => deadlineFired;
+  const deadline: Promise<typeof TIMED_OUT> = deps.deadlineTimer(AS1_OWNER_SHUTDOWN_DEADLINE_MS).then((): typeof TIMED_OUT => {
+    deadlineFired = true;
+    return TIMED_OUT;
+  });
+  const raceDeadline = <T>(p: Promise<T>): Promise<T | typeof TIMED_OUT> =>
+    deadlineHasFired() ? Promise.resolve(TIMED_OUT) : Promise.race<T | typeof TIMED_OUT>([deadline, p]);
   let removed = false;
-  while (withinDeadline()) {
-    const gone = await deps.lockRemoved();
-    if (!withinDeadline()) break; // a removal that only resolved past the bound is not accepted
+  let timedOut = false;
+  for (;;) {
+    if (deadlineHasFired()) {
+      timedOut = true;
+      break;
+    }
+    const gone = await raceDeadline(deps.lockRemoved());
+    if (gone === TIMED_OUT) {
+      timedOut = true;
+      break;
+    }
     if (gone) {
       removed = true;
       break;
     }
-    await deps.delay(OBSERVER_POLL_INTERVAL_MS);
+    if ((await raceDeadline(deps.delay(OBSERVER_POLL_INTERVAL_MS))) === TIMED_OUT) {
+      timedOut = true;
+      break;
+    }
   }
 
   if (operation === 'CLEAN_STOP') {
     return removed ? line(true, 'STOPPED_CLEAN') : line(false, 'STOP_TIMEOUT');
   }
-  if (!removed || !withinDeadline()) return line(false, 'INCIDENT_KILL_TIMEOUT');
-  const killed = await deps.durableKilled();
-  if (!withinDeadline()) return line(false, 'INCIDENT_KILL_TIMEOUT'); // a durable-kill read past the bound is not proof
+  if (!removed || timedOut) return line(false, 'INCIDENT_KILL_TIMEOUT');
+  const killed = await raceDeadline(deps.durableKilled());
+  if (killed === TIMED_OUT) return line(false, 'INCIDENT_KILL_TIMEOUT'); // a durable-kill read past the bound is not proof
   // Lock removed within the bound but the kill is not durable → the owner's kill persistence failed (never success).
   if (!killed) return line(false, 'INCIDENT_KILL_PERSIST_FAILED');
   return line(true, preKilled ? 'INCIDENT_KILL_ALREADY_ENGAGED' : 'INCIDENT_KILL_ENGAGED');
@@ -428,25 +460,47 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
     }
   }
 
+  // F01: a pending SIGUSR2 incident DOMINATES — before startup, after every awaited boundary, and before selecting
+  // any non-incident terminal — and is routed EXACTLY ONCE through the durable incident kill. Cleanup is reported
+  // truthfully: a synthesized clean DISABLED_CLEAN is never claimed when latch/kill/disconnect/lock-release is
+  // ambiguous. `incidentPending()` re-samples the closure-mutated flag through the typed getter.
+  const incidentPending = (): boolean => pollRequested() === 'INCIDENT_KILL';
+  const cleanupLine = (result: As1OwnerCleanupResult, provenOutcome: string, provenOk: boolean): As1CliResult =>
+    ownerLine(result.cleanupProven && provenOk, result.cleanupProven ? provenOutcome : result.detail, result.state);
+  const runIncidentKill = async (): Promise<As1CliResult> => {
+    const result = await composition.incidentKill();
+    return cleanupLine(result, 'INCIDENT_KILL_ENGAGED', false);
+  };
+
   try {
+    if (incidentPending()) return await runIncidentKill(); // dominate BEFORE startup
     const started = await composition.start();
+    if (incidentPending()) return await runIncidentKill(); // dominate AFTER the startup await
     if (!started.connected) {
-      // Default-disabled / not-ready / latched: the owner releases ownership cleanly and exits — never a live loop.
-      const status = await composition.stop();
-      return ownerLine(false, `NOT_CONNECTED:${started.reason}`, status.state);
+      // Default-disabled / not-ready / latched: release ownership truthfully and exit — never a live loop.
+      const result = await composition.stop();
+      return cleanupLine(result, `NOT_CONNECTED:${started.reason}`, false);
     }
     // Bounded live loop: re-observe the accepted receive grant + exclusive expiry, then attempt ONE delivery until it
-    // completes, then project evidence. NO broad catch: only a typed benign AWAITING outcome continues; any other
-    // delivery result, a thrown provenance/store/tmux/evidence/outbound error, or a signal/divergence/expiry ends it.
+    // completes, then project evidence. NO broad catch. `incidentPending()` is re-sampled after EVERY await so a
+    // SIGUSR2 during observe/deliver/evidence/delay cannot be masked by a later non-incident terminal.
     let terminal: As1OwnerStopCause;
     let delivered = false;
     for (;;) {
+      if (incidentPending()) {
+        terminal = 'INCIDENT_KILL';
+        break;
+      }
       const pending = pollRequested();
       if (pending !== null) {
         terminal = pending;
         break;
       }
       const tick = await composition.observeReceiveGrantOnce();
+      if (incidentPending()) {
+        terminal = 'INCIDENT_KILL';
+        break;
+      }
       if (tick === 'DIVERGED') {
         terminal = 'PROFILE_DIVERGED';
         break;
@@ -457,9 +511,17 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
       }
       if (!delivered) {
         const delivery = await composition.deliverPending();
+        if (incidentPending()) {
+          terminal = 'INCIDENT_KILL';
+          break;
+        }
         if (delivery.phase !== 'AWAITING' && delivery.outcome === 'DELIVERED') {
           delivered = true;
           await composition.ingestEvidenceAndProject(); // project ACK->INTAKE->RESULT once delivery completed
+          if (incidentPending()) {
+            terminal = 'INCIDENT_KILL';
+            break;
+          }
         } else if (delivery.phase !== 'AWAITING') {
           // Manual reconciliation, a pre-paste stop, or any non-benign delivery outcome halts the owner (the
           // composition already latched where required) — never a swallowed result nor an unbounded retry.
@@ -469,24 +531,36 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         // A benign AWAITING (no grant/lease yet) simply keeps polling.
       }
       await boundary.delay(OWNER_LOOP_INTERVAL_MS);
+      if (incidentPending()) {
+        terminal = 'INCIDENT_KILL';
+        break;
+      }
     }
-    if (terminal === 'INCIDENT_KILL') {
-      const status = await composition.incidentKill();
-      return ownerLine(false, 'INCIDENT_KILL_ENGAGED', status.state);
-    }
-    // CLEAN_STOP / GRANT_EXPIRED / PROFILE_DIVERGED / DELIVERY_HALTED all drain to DISABLED_CLEAN and release.
-    const status = await composition.stop();
-    return ownerLine(terminal === 'CLEAN_STOP', terminal === 'CLEAN_STOP' ? 'STOPPED_CLEAN' : terminal, status.state);
+    if (terminal === 'INCIDENT_KILL') return await runIncidentKill();
+    // CLEAN_STOP / GRANT_EXPIRED / PROFILE_DIVERGED / DELIVERY_HALTED drain and release — reported truthfully.
+    const result = await composition.stop();
+    return cleanupLine(result, terminal === 'CLEAN_STOP' ? 'STOPPED_CLEAN' : terminal, terminal === 'CLEAN_STOP');
   } catch (error) {
-    // A thrown security/store/provenance/tmux/evidence/outbound error (or a reverted start) terminates the owner
-    // under a stable redacted outcome — never a swallowed error or an unbounded live loop (F01).
+    // A thrown error (or a reverted start) terminates the owner under a stable redacted outcome — never a swallowed
+    // error, unbounded loop, or synthesized clean state (F01). A pending incident still dominates; start()'s revert
+    // already routed a startup incident to a durable kill and stored its truthful cleanup for consumption here.
     const code = redactError(error).code;
+    const reverted = composition.consumeLastCleanup();
+    if (incidentPending()) {
+      if (reverted !== null) return cleanupLine(reverted, 'INCIDENT_KILL_ENGAGED', false);
+      if (composition.isOpen()) return await runIncidentKill();
+      await composition.close().catch(() => undefined);
+      return ownerLine(false, 'INCIDENT_KILL_UNPROVEN', 'DISABLED_LATCHED');
+    }
+    if (reverted !== null) {
+      return ownerLine(false, `OWNER_HALTED:${code}:${reverted.detail}`, reverted.state);
+    }
     if (composition.isOpen()) {
-      const status = await composition.latchActiveProfileAndStop(code).catch(() => null);
-      if (status !== null) return ownerLine(false, `OWNER_HALTED:${code}`, status.state);
+      const result = await composition.latchActiveProfileAndStop(code).catch(() => null);
+      if (result !== null) return ownerLine(false, `OWNER_HALTED:${code}:${result.detail}`, result.state);
     }
     await composition.close().catch(() => undefined);
-    return ownerLine(false, `OWNER_HALTED:${code}`, 'DISABLED_CLEAN');
+    return ownerLine(false, `OWNER_HALTED:${code}`, 'DISABLED_LATCHED');
   }
 }
 
