@@ -570,7 +570,9 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     const record = JSON.parse(await readFile(lockPath, 'utf8')) as Record<string, unknown>;
     // Same JSON value, reversed key order → JSON-equivalent but not the exact canonical-plus-one-LF bytes.
     await writeFile(lockPath, `${JSON.stringify(record, Object.keys(record).sort().reverse())}\n`, { mode: 0o600 });
-    await expect(lock.release()).rejects.toThrow(/exact canonical-plus-one-LF record owned by this process/);
+    // Noncanonical bytes prove ownership NOT positively → release fails closed (LOST), unlinking nothing. The
+    // throwing `release()` delegate surfaces the phase-aware LOST outcome (F01-B); the F05 exact-byte contract holds.
+    await expect(lock.release()).rejects.toThrow(/did not prove a clean namespace release \(LOST:/u);
   });
 
   const NEVER = (): Promise<never> => new Promise<never>(() => undefined);
@@ -788,5 +790,41 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
       retainForForeground: true,
     });
     await second.release();
+  });
+
+  it('F01-B: a POST-unlink release failure CEDES authority irrevocably; a second writer acquires the freed namespace and the old lock never re-releases', async () => {
+    const root = await makeStateRoot();
+    const first = await WriterLock.acquire(root, {
+      buildId: 'as1-slack-pilot',
+      stateRootId: 'test-state-root',
+      acquiredAt: '2026-07-14T22:00:00.000Z',
+      retainForForeground: true,
+    });
+    const acquired: { second: WriterLock | null } = { second: null };
+    try {
+      const outcome = await first.releaseAuthority({
+        afterNamespaceUnlink: async () => {
+          // The namespace lock is now FREE (unlinked). A SECOND writer acquires it at this exact interleaving — proving
+          // the old owner already ceded the namespace...
+          acquired.second = await WriterLock.acquire(root, {
+            buildId: 'as1-slack-pilot',
+            stateRootId: 'test-state-root',
+            acquiredAt: '2026-07-14T22:00:01.000Z',
+            retainForForeground: true,
+          });
+          // ...and a post-unlink durability failure is simulated; the old owner's authority is ALREADY irrevocably gone.
+          throw new Error('post-unlink durability failure');
+        },
+      });
+      expect(acquired.second).not.toBeNull(); // a second writer holds the freed namespace before any old-owner mutation
+      expect(outcome.authority).toBe('RELEASED'); // authority is IRREVOCABLY ceded despite the post-unlink failure
+      if (outcome.authority !== 'RELEASED') throw new Error('expected RELEASED');
+      expect(outcome.cleanupAmbiguity).not.toBeNull(); // the ambiguity is surfaced, never a clean claim
+      expect(first.isReleased()).toBe(true); // the old lock can no longer act
+      // Idempotent + non-authority-bearing: the old lock never re-acquires or re-unlinks the now-second-owned leaf.
+      expect(await first.releaseAuthority()).toEqual({ authority: 'RELEASED', cleanupAmbiguity: null });
+    } finally {
+      if (acquired.second !== null) await acquired.second.release();
+    }
   });
 });

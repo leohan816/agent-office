@@ -121,6 +121,19 @@ class AsyncMutex {
 }
 
 /** The AS1 lifecycle owner. Persists global control and per-profile latches; never auto-resets a latch. */
+/**
+ * Phase-aware control-close outcome (F01-B). `authorityCeased` is true once this control has irrevocably relinquished
+ * or lost namespace authority (the writer lock was unlinked, or ownership could not be positively proven) — NO further
+ * authority-bearing mutation may run and NO old-owner fallback kill is permitted. It is false only when authority is
+ * RETAINED (a pre-unlink release failure while this owner still positively holds the fixed leaf), in which case the
+ * caller remains the sole writer and may durably fallback-kill. `cleanupAmbiguity` is a bounded RELEASE/cleanup code
+ * (never a clean claim) or null on a fully clean release.
+ */
+export interface As1ControlCloseOutcome {
+  readonly authorityCeased: boolean;
+  readonly cleanupAmbiguity: string | null;
+}
+
 export class As1SlackControl {
   private readonly mutex = new AsyncMutex();
   private readonly profileLatchCache = new Map<As1ProfileSlug, boolean>();
@@ -318,19 +331,34 @@ export class As1SlackControl {
   }
 
   /**
-   * Release the owned process lock and mark the control closed. Idempotent. Serialized through the SAME mutex
-   * as every mutation, so it can never release the lock while a queued or in-flight durable mutation runs; any
-   * mutation queued after close observes the released state and fails closed.
+   * Release the owned process lock and mark the control closed, returning a PHASE-AWARE authority outcome (F01-B).
+   * Idempotent. Serialized through the SAME mutex as every mutation, so it can never release while a queued/in-flight
+   * mutation runs; any mutation queued after an authority-ceasing close observes `released` and fails closed.
+   *
+   * Once the writer lock's namespace UNLINK succeeds (or ownership cannot be positively proven), authority is
+   * IRREVOCABLY ceased (`authorityCeased: true`, `this.lock` dropped) even if a later fsync/close is ambiguous — the
+   * ambiguity is surfaced but no fallback kill may run, because another process may now hold the freed lock. Authority
+   * is RETAINED (`authorityCeased: false`, lock kept) ONLY on a pre-unlink failure while the fixed leaf is still
+   * positively this owner's lock; then the sole writer may durably fallback-kill.
    */
-  public async close(): Promise<void> {
-    await this.mutex.run(async () => {
+  public async close(): Promise<As1ControlCloseOutcome> {
+    return this.mutex.run(async () => {
       const lock = this.lock;
-      // F01 (brief 77): commit ownership release ONLY after a SUCCESSFUL durable release. If `release()` throws,
-      // ownership is RETAINED (the lock stays set and `released` stays false), so the caller can durably fallback-kill
-      // while still owning the lock and never reports a clean release it did not achieve.
-      if (lock !== null) await lock.release();
+      if (lock === null) {
+        this.released = true;
+        return { authorityCeased: true, cleanupAmbiguity: null };
+      }
+      const outcome = await lock.releaseAuthority();
+      if (outcome.authority === 'RETAINED') {
+        // Pre-unlink failure; still positively this owner's lock. Keep the lock (sole writer may fallback-kill).
+        return { authorityCeased: false, cleanupAmbiguity: `RETAINED:${outcome.reason}` };
+      }
+      // RELEASED (namespace unlinked) or LOST (ownership not proven): cease authority irrevocably — drop the lock so no
+      // further mutation and no fallback kill can run.
       this.lock = null;
       this.released = true;
+      const cleanupAmbiguity = outcome.authority === 'RELEASED' ? outcome.cleanupAmbiguity : `LOST:${outcome.reason}`;
+      return { authorityCeased: true, cleanupAmbiguity };
     });
   }
 

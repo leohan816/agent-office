@@ -1034,6 +1034,39 @@ export interface AcquireWriterLockOptions {
   readonly retainForForeground?: boolean;
 }
 
+/**
+ * Phase-aware release outcome (F01-B): distinguishes the AUTHORITATIVE namespace outcome from cleanup durability.
+ * - `RELEASED`: the namespace lock was UNLINKED — authority is irrevocably relinquished. `cleanupAmbiguity` is a bounded
+ *   code when a POST-unlink step (directory fsync / retained-handle close) failed; the authority is still gone.
+ * - `RETAINED`: a PRE-unlink failure while the fixed leaf is still positively this exact owner's lock — authority is
+ *   retained (the caller remains the sole writer and may fallback-kill). The namespace lock still exists.
+ * - `LOST`: ownership could NOT be positively proven (identity mismatch / leaf gone). Authority ceases; NO unlink was
+ *   performed and NO authority-bearing fallback write is permitted.
+ */
+export type WriterLockReleaseOutcome =
+  | { readonly authority: 'RELEASED'; readonly cleanupAmbiguity: string | null }
+  | { readonly authority: 'RETAINED'; readonly reason: string }
+  | { readonly authority: 'LOST'; readonly reason: string };
+
+/**
+ * Test-only deterministic-interleaving seam (F01-B). `afterNamespaceUnlink` fires immediately AFTER the namespace lock
+ * is unlinked and BEFORE post-unlink durability (directory fsync / retained-handle close), so a test can acquire a
+ * SECOND writer at the exact freed-namespace interleaving and/or simulate a post-unlink durability failure (by throwing)
+ * to prove that the old owner irrevocably ceases authority. Production callers never supply it.
+ */
+export interface WriterLockReleaseHooks {
+  readonly afterNamespaceUnlink?: () => void | Promise<void>;
+}
+
+/** A bounded, redacted code for a release failure — never a raw error/message. */
+function releaseErrorCode(error: unknown): string {
+  if (error instanceof StoreError) return error.code;
+  if (typeof error === 'object' && error !== null && 'code' in error && typeof (error as { readonly code: unknown }).code === 'string') {
+    return (error as { readonly code: string }).code;
+  }
+  return 'IO_ERROR';
+}
+
 export class WriterLock {
   private released = false;
   private handle: import('node:fs/promises').FileHandle | null;
@@ -1102,54 +1135,145 @@ export class WriterLock {
     return this.handle?.fd ?? null;
   }
 
+  /**
+   * Throwing release for callers that only need a clean success/failure (e.g. the event store and acquire rollback).
+   * Delegates to the phase-aware `releaseAuthority()` and throws on ANY non-clean outcome, preserving the historical
+   * fail-closed contract. AS1 lifecycle callers use `releaseAuthority()` directly to distinguish namespace authority
+   * from cleanup durability.
+   */
   public async release(): Promise<void> {
-    if (this.released) return;
+    const outcome = await this.releaseAuthority();
+    if (outcome.authority === 'RELEASED' && outcome.cleanupAmbiguity === null) return;
+    const detail = outcome.authority === 'RELEASED' ? `RELEASED:${outcome.cleanupAmbiguity}` : `${outcome.authority}:${outcome.reason}`;
+    throw new StoreError('STATE_ROOT_INVALID', `writer lock release did not prove a clean namespace release (${detail})`);
+  }
+
+  /**
+   * Phase-aware, one-writer-safe release (design §11.1, F01-B). The namespace UNLINK is the single authority-relinquishing
+   * act: once it succeeds this owner IRREVOCABLY loses authority even if a later directory fsync or retained-handle close
+   * reports ambiguity (surfaced as `cleanupAmbiguity`, never a clean claim). A failure BEFORE unlink retains authority
+   * ONLY while the exact fixed leaf is still positively proven to be this owner's lock; otherwise ownership is not proven
+   * and the outcome is `LOST` with NO unlink and NO authority-bearing mutation. Retained handles are closed
+   * DETERMINISTICALLY on every released/lost path (never left for GC). No ambiguous release is retried.
+   */
+  public async releaseAuthority(hooks?: WriterLockReleaseHooks): Promise<WriterLockReleaseOutcome> {
+    if (this.released) return { authority: 'RELEASED', cleanupAmbiguity: null };
     if (this.handle !== null) {
-      // Foreground release (design §11.1): the retained descriptor and a no-follow reopen of the current path
-      // must agree on device, inode, regular type, owner, one link, private mode, and the exact v1 bytes.
-      const retainedStat = await this.handle.stat({ bigint: true });
-      const reopened = await open(this.lockPath, constants.O_RDONLY | constants.O_NOFOLLOW).catch((error: unknown) => {
-        throw new StoreError('STATE_ROOT_INVALID', 'writer lock disappeared before release', { cause: error });
-      });
+      // Prove ownership BEFORE unlink. A mismatch means the fixed leaf is not (or no longer) this owner's lock → LOST:
+      // never unlink an object we do not own, close the retained handle, and cease authority with no fallback write.
+      let identityError: string | null = null;
       try {
-        const current = await reopened.stat({ bigint: true });
-        const currentUid = process.getuid?.();
-        if (
-          !current.isFile() ||
-          current.dev !== retainedStat.dev ||
-          current.ino !== retainedStat.ino ||
-          current.nlink !== 1n ||
-          (Number(current.mode) & 0o7777) !== FILE_MODE ||
-          (currentUid !== undefined && Number(current.uid) !== currentUid)
-        ) {
-          throw new StoreError('STATE_ROOT_INVALID', 'writer lock identity changed unexpectedly before release');
-        }
-        // F05: require the RAW bytes to equal the exact canonical-plus-one-LF record this owner acquired — a
-        // JSON-equivalent but noncanonical tampering must NOT be unlinked as the owned record.
-        const bytes = await reopened.readFile();
-        if (!bytes.equals(Buffer.concat([canonicalBytes(this.metadata), Buffer.from('\n', 'utf8')]))) {
-          throw new StoreError('STATE_ROOT_INVALID', 'writer lock bytes are not the exact canonical-plus-one-LF record owned by this process');
-        }
-      } finally {
-        await reopened.close().catch(() => undefined);
+        await this.assertForegroundIdentity();
+      } catch (error) {
+        identityError = releaseErrorCode(error);
       }
-      await unlink(this.lockPath);
-      await fsyncDirectory(path.dirname(this.lockPath));
-      await this.handle.close();
-      this.handle = null;
+      if (identityError !== null) {
+        await this.closeRetainedHandle().catch(() => undefined);
+        this.released = true;
+        return { authority: 'LOST', reason: identityError };
+      }
+      // Ownership proven. The unlink is authority-relinquishing; a failure HERE is pre-unlink → still positively ours →
+      // RETAINED (keep the retained handle + lock; do not retry).
+      try {
+        await unlink(this.lockPath);
+      } catch (error) {
+        return { authority: 'RETAINED', reason: releaseErrorCode(error) };
+      }
+      // Post-unlink: authority is IRREVOCABLY RELEASED regardless of the durability outcome. Close the retained handle
+      // deterministically; a post-unlink fsync/close failure (or the injected seam) is a cleanup ambiguity ONLY (never
+      // retained authority, never a fallback write). `this.released` is set FIRST so no concurrent authority claim can
+      // survive even if a durability step throws.
       this.released = true;
-      return;
+      let cleanupAmbiguity: string | null = null;
+      if (hooks?.afterNamespaceUnlink !== undefined) {
+        try {
+          await hooks.afterNamespaceUnlink();
+        } catch (error) {
+          cleanupAmbiguity = `POST_UNLINK:${releaseErrorCode(error)}`;
+        }
+      }
+      try {
+        await fsyncDirectory(path.dirname(this.lockPath));
+      } catch (error) {
+        cleanupAmbiguity ??= `FSYNC:${releaseErrorCode(error)}`;
+      }
+      try {
+        await this.closeRetainedHandle();
+      } catch (error) {
+        cleanupAmbiguity ??= `CLOSE:${releaseErrorCode(error)}`;
+      }
+      return { authority: 'RELEASED', cleanupAmbiguity };
     }
-    const current = await readFile(this.lockPath).catch((error: unknown) => {
+    // One-shot (non-foreground) release: no retained descriptor. Prove exact-byte ownership, then unlink.
+    let current: Buffer;
+    try {
+      current = await readFile(this.lockPath);
+    } catch (error) {
+      // The leaf is gone before ownership could be proven → LOST (no unlink, no fallback).
+      this.released = true;
+      return { authority: 'LOST', reason: releaseErrorCode(error) };
+    }
+    if (!current.equals(Buffer.concat([canonicalBytes(this.metadata), Buffer.from('\n', 'utf8')]))) {
+      this.released = true;
+      return { authority: 'LOST', reason: 'STATE_ROOT_INVALID' };
+    }
+    try {
+      await unlink(this.lockPath);
+    } catch (error) {
+      return { authority: 'RETAINED', reason: releaseErrorCode(error) };
+    }
+    let cleanupAmbiguity: string | null = null;
+    try {
+      await fsyncDirectory(path.dirname(this.lockPath));
+    } catch (error) {
+      cleanupAmbiguity = `FSYNC:${releaseErrorCode(error)}`;
+    }
+    this.released = true;
+    return { authority: 'RELEASED', cleanupAmbiguity };
+  }
+
+  /** The retained descriptor and a no-follow reopen of the CURRENT path must agree on device, inode, regular type,
+   *  owner, one link, private mode, and the exact canonical-plus-one-LF v1 bytes (design §11.1, F05). Throws on any
+   *  mismatch; closes the reopened handle deterministically and never touches the retained handle. */
+  private async assertForegroundIdentity(): Promise<void> {
+    if (this.handle === null) return;
+    const retainedStat = await this.handle.stat({ bigint: true });
+    const reopened = await open(this.lockPath, constants.O_RDONLY | constants.O_NOFOLLOW).catch((error: unknown) => {
       throw new StoreError('STATE_ROOT_INVALID', 'writer lock disappeared before release', { cause: error });
     });
-    // F05: exact canonical-plus-one-LF raw-byte identity (see the foreground path above).
-    if (!current.equals(Buffer.concat([canonicalBytes(this.metadata), Buffer.from('\n', 'utf8')]))) {
-      throw new StoreError('STATE_ROOT_INVALID', 'writer lock bytes are not the exact canonical-plus-one-LF record owned by this process');
+    try {
+      const current = await reopened.stat({ bigint: true });
+      const currentUid = process.getuid?.();
+      if (
+        !current.isFile() ||
+        current.dev !== retainedStat.dev ||
+        current.ino !== retainedStat.ino ||
+        current.nlink !== 1n ||
+        (Number(current.mode) & 0o7777) !== FILE_MODE ||
+        (currentUid !== undefined && Number(current.uid) !== currentUid)
+      ) {
+        throw new StoreError('STATE_ROOT_INVALID', 'writer lock identity changed unexpectedly before release');
+      }
+      const bytes = await reopened.readFile();
+      if (!bytes.equals(Buffer.concat([canonicalBytes(this.metadata), Buffer.from('\n', 'utf8')]))) {
+        throw new StoreError('STATE_ROOT_INVALID', 'writer lock bytes are not the exact canonical-plus-one-LF record owned by this process');
+      }
+    } finally {
+      await reopened.close().catch(() => undefined);
     }
-    await unlink(this.lockPath);
-    await fsyncDirectory(path.dirname(this.lockPath));
-    this.released = true;
+  }
+
+  /** Close the retained O_EXCL descriptor deterministically and drop it (never left for garbage collection). May throw
+   *  the close error so a post-unlink caller can surface a cleanup ambiguity; the handle is dropped either way. */
+  private async closeRetainedHandle(): Promise<void> {
+    const handle = this.handle;
+    this.handle = null;
+    if (handle !== null) await handle.close();
+  }
+
+  /** True once this lock has released or lost namespace authority — no authority-bearing mutation may follow. */
+  public isReleased(): boolean {
+    return this.released;
   }
 
   public getMetadata(): WriterLockMetadata {

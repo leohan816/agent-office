@@ -405,8 +405,11 @@ node dist/core/runtime/as1-slack-pilot/cli.js incident-kill
   synchronous incident-admission guard is checked immediately BEFORE and AFTER each
   await in startup, delivery, evidence, and the idle poll, AND is woven into the
   supplied startup/transport/evidence/outbound ports (provenance, Web, Socket, tmux,
-  store) so an incident inside those collaborators' internal awaits begins no next
-  Git, durable, network, tmux, or outbound side effect. One incident is routed
+  store) AND into the live inbound Slack callback's own inbound store, control gate,
+  and Slack-ACK continuation, so an incident inside those collaborators' internal
+  awaits — including inbound receipt persistence, the dedupe/open transition, the
+  Slack ACK, pre-ACK recovery, and result materialization — begins no next Git,
+  durable, network, tmux, ACK, or outbound side effect. One incident is routed
   EXACTLY ONCE through the synchronous incident-gate close and the irreversible
   global kill (`OPERATOR_INCIDENT_KILL`, `DISABLED_LATCHED`); no later clean terminal
   can mask it. Cleanup is reported TRUTHFULLY and NEVER synthesizes a clean
@@ -414,9 +417,15 @@ node dist/core/runtime/as1-slack-pilot/cli.js incident-kill
   pre-existing latch/disconnect/drain ambiguity engages the durable kill instead of
   a clean drain (the internal drain transitions carry the same admission guard); the
   durable kill is TRANSACTIONAL (the in-memory latch commits only after the record
-  persists, else `KILL_NOT_ENGAGED`/`FALLBACK_KILL`); a writer-lock RELEASE failure
-  retains ownership and engages a fallback kill rather than leaving a clean state
-  behind a stuck lock; and the reported STATE is the ACTUAL observed control state,
+  persists, else `KILL_NOT_ENGAGED`/`FALLBACK_KILL`); a writer-lock RELEASE is
+  PHASE-AWARE — once the fixed namespace leaf is unlinked (or proven absent / not
+  this owner's), authority is IRREVOCABLY ceded and any later directory-fsync or
+  descriptor-close ambiguity is surfaced as a RELEASE/cleanup ambiguity WITHOUT an
+  old-owner fallback kill (a second owner may already hold the freed leaf), while
+  ONLY a pre-unlink failure with the leaf still positively proven this owner's lock
+  retains ownership and engages the sole-writer fallback kill, and the retained
+  no-follow descriptor is closed deterministically on every released/lost path;
+  and the reported STATE is the ACTUAL observed control state,
   with any ambiguity encoded only in the outcome. The observer then proves EXACT
   lock removal and the durable killed record WITHIN the fixed `10,000 ms` deadline:
   the record is read through one retained no-follow descriptor whose identity and

@@ -248,8 +248,13 @@ async function buildDeliveryAuthority(
   return { grant, lease };
 }
 
-async function startAgentOfficeComposition(options: { readonly socket?: FakeCompositionSocket; readonly evidenceVerifier?: As1GitProvenanceVerifier } = {}) {
-  const stateRoot = await makeStateRoot();
+async function startAgentOfficeComposition(options: {
+  readonly socket?: FakeCompositionSocket;
+  readonly evidenceVerifier?: As1GitProvenanceVerifier;
+  readonly decorateInboundStore?: (store: As1ProfileInboundStore) => As1ProfileInboundStore;
+  readonly stateRoot?: string;
+} = {}) {
+  const stateRoot = options.stateRoot ?? (await makeStateRoot());
   const world = fakeWireWorld();
   const { filePath } = await writeSecretFile(secretText(validSecretValues()));
   const descriptor = parseRuntimeDescriptor({
@@ -274,6 +279,7 @@ async function startAgentOfficeComposition(options: { readonly socket?: FakeComp
       buildDeliveryProvenance: () => ACCEPTING_DELIVERY_GATE,
       evidenceVerifier: options.evidenceVerifier ?? new FakeGitVerifier(),
       missionAuthorityRoot: AUTH_ROOT,
+      ...(options.decorateInboundStore !== undefined ? { decorateInboundStore: options.decorateInboundStore } : {}),
     },
   });
   // The control records now exist: bind ALL THREE grant hashes (state-root + pre-transition control/latch) and set
@@ -1356,19 +1362,46 @@ describe('AS1 Patch 4 — F01 per-await/internal-port guards + truthful state (a
     }
   });
 
-  it('a writer-lock RELEASE failure engages a durable fallback kill — never a clean DISABLED_CLEAN behind a stuck lock', async () => {
-    // Concern (brief 77 + Advisor): close() commits ownership only on a successful release; a release failure retains
-    // ownership so finishCleanup durably fallback-kills instead of returning a clean DISABLED_CLEAN with a stuck lock.
+  it('F01-B: a FREED namespace lock (already unlinked) cedes authority with NO old-owner fallback kill — RELEASE ambiguity, never a stale latch', async () => {
+    // Concern (review 79 F01-B): if the namespace lock is gone, the old control must NOT perform an authority-bearing
+    // fallback kill (a second writer could hold the freed lock). The release is LOST (ownership not proven), so cleanup
+    // surfaces the RELEASE ambiguity truthfully but engages NO durable kill — the state stays the clean-drain state.
     const { composition, stateRoot } = await startAgentOfficeComposition();
     await composition.start();
-    await unlink(path.join(stateRoot, 'locks', 'writer.lock')); // the writer-lock release will fail closed
+    await unlink(path.join(stateRoot, 'locks', 'writer.lock')); // the fixed leaf is gone → ownership not positively proven
     const result = await composition.stop();
     expect(result.lockReleased).toBe(false);
     expect(result.detail).toContain('RELEASE');
-    expect(result.state).not.toBe('DISABLED_CLEAN'); // the durable fallback kill replaced the would-be clean drain
-    expect(result.state).toBe('DISABLED_LATCHED');
-    expect(result.killEngaged).toBe(true);
+    expect(result.detail).toContain('LOST'); // authority not proven → LOST, never RETAINED
+    expect(result.state).toBe('DISABLED_CLEAN'); // the clean drain stands; NO stale fallback latch
+    expect(result.state).not.toBe('DISABLED_LATCHED');
+    expect(result.killEngaged).toBe(false); // the old owner performed ZERO authority-bearing fallback mutation
     expect(result.cleanupProven).toBe(false);
+  });
+
+  it('F01-B: a PRE-unlink release failure (leaf still positively this owner) RETAINS authority and durably fallback-kills', async () => {
+    // Concern (review 79 F01-B): a release failure BEFORE the namespace unlink, while the fixed leaf is still positively
+    // this owner's lock, may retain authority and durably fallback-kill (the sole writer). The locks directory is made
+    // unwritable so `unlink` fails EACCES while identity still proves this owner's lock.
+    const { composition, stateRoot } = await startAgentOfficeComposition();
+    await composition.start();
+    const locksDir = path.join(stateRoot, 'locks');
+    await chmod(locksDir, 0o500); // read+execute (identity reopen still works) but no write → unlink fails pre-unlink
+    try {
+      const result = await composition.stop();
+      expect(result.lockReleased).toBe(false);
+      expect(result.detail).toContain('RELEASE');
+      expect(result.detail).toContain('RETAINED'); // still positively this owner's lock → authority RETAINED
+      expect(result.state).toBe('DISABLED_LATCHED'); // the sole writer durably fallback-killed
+      expect(result.state).not.toBe('DISABLED_CLEAN');
+      expect(result.killEngaged).toBe(true);
+      expect(result.cleanupProven).toBe(false);
+    } finally {
+      await chmod(locksDir, 0o700); // restore so the temp state root can be cleaned up
+      // The RETAINED path intentionally keeps the lock's descriptor open (a live owner holds it for the process
+      // lifetime). Now that unlink can succeed, close it DETERMINISTICALLY so no FileHandle is left for GC (brief §6).
+      await composition.close().catch(() => undefined);
+    }
   });
 
   it('an incident INSIDE evidence ingress (supplied verifier) begins ZERO evidence-store persistence and ZERO outbound', async () => {
@@ -1421,6 +1454,176 @@ describe('AS1 Patch 4 — F01 per-await/internal-port guards + truthful state (a
       expect(web.posted).toHaveLength(0); // ZERO Web postMessage / outbound projection
     } finally {
       await composition.incidentKill().catch(() => undefined);
+    }
+  });
+});
+
+describe('AS1 Patch 5 — F01-A live inbound-callback guards (adversarial, fails on 3165e747)', () => {
+  it('an incident during the live inbound Slack ACK begins ZERO subsequent durable side effect (no transport ACK / materialization)', async () => {
+    const { composition, socket, stateRoot } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      let ackCalls = 0;
+      const envelope: As1InboundEnvelope = {
+        ...slackEnvelope(),
+        acknowledge: () => {
+          ackCalls += 1;
+          composition.closeIncidentGateNow(); // a SIGUSR2 closes admission WHILE the live Slack ACK is in flight
+          return Promise.resolve();
+        },
+      };
+      await expect(socket.deliver(envelope)).rejects.toThrow(); // the guarded ACK's post-check rejects the callback
+      expect(ackCalls).toBe(1); // the ACK ran, then the incident dominated the guarded continuation
+      expect(composition.lastIntake()).toBeNull(); // the callback never completed → nothing recorded as processed
+      // The durable transport record was NOT ACK-recorded/materialized after the incident (post-ACK ops prevented).
+      const store = await As1ProfileInboundStore.open(stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+      const transport = await store.readTransport('Ev0AGENTOFFICE01');
+      expect(transport).not.toBeNull();
+      if (transport === null) throw new Error('expected a durable transport record');
+      expect(transport.state).not.toBe('TRANSPORT_ACK_RECORDED');
+      expect(transport.state).not.toBe('MATERIALIZED');
+      // The callback performed NO durable kill itself — the incident only closed admission. The owner routes the
+      // pending incident EXACTLY ONCE through the existing durable kill (single DISABLED_LATCHED).
+      expect(composition.status().incidentGateOpen).toBe(false);
+      expect(composition.status().killEngaged).toBe(false);
+      const cleanup = await composition.incidentKill();
+      expect(cleanup.state).toBe('DISABLED_LATCHED');
+      expect(cleanup.killEngaged).toBe(true);
+      await expect(composition.incidentKill()).rejects.toThrow(); // the durable incident path is entered exactly once
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  // Decorate the internally-opened inbound store so a chosen store op fires the incident AFTER it completes (mid
+  // processEnvelope); the incident-guarded store's post-check must then reject the NEXT durable side effect.
+  function firingInboundStoreDecorator(methodName: keyof As1ProfileInboundStore, fire: () => void): (store: As1ProfileInboundStore) => As1ProfileInboundStore {
+    return (store) =>
+      new Proxy(store, {
+        get: (target, property, receiver): unknown => {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (typeof value !== 'function') return value;
+          const bound = (value as (...callArgs: readonly unknown[]) => unknown).bind(target);
+          if (property === methodName) {
+            return async (...callArgs: readonly unknown[]): Promise<unknown> => {
+              const result = await bound(...callArgs); // the real inbound store op completes (its own effect)...
+              fire(); // ...then a SIGUSR2 closes admission mid-callback; the guarded store rejects the next op
+              return result;
+            };
+          }
+          return bound;
+        },
+      });
+  }
+
+  // Decorate the store so a chosen op THROWS a plain (non-quarantine) error on its first call, leaving the durable
+  // record exactly at its prior state WITHOUT closing admission — used to seed a recoverable PREACK_PENDING record.
+  function throwingInboundStoreDecorator(methodName: keyof As1ProfileInboundStore): (store: As1ProfileInboundStore) => As1ProfileInboundStore {
+    return (store) =>
+      new Proxy(store, {
+        get: (target, property, receiver): unknown => {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (typeof value !== 'function') return value;
+          if (property === methodName) {
+            return (): Promise<never> => Promise.reject(new Error(`seed: ${methodName} interrupted before its durable decision`));
+          }
+          return (value as (...callArgs: readonly unknown[]) => unknown).bind(target);
+        },
+      });
+  }
+
+  async function runInboundStageIncident(
+    methodName: keyof As1ProfileInboundStore,
+    assertNoNextDurableEffect: (transport: Awaited<ReturnType<As1ProfileInboundStore['readTransport']>>) => void,
+  ): Promise<void> {
+    const gateCloser: { close: () => void } = { close: () => undefined };
+    const { composition, socket, stateRoot } = await startAgentOfficeComposition({
+      decorateInboundStore: firingInboundStoreDecorator(methodName, () => gateCloser.close()),
+    });
+    gateCloser.close = () => composition.closeIncidentGateNow();
+    try {
+      await composition.start();
+      await expect(socket.deliver(slackEnvelope())).rejects.toThrow(); // the guarded store's POST-op guard rejects the next op
+      // The stage's own op completed, but the F01-A guard began NO next durable side effect and recorded no intake.
+      expect(composition.lastIntake()).toBeNull();
+      const store = await As1ProfileInboundStore.open(stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+      assertNoNextDurableEffect(await store.readTransport('Ev0AGENTOFFICE01'));
+      // The inbound callback performed NO durable kill itself — the incident only closed admission (in-memory). The
+      // owner then routes the pending incident EXACTLY ONCE through the existing durable kill (single DISABLED_LATCHED).
+      expect(composition.status().incidentGateOpen).toBe(false);
+      expect(composition.status().killEngaged).toBe(false);
+      const cleanup = await composition.incidentKill();
+      expect(cleanup.state).toBe('DISABLED_LATCHED');
+      expect(cleanup.killEngaged).toBe(true);
+      await expect(composition.incidentKill()).rejects.toThrow(); // the durable incident path is entered exactly once
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  }
+
+  it('an incident during inbound RECEIPT persistence begins NO next durable side effect (openTransport never begins)', async () => {
+    // The guard rejects immediately AFTER persistReceipt, before recordDedupe/openTransport: no transport record is
+    // ever created. Adversarial vs 3165e747 / an unguarded store, where openTransport runs and leaves a PREACK_PENDING
+    // record before the service's own next gate check stops the ACK.
+    await runInboundStageIncident('persistReceipt', (transport) => {
+      expect(transport).toBeNull();
+    });
+  });
+
+  it('an incident during the DEDUPE/OPEN transition begins NO next durable side effect (openTransport never begins)', async () => {
+    // insertDedupe runs after the receipt and before openTransport; the guard rejects immediately AFTER it, so
+    // openTransport never begins. Adversarial vs an unguarded store, where openTransport runs (leaving PREACK_PENDING).
+    await runInboundStageIncident('insertDedupe', (transport) => {
+      expect(transport).toBeNull();
+    });
+  });
+
+  it('an incident during the inbound root BIND begins NO next durable side effect (pre-ACK decision never commits)', async () => {
+    // openTransport precedes the bind, so a PREACK_PENDING record already exists; the guard rejects immediately AFTER
+    // bindFirstRoot, before commitPreAckDecision, so the record NEVER advances to PREACK_ROOT_BOUND. Adversarial vs
+    // 3165e747 / an unguarded store, where commitPreAckDecision runs and leaves PREACK_ROOT_BOUND before the ACK gate.
+    await runInboundStageIncident('bindFirstRoot', (transport) => {
+      expect(transport?.state ?? 'ABSENT').toBe('PREACK_PENDING');
+    });
+  });
+
+  it('an incident during result MATERIALIZATION begins NO next durable side effect (intake never materializes)', async () => {
+    // The transport is already TRANSPORT_ACK_RECORDED and the ACK sent; the guard rejects immediately AFTER the
+    // materialize intake-artifact write, before persistPointerArtifact/commitMaterialized, so the record NEVER reaches
+    // MATERIALIZED and no intake id is recorded. Adversarial vs an unguarded store, where materialization completes.
+    await runInboundStageIncident('persistIntakeArtifact', (transport) => {
+      expect(transport?.state ?? 'ABSENT').toBe('TRANSPORT_ACK_RECORDED');
+    });
+  });
+
+  it('an incident during PRE-ACK RECOVERY begins NO next durable side effect and routes exactly once to the durable kill', async () => {
+    // Seed a durable PREACK_PENDING record WITHOUT an incident: a first owner opens the transport, then bindFirstRoot is
+    // interrupted before the pre-ACK decision commits. A clean stop releases the lock and leaves the record recoverable.
+    const seed = await startAgentOfficeComposition({ decorateInboundStore: throwingInboundStoreDecorator('bindFirstRoot') });
+    await seed.composition.start();
+    await expect(seed.socket.deliver(slackEnvelope())).rejects.toThrow();
+    const seedStore = await As1ProfileInboundStore.open(seed.stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+    expect((await seedStore.readTransport('Ev0AGENTOFFICE01'))?.state ?? 'ABSENT').toBe('PREACK_PENDING');
+    const seedStop = await seed.composition.stop();
+    expect(seedStop.state).toBe('DISABLED_CLEAN'); // a clean release; the recoverable record survives untouched
+
+    // A second owner recovers that record at startup; the incident fires mid-bind INSIDE recoverPreAckDecision.
+    const gateCloser: { close: () => void } = { close: () => undefined };
+    const recover = await startAgentOfficeComposition({
+      stateRoot: seed.stateRoot,
+      decorateInboundStore: firingInboundStoreDecorator('bindFirstRoot', () => gateCloser.close()),
+    });
+    gateCloser.close = () => recover.composition.closeIncidentGateNow();
+    try {
+      await expect(recover.composition.start()).rejects.toThrow(); // recovery bind fires the incident; the guard rejects
+      expect(recover.composition.lastIntake()).toBeNull();
+      // Recovery began NO next durable side effect: the record NEVER advanced past PREACK_PENDING (no commitPreAckDecision).
+      const store = await As1ProfileInboundStore.open(seed.stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+      expect((await store.readTransport('Ev0AGENTOFFICE01'))?.state ?? 'ABSENT').toBe('PREACK_PENDING');
+      // The startup revert routed the incident EXACTLY ONCE through the durable kill (idempotent global latch).
+      expect(await readControlState(seed.stateRoot)).toBe('DISABLED_LATCHED');
+    } finally {
+      await recover.composition.incidentKill().catch(() => undefined);
     }
   });
 });

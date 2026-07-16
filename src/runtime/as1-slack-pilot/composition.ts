@@ -59,7 +59,7 @@ import { As1Outbox } from '../../application/slack-pilot/outbox.js';
 import type { AgentOfficeRuntimeIdentity } from '../identity.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import { readStateRootFormat, resolveContainedPath } from '../../persistence/file-store/path-safety.js';
-import { AS1_PROFILE_SLUGS, As1SlackControl, type As1GlobalState, type As1ProfileSlug } from '../../operations/readiness/as1-slack-control.js';
+import { AS1_PROFILE_SLUGS, As1SlackControl, type As1ControlCloseOutcome, type As1GlobalState, type As1ProfileSlug } from '../../operations/readiness/as1-slack-control.js';
 
 /**
  * Bind the inbound service's operational control gate to the ONE canonical, lock-owning control for a closed
@@ -205,6 +205,10 @@ export interface As1CompositionDependencies {
   readonly buildDeliveryProvenance: (input: As1DeliveryProvenanceInput) => As1DeliveryProvenanceGate;
   readonly evidenceVerifier: As1GitProvenanceVerifier;
   readonly missionAuthorityRoot?: string;
+  /** Test-only, inert in production: decorate the internally-opened inbound store BEFORE it is incident-guarded, so an
+   *  ordered-deferred test can fire an incident DURING a specific inbound store await (receipt/dedupe/open/…) and prove
+   *  the guarded store begins no next side effect. Production callers never supply it. */
+  readonly decorateInboundStore?: (store: As1ProfileInboundStore) => As1ProfileInboundStore;
 }
 
 interface LiveState {
@@ -444,25 +448,40 @@ export class As1GatewayComposition {
     }
     this.receiving = false;
     let lockReleased = true;
+    // F01-B: consume the PHASE-AWARE close outcome. A fallback kill is engaged ONLY when authority is genuinely RETAINED
+    // (a pre-unlink release failure while this owner still positively holds the fixed leaf). Once the namespace lock is
+    // unlinked or ownership is not proven (`authorityCeased`), the old control MUST perform no durable mutation — a
+    // second writer may already hold the freed lock — so the RELEASE/cleanup ambiguity is surfaced with NO fallback kill.
+    let closeOutcome: As1ControlCloseOutcome | null = null;
     try {
-      await this.control.close();
+      closeOutcome = await this.control.close();
     } catch (error) {
+      // An UNEXPECTED close error leaves the authority state unknown → fail closed with NO fallback mutation.
       lockReleased = false;
       ambiguities.push(`RELEASE:${redactError(error).code}`);
-      // The release failed with ownership RETAINED (control.close commits release only on success). Durably
-      // fallback-kill so a clean DISABLED_CLEAN is never left behind a stuck lock. Partial-release semantics make a
-      // release RETRY unsafe, so the RELEASE ambiguity is PRESERVED (never a clean success) and the lock remains held —
-      // a truthfully-flagged limitation, not a synthesized clean/latched state.
-      if (this.control.isOpen() && !this.control.isGloballyLatched()) {
-        try {
-          await this.control.engageGlobalKill(fallbackReason);
-        } catch (killError) {
-          ambiguities.push(`FALLBACK_KILL:${redactError(killError).code}`);
+    }
+    if (closeOutcome !== null) {
+      if (closeOutcome.authorityCeased) {
+        if (closeOutcome.cleanupAmbiguity !== null) {
+          lockReleased = false;
+          ambiguities.push(`RELEASE:${closeOutcome.cleanupAmbiguity}`);
         }
-        if (!this.control.isGloballyLatched()) ambiguities.push('KILL_NOT_ENGAGED');
+      } else {
+        // Authority RETAINED — the sole writer may durably fallback-kill so a clean DISABLED_CLEAN is never left behind
+        // a stuck lock. The ambiguity is PRESERVED (never a clean success) and the lock remains held (flagged limitation).
+        lockReleased = false;
+        ambiguities.push(`RELEASE:${closeOutcome.cleanupAmbiguity ?? 'RETAINED'}`);
+        if (this.control.isOpen() && !this.control.isGloballyLatched()) {
+          try {
+            await this.control.engageGlobalKill(fallbackReason);
+          } catch (killError) {
+            ambiguities.push(`FALLBACK_KILL:${redactError(killError).code}`);
+          }
+          if (!this.control.isGloballyLatched()) ambiguities.push('KILL_NOT_ENGAGED');
+        }
       }
     }
-    const status = this.status(); // re-observed AFTER close/release + any release-failure fallback kill (never stale)
+    const status = this.status(); // re-observed AFTER close/release + any RETAINED-authority fallback kill (never stale)
     const cleanupProven = ambiguities.length === 0 && lockReleased;
     return {
       ...status,
@@ -610,9 +629,19 @@ export class As1GatewayComposition {
       );
       const proof = await this.guardedAwait(() => verifier.verify({ profile, wire, grant, web: guardedPorts.web, socket: guardedPorts.socket }));
       const boundContext: As1ProfileRuntimeContext = { ...context, botUserId: proof.botUserId };
-      const service = new As1InboundService(boundContext, grant, store, gate);
+      // F01-A: construction-bind the incident guard to the ACTUAL inbound-service collaborators — the durable inbound
+      // store, the control gate, and the live Slack ACK on each delivered envelope — so an incident during any of the
+      // service's internal receipt/dedupe/open-transport/ACK/pre-ACK-recovery/materialization awaits rejects BEFORE the
+      // service begins its next store/transport/ACK/bind/consume/Slack side effect. The As1InboundService contract and
+      // source are unchanged; this reuses the same construction-bound `incidentGuardedPort`/`incidentGuardedCallback`
+      // pattern applied to the startup verifier / transport / evidence / outbox ports.
+      const inboundStore = deps.decorateInboundStore !== undefined ? deps.decorateInboundStore(store) : store;
+      const service = new As1InboundService(boundContext, grant, this.incidentGuardedPort(inboundStore), this.incidentGuardedPort(gate));
       socket.onEnvelope(async (envelope) => {
-        const result = await service.processEnvelope(envelope);
+        const result = await service.processEnvelope({
+          ...envelope,
+          acknowledge: this.incidentGuardedCallback(() => envelope.acknowledge()),
+        });
         if (result.intakeId !== null) this.lastIntakeId = result.intakeId;
       });
 
@@ -702,8 +731,14 @@ export class As1GatewayComposition {
     }
     const status = this.status();
     let lockReleased = true;
+    // F01-B: consume the phase-aware close outcome. The revert already engaged any needed durable kill/rollback above,
+    // so NO additional fallback mutation runs here — a non-clean release only surfaces the RELEASE/cleanup ambiguity.
     try {
-      await this.control.close();
+      const closeOutcome = await this.control.close();
+      if (!closeOutcome.authorityCeased || closeOutcome.cleanupAmbiguity !== null) {
+        lockReleased = false;
+        ambiguities.push(`RELEASE:${closeOutcome.cleanupAmbiguity ?? 'RETAINED'}`);
+      }
     } catch (error) {
       lockReleased = false;
       ambiguities.push(`RELEASE:${redactError(error).code}`);
@@ -969,8 +1004,13 @@ export class As1GatewayComposition {
   }
 
   public async close(): Promise<void> {
-    await this.control.close();
+    const outcome = await this.control.close();
     this.closed = true;
+    // Surface a non-clean release (retained authority OR a post-unlink/unproven cleanup ambiguity) to callers that
+    // only observe `close()` as success/failure (F01-B). The truthful phase-aware outcome is consumed by finishCleanup.
+    if (!outcome.authorityCeased || outcome.cleanupAmbiguity !== null) {
+      throw new DomainError('GATEWAY_DISABLED', `writer-lock release not proven clean: ${outcome.authorityCeased ? outcome.cleanupAmbiguity : 'RETAINED'}`);
+    }
   }
 
   private assertOpen(): void {
