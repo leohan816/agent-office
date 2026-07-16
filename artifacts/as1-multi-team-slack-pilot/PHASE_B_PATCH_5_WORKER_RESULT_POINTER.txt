@@ -1,0 +1,43 @@
+WORKER_PATCH_5_RESULT_POINTER
+MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
+PHASE: B_PRIVATE_LEO_ONLY_LIVE_COMPOSITION_PATCH_5
+ACTOR: Agent Office Worker
+SESSION: agent-office-opus
+MODEL_MODE_EFFORT_SKILL: Opus 4.8 (1M context) / Ultracode / max / /fable-builder
+RESULT_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_5_WORKER_RESULT.md
+RESULT_FILE_SHA256: 9b4e4bc7034d9a7b7c0e447d68a4b23cbeba24e97ebfb3a31e141d2fdcaf7b27
+POINTER_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_5_WORKER_RESULT_POINTER.txt
+FOUNDATION_DOCS_COMMIT: NOT_APPLICABLE
+TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001
+TARGET_BRANCH: feature/as1-phase-b-live-pilot-001
+STARTING_PRODUCT_HEAD: 3165e7470e7e69658aaa1b627d7cd47767478043
+PATCH_4_SOURCE_CANDIDATE: 0ab4782a79333113511513fb11bc9ef62c197ed08da
+INDEPENDENT_REVIEW: 79_PHASE_B_PATCH_4_INDEPENDENT_DELTA_REVIEW_RESULT.md
+REVIEW_RESULT_COMMIT: d669bdbbae00493ca62051c632210649d36f984b
+REVIEW_RESULT_SHA256: f5a2e7a0bb17236ad39db378cfad4624f32d290066c6defa3e8efe2040ee237a
+REVIEW_VERDICT: NEEDS_PATCH
+GOVERNANCE_HEAD_80_80A: 17c1a684b6269e201dd9ef44f7354c8473b1a9c6
+BRIEF_SHA256: 605a43df8c16acad70bf4d46a55853b6236a2210e89377cfaef9bd5ccbbce32d
+RUN_PROMPT_SHA256: 8dfc38e65b4ebd5e7d9e2cd323da2595cdbf0e49c0dd9109f0acc6ca3ec58ecd
+PATCH_5_IMPLEMENTATION_COMMIT: cca0cb5e2485c029b6d1715e37abf9bc55c548bd
+RESULT_COMMIT: cbf81c79f681d7a590da92351da38f59bcb48bee
+DESIGN: docs/integration/AGENT_OFFICE_AS1_PHASE_B_LIVE_COMPOSITION_DESIGN_DELTA.md
+CLOSED: F01-A (CRITICAL) + F01-B (CRITICAL) + dependent F06; F02-F05 preserved
+SUPERSEDES: the Patch 4 result claims that F01 was completely closed (the live inbound Slack callback used the RAW store/gate/ACK - review 79 F01-A) AND that "a writer-lock RELEASE failure retains ownership and engages a fallback kill" (unsafe once the leaf is unlinked - review 79 F01-B); Patch 1/2/2A/3/4 result+pointer left byte-unchanged
+SCOPE: exact 6-path lock (composition.ts + as1-slack-control.ts + writer-lock.ts + live-composition.test.ts + lifecycle.test.ts + AGENT_OFFICE_AS1_SLACK_SETUP.md) plus this result + pointer; no other path changed
+DIFFSTAT_3165e747_TO_cca0cb5: 6 files, 520 insertions, 78 deletions
+F01A_SUMMARY: the live Socket callback now constructs As1InboundService over incidentGuardedPort(inboundStore) + incidentGuardedPort(gate) and wraps the ACK with incidentGuardedCallback(() => envelope.acknowledge()), so a SIGUSR2 during any inbound internal await re-checks admission BEFORE and AFTER each collaborator promise and rejects before the next store/transport/ACK/bind-consume/materialization side effect; the one guarded service instance also covers recoverPending(). The As1InboundService source/contract are unchanged; a test-only inert decorateInboundStore hook injects the mid-op incident. Six ordered-deferred cases through the registered callback prove ZERO next durable side effect for incidents during receipt persistence (openTransport never begins -> null), dedupe/open (null), root bind (stays PREACK_PENDING), Slack ACK (no commitTransportAck), materialization (stays TRANSPORT_ACK_RECORDED, no intake), and pre-ACK recovery (recoverPreAckDecision never commits -> stays PREACK_PENDING); each also proves the incident routes EXACTLY ONCE through the durable kill.
+F01B_SUMMARY: WriterLock.releaseAuthority() returns a phase-aware outcome - RELEASED once the fixed leaf is unlinked (this.released set BEFORE the post-unlink fsync/close so authority is ceded irrevocably; a durability failure is a cleanupAmbiguity only, never retained authority, never a fallback), RETAINED only on a PRE-unlink failure while assertForegroundIdentity still positively proves this owner's leaf, LOST when ownership is not proven (no unlink, no fallback); the retained no-follow descriptor is closed DETERMINISTICALLY on every released/lost path. release() still throws on a non-clean outcome (event-store contract). As1SlackControl.close() returns As1ControlCloseOutcome (authorityCeased+cleanupAmbiguity), drops the lock on RELEASED/LOST and keeps it only on RETAINED; finishCleanup fallback-kills ONLY on RETAINED, else surfaces the RELEASE/LOST ambiguity with NO kill. Proofs: pre-unlink EACCES -> RETAINED+DISABLED_LATCHED; freed namespace -> LOST+DISABLED_CLEAN, no kill; post-unlink failure with a SECOND writer acquiring the freed leaf at the exact interleaving -> RELEASED, zero old-owner mutation, idempotent re-release.
+F06_SUMMARY: setup 10.4 now includes the live inbound callback store/gate/ACK in the incident-guard coverage (receipt, dedupe/open, Slack ACK, pre-ACK recovery, materialization) and replaces the inaccurate "release failure retains ownership + fallback kill" with the phase-aware behavior (freed/unproven leaf irrevocably cedes authority with a surfaced RELEASE ambiguity and NO fallback kill; only a pre-unlink proven-owner failure retains + sole-writer fallback-kills; retained descriptors closed deterministically). Only wording proved after F01 closes was changed; generic status/argv/one-client/fixed-root/zero-operand observers/live-disabled restart/default-disabled descriptor preserved.
+ADVERSARIAL_FAIL_ON_BASELINE: reverting the inbound wrapping to raw store/gate/ACK (3165e747 behavior) fails ALL SIX F01-A cases (ACK reaches TRANSPORT_ACK_RECORDED; receipt/dedupe leave PREACK_PENDING not null; bind/recovery advance to PREACK_ROOT_BOUND; materialization resolves instead of rejecting) - the B05 gate re-checks alone do not close them; neutralizing releaseAuthority to baseline "throw->RETAINED" fails the lifecycle post-unlink test (RETAINED not RELEASED) and the integration freed-namespace test (RETAINED not LOST); all pass on the fix; neutralizations reverted and re-verified green with zero ADV residue.
+FILEHANDLE_WARNING: ABSENT across 3 consecutive integration runs + the 5/19-file suites. Production closes the descriptor on every LOST/RELEASED path; the RETAINED path intentionally keeps it (live owner holds it for the process lifetime); the RETAINED-path TEST now restores perms and calls composition.close() to close it deterministically.
+FAILURES_RETRIES: (1) bind-stage observable corrected from readTransport===null (openTransport precedes the bind) and from a non-adversarial uniform "not materialized" (B05 gate re-checks also stop it) to stage-specific observables that isolate the exact next mutation; (2) pre-ACK recovery seeded via a THROWING (non-incident) bindFirstRoot + clean stop (DISABLED_CLEAN, record survives) then a second owner reusing the root - startAgentOfficeComposition gained an optional stateRoot; (3) ESLint: async-no-await ACK stub -> non-async Promise.resolve(); String(methodName) -> ${methodName}; closure-mutated local -> holder object.
+GATES: typecheck + core build + ESLint(5 changed paths, 0 errors) + git diff --check clean; 6-path scope + prior-evidence + descriptor byte-identity; secret/dynamic-target/unsafe-Git scans clean; changed-files 106/106; focused Phase B 5 files 188/188; full AS1 19 files 412/412; all --maxWorkers=1; no skips, no hangs
+PROHIBITIONS: no secret access, no Slack/network, no live tmux observe/mutate/input, no real signal, no child_process/exec/spawn, no owner-state mutation, no descriptor activation, no sub-agent, no self-review, no main/protected write, no force push
+DESCRIPTOR: config/agent-office.as1-slack-pilot.disabled.json left byte-unchanged (enabled:false, sha256 8e3b9985f09b366e046d03392bd60b2157264ec1f2eb4498bfa92e615802f5d7)
+OFFLINE_GATE_SYMLINK: untracked node_modules -> sibling AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001/node_modules; never committed; REMOVED before the commit sequence
+LIMITATIONS: all proofs synthetic (no live activation); the RETAINED path does NOT retry an ambiguous release (sole writer holds the lock until process exit, ambiguity reported truthfully); the pre-ACK recovery proof depends on the recovery gate being actionable at recoverPending (a disabled/latched owner skips recovery, a separate already-fail-closed path)
+PUSH_STATUS: NON_FORCE_PUSH to origin/feature/as1-phase-b-live-pilot-001 (this pointer commit is branch HEAD; upstream-equal after push)
+RETURN_TO: agent-office-advisor
+PROPOSED_NEXT_ACTOR: agent-office-advisor (may dispatch the independent agent-office-reviewer for the Patch 4 -> Patch 5 source-first delta review)
+STOP
