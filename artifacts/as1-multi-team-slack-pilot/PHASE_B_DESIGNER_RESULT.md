@@ -2,21 +2,23 @@
 
 MISSION_ID: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
-PASS: `PHASE_B_SECURITY_TRANSPORT_DESIGN_PATCH_2`
+PASS: `PHASE_B_F05_EXACT_BRIDGE_DESIGN_PATCH_3`
 
 ACTOR: `agent-office-designer`
 
 ROLE: `Agent Office Designer`
 
 AUTHORITY: committed
-`advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/53_PHASE_B_DESIGN_PATCH_2_HANDOFF.md`
-at `83edeae64075a7fc1454a6e9cad5e952d3cd0a98`
+`advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/56_PHASE_B_DESIGN_PATCH_3_HANDOFF.md`
+at `6186503f7e2c45dacbce83869aa2579d4bf073bd`
+
+PATCH_2_DESIGN_CANDIDATE_AND_PARENT: `1fad9734e83c751b911accffbb12d65df9e775c8`
 
 FIRST_PATCHED_DESIGN_COMMIT: `7ed79bbfd7deea0f8458a3965734ebd1de98eb35`
 
 INDEPENDENT_REVIEW_INPUT:
-`advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/52_PHASE_B_DESIGN_DELTA_REVIEW_RESULT.md`
-at governance commit `66deeebe234ddd65e8737e4fd2d1887e8c3a6cf7`
+`advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/55_PHASE_B_DESIGN_DELTA_REVIEW_2_RESULT.md`
+at governance commit `fea560eaea284e0b84d864d470cddd331568cdc8`
 
 ACTIVE_SCOPE_CORRECTION:
 `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/47B_PHASE_B_SCOPE_AUDIT_AND_DESIGN_CORRECTION.md`
@@ -30,7 +32,7 @@ PRODUCT_BASELINE: `0dfb4398be2ecd9295b35a94e3b461e25dad6f7c`
 
 PRODUCT_BRANCH: `feature/as1-phase-b-live-pilot-001`
 
-DESIGN_STATE: `READY_FOR_EXACT_SAME_REVIEWER_DELTA_REVIEW`
+DESIGN_STATE: `READY_FOR_EXACT_SAME_REVIEWER_F05_DELTA_REVIEW`
 
 HOLD: `NO`
 
@@ -53,8 +55,9 @@ The smallest safe Phase B delta is implementable without changing the reviewed
 AS1 authority schemas or introducing a database, Registry change, Exact
 Delivery v2 change, service manager, UI, or external product-code change.
 
-This bounded second patch preserves the same Reviewer's closed F01 and F04
-contracts and supplies exact closure designs for F02-D1, F03-R1, and F05-D1:
+This bounded third patch changes only F05-D1. It preserves the same Reviewer's
+closed F01, F02-D1, F03-R1, and F04 contracts and completes the sole remaining
+exact bridge contract:
 
 - F01 keeps the receive grant's frozen control/latch evidence hashes unchanged
   through delivery facts and gates live work with a separate construction-bound
@@ -72,16 +75,48 @@ contracts and supplies exact closure designs for F02-D1, F03-R1, and F05-D1:
 - F04 adds one zero-operand `incident-kill` action using fixed SIGUSR2, durable
   global-kill-first ordering, stable redacted results, and bounded shutdown,
   distinct from clean SIGTERM stop; and
-- F05-D1 retains the original close-on-exec `O_EXCL` lock descriptor as causal
-  ownership proof, performs both complete process/lock observations through one
-  Linux pidfd, and sends the fixed signal through that same pidfd. It accepts
-  fast acquisition without coarse timestamp ordering and cannot retarget an
-  exit/reap/reused numeric PID.
+- F05-D1 accepts only the fixed `/usr/bin/python3.14` regular UID/GID-0,
+  mode-0755, device-2049, inode-14996, 7,481,192-byte, Python-3.14.4 object with
+  SHA-256 `b8d8288faefdd300201f43fcf00f6f539a27218eeed3a3dff5ab10b9c4c99700`.
+  Every use hashes one no-follow-opened FD and executes that same FD as child
+  `/proc/self/fd/3`; the full `17,983`-byte literal has SHA-256
+  `557e32a2ab54beea3b3ec8ce1a68bb69a7f3b756db4e3b007d18a452f7a22d75`.
+  Its exact schemas, outcomes, two-key environment, projection ceilings, and
+  `1,000`/`1,500`/`2,000`/`3,000`/`10,000 ms` deadlines are normative. The
+  no-signal preflight runs before state-root initialization or lock creation.
+  Signal operations preserve the retained original `O_EXCL` lock FD, perform
+  both complete observations through one Linux pidfd, and send only the fixed
+  signal through that same pidfd. Fast acquisition needs no clock ordering and
+  exit/reap/reused numeric PIDs cannot be retargeted.
 
 The implementation map remains 14 paths. F03 is carried by composition and the
 already-listed exact-transport path; `exact-authority.ts` is not added. F05's
 sealed fixed Python-standard-library bridge is a compile-time literal inside
 the already-listed `writer-lock.ts`, not a package or fifteenth path.
+
+The exact F05 bridge contract is fully fixed in design section 11.1:
+
+- child environment is exactly `LANG=C.UTF-8,LC_ALL=C.UTF-8`; argv is exactly
+  pinned `/proc/self/fd/3 -I -S -c <literal>`; stdio is request pipe, response
+  pipe, stderr pipe, and verified interpreter FD 3, with every other child FD
+  closed and the writer-lock FD excluded;
+- capability input has exactly `operation,schemaVersion`; signal input adds
+  only the internally derived lock device/inode/hash and owner PID/start ticks;
+  request/result exact-key, type, enum, canonical-ASCII-plus-one-LF, duplicate,
+  malformed, oversize, and trailing-data rules are exhaustive;
+- request/stdin are capped at `8,191/8,192` bytes; response/stdout at
+  `511/512`; accepted stderr at zero with a `512`-byte drain cap; lock/stat/
+  fdinfo/proc-link at `4,096`; boot ID at `64`; status at `16,384`; cmdline at
+  `8,192`; and FD enumeration at `4,096` entries, all inclusive; and
+- pre-spawn verification, internal helper, parent helper, total-operation, and
+  owner-shutdown deadlines are exactly `1,000`, `1,500`, `2,000`, `3,000`, and
+  `10,000 ms`. Timeout is fail-closed/ambiguous, never success.
+
+The startup capability operation verifies the executing FD/version and pidfd
+APIs using only a self pidfd and zero-event poll. It runs before
+`initializeStateRoot`, state-root access, writer-lock acquisition, secret read,
+or other startup mutation; failure leaves an absent root absent and an existing
+root unchanged with no lock residue.
 
 The live pilot is locked to one configured Slack workspace, Leo as the sole
 authorized user, two fixed Apps with immutable private-channel mappings, one
@@ -107,9 +142,10 @@ same-thread outbox modules. It also closes the missing live concerns:
   narrow tmux port with exact scoped-writer pointer bytes, selected-profile
   destination binding, two complete precommit observations plus one complete
   post-load/pre-paste observation, and no historical fallback;
-- foreground lifecycle, retained lock-descriptor ownership and same-pidfd
-  observe/signal proof, distinct clean stop and durable incident kill, bounded
-  drain/shutdown, lock release, and existing fail-closed replay behavior;
+- mutation-free exact-interpreter/API preflight, foreground lifecycle, retained
+  lock-descriptor ownership and same-pidfd observe/signal proof, distinct clean
+  stop and durable incident kill, bounded bridge/drain/shutdown, lock release,
+  and existing fail-closed replay behavior;
 - live-disabled restart and no automatic reconnect or rollover;
 - one Agent Office round trip then manual stop/audit, then one Foundation round
   trip then manual stop/audit;
@@ -141,6 +177,8 @@ targeted sections/assertions where large.
 
 ### Governance authority and evidence
 
+- `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/56_PHASE_B_DESIGN_PATCH_3_HANDOFF.md`
+- `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/55_PHASE_B_DESIGN_DELTA_REVIEW_2_RESULT.md`
 - `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/53_PHASE_B_DESIGN_PATCH_2_HANDOFF.md`
 - `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/52_PHASE_B_DESIGN_DELTA_REVIEW_RESULT.md`
 - `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/50A_PHASE_B_DESIGN_PATCH_RUN_PROMPT.md`
@@ -154,11 +192,11 @@ targeted sections/assertions where large.
 - `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/46_PHASE_B_INTAKE.md`
 
 These were read from the named isolated `foundation-docs` governance worktree.
-The active patch-2 handoff was read from exact governance commit
-`83edeae64075a7fc1454a6e9cad5e952d3cd0a98`; the complete exact same-Reviewer
-result was read from `66deeebe234ddd65e8737e4fd2d1887e8c3a6cf7`.
-The first patch handoff/result and original handoff remain historical evidence;
-the original design authority was verified at
+The active patch-3 handoff was read from exact governance commit
+`6186503f7e2c45dacbce83869aa2579d4bf073bd`; the complete exact same-Reviewer
+result was read from `fea560eaea284e0b84d864d470cddd331568cdc8`.
+The patch-2/first-patch handoffs and results and the original handoff remain
+historical evidence; the original design authority was verified at
 `fe8b5c2bc1294783c07962cdab18e45a2ca2077f` on the authorized governance branch.
 
 The private single-user lock was verified as committed at
@@ -231,21 +269,26 @@ tmux input or product mutation was performed.
 
 ## Read-only target capability evidence
 
-The patch-2 handoff authorized read-only checks of the incarnation primitive.
+The patch-3 handoff authorized read-only checks of the incarnation primitive.
 On the assigned Linux target the Designer verified:
 
 - Linux `7.0.0-27-generic` x86_64 and `/proc` present as an owner-0,
   non-symlink mode-0555 filesystem root;
-- Node `v24.18.0` with libuv `1.52.1`; Node exposes only numeric
-  `process.kill`, not a public `pidfd_send_signal` binding;
-- fixed `/usr/bin/python3.14` is Python `3.14.4`, a UID-0 regular mode-0755
-  executable with SHA-256
+- fixed `/home/leo/.nvm/versions/node/v24.18.0/bin/node` is Node `v24.18.0`
+  with libuv `1.52.1`, UID-1000 mode-0755 on device 2049/inode 397924; Node
+  exposes only numeric `process.kill`, not a public `pidfd_send_signal` binding;
+- fixed `/usr/bin/python3.14` is Python `3.14.4`, a UID/GID-0 regular mode-0755,
+  one-link, device-2049, inode-14996, 7,481,192-byte executable with SHA-256
   `b8d8288faefdd300201f43fcf00f6f539a27218eeed3a3dff5ab10b9c4c99700`;
-- isolated `/usr/bin/python3.14 -I -S` exposes standard-library
+- the same no-follow-opened interpreter FD executes successfully through child
+  `/proc/self/fd/3 -I -S` under only `LANG=C.UTF-8,LC_ALL=C.UTF-8`, reports that
+  proc-fd path as `sys.executable`, and exposes standard-library
   `os.pidfd_open` and `signal.pidfd_send_signal`; and
 - a real read-only self-pidfd open succeeded, `/proc/self/fdinfo` bound it to
   the expected PID, and a zero-time poll reported the live incarnation as not
-  exited. The signal API was checked for availability but was not invoked.
+  exited. The complete embedded literal compiled and its actual exact
+  `CAPABILITY_PROBE` returned the exact success schema under the `2,000 ms`
+  bound. The signal API was checked for availability but was not invoked.
 
 The installed `pidfd_open(2)` and `pidfd_send_signal(2)` manuals confirm that a
 pidfd remains bound to its process incarnation, becomes pollable on exit, and
@@ -279,11 +322,15 @@ file, service, state root, tmux object, or external system was mutated.
    adapter-lifecycle correction, not an identity or authority-schema change.
 7. A long-running `start` cannot share the writer lock with a one-shot `stop`.
    PID/boot/build metadata and numeric-PID signaling do not survive reuse safely.
-   Retaining the original close-on-exec lock descriptor proves acquisition
-   without coarse clock ordering; two complete observations and the fixed
-   signal through one open Linux pidfd bind executable, UID, boot, entry, root,
-   build, lock inode, and process incarnation without a daemon, listener,
-   package, helper file, or writer-lock schema change.
+   Exact executable pinning is feasible inside `writer-lock.ts`: verify/hash one
+   interpreter FD, inherit it as FD 3, and exec `/proc/self/fd/3`, with a sealed
+   literal and exact schemas/bounds. Its self-pidfd preflight can precede all
+   state-root mutation. Retaining the original close-on-exec lock descriptor
+   then proves acquisition without coarse clock ordering; two complete
+   observations and the fixed signal through one open Linux pidfd bind
+   executable, UID, boot, entry, root, build, lock inode, and process
+   incarnation without a daemon, listener, package, helper file, or writer-lock
+   schema change.
 8. The one common state root plus its writer lock/global control preserves
    mutual exclusion, while the existing contained profile roots preserve all
    per-Team state, dedupe, authority, journal, evidence, outbox, and latch
@@ -323,10 +370,11 @@ section 3.1 and reproduced here for routing.
   control/latch actionability predicate, fixed durable operator kill, drain
   gating, and redacted observation while retaining frozen authority fields.
 - `src/persistence/file-store/writer-lock.ts` — strictly observe the existing
-  unchanged v1 lock while retaining its original close-on-exec descriptor; use
-  one fixed embedded Python-standard-library bridge to observe the exact owner
-  twice through one pidfd and send only the closed fixed signal through that
-  same incarnation.
+  unchanged v1 lock while retaining its original close-on-exec descriptor;
+  verify/hash/pin the exact interpreter object, execute its inherited FD with
+  the full fixed literal and exact environment/schema/bounds, run capability
+  before startup mutation, then observe the exact owner twice through one pidfd
+  and send only the closed fixed signal through that same incarnation.
 - `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` — supply the missing exact
   `AS1_SLACK_STATE_ROOT` owner instruction and closed foreground start, clean
   stop, and incident-kill procedure.
@@ -346,9 +394,11 @@ section 3.1 and reproduced here for routing.
 - `tests/integration/as1-slack-git-artifact-source.test.ts` (new) — focused
   ready/not-ready and immutable fixed-artifact observation proof.
 - `tests/operations/as1-slack-lifecycle.test.ts` — focused clean stop versus
-  durable incident kill, retained lock-FD and same-pidfd ownership, fast valid
-  acquisition, exit/reap/PID-reuse non-retargeting, bounded shutdown/lock
-  release, live-disabled restart, and redacted status.
+  durable incident kill; interpreter object/hash/replacement and inherited-FD
+  execution; API/schema/byte/count/time boundaries and zero-mutation preflight;
+  retained lock-FD and same-pidfd ownership; fast valid acquisition; exit/reap/
+  PID-reuse non-retargeting; bounded shutdown/lock release; live-disabled
+  restart; and redacted status.
 
 An Advisor implementation handoff may narrow this list. It must not broaden it
 without a new design decision and authority.
@@ -404,11 +454,15 @@ The corrected design requires only:
   simultaneous, proving one fixed workspace, the Leo singleton, immutable App/
   channel mappings, and one root-to-result round trip each;
 - focused one-root, same-thread result, and replay checks;
-- focused retained-lock-FD/same-pidfd/executable/UID/boot/entry/root/build
-  lifecycle tests, including fast valid acquisition and exit/reap/PID reuse
-  after verification before send; distinct fixed clean stop and durable incident
+- focused mutation-free preflight and lifecycle tests: exact interpreter path/
+  type/owner/mode/device/inode/size/hash/version, pre-/post-open replacement and
+  pinned-FD execution, literal identity, API absence, exact request/result
+  schema/outcome, every byte/count/time boundary, timeout, and zero state-root/
+  lock residue; retained-lock-FD/same-pidfd executable/UID/boot/entry/root/build
+  observations; fast valid acquisition and exit/reap/PID reuse after
+  verification before send; distinct fixed clean stop and durable incident
   kill; kill-before-shutdown ordering; bounded drain/shutdown and lock release;
-  no numeric-PID fallback, package/helper path, or generic reset/signal;
+  no numeric owner-PID fallback, package/helper path, or generic reset/signal;
   live-disabled restart; redaction; and zero-listener checks;
 - changed-file secret/static scans and directly affected Phase A/Exact Delivery
   regressions;
@@ -421,19 +475,24 @@ pane, or the owner state root.
 
 - exact patch changed-path scope: `PASS` — the same three authorized design
   artifacts only, all modifications;
-- committed patch-2 authority/runtime/branch/base/upstream preflight: `PASS`;
+- committed patch-3 authority/runtime/branch/base/upstream preflight: `PASS`;
 - committed private single-user lock coverage: `PASS` — no path was added and
   the implementation map remains exactly 14 paths;
-- F01/F04 preservation plus F02-D1/F03-R1/F05-D1 exact section/term and stale-
-  contradiction checks: `PASS`;
-- authorized Linux target read-only `pidfd`/fixed-interpreter capability proof:
-  `PASS`; no signal was sent;
+- F01/F02-D1/F03-R1/F04 preservation plus F05-D1 exact section/term, constant,
+  schema, bounds, preflight-order, and stale-contradiction checks: `PASS`;
+- embedded bridge literal UTF-8 length/SHA/syntax check: `PASS` — `17,983` bytes,
+  `557e32a2ab54beea3b3ec8ce1a68bb69a7f3b756db4e3b007d18a452f7a22d75`;
+- authorized Linux target read-only verified-FD `CAPABILITY_PROBE`: `PASS` —
+  exact result, exit `0`, empty stderr, no timeout, and no process signal;
+- read-only bridge decoder checks: `PASS` — exact capability success plus
+  missing, extra, duplicate, trailing, and oversized request rejection at exact
+  exit/outcome pairs, all with empty stderr and no process signal;
 - pointer key uniqueness and authority/result/design/private-scope fields:
   `PASS`;
 - staged whitespace/error check (`git diff --cached --check`): `PASS`;
 - staged exact three-path name/status and complete staged-content inspection:
   `PASS`;
-- product tests/typecheck/build: `NOT RUN` by exact patch-2 handoff. The original
+- product tests/typecheck/build: `NOT RUN` by exact patch-3 handoff. The original
   design-pass disclosure remains unchanged: an earlier quoting error invoked
   `npm test`, which exited immediately with `vitest: not found`; no test case ran
   and no file changed;
@@ -473,16 +532,16 @@ review.
 ## Boundary evidence
 
 - Work occurred only in the named Phase B product worktree.
-- Product worktree began clean and upstream-equal at first patched design commit
-  `7ed79bbfd7deea0f8458a3965734ebd1de98eb35` on the authorized branch; that
+- Product worktree began this patch clean and upstream-equal at exact patch-2
+  candidate `1fad9734e83c751b911accffbb12d65df9e775c8` on the authorized branch; that
   commit is a direct descendant of the exact Phase A baseline.
 - Assigned Designer runtime binding was verified read-only as
   `agent-office-designer` at `$24/@24/%24`, direct child
   `codex -m gpt-5.6-sol -c model_reasoning_effort=max`, workspace
   `/home/leo/Project/agent-office`.
 - No sub-agent, delegated context, alternate session, secret access, Slack
-  connection, external product edit, runtime implementation, completed test
-  case, tmux input, or self-review occurred.
+  connection, external product edit, runtime implementation, product test case,
+  tmux input, process signal, or self-review occurred.
 - The three design artifacts are the only intended changes for this pass.
 
 The exact design commit and upstream-equality evidence are returned out of band

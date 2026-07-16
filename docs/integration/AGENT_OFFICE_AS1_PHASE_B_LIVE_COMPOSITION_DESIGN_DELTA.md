@@ -1,14 +1,17 @@
 # Agent Office AS1 Phase B Live Composition Design Delta
 
-Status: `REVIEW_READY_PATCHED_2_DESIGN_ONLY`
+Status: `REVIEW_READY_PATCHED_3_DESIGN_ONLY`
 
 Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
-Pass: `PHASE_B_SECURITY_TRANSPORT_DESIGN_PATCH_2`
+Pass: `PHASE_B_F05_EXACT_BRIDGE_DESIGN_PATCH_3`
 
-Authority: committed Designer patch-2 handoff
-`53_PHASE_B_DESIGN_PATCH_2_HANDOFF.md` at
-`83edeae64075a7fc1454a6e9cad5e952d3cd0a98`
+Authority: committed Designer patch-3 handoff
+`56_PHASE_B_DESIGN_PATCH_3_HANDOFF.md` at
+`6186503f7e2c45dacbce83869aa2579d4bf073bd`
+
+Exact patch-2 design candidate and parent:
+`1fad9734e83c751b911accffbb12d65df9e775c8`
 
 First patched design and exact parent:
 `7ed79bbfd7deea0f8458a3965734ebd1de98eb35`
@@ -16,9 +19,9 @@ First patched design and exact parent:
 Original reviewed design commit:
 `3d359639c4d819f1c601481245daa81d5de9d5fc`
 
-Independent `NEEDS_PATCH` input:
-`52_PHASE_B_DESIGN_DELTA_REVIEW_RESULT.md` at governance commit
-`66deeebe234ddd65e8737e4fd2d1887e8c3a6cf7`
+Complete same-Reviewer `NEEDS_PATCH` input:
+`55_PHASE_B_DESIGN_DELTA_REVIEW_2_RESULT.md` at governance commit
+`fea560eaea284e0b84d864d470cddd331568cdc8`
 
 Active scope correction:
 `47B_PHASE_B_SCOPE_AUDIT_AND_DESIGN_CORRECTION.md` at
@@ -40,15 +43,14 @@ composition and operator wiring.
 
 The reviewed Phase A contracts support the Phase B pilot without a database,
 authority-schema change, Registry change, Exact Delivery v2 change, systemd
-unit, HTTP/UI surface, or external product-code change. This second patch
-preserves the same Reviewer's closed F01 frozen-authority/live-actionability
-contract and closed F04 incident-kill contract. It closes the three remaining
-document defects: F02-D1 now mirrors the scoped pointer writer's exact persisted
-representation; F03-R1 restores a complete fresh post-load destination proof;
-and F05-D1 binds both fixed signals to one Linux process incarnation without a
-coarse timestamp comparison or numeric-PID signal handoff. Implementation may
-therefore proceed only after the exact same Reviewer accepts this delta and the
-Advisor issues a new exact implementation handoff.
+unit, HTTP/UI surface, or external product-code change. This third patch changes
+only F05-D1. It preserves the same Reviewer's closed F01, F02-D1, F03-R1, and
+F04 contracts byte-for-contract except for direct F05 consistency references.
+F05-D1 now fixes the complete bridge literal, interpreter object identity and
+per-use pinned-FD execution binding, exact schemas and bounds, and a capability
+preflight that precedes every startup mutation. Implementation may therefore
+proceed only after the exact same Reviewer accepts this delta and the Advisor
+issues a new exact implementation handoff.
 
 The delta is deliberately small:
 
@@ -136,13 +138,13 @@ not current edit permission.
 | `src/adapters/gateways/slack-pilot/exact-transport.ts` | Add the production `NodeAs1TmuxPort` behind the existing journal/one-use transport; require the scoped writer's exact canonical-plus-LF pointer bytes, raw hash, content-addressed filename, private mode, and 32-KiB bound; pin once and load only through closed stdin; bind the selected profile; perform two complete exact-key/all-15-field observations before `PREPARED` and a third complete observation after `BUFFER_LOADED` immediately before `PASTE_STARTED`; preserve manual reconciliation and the no-retry boundary. |
 | `src/application/slack-pilot/inbound-store.ts` | Add read-only typed accessors for the terminal tmux delivery record and atomic grant/lease consumption record needed by `buildEvidenceAuthority`; do not change record shapes or paths. |
 | `src/operations/readiness/as1-slack-control.ts` | Add a construction-bound live delivery-actionability predicate and redacted observation, plus the fixed operator-incident kill transition; retain the frozen authority fields, state vocabulary, transition table, latches, and lock ownership. |
-| `src/persistence/file-store/writer-lock.ts` | Retain the original close-on-exec `O_EXCL` lock descriptor for the foreground lifetime without changing `agent-office.writer-lock.v1`; add the target-locked fixed Python-standard-library `pidfd` bridge and two same-pidfd owner observations for closed `stop`/`incident-kill`, binding lock descriptor/inode, PID start ticks, UID, boot, executable inode, exact AS1 entry, root, and build to the incarnation that receives the fixed signal. |
+| `src/persistence/file-store/writer-lock.ts` | Retain the original close-on-exec `O_EXCL` lock descriptor for the foreground lifetime without changing `agent-office.writer-lock.v1`; before startup mutation verify and execute the exact Python `3.14.4` object through its pinned inherited FD using the full sealed bridge literal, exact two-key environment, exact schemas/bounds, and no-signal capability operation; for closed `stop`/`incident-kill`, bind two complete observations and the fixed signal to one pidfd plus the lock descriptor/inode, PID start ticks, UID, boot, executable inode, exact AS1 entry, root, and build. |
 | `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` | Add the exact `AS1_SLACK_STATE_ROOT` owner instruction and the closed foreground start, clean-stop, and zero-operand incident-kill procedure for the private pilot. |
 | `tests/adapters/as1-slack-socket-client.test.ts` | Prove authenticated quarantine, receive arm, pre-arm bounds, disconnect, and no pre-arm parse/ACK. |
 | `tests/integration/as1-slack-exact-transport.test.ts` | Prove exact canonical-plus-one-LF pointer representation, raw hash/filename, private mode, 32-KiB boundary, no-follow/type/owner/grammar/correlation checks, pin/no-reopen and closed stdin/argv; prove profile-bound equality in two complete precommit observations plus one complete post-load/pre-paste observation, precommit rejection versus postcommit manual reconciliation, one-use delivery, and unchanged no-retry behavior. |
 | `tests/integration/as1-slack-live-composition.test.ts` | New single focused composition test: prove distinct frozen/live control records complete unchanged evidence equality only while the live predicate is actionable; then run one fixed-workspace/Leo-only Agent Office root-to-result round trip and stop followed by one isolated Foundation round trip. |
 | `tests/integration/as1-slack-git-artifact-source.test.ts` | New focused fixed-path test proving ready/not-ready observation, exact committed bytes, and no acceptance of a changed artifact. |
-| `tests/operations/as1-slack-lifecycle.test.ts` | Extend the focused lifecycle test for explicit foreground start; retained original lock-descriptor ownership; fixed `pidfd` bridge availability; fast valid acquisition; distinct pidfd-bound clean stop and durable incident kill; exit/reap/PID-reuse and identity-race rejection; bounded shutdown/lock release; live-disabled restart; and stable redacted status. |
+| `tests/operations/as1-slack-lifecycle.test.ts` | Extend the focused lifecycle test for explicit foreground start; zero-mutation interpreter/API preflight; exact interpreter device/inode/hash/version and pinned-FD replacement resistance; literal/schema/byte/count/time bounds; retained original lock-descriptor ownership; fast valid acquisition; distinct same-pidfd clean stop and durable incident kill; exit/reap/PID-reuse and identity-race rejection; bounded shutdown/lock release; live-disabled restart; and stable redacted status. |
 
 No other source, test, configuration, package, lockfile, Registry, v2, UI, or
 external project path is needed. In particular, the implementation must not modify
@@ -367,14 +369,20 @@ key is invalid in Foundation state or evidence.
 `start` performs the following sequence. A failure closes/reverts the owned
 control as defined below and never skips forward.
 
-1. Resolve and validate the fixed state root; initialize only an owner-prepared
-   fresh root; acquire its one `WriterLock`; validate the state-root marker,
-   global control, and both latch records under the lock. Reject a second
-   process or stale lock. Retain and prove close-on-exec on the original lock
-   descriptor, then pass the fixed no-signal pidfd bridge capability probe. No
-   profile is selected and no secret or network access has occurred. Install
-   the clean-stop and fixed SIGUSR2 incident handlers as soon as ownership is
-   established and before any later side effect.
+1. After the closed argv/environment grammar has identified `start`, but before
+   resolving, opening, validating, or initializing the state root, run the
+   exact interpreter-identity/API/no-signal bridge preflight in section 11.1.
+   It may open only the pinned interpreter and read `/proc` facts about its own
+   helper incarnation. Failure returns the stable preflight error with zero
+   state-root directory, marker, control, latch, lock, secret, Web, Socket, or
+   tmux residue. Only after success resolve and validate the fixed state root;
+   initialize only an owner-prepared fresh root; acquire its one `WriterLock`;
+   validate the state-root marker, global control, and both latch records under
+   the lock. Reject a second process or stale lock. Retain and prove
+   close-on-exec on the original lock descriptor. No profile is selected and no
+   secret or network access has occurred. Install the clean-stop and fixed
+   SIGUSR2 incident handlers as soon as ownership is established and before any
+   later side effect.
 2. Read the fixed descriptor and exact committed receive-grant blob. Parse it,
    derive the one profile from `grant.profileId`, validate Registry lineage,
    selected contained-root/store integrity, state-root binding, `rootLimit: 1`,
@@ -749,75 +757,675 @@ after process birth satisfies the invariant with no uncertainty window.
 
 The incarnation-stable observation-and-signal primitive is Linux `pidfd_open(2)`
 plus `pidfd_send_signal(2)`. Node does not expose the latter on this target, so
-`writer-lock.ts` contains one sealed compile-time Python source literal and two
-closed TypeScript entrypoints: clean stop and incident kill. Each invokes only
-this fixed command:
+`writer-lock.ts` contains the one byte-exact compile-time Python source literal
+below and only three private operations: `CAPABILITY_PROBE`, `CLEAN_STOP`, and
+`INCIDENT_KILL`. No source, module, executable, path, PID, signal, profile,
+state root, reason, or argv comes from CLI input or a public reusable API.
 
-```text
-/usr/bin/python3.14 -I -S -c <compile-time pidfd bridge literal>
+#### 11.1.1 Normative interpreter object and per-use execution binding
+
+The only accepted interpreter pathname is `/usr/bin/python3.14`. On this target
+the accepted object is exactly: non-symlink regular file; UID `0`; GID `0`;
+mode `0755`; link count `1`; device `2049` (`0x801`); inode `14996`; size
+`7,481,192` bytes; Python `3.14.4`; and SHA-256
+`b8d8288faefdd300201f43fcf00f6f539a27218eeed3a3dff5ab10b9c4c99700`.
+These are acceptance constants, not merely recorded evidence. Any target drift
+requires a newly reviewed design; it is never accepted by updating a runtime
+file, environment value, or request.
+
+Every operation, including the startup preflight, performs this same binding:
+
+1. Start a monotonic `1,000 ms` pre-spawn verification deadline. Require
+   `realpath("/usr/bin/python3.14")` to equal that literal, `lstat` it as a
+   non-symlink regular file, then open it once with
+   `O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`.
+2. On that open descriptor, require the exact UID/GID/mode/link/device/inode/
+   size tuple above. Hash from offset zero through exact EOF in `64 KiB` chunks,
+   reject byte `8,388,609`, and require the exact SHA above. A
+   short read, growth, shrink, non-EOF after the expected size, or elapsed
+   pre-spawn deadline fails before child creation.
+3. Immediately before spawn, repeat `lstat` on the fixed pathname and require
+   its device/inode to equal the still-open descriptor. Replacement before this
+   check rejects; replacement after it cannot change the open object.
+4. With `shell: false` and `cwd: "/"`, duplicate that same verified descriptor
+   to child FD `3`, set child stdio exactly to
+   `[pipe-request, pipe-response, pipe-stderr, verified-interpreter-fd]`, and
+   execute the absolute proc-fd pathname `/proc/self/fd/3` with argv exactly
+   `[/proc/self/fd/3, -I, -S, -c, PIDFD_BRIDGE_SOURCE]`. The child starts only
+   after FD `3` is installed; `execve` therefore resolves the verified open file
+   description, never `/usr/bin/python3.14` again. All other non-stdio child FDs
+   are closed, and the retained writer-lock FD is never inherited.
+5. The literal requires `sys.executable == "/proc/self/fd/3"`, `fstat(3)` to
+   equal the exact accepted object, Python version `3.14.4`, isolated/no-site/
+   ignore-environment/safe-path flags, and the exact result schema. The parent
+   accepts success only with that version result. Thus path/object identity and
+   hash are checked before spawn, while FD identity and version are rechecked by
+   the object actually executing before its operation on every use.
+
+The complete child environment has exactly two entries and inherits none:
+`LANG=C.UTF-8` and `LC_ALL=C.UTF-8`. There is no `PATH`, `HOME`, `PYTHONPATH`,
+or other key. The literal and fixed arguments are compile-time values. The
+literal between the next fence lines is exactly `PIDFD_BRIDGE_SOURCE`; it has
+UTF-8 byte length `17,983` and SHA-256
+`557e32a2ab54beea3b3ec8ce1a68bb69a7f3b756db4e3b007d18a452f7a22d75`. The terminal LF after the final source line is part
+of the literal; the fence lines are not. `writer-lock.ts` encodes these bytes as
+one `String.raw` compile-time template with no leading LF and exactly that final
+LF; the source contains neither a backtick nor a `${` interpolation opener.
+Before every spawn, TypeScript requires the UTF-8 length and SHA above, so a
+build-time escape, newline, or source edit fails before child creation.
+
+```python
+import datetime
+import errno
+import hashlib
+import json
+import os
+import re
+import select
+import signal
+import stat
+import sys
+
+EXPECTED_PYTHON_VERSION = "3.14.4"
+EXPECTED_ENVIRONMENT = {"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
+EXPECTED_INTERPRETER_DEVICE = 2049
+EXPECTED_INTERPRETER_INODE = 14996
+EXPECTED_INTERPRETER_MODE = 0o755
+EXPECTED_INTERPRETER_SIZE = 7481192
+EXPECTED_OWNER_UID = 1000
+EXPECTED_OWNER_EXECUTABLE = "/home/leo/.nvm/versions/node/v24.18.0/bin/node"
+EXPECTED_OWNER_EXECUTABLE_DEVICE = 2049
+EXPECTED_OWNER_EXECUTABLE_INODE = 397924
+EXPECTED_OWNER_ARGV = (
+    "/home/leo/.nvm/versions/node/v24.18.0/bin/node",
+    "/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001/dist/core/runtime/as1-slack-pilot/cli.js",
+    "start",
+    "--env-file",
+    "/home/leo/.config/agent-office/as1-slack-pilot.env",
+)
+LOCK_PATH = "/home/leo/.local/state/agent-office/as1-slack-pilot/locks/writer.lock"
+EXPECTED_LOCK_KEYS = frozenset((
+    "acquiredAt", "bootId", "buildId", "ownershipToken", "pid",
+    "schemaVersion", "stateRootId",
+))
+CAPABILITY_REQUEST_KEYS = frozenset(("operation", "schemaVersion"))
+SIGNAL_REQUEST_KEYS = frozenset((
+    "expectedLockDevice", "expectedLockInode", "expectedLockSha256",
+    "expectedOwnerPid", "expectedOwnerStartTicks", "operation", "schemaVersion",
+))
+REQUEST_SCHEMA = "agent-office.as1-pidfd-bridge-request.v1"
+RESULT_SCHEMA = "agent-office.as1-pidfd-bridge-result.v1"
+OPERATIONS = frozenset(("CAPABILITY_PROBE", "CLEAN_STOP", "INCIDENT_KILL"))
+SIGNALS = {"CLEAN_STOP": signal.SIGTERM, "INCIDENT_KILL": signal.SIGUSR2}
+STDIN_MAX_BYTES = 8192
+REQUEST_MAX_BYTES = 8191
+STDOUT_MAX_BYTES = 512
+RESPONSE_MAX_BYTES = 511
+LOCK_MAX_BYTES = 4096
+BOOT_ID_MAX_BYTES = 64
+STAT_MAX_BYTES = 4096
+STATUS_MAX_BYTES = 16384
+CMDLINE_MAX_BYTES = 8192
+FDINFO_MAX_BYTES = 4096
+PROC_LINK_MAX_BYTES = 4096
+FD_ENTRY_MAX_COUNT = 4096
+INTERNAL_DEADLINE_SECONDS = 1.5
+
+class RequestRejected(Exception):
+    pass
+
+class CapabilityUnavailable(Exception):
+    pass
+
+class OwnerMismatch(Exception):
+    pass
+
+class OwnerExited(Exception):
+    pass
+
+class SignalRejected(Exception):
+    pass
+
+class BridgeDeadline(Exception):
+    pass
+
+def _raise(error_type):
+    raise error_type()
+
+def _on_deadline(_signum, _frame):
+    raise BridgeDeadline()
+
+def _read_fd(fd, limit, error_type):
+    data = bytearray()
+    while True:
+        chunk = os.read(fd, min(4096, limit + 1 - len(data)))
+        if not chunk:
+            return bytes(data)
+        data.extend(chunk)
+        if len(data) > limit:
+            raise error_type()
+
+def _read_regular_path(path, limit, error_type):
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise error_type()
+            return _read_fd(fd, limit, error_type)
+        finally:
+            os.close(fd)
+    except error_type:
+        raise
+    except OSError:
+        raise error_type() from None
+
+def _decode_canonical_line(raw, payload_limit, error_type):
+    if not raw or len(raw) > payload_limit + 1 or raw[-1:] != b"\n":
+        raise error_type()
+    payload = raw[:-1]
+    if not payload or len(payload) > payload_limit:
+        raise error_type()
+    def unique_object(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise error_type()
+            value[key] = item
+        return value
+    try:
+        text = payload.decode("utf-8", "strict")
+        value = json.loads(
+            text,
+            object_pairs_hook=unique_object,
+            parse_constant=lambda _value: _raise(error_type),
+        )
+        canonical = json.dumps(
+            value, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+        ).encode("ascii")
+    except error_type:
+        raise
+    except (UnicodeError, ValueError, TypeError):
+        raise error_type() from None
+    if canonical != payload:
+        raise error_type()
+    return value
+
+def _decimal_string(value):
+    if type(value) is not str or re.fullmatch(r"(?:0|[1-9][0-9]{0,19})", value) is None:
+        raise RequestRejected()
+    number = int(value, 10)
+    if number > 18446744073709551615:
+        raise RequestRejected()
+    return number
+
+def _validate_request(value):
+    if type(value) is not dict:
+        raise RequestRejected()
+    operation = value.get("operation")
+    if type(operation) is not str or operation not in OPERATIONS:
+        raise RequestRejected()
+    expected_keys = CAPABILITY_REQUEST_KEYS if operation == "CAPABILITY_PROBE" else SIGNAL_REQUEST_KEYS
+    if frozenset(value) != expected_keys or value.get("schemaVersion") != REQUEST_SCHEMA:
+        raise RequestRejected()
+    if operation != "CAPABILITY_PROBE":
+        digest = value["expectedLockSha256"]
+        if type(digest) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
+            raise RequestRejected()
+        _decimal_string(value["expectedLockDevice"])
+        _decimal_string(value["expectedLockInode"])
+        _decimal_string(value["expectedOwnerStartTicks"])
+        pid = value["expectedOwnerPid"]
+        if type(pid) is not int or not 1 <= pid <= 4194304:
+            raise RequestRejected()
+    return value
+
+def _read_request():
+    raw = _read_fd(0, STDIN_MAX_BYTES, RequestRejected)
+    value = _decode_canonical_line(raw, REQUEST_MAX_BYTES, RequestRejected)
+    return _validate_request(value)
+
+def _emit(operation, outcome, success):
+    value = {"operation": operation, "outcome": outcome, "schemaVersion": RESULT_SCHEMA}
+    if success:
+        value["pythonVersion"] = EXPECTED_PYTHON_VERSION
+    payload = json.dumps(
+        value, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+    ).encode("ascii")
+    if len(payload) > RESPONSE_MAX_BYTES or len(payload) + 1 > STDOUT_MAX_BYTES:
+        raise RuntimeError()
+    output = payload + b"\n"
+    offset = 0
+    while offset < len(output):
+        offset += os.write(1, output[offset:])
+
+def _check_runtime():
+    if sys.executable != "/proc/self/fd/3":
+        raise CapabilityUnavailable()
+    if sys.version_info[:3] != (3, 14, 4):
+        raise CapabilityUnavailable()
+    flags = sys.flags
+    if not (flags.isolated == 1 and flags.no_site == 1 and
+            flags.ignore_environment == 1 and flags.safe_path):
+        raise CapabilityUnavailable()
+    if dict(os.environ) != EXPECTED_ENVIRONMENT:
+        raise CapabilityUnavailable()
+    try:
+        interpreter = os.fstat(3)
+    except OSError:
+        raise CapabilityUnavailable() from None
+    if not (
+        stat.S_ISREG(interpreter.st_mode)
+        and interpreter.st_uid == 0
+        and interpreter.st_gid == 0
+        and stat.S_IMODE(interpreter.st_mode) == EXPECTED_INTERPRETER_MODE
+        and interpreter.st_nlink == 1
+        and interpreter.st_dev == EXPECTED_INTERPRETER_DEVICE
+        and interpreter.st_ino == EXPECTED_INTERPRETER_INODE
+        and interpreter.st_size == EXPECTED_INTERPRETER_SIZE
+        and callable(getattr(os, "pidfd_open", None))
+        and callable(getattr(signal, "pidfd_send_signal", None))
+        and hasattr(select, "poll")
+        and callable(getattr(signal, "setitimer", None))
+    ):
+        raise CapabilityUnavailable()
+
+def _pidfd_is_live(pidfd, pid, error_type):
+    raw = _read_regular_path(f"/proc/self/fdinfo/{pidfd}", FDINFO_MAX_BYTES, error_type)
+    pid_values = []
+    try:
+        for line in raw.decode("ascii", "strict").splitlines():
+            if line.startswith("Pid:"):
+                pid_values.append(int(line.split(":", 1)[1].strip(), 10))
+    except (UnicodeError, ValueError):
+        raise error_type() from None
+    if pid_values != [pid]:
+        raise error_type()
+    poller = select.poll()
+    poller.register(pidfd, select.POLLIN | select.POLLHUP | select.POLLERR)
+    if poller.poll(0):
+        raise OwnerExited()
+
+def _capability_probe():
+    try:
+        pidfd = os.pidfd_open(os.getpid(), 0)
+    except OSError:
+        raise CapabilityUnavailable() from None
+    try:
+        _pidfd_is_live(pidfd, os.getpid(), CapabilityUnavailable)
+    finally:
+        os.close(pidfd)
+
+def _read_boot_id():
+    raw = _read_regular_path(
+        "/proc/sys/kernel/random/boot_id", BOOT_ID_MAX_BYTES, OwnerMismatch
+    )
+    if len(raw) != 37 or raw[-1:] != b"\n":
+        raise OwnerMismatch()
+    try:
+        value = raw[:-1].decode("ascii", "strict")
+    except UnicodeError:
+        raise OwnerMismatch() from None
+    if re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", value
+    ) is None:
+        raise OwnerMismatch()
+    return value
+
+def _read_lock(request):
+    try:
+        fd = os.open(
+            LOCK_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+        )
+        try:
+            lock_stat = os.fstat(fd)
+            raw = _read_fd(fd, LOCK_MAX_BYTES, OwnerMismatch)
+        finally:
+            os.close(fd)
+    except OwnerMismatch:
+        raise
+    except FileNotFoundError:
+        raise OwnerExited() from None
+    except OSError:
+        raise OwnerMismatch() from None
+    if not (
+        stat.S_ISREG(lock_stat.st_mode)
+        and lock_stat.st_uid == EXPECTED_OWNER_UID
+        and stat.S_IMODE(lock_stat.st_mode) == 0o600
+        and lock_stat.st_nlink == 1
+        and str(lock_stat.st_dev) == request["expectedLockDevice"]
+        and str(lock_stat.st_ino) == request["expectedLockInode"]
+    ):
+        raise OwnerMismatch()
+    digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+    if digest != request["expectedLockSha256"]:
+        raise OwnerMismatch()
+    value = _decode_canonical_line(raw, LOCK_MAX_BYTES - 1, OwnerMismatch)
+    if type(value) is not dict or frozenset(value) != EXPECTED_LOCK_KEYS:
+        raise OwnerMismatch()
+    if not (
+        value["schemaVersion"] == "agent-office.writer-lock.v1"
+        and type(value["pid"]) is int
+        and value["pid"] == request["expectedOwnerPid"]
+        and value["bootId"] == _read_boot_id()
+        and value["buildId"] == "as1-slack-pilot"
+        and value["stateRootId"] == "as1-slack-pilot"
+        and type(value["ownershipToken"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", value["ownershipToken"]) is not None
+        and type(value["acquiredAt"]) is str
+        and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z", value["acquiredAt"]) is not None
+    ):
+        raise OwnerMismatch()
+    try:
+        datetime.datetime.strptime(value["acquiredAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError:
+        raise OwnerMismatch() from None
+    return (digest, lock_stat.st_dev, lock_stat.st_ino, value["bootId"])
+
+def _read_process_stat(pid, expected_start_ticks):
+    raw = _read_regular_path(f"/proc/{pid}/stat", STAT_MAX_BYTES, OwnerMismatch)
+    try:
+        text = raw.decode("ascii", "strict").strip()
+        right = text.rfind(")")
+        if not text.startswith(f"{pid} (") or right < 0 or text[right + 1:right + 2] != " ":
+            raise OwnerMismatch()
+        fields = text[right + 2:].split()
+        if len(fields) < 20 or fields[0] in ("Z", "X", "x"):
+            raise OwnerExited()
+        start_ticks = fields[19]
+    except (UnicodeError, IndexError):
+        raise OwnerMismatch() from None
+    if re.fullmatch(r"(?:0|[1-9][0-9]{0,19})", start_ticks) is None:
+        raise OwnerMismatch()
+    if start_ticks != expected_start_ticks:
+        raise OwnerMismatch()
+    return start_ticks
+
+def _read_process_uids(pid):
+    raw = _read_regular_path(f"/proc/{pid}/status", STATUS_MAX_BYTES, OwnerMismatch)
+    uid_lines = []
+    try:
+        for line in raw.decode("ascii", "strict").splitlines():
+            if line.startswith("Uid:"):
+                uid_lines.append(tuple(int(item, 10) for item in line[4:].split()))
+    except (UnicodeError, ValueError):
+        raise OwnerMismatch() from None
+    if uid_lines != [(EXPECTED_OWNER_UID,) * 4]:
+        raise OwnerMismatch()
+    return uid_lines[0]
+
+def _read_process_executable(pid):
+    path = f"/proc/{pid}/exe"
+    try:
+        target = os.readlink(path)
+        target_bytes = os.fsencode(target)
+        executable = os.stat(path, follow_symlinks=True)
+    except OSError:
+        raise OwnerMismatch() from None
+    if not (
+        0 < len(target_bytes) <= PROC_LINK_MAX_BYTES
+        and target == EXPECTED_OWNER_EXECUTABLE
+        and stat.S_ISREG(executable.st_mode)
+        and executable.st_dev == EXPECTED_OWNER_EXECUTABLE_DEVICE
+        and executable.st_ino == EXPECTED_OWNER_EXECUTABLE_INODE
+    ):
+        raise OwnerMismatch()
+    return (target, executable.st_dev, executable.st_ino)
+
+def _read_process_argv(pid):
+    raw = _read_regular_path(f"/proc/{pid}/cmdline", CMDLINE_MAX_BYTES, OwnerMismatch)
+    if not raw or raw[-1:] != b"\0":
+        raise OwnerMismatch()
+    try:
+        argv = tuple(item.decode("ascii", "strict") for item in raw[:-1].split(b"\0"))
+    except UnicodeError:
+        raise OwnerMismatch() from None
+    if argv != EXPECTED_OWNER_ARGV:
+        raise OwnerMismatch()
+    return argv
+
+def _read_retained_lock_fd(pid, lock_device, lock_inode):
+    matches = []
+    count = 0
+    try:
+        with os.scandir(f"/proc/{pid}/fd") as entries:
+            for entry in entries:
+                count += 1
+                if count > FD_ENTRY_MAX_COUNT:
+                    raise OwnerMismatch()
+                if re.fullmatch(r"[0-9]+", entry.name) is None:
+                    continue
+                try:
+                    target_stat = entry.stat(follow_symlinks=True)
+                except FileNotFoundError:
+                    continue
+                if target_stat.st_dev != lock_device or target_stat.st_ino != lock_inode:
+                    continue
+                raw = _read_regular_path(
+                    f"/proc/{pid}/fdinfo/{entry.name}", FDINFO_MAX_BYTES, OwnerMismatch
+                )
+                flag_values = []
+                try:
+                    for line in raw.decode("ascii", "strict").splitlines():
+                        if line.startswith("flags:"):
+                            flag_values.append(int(line.split(":", 1)[1].strip(), 8))
+                except (UnicodeError, ValueError):
+                    raise OwnerMismatch() from None
+                if len(flag_values) != 1:
+                    raise OwnerMismatch()
+                flags = flag_values[0]
+                if not (
+                    flags & os.O_ACCMODE == os.O_WRONLY
+                    and flags & os.O_CLOEXEC == os.O_CLOEXEC
+                    and flags & os.O_NOFOLLOW == os.O_NOFOLLOW
+                ):
+                    raise OwnerMismatch()
+                matches.append((int(entry.name, 10), flags))
+    except OwnerMismatch:
+        raise
+    except FileNotFoundError:
+        raise OwnerExited() from None
+    except OSError:
+        raise OwnerMismatch() from None
+    if len(matches) != 1:
+        raise OwnerMismatch()
+    return matches[0]
+
+def _observe(request, pidfd):
+    pid = request["expectedOwnerPid"]
+    _pidfd_is_live(pidfd, pid, OwnerMismatch)
+    lock = _read_lock(request)
+    start_ticks = _read_process_stat(pid, request["expectedOwnerStartTicks"])
+    uids = _read_process_uids(pid)
+    executable = _read_process_executable(pid)
+    argv = _read_process_argv(pid)
+    retained_fd = _read_retained_lock_fd(pid, lock[1], lock[2])
+    _pidfd_is_live(pidfd, pid, OwnerMismatch)
+    return (lock, pid, start_ticks, uids, executable, argv, retained_fd)
+
+def _send_fixed_signal(request):
+    if os.getuid() != EXPECTED_OWNER_UID:
+        raise OwnerMismatch()
+    pid = request["expectedOwnerPid"]
+    try:
+        pidfd = os.pidfd_open(pid, 0)
+    except ProcessLookupError:
+        raise OwnerExited() from None
+    except OSError:
+        raise OwnerMismatch() from None
+    try:
+        _pidfd_is_live(pidfd, pid, OwnerMismatch)
+        first = _observe(request, pidfd)
+        second = _observe(request, pidfd)
+        if second != first:
+            raise OwnerMismatch()
+        _pidfd_is_live(pidfd, pid, OwnerMismatch)
+        try:
+            signal.pidfd_send_signal(pidfd, SIGNALS[request["operation"]], None, 0)
+        except ProcessLookupError:
+            raise OwnerExited() from None
+        except OSError as error:
+            if error.errno == errno.ESRCH:
+                raise OwnerExited() from None
+            raise SignalRejected() from None
+    finally:
+        os.close(pidfd)
+
+def _run():
+    operation = "UNPARSED"
+    timer_armed = False
+    try:
+        if not callable(getattr(signal, "setitimer", None)):
+            raise CapabilityUnavailable()
+        signal.signal(signal.SIGALRM, _on_deadline)
+        signal.setitimer(signal.ITIMER_REAL, INTERNAL_DEADLINE_SECONDS)
+        timer_armed = True
+        request = _read_request()
+        operation = request["operation"]
+        _check_runtime()
+        if operation == "CAPABILITY_PROBE":
+            _capability_probe()
+            _emit(operation, "CAPABILITY_READY", True)
+        else:
+            _send_fixed_signal(request)
+            _emit(operation, "SIGNAL_SENT", True)
+        return 0
+    except RequestRejected:
+        _emit("UNPARSED", "REQUEST_REJECTED", False)
+        return 64
+    except CapabilityUnavailable:
+        _emit(operation, "CAPABILITY_UNAVAILABLE", False)
+        return 65
+    except OwnerMismatch:
+        _emit(operation, "OWNER_MISMATCH", False)
+        return 66
+    except OwnerExited:
+        _emit(operation, "OWNER_EXITED", False)
+        return 67
+    except SignalRejected:
+        _emit(operation, "SIGNAL_REJECTED", False)
+        return 68
+    except BridgeDeadline:
+        _emit(operation, "BRIDGE_TIMEOUT", False)
+        return 69
+    except BaseException:
+        _emit(operation, "INTERNAL_ERROR", False)
+        return 70
+    finally:
+        if timer_armed:
+            try:
+                signal.setitimer(signal.ITIMER_REAL, 0.0)
+            except BaseException:
+                pass
+
+raise SystemExit(_run())
 ```
 
-Invocation uses `shell: false`, a fixed minimal environment, closed bounded
-stdin, bounded redacted stdout/stderr, and a fixed timeout. The interpreter is
-required on every use to be the fixed absolute non-symlink regular file, owned
-by UID 0 and not writable by group/other. `-I -S` excludes caller Python paths,
-site customization, and environment influence. The literal is not a script
-path or caller value. Its exact-key stdin request contains only internally
-derived expected lock/process facts and one closed action, `CLEAN_STOP` or
-`INCIDENT_KILL`; the bridge maps those internally to SIGTERM and SIGUSR2. No CLI
-token or reusable API can supply a PID, signal, profile, state root, path,
-reason, argv, module, or source text, and there is no arbitrary-execution or
-generic-signal branch. The request, every fixed `/proc` projection, and output
-have compile-time byte limits; matching-FD enumeration stops at a fixed 4,096
-entries and overflow is ambiguous rather than unbounded work.
+#### 11.1.2 Exact bridge protocol and bounds
 
-Before secrets or network, `start` runs a fixed no-signal bridge capability
-probe, including a self `pidfd_open`, pidfd-fdinfo check, and zero-event poll.
-Failure releases the lock and fails startup; there is no numeric-PID fallback.
-Read-only evidence gathered on the authorized target on 2026-07-16 proves the
-facility exists: Linux `7.0.0-27-generic` x86_64; Node `v24.18.0`;
-`/usr/bin/python3.14` Python `3.14.4`, UID 0, regular mode `0755`, SHA-256
-`b8d8288faefdd300201f43fcf00f6f539a27218eeed3a3dff5ab10b9c4c99700`;
-and standard-library `os.pidfd_open` plus `signal.pidfd_send_signal`. A real
-self-pidfd open, fdinfo identity read, and non-exit poll succeeded. No signal
-was sent by the capability check.
+The capability request has exactly the sorted canonical JSON keys
+`operation,schemaVersion`, with `schemaVersion` equal to
+`agent-office.as1-pidfd-bridge-request.v1` and `operation` equal to
+`CAPABILITY_PROBE`. A signal request has exactly
+`expectedLockDevice,expectedLockInode,expectedLockSha256,expectedOwnerPid,expectedOwnerStartTicks,operation,schemaVersion`.
+The device, inode, and start-tick values are canonical unsigned-decimal strings
+in `[0, 2^64-1]`; the PID is a JSON integer in `[1, 4194304]`; the digest is
+exactly `sha256:` plus 64 lowercase hex characters; and `operation` is exactly
+`CLEAN_STOP` or `INCIDENT_KILL`. The TypeScript boundary derives every signal
+field from its private no-follow lock/process observation after the closed
+zero-operand grammar; no field is caller-controlled.
+
+Stdin is exactly one canonical, ASCII-only, sorted-key JSON value plus one LF
+and EOF: at most `8,191` request bytes before LF and `8,192` stdin bytes total.
+The duplicate-key hook and canonical byte comparison reject missing, extra,
+duplicate, malformed, noncanonical, oversized, non-ASCII, or trailing data.
+The bridge result is exactly one canonical sorted-key JSON value plus one LF and
+EOF. Success has exactly `operation,outcome,pythonVersion,schemaVersion`, with
+version `3.14.4` and outcome `CAPABILITY_READY` or `SIGNAL_SENT` as appropriate.
+Failure has exactly `operation,outcome,schemaVersion`; operation is the parsed
+operation or `UNPARSED`, and the only outcomes/exit codes are
+`REQUEST_REJECTED/64`, `CAPABILITY_UNAVAILABLE/65`, `OWNER_MISMATCH/66`,
+`OWNER_EXITED/67`, `SIGNAL_REJECTED/68`, `BRIDGE_TIMEOUT/69`, and
+`INTERNAL_ERROR/70`. Success is exit `0`; every other exit/status/result pair,
+signal death, missing output, extra key, duplicate key, malformed byte, or
+trailing byte is rejected. Response JSON is at most `511` bytes and stdout,
+including LF, at most `512` bytes.
+
+The parent simultaneously drains stdout and stderr, retains at most `512` bytes
+from each, and terminates the bridge on byte `513` from either pipe. It accepts
+stderr only when it is exactly zero bytes and logs neither pipe's rejected
+content; stderr is retained only long enough to derive a redacted boolean. The
+fixed projection ceilings are: lock `4,096`, boot ID `64`,
+`/proc/<pid>/stat` `4,096`, status `16,384`, cmdline `8,192`, each fdinfo
+`4,096`, each proc link `4,096`, and `/proc/<pid>/fd` at most `4,096` directory
+entries total. Each ceiling is inclusive; the next byte/entry fails ambiguous.
+
+The bridge arms its own `1,500 ms` monotonic real-time deadline before reading
+stdin. The parent starts a `2,000 ms` direct-child deadline immediately before
+spawn, uses the fixed child handle to send only SIGKILL to that verified helper
+if it has not been reaped, and never directs that containment signal at the
+owner. An unreaped direct child PID cannot be reused; this is not an owner
+numeric-PID fallback. Including the `1,000 ms` pre-spawn verifier, one complete
+operation is bounded to `3,000 ms`. A helper timeout during or after a fixed
+pidfd send is ambiguous, never success. Post-send clean-stop and incident-kill
+proof each use a separate exact `10,000 ms` owner shutdown deadline.
+
+#### 11.1.3 Mutation-free capability gate and owner signaling
+
+At process entry, after only the closed grammar and before any call to
+`initializeStateRoot`, `validateStateRoot`, `WriterLock.acquire`, directory/file
+open below the state root, secret read, or other startup mutation, `start` and
+`redacted-check` run the pinned interpreter with the exact capability request.
+The literal verifies its execution binding and APIs, opens one self pidfd,
+requires its pidfd fdinfo `Pid` to equal itself, and requires a zero-event poll.
+It checks but never invokes `pidfd_send_signal`. Failure or timeout exits with
+zero state-root/marker/control/latch/lock residue, even for a fresh absent root.
+Only a successful exact `CAPABILITY_READY` permits state-root initialization.
+Every non-success, timeout, spawn error, or strict-decoder rejection maps to the
+single redacted startup code `LIFECYCLE_CAPABILITY_UNAVAILABLE` and process exit
+`2`; it never falls through to startup or prints bridge bytes.
+
+Read-only target evidence on 2026-07-16 confirms the exact interpreter tuple,
+Python `3.14.4`, the two-key environment, inherited-FD execution through
+`/proc/self/fd/3`, `os.pidfd_open`, `signal.pidfd_send_signal`, pidfd fdinfo,
+and zero-event polling. No process was signaled by those checks.
 
 For `stop` and `incident-kill`, the TypeScript boundary first no-follow opens
 and strictly parses the construction-bound owner-UID private one-link lock,
-requires the caller UID to equal that owner UID, validates the canonical state
-root/format marker and fixed interpreter, and derives all bridge inputs
-internally. The sealed bridge then executes this one operation:
+requires its exact bytes/device/inode and the caller UID, and derives the seven
+signal-request keys internally. The sealed literal reopens the same fixed lock,
+opens one pidfd for its record PID, performs both complete lock/process/retained-
+FD observations through that still-open pidfd, requires exact equality, polls
+the pidfd live immediately before send, and uses that same pidfd for only
+SIGTERM (`CLEAN_STOP`) or SIGUSR2 (`INCIDENT_KILL`). It never calls `kill(2)` on
+the owner by numeric PID and has no fallback or generic signal branch.
 
-1. strictly decode the closed internal request and reopen the same lock with
-   `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`;
-2. obtain the lock-record PID and immediately call `os.pidfd_open(pid, 0)`, then
-   require its own pidfd fdinfo `Pid` to equal that PID and a zero-time poll to
-   show no `POLLIN`, `POLLHUP`, or error event;
-3. while that pidfd remains open, make owner observation one: require unchanged
-   lock bytes/device/inode/type/UID/link/private mode; exact current boot ID;
-   build and state-root IDs exactly `as1-slack-pilot`; all
-   `/proc/<pid>/status` UID values equal the owner UID; exact boot-relative
-   `startTicks`; `/proc/<pid>/exe` realpath/device/inode equal the fixed Node
-   executable; exact fixed Node/AS1-entry/`start` cmdline; and exactly one
-   `/proc/<pid>/fd` entry matching the lock device/inode whose fdinfo has the
-   retained creation handle's write-only access mode and close-on-exec bit;
-4. immediately before signaling, repeat that complete observation through the
-   same open pidfd and require the entire tuple, lock bytes/inode, held-lock-fd
-   proof, pidfd identity, and non-exit poll to equal observation one; and
-5. call only `signal.pidfd_send_signal(theSamePidfd, SIGTERM, None, 0)` for
-   `CLEAN_STOP` or
-   `signal.pidfd_send_signal(theSamePidfd, SIGUSR2, None, 0)` for
-   `INCIDENT_KILL`.
+The complete observation requires exact lock bytes/hash/device/inode/type/UID/
+link/mode and v1 fields; exact current boot, build, and root IDs; all four owner
+UIDs `1000`; unchanged start ticks without any `acquiredAt`, `btime`, clock-tick,
+or inode-time ordering inference; the fixed Node path/device/inode and exact
+absolute five-item start argv embedded in the literal; exactly one retained
+write-only, no-follow, close-on-exec descriptor for the lock inode; matching
+pidfd identity; and a non-exit poll. If the owner exits, becomes a zombie, is
+reaped, or its numeric PID is reused after either observation, the still-open
+pidfd remains bound to the old incarnation and cannot retarget the replacement.
 
-The bridge never calls `kill(2)` by numeric PID. If the owner exits, becomes a
-zombie, is reaped, or its number is reused after either observation, the pidfd
-continues to name the old incarnation: poll reports exit or
-`pidfd_send_signal` returns `ESRCH`; it cannot target the replacement. A missing
-process/fact/held descriptor, stale or changed lock, duplicate matching lock
-descriptor, PID reuse, executable/UID/boot/entry/root/build mismatch, pidfd
-identity mismatch, bridge error, or interpreter drift maps to
-`STALE_OR_AMBIGUOUS_OWNER` and sends no signal. `NO_LIVE_OWNER` remains the only
-separate absent-lock status. No stale-lock recovery is implicit.
+To make that argv literal true, the later setup-document change replaces the
+`npm` wrapper for the live start with this direct five-item Node invocation
+(the state-root assignment is environment, not argv):
+
+```sh
+AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot /home/leo/.nvm/versions/node/v24.18.0/bin/node /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001/dist/core/runtime/as1-slack-pilot/cli.js start --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
+```
+
+No `npm` or shell wrapper in the owner argv, alternate worktree, relative entry,
+or caller-selected path is accepted for the owner whose lock may be signaled.
+
+A missing process/fact/held descriptor, changed lock, duplicate matching lock
+descriptor, FD-enumeration overflow, PID reuse, executable/UID/boot/entry/root/
+build mismatch, pidfd identity mismatch, interpreter path/object/version/hash
+drift, schema/bound/deadline failure, or bridge error maps to
+`STALE_OR_AMBIGUOUS_OWNER` and never reports success. `NO_LIVE_OWNER` remains
+the only separate absent-lock status. No stale-lock recovery is implicit.
 
 After a successful same-pidfd send, `stop` waits the fixed shutdown deadline for
 the exact lock inode to disappear and returns only `STOPPED_CLEAN`,
@@ -921,15 +1529,19 @@ and an exact Advisor live-pilot handoff. This Designer did not execute it.
 1. Verify the exact reviewed product commit is clean and upstream-equal.
 2. Verify the fixed descriptor is committed/pushed and names exactly the one
    intended receive-grant path; verify that grant and its frozen basis.
-3. Verify the owner secret file only through `redacted-check`; record only
-   `LOCAL_SYNTAX_PASS`. This offline command initializes/validates the local
-   state-root/control records needed for later snapshotting but performs no Web,
-   Socket, or tmux call. Require its `--env-file` path to equal the descriptor's
-   one reviewed secret path. Do not print or copy values.
-4. Run only the fixed no-signal lifecycle capability probe and require the
-   target-locked interpreter, `pidfd_open`, pidfd identity/poll semantics, and
-   `pidfd_send_signal` API to be available; record only its stable pass/fail
-   code.
+3. Before `redacted-check`, state-root initialization, or any other startup
+   mutation, run only the exact pinned-FD no-signal capability request from
+   section 11.1. Require the target-locked interpreter object/version/literal,
+   exact environment/result/bounds, `pidfd_open`, pidfd identity/poll semantics,
+   and `pidfd_send_signal` API; record only its stable pass/fail code. Failure
+   must prove an absent state-root path remains absent or an existing root stays
+   byte-unchanged, and in both cases that no writer lock exists.
+4. Verify the owner secret file only through `redacted-check`; record only
+   `LOCAL_SYNTAX_PASS`. This offline command repeats the same capability gate,
+   then initializes/validates the local state-root/control records needed for
+   later snapshotting but performs no Web, Socket, or tmux call. Require its
+   `--env-file` path to equal the descriptor's one reviewed secret path. Do not
+   print or copy values.
 5. Verify the canonical state root, format marker, control/latches, absent
    writer lock, zero AS1 process, and zero AS1 listener.
 6. Verify both profile Registry rows, the global kill disengaged, the selected
@@ -1014,9 +1626,14 @@ does not authorize switching to Foundation.
 - The closed `stop` and `incident-kill` paths prove retained original lock-FD
   ownership, executable, UID, boot, entry, root, build, and identical complete
   observations through one open pidfd; send only their fixed signal through
-  that same pidfd; perform bounded shutdown; and redact stable status. Neither
-  accepts caller PID/signal/profile/path/destination/reason, uses a numeric-PID
-  signal fallback, or exposes a generic command/signal/reset surface.
+  that same pidfd; perform bounded shutdown; and redact stable status. The
+  exact interpreter tuple, pinned-FD exec, literal hash/length, two-key
+  environment, request/result schemas, exit/outcome pairs, zero accepted
+  stderr, every inclusive byte/count ceiling, and `1,000`/`1,500`/`2,000`/
+  `3,000`/`10,000 ms` deadlines are assertions, not configurable values.
+  Neither path accepts caller PID/signal/profile/path/destination/reason, uses
+  a numeric-PID owner-signal fallback, or exposes a generic command/signal/reset
+  surface.
 
 ### 13.2 Focused composition and direct regressions
 
@@ -1028,8 +1645,14 @@ does not authorize switching to Foundation.
   prove one fixed workspace, the Leo singleton, immutable per-profile App/
   channel bindings, one profile at a time, one root-to-result round trip each,
   and separate contained state.
-- Prove exact startup call order with spies and zero Web/Socket calls on every
-  earlier failure.
+- Prove exact startup call order with spies. Interpreter path/type/UID/GID/mode/
+  link/device/inode/size/hash/version drift, API absence, pre-spawn deadline,
+  capability timeout, wrong/missing/extra/duplicate/malformed/oversized/trailing
+  request or result data, any stderr byte, and every other capability failure
+  must precede `initializeStateRoot`, state-root validation/open, lock creation,
+  secret access, and all Web/Socket/tmux calls. Each case leaves an initially
+  absent disposable state-root path absent and an existing disposable root
+  byte-for-byte unchanged with no writer-lock residue.
 - Using distinct pre-transition and live control records (`S0 != S1`), prove the
   pointer-delivery grant and terminal facts retain the receive grant's frozen
   `globalControlSnapshotHash`, the live `RECEIVING_ONE_PROFILE` predicate is
@@ -1067,10 +1690,24 @@ does not authorize switching to Foundation.
   exit, zombie/reap, and numeric-PID reuse after verification but before the
   send cannot retarget the same pidfd; also prove stale lock, changed lock/held
   FD, reuse between observations, wrong executable/UID/boot/entry/root/build,
-  missing facts, interpreter/API drift, and bridge failure send no signal. Prove
-  stable redacted codes, fixed interpreter/literal/request/timeout/output,
-  no package/helper file/numeric-signal fallback/generic command/reset surface,
-  and that `restart` cannot open a live connection.
+  missing facts, interpreter/API drift, and bridge failure send no signal.
+  Replace `/usr/bin/python3.14` before open, after open/before re-`lstat`, and
+  after re-`lstat`/before exec: the first two cases reject device/inode/hash
+  drift, while the last must execute only the already-verified inherited FD.
+  Separately reject wrong interpreter device, inode, mode, owner, size, hash,
+  version, or child-FD identity and unavailable `pidfd_open`,
+  `pidfd_send_signal`, poll, or timer APIs.
+- At exact-minus-one, exact, and exact-plus-one boundaries, cover the `8 MiB`
+  interpreter read cap; `17,983`-byte literal identity; `8,191` request/
+  `8,192` stdin; `511` response/`512` stdout; zero accepted and `512` captured
+  stderr; `4,096` lock/stat/fdinfo/proc-link; `64` boot ID; `16,384` status;
+  `8,192` cmdline; and `4,096` FD-entry ceilings. Cover PID and unsigned-decimal
+  ranges, all request/result enum and exact-key variants, exit/outcome mismatch,
+  the `1,000 ms` verifier, `1,500 ms` internal deadline, `2,000 ms` child
+  timeout, `3,000 ms` total operation, and `10,000 ms` owner shutdown deadline.
+  A timeout after a same-pidfd send is ambiguous, never success. Prove stable
+  redacted codes, no package/helper file/numeric owner-signal fallback/generic
+  command/reset surface, and that `restart` cannot open a live connection.
 - Run changed-file secret/static scans and only the directly affected Phase A
   and Exact Delivery regressions.
 
@@ -1167,16 +1804,18 @@ This design requires:
 
 The new Git source is read-only. The new AS1 tmux port is behind the existing
 exact authority and journal. The writer lock retains its original handle but
-does not change the v1 record or path. The fixed `pidfd` bridge is a compile-time
-literal in the already-listed writer-lock path, uses the target's standard
-library, and adds no package, helper file, listener, or caller-controlled
-command. The Socket arm is an adapter lifecycle transition. The two store
+does not change the v1 record or path. The fixed `pidfd` bridge is the exact
+length/hash-identified literal in the already-listed writer-lock path, executes
+only the verified inherited interpreter FD under the fixed bounds in section
+11.1, uses the target's standard library, and adds no package, helper file,
+listener, or caller-controlled command. The Socket arm is an adapter lifecycle
+transition. The two store
 additions are typed reads of existing records. These are composition changes,
 not authority or persistence redesigns.
 
 ## 16. Implementation readiness and deliberately unset live facts
 
-Design state: `READY_FOR_EXACT_SAME_REVIEWER_DELTA_REVIEW`.
+Design state: `READY_FOR_EXACT_SAME_REVIEWER_F05_DELTA_REVIEW`.
 
 Patch disposition submitted for independent verification:
 
@@ -1194,11 +1833,14 @@ Patch disposition submitted for independent verification:
 - F04 — zero-operand `incident-kill` retains its closed contract: prove the
   owner, send only SIGUSR2, durably kill before bounded shutdown, and remain
   distinct from clean stop.
-- F05-D1 — both fixed signal paths bind unchanged writer-lock v1 bytes and the
-  retained original lock descriptor to exact executable/UID/boot/entry/root/
-  build facts observed twice through one open pidfd; the fixed signal is sent
-  through that same pidfd, so fast startup is accepted and exit/reap/PID reuse
-  cannot retarget it.
+- F05-D1 — every use accepts one exact interpreter object, hashes and pins its
+  open FD through exec, and runs the full byte-identified literal under exact
+  environment/schema/byte/count/time bounds. Its no-signal capability probe
+  precedes all state-root/lock/startup mutation. Both fixed signal paths retain
+  the original lock descriptor, observe exact executable/UID/boot/entry/root/
+  build facts twice through one pidfd, and send through that same pidfd; fast
+  startup needs no time-order inference, and exit/reap/PID reuse cannot retarget
+  the signal.
 
 These are Designer dispositions, not an independent PASS or final approval.
 
