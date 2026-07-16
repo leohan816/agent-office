@@ -210,8 +210,11 @@ export class As1GatewayComposition {
   private live: LiveState | null = null;
   private lastIntakeId: string | null = null;
   private receiving = false;
-  /** The delivery grant's internally bound (firstAddCommit, blobSha256) pair, captured at acceptance (F03). */
+  /** The delivery grant + readiness-lease internally bound (firstAddCommit, blobSha256) pairs, retained ONLY after a
+   *  fully-accepted delivery (provenance + binding + expiry + live-actionability), then reused on every later
+   *  delivery/evidence re-observation so a post-acceptance rewrite/deletion latches (F03). */
   private acceptedDeliveryGrant: As1AcceptedArtifact | null = null;
+  private acceptedLease: As1AcceptedArtifact | null = null;
 
   private constructor(
     private readonly descriptor: As1RuntimeDescriptorV1,
@@ -234,11 +237,54 @@ export class As1GatewayComposition {
       readonly stateRoot: string;
       readonly clock: AgentOfficeRuntimeIdentity;
       readonly deps?: As1CompositionDependencies;
+      /** The foreground owner's post-lock-acquire handler-install hook (design §11.1, F01) — fired after the writer
+       *  lock is held but before any lock-owned control initialization. */
+      readonly onLockAcquired?: () => void;
     },
   ): Promise<As1GatewayComposition> {
     const foreground = options.deps !== undefined;
-    const control = await As1SlackControl.open(options.stateRoot, options.clock, { retainLockForForeground: foreground });
+    const control = await As1SlackControl.open(options.stateRoot, options.clock, {
+      retainLockForForeground: foreground,
+      ...(options.onLockAcquired !== undefined ? { onLockAcquired: options.onLockAcquired } : {}),
+    });
     return new As1GatewayComposition(descriptor, control, options.stateRoot, options.clock, options.deps ?? null);
+  }
+
+  /** Is the owned control still open (holding its lock)? Used by the owner to distinguish a reverted start from a
+   *  still-live loop error (F01). */
+  public isOpen(): boolean {
+    return !this.closed && this.control.isOpen();
+  }
+
+  /** Synchronously close every incident admission (design §11.2, F01). Called from the SIGUSR2 handler so no new
+   *  receive/Git/delivery/evidence/outbound side effect can begin before the durable global kill persists. */
+  public closeIncidentGateNow(): void {
+    this.control.closeIncidentGate();
+  }
+
+  /**
+   * Latch the active profile on an owner-loop security/store/provenance/tmux/evidence/outbound error and drain to a
+   * clean disabled state, releasing ownership (design §11.2/§11.3, F01). A profile-level ambiguity uses the durable
+   * profile latch; an ambiguous drain escalates to the irreversible global kill before release. Never swallows the
+   * error silently and never leaves the owner live.
+   */
+  public async latchActiveProfileAndStop(reasonCode: string): Promise<As1RedactedStatus> {
+    this.assertOpen();
+    this.closed = true;
+    if (this.live !== null) {
+      await this.control.latchProfile(this.live.slug, `owner-loop error: ${reasonCode}`).catch(() => undefined);
+      await this.live.socket.disconnect().catch(() => undefined);
+      this.live = null;
+    }
+    this.receiving = false;
+    try {
+      await this.control.shutdown();
+    } catch (error) {
+      await this.control.engageGlobalKill(`owner-loop drain ambiguous: ${redactError(error).code}`).catch(() => undefined);
+    }
+    const status = this.status();
+    await this.control.close().catch(() => undefined);
+    return status;
   }
 
   private get missionAuthorityRoot(): string {
@@ -273,27 +319,32 @@ export class As1GatewayComposition {
     const acceptedReceiveGrant: As1AcceptedArtifact = { firstAddCommit: observed.firstAddCommit, blobSha256: observed.blobSha256 };
 
     // Step 2 (design §6 step 2, F02): BEFORE the first durable authority transition, prove exclusive expiry, the
-    // exact contained profile-state-root ref+hash binding + realpath no-follow non-aliasing, and FULL receive-grant
-    // Git provenance. The provenance gate is bound to THIS composition's own trusted observation (its artifact
-    // location commit is the observed first-add commit; its frozen authority snapshot is the grant's declared
-    // authoritySourceCommit) — never a pre-observation caller value. Every check here precedes any durable mutation,
-    // so a pre-transition failure leaves the control exactly as it was (still disabled) and needs no revert.
+    // exact contained profile-state-root ref+hash binding + realpath no-follow non-aliasing, the frozen local
+    // control/latch snapshots against the EXACT parsed pre-transition records, and FULL receive-grant Git provenance.
+    // The provenance gate is bound to the composition's own trusted observation (its location commit is the observed
+    // first-add commit) and to INDEPENDENTLY-TRUSTED construction-bound frozen snapshot commits — never a field
+    // learned from the candidate grant. Every check here precedes any durable mutation.
     if (!(Date.parse(this.clock.now()) < Date.parse(grant.expiresAt))) {
       return { connected: false, reason: 'RECEIVE_GRANT_NOT_READY', state: this.control.getState() };
     }
     await this.assertProfileStateRootBinding(grant, slug);
+    const snapshots = await this.control.selectedSnapshotHashes(slug);
+    if (grant.globalControlSnapshotHash !== snapshots.globalControlHash || grant.profileLatchSnapshotHash !== snapshots.profileLatchHash) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'receive grant frozen control/latch snapshots do not bind the exact pre-transition records');
+    }
     const receiveGrantProvenance = deps.buildReceiveGrantProvenance({ receiveGrantRef, accepted: acceptedReceiveGrant, grant });
     await receiveGrantProvenance.assertAccepted(grant);
 
-    // Step 3: only NOW durably move to RECEIVE_GRANTED_ONE_PROFILE. From here EVERY later failure reverts/closes
-    // the owned control to the legal clean state and releases ownership (F02) — never a half-started durable state.
-    if (this.control.getState() === 'DISABLED_CLEAN') {
-      await this.control.transition('DISABLED_CLEAN', 'DISABLED_DEFAULT');
-    }
-    await this.control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', slug);
-
+    // Step 3 (F02.3): the FIRST durable authority transition is now INSIDE the rollback/kill envelope, so a
+    // transition/persistence failure at that boundary reverts/closes to a legal clean state and releases ownership —
+    // never a half-started durable record reached by the outer owner close.
     let startedSocket: As1CompositionSocketPort | null = null;
     try {
+      if (this.control.getState() === 'DISABLED_CLEAN') {
+        await this.control.transition('DISABLED_CLEAN', 'DISABLED_DEFAULT');
+      }
+      await this.control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', slug);
+
       // Step 4: parse the owner-only secret, prove one shared workspace + the sole Leo identity + cross-profile
       // separation, and retain ONLY the selected profile's wire identity.
       const secret = await parseSecretConfigFile(this.descriptor.secretFilePath);
@@ -427,17 +478,25 @@ export class As1GatewayComposition {
     }
     const deliveryGrant = parsePointerDeliveryGrant(JSON.parse(grantObs.bytes.toString('utf8')));
     this.assertDeliveryGrantBinding(deliveryGrant, live);
-    // Internally bind the accepted (firstAddCommit, blobSha256) pair for every later re-observation (F03).
-    this.acceptedDeliveryGrant = { firstAddCommit: grantObs.firstAddCommit, blobSha256: grantObs.blobSha256 };
-    const leaseObs = await deps.gitSource.observe(`${base}/readiness-lease.json`);
-    if (leaseObs.status !== 'READY' || leaseObs.bytes === null) {
+    // F03: the observed delivery-grant + lease pairs stay PROVISIONAL — retained only AFTER the transport's full
+    // provenance/binding/expiry/live-actionability acceptance below, never merely on observation.
+    const provisionalDeliveryGrant: As1AcceptedArtifact = { firstAddCommit: grantObs.firstAddCommit, blobSha256: grantObs.blobSha256 };
+    // F03: the readiness lease is re-observed with its own accepted pair (once retained) so a post-acceptance
+    // rewrite/deletion/dirty lease latches instead of silently re-accepting or classifying as benign NOT_READY.
+    const leaseObs = await deps.gitSource.observe(`${base}/readiness-lease.json`, this.acceptedLease ?? undefined);
+    if (leaseObs.status === 'DIVERGED') {
+      await this.control.latchProfile(live.slug, `readiness lease diverged post-acceptance: ${leaseObs.reason}`);
+      return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'READINESS_LEASE_DIVERGED' };
+    }
+    if (leaseObs.status !== 'READY' || leaseObs.bytes === null || leaseObs.firstAddCommit === null || leaseObs.blobSha256 === null) {
       return { phase: 'AWAITING', outcome: 'AWAITING_READINESS_LEASE', reason: leaseObs.reason };
     }
+    const provisionalLease: As1AcceptedArtifact = { firstAddCommit: leaseObs.firstAddCommit, blobSha256: leaseObs.blobSha256 };
     const lease = parseReadinessLease(JSON.parse(leaseObs.bytes.toString('utf8')));
-    // Build the one-use exact transport bound to the freshly-constructed delivery provenance gate (F01): its artifact
-    // location commit is the observed first-add commit; its frozen authority snapshot is the delivery grant's own
-    // declared authoritySourceCommit. Fresh per attempt — the durable journal, not the instance, enforces no-retry.
-    const deliveryProvenance = deps.buildDeliveryProvenance({ deliveryGrantPath, accepted: this.acceptedDeliveryGrant, grant: deliveryGrant });
+    // Build the one-use exact transport bound to the freshly-constructed delivery provenance gate. The gate proves
+    // full provenance/binding/expiry inside deliver(); the live-actionability predicate follows. Fresh per attempt —
+    // the durable journal, not the instance, enforces no-retry.
+    const deliveryProvenance = deps.buildDeliveryProvenance({ deliveryGrantPath, accepted: provisionalDeliveryGrant, grant: deliveryGrant });
     const transport = new As1ExactTransport(
       () => this.clock.now(),
       this.stateRoot,
@@ -448,7 +507,13 @@ export class As1GatewayComposition {
       { isDeliverable: () => Promise.resolve(this.control.isLiveDeliveryActionable(live.slug)) },
       (reason: string) => this.control.latchProfile(live.slug, reason),
     );
-    return transport.deliver(deliveryGrant, lease);
+    const result = await transport.deliver(deliveryGrant, lease);
+    if (result.outcome === 'DELIVERED') {
+      // F03: ONLY a fully-accepted delivery atomically retains the accepted pairs for later evidence re-observation.
+      this.acceptedDeliveryGrant = provisionalDeliveryGrant;
+      this.acceptedLease = provisionalLease;
+    }
+    return result;
   }
 
   /**
@@ -462,9 +527,15 @@ export class As1GatewayComposition {
     const intakeId = this.lastIntakeId;
     if (intakeId === null) throw new DomainError('GATEWAY_DISABLED', 'no intake to ingest evidence for');
     const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
-    // F03: re-observe the pointer-delivery grant with its internally bound accepted pair — a post-acceptance
-    // divergence latches the profile rather than building evidence authority from a rewritten grant.
-    const grantObs = await deps.gitSource.observe(`${base}/pointer-delivery-grant.json`, this.acceptedDeliveryGrant ?? undefined);
+    // F03: evidence construction REQUIRES an already-proven accepted delivery authority — never a first-observation
+    // fallback. The accepted pair is retained only after a fully-accepted delivery, so its absence means no delivery
+    // was proven and evidence must not be built.
+    if (this.acceptedDeliveryGrant === null) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted delivery authority');
+    }
+    // Re-observe the pointer-delivery grant with its bound accepted pair — a post-acceptance divergence latches the
+    // profile rather than building evidence authority from a rewritten grant.
+    const grantObs = await deps.gitSource.observe(`${base}/pointer-delivery-grant.json`, this.acceptedDeliveryGrant);
     if (grantObs.status === 'DIVERGED') {
       await this.control.latchProfile(live.slug, `pointer-delivery grant diverged at evidence: ${grantObs.reason}`);
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer-delivery grant diverged post-acceptance');

@@ -481,32 +481,26 @@ describe('AS1 exact transport — F04 adversarial pointer/recovery matrix', () =
     expect(await store.readTmuxPhase(DELIVERY_ID)).toBeNull();
   });
 
-  it('deletes a pre-existing buffer ONLY under a recovery-authorized PREPARED journal', async () => {
-    const { store, port, grant, lease, root } = await makeTransport();
-    port.setBufferPresent();
-    let readCalls = 0;
-    // A spy journal: real store, but the buffer-recovery re-read reports a NON-PREPARED phase.
-    const spyJournal: As1DeliveryJournal = {
-      recordTmuxPhase: (id, phase, facts) => store.recordTmuxPhase(id, phase, facts),
-      consumeDeliveryAuthority: (g, l) => store.consumeDeliveryAuthority(g, l),
-      readTmuxPhase: (id) => {
-        readCalls += 1;
-        return readCalls === 1 ? store.readTmuxPhase(id) : Promise.resolve('BUFFER_LOADED');
-      },
-    };
-    const transport = new As1ExactTransport(() => NOW, root, AGENT_OFFICE, port, spyJournal, ACCEPTING_GATE, DELIVERABLE, NOOP_LATCH);
-    const result = await transport.deliver(grant, lease);
-    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
-    expect(port.deleteCalls).toBe(0); // NOT deleted — no recovery authorization
-    expect(port.pasteCalls).toBe(0);
-  });
-
-  it('a pre-existing buffer with a real PREPARED journal is authorized residue and is deleted before load', async () => {
+  it('F04: any pre-existing buffer fails closed to manual reconciliation WITHOUT deletion', async () => {
     const { transport, port, grant, lease } = await makeTransport();
     port.setBufferPresent();
     const result = await transport.deliver(grant, lease);
-    expect(result.outcome).toBe('DELIVERED');
-    expect(port.deleteCalls).toBe(1);
+    // A fresh attempt (this delivery's own PREPARED write is never proof of authorized residue) leaves the buffer
+    // untouched and fails closed to manual reconciliation.
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(port.deleteCalls).toBe(0);
+    expect(port.pasteCalls).toBe(0);
+  });
+
+  it('F04: this attempt\'s own PREPARED record is NOT recovery proof — a pre-existing buffer is never deleted', async () => {
+    const { store, port, grant, lease, root } = await makeTransport();
+    port.setBufferPresent();
+    // A real store journal, so THIS attempt does write its own PREPARED record; it must still NEVER authorize deleting
+    // the pre-existing same-name buffer (the exact false premise the delta review flagged).
+    const transport = new As1ExactTransport(() => NOW, root, AGENT_OFFICE, port, store, ACCEPTING_GATE, DELIVERABLE, NOOP_LATCH);
+    const result = await transport.deliver(grant, lease);
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(port.deleteCalls).toBe(0);
   });
 
   it('a symlink at the pointer leaf fails closed (no-follow open)', async () => {

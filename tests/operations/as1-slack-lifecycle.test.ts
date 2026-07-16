@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
-import { As1SlackControl } from '../../src/operations/readiness/as1-slack-control.js';
+import { As1SlackControl, readDurableKillProof } from '../../src/operations/readiness/as1-slack-control.js';
 import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
 import { parseAs1Cli, runAs1Cli, runObserverSignal } from '../../src/runtime/as1-slack-pilot/cli.js';
 import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.js';
@@ -568,15 +568,62 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     expect(timedOut.lines.join('|')).toContain('STOP_TIMEOUT');
   });
 
-  it('F05: incident-kill proves the durable killed state after lock removal; an absent owner maps to NO_LIVE_OWNER', async () => {
+  it('F05: incident-kill maps every reviewed post-signal outcome (engaged/already-engaged/persist-failed/no-live-owner)', async () => {
     const sent = (): Promise<As1BridgeResult> => Promise.resolve({ ok: true, operation: 'INCIDENT_KILL', outcome: 'SIGNAL_SENT', exitCode: 0 });
-    const engaged = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(true), nowMs: () => 0, delay: () => Promise.resolve() });
+    // Fresh engage: NOT durably killed before signaling, killed AFTER lock removal → INCIDENT_KILL_ENGAGED.
+    let killReads = 0;
+    const freshlyKilled = (): Promise<boolean> => Promise.resolve(killReads++ > 0);
+    const engaged = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: freshlyKilled, nowMs: () => 0, delay: () => Promise.resolve() });
+    expect(engaged.ok).toBe(true);
     expect(engaged.lines.join('|')).toContain('INCIDENT_KILL_ENGAGED');
-    const notKilled = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(false), nowMs: () => 0, delay: () => Promise.resolve() });
-    expect(notKilled.ok).toBe(false);
-    expect(notKilled.lines.join('|')).toContain('STALE_OR_AMBIGUOUS_OWNER');
+    // Already killed BEFORE signaling → idempotent INCIDENT_KILL_ALREADY_ENGAGED.
+    const already = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(true), nowMs: () => 0, delay: () => Promise.resolve() });
+    expect(already.lines.join('|')).toContain('INCIDENT_KILL_ALREADY_ENGAGED');
+    // Lock removed within the bound but the kill is never durable → INCIDENT_KILL_PERSIST_FAILED (never success).
+    const persistFailed = await runObserverSignal('INCIDENT_KILL', { signal: sent, lockRemoved: () => Promise.resolve(true), durableKilled: () => Promise.resolve(false), nowMs: () => 0, delay: () => Promise.resolve() });
+    expect(persistFailed.ok).toBe(false);
+    expect(persistFailed.lines.join('|')).toContain('INCIDENT_KILL_PERSIST_FAILED');
+    // An absent owner (OWNER_EXITED) → NO_LIVE_OWNER.
     const absent = await runObserverSignal('CLEAN_STOP', { signal: () => Promise.resolve({ ok: false, operation: 'CLEAN_STOP', outcome: 'OWNER_EXITED', exitCode: null }) });
     expect(absent.lines.join('|')).toContain('NO_LIVE_OWNER');
+  });
+
+  it('F05: a post-deadline lock-removal or durable-kill observation is NOT accepted (monotonic before+after each await)', async () => {
+    const sent = (): Promise<As1BridgeResult> => Promise.resolve({ ok: true, operation: 'INCIDENT_KILL', outcome: 'SIGNAL_SENT', exitCode: 0 });
+    // The clock advances PAST the shutdown bound during the lockRemoved await → a removal that only resolves after the
+    // deadline is rejected as INCIDENT_KILL_TIMEOUT, never accepted as proof.
+    let t = 0;
+    const overrun = (): number => {
+      const value = t;
+      t += 6_000; // > the 10s bound after two reads
+      return value;
+    };
+    const late = await runObserverSignal('INCIDENT_KILL', {
+      signal: sent,
+      lockRemoved: () => Promise.resolve(true),
+      durableKilled: () => Promise.resolve(true),
+      nowMs: overrun,
+      delay: () => Promise.resolve(),
+    });
+    expect(late.ok).toBe(false);
+    expect(late.lines.join('|')).toContain('INCIDENT_KILL_TIMEOUT');
+  });
+
+  it('F05: the durable-kill decoder accepts only an EXACT killed record; malformed/extra-key/non-kill is never proof', async () => {
+    const controlFile = (root: string): string => path.join(root, 'indexes/as1-slack-pilot/global-control.json');
+    // A durably killed owner record → KILLED.
+    const killed = await makeControl();
+    await killed.control.engageGlobalKill('operator incident test');
+    await killed.control.close();
+    expect(await readDurableKillProof(killed.root)).toBe('KILLED');
+    // A fresh, well-formed but non-killed record → NOT_KILLED (never a false positive).
+    const clean = await makeControl();
+    await clean.control.close();
+    expect(await readDurableKillProof(clean.root)).toBe('NOT_KILLED');
+    // A malformed/extra-key replacement of the killed record is NEVER accepted as proof → UNREADABLE.
+    const raw = JSON.parse(await readFile(controlFile(killed.root), 'utf8')) as Record<string, unknown>;
+    await writeFile(controlFile(killed.root), `${JSON.stringify({ ...raw, injected: true })}\n`, { mode: 0o600 });
+    expect(await readDurableKillProof(killed.root)).toBe('UNREADABLE');
   });
 
   it('retains a close-on-exec descriptor for a foreground lock and releases it under identity agreement', async () => {

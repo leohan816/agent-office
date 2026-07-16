@@ -42,6 +42,8 @@ import {
   NodeAs1AuthorityProvenanceVerifier,
 } from '../../adapters/gateways/slack-pilot/authority-provenance.js';
 import { NodeAs1GitProvenanceVerifier } from '../../adapters/gateways/slack-pilot/git-provenance.js';
+import { readDurableKillProof } from '../../operations/readiness/as1-slack-control.js';
+import { redactError } from '../../application/slack-pilot/contracts.js';
 import { createSystemRuntimeIdentity, type AgentOfficeRuntimeIdentity } from '../identity.js';
 import {
   As1GatewayComposition,
@@ -181,15 +183,10 @@ async function defaultLockRemoved(): Promise<boolean> {
   }
 }
 
-/** Read-only: is the fixed owner control durably globally killed (DISABLED_LATCHED / killEngaged)? */
+/** Read-only: is the fixed owner control durably globally killed? Uses the STRICT no-follow/owner/mode/size/UTF-8/
+ *  canonical/exact-schema/state-root-bound decoder (F05) — a malformed/replaced record is never accepted as proof. */
 async function defaultDurableKilled(): Promise<boolean> {
-  try {
-    const raw = await readFile(`${AS1_OWNER_STATE_ROOT}/indexes/as1-slack-pilot/global-control.json`, 'utf8');
-    const control = JSON.parse(raw) as { readonly state?: unknown; readonly killEngaged?: unknown };
-    return control.state === 'DISABLED_LATCHED' && control.killEngaged === true;
-  } catch {
-    return false;
-  }
+  return (await readDurableKillProof(AS1_OWNER_STATE_ROOT)) === 'KILLED';
 }
 
 const OBSERVER_DEFAULTS: As1ObserverSignalDeps = {
@@ -218,6 +215,9 @@ export async function runObserverSignal(
     lines: [`AS1_SLACK_PILOT ${command.toUpperCase()}`, `RESULT: ${outcome}`, `SHUTDOWN_DEADLINE_MS: ${String(AS1_OWNER_SHUTDOWN_DEADLINE_MS)}`],
   });
 
+  // For incident kill, note whether the owner was ALREADY durably killed before signaling (idempotent re-kill).
+  const preKilled = operation === 'INCIDENT_KILL' ? await deps.durableKilled() : false;
+
   const result = await deps.signal(operation);
   if (result.outcome !== 'SIGNAL_SENT') {
     // No live owner / ambiguous derivation → a stable redacted mapping; never a post-signal success.
@@ -225,23 +225,31 @@ export async function runObserverSignal(
     return line(false, 'STALE_OR_AMBIGUOUS_OWNER');
   }
 
-  // Post-signal proof: poll for EXACT lock removal within the fixed shutdown deadline (F05).
+  // Post-signal proof (F05): prove EXACT lock removal within the fixed shutdown deadline. ONE monotonic deadline is
+  // checked BEFORE each await AND AGAIN AFTER it, so an observation that only completes past the bound is NOT
+  // accepted; the later durable-kill read is bounded identically. This proves BOTH facts within the exact bound.
   const start = deps.nowMs();
+  const withinDeadline = (): boolean => deps.nowMs() - start <= AS1_OWNER_SHUTDOWN_DEADLINE_MS;
   let removed = false;
-  do {
-    if (await deps.lockRemoved()) {
+  while (withinDeadline()) {
+    const gone = await deps.lockRemoved();
+    if (!withinDeadline()) break; // a removal that only resolved past the bound is not accepted
+    if (gone) {
       removed = true;
       break;
     }
     await deps.delay(OBSERVER_POLL_INTERVAL_MS);
-  } while (deps.nowMs() - start <= AS1_OWNER_SHUTDOWN_DEADLINE_MS);
+  }
 
   if (operation === 'CLEAN_STOP') {
     return removed ? line(true, 'STOPPED_CLEAN') : line(false, 'STOP_TIMEOUT');
   }
-  if (!removed) return line(false, 'INCIDENT_KILL_TIMEOUT');
-  // Incident kill additionally proves the durable killed state before reporting success.
-  return (await deps.durableKilled()) ? line(true, 'INCIDENT_KILL_ENGAGED') : line(false, 'STALE_OR_AMBIGUOUS_OWNER');
+  if (!removed || !withinDeadline()) return line(false, 'INCIDENT_KILL_TIMEOUT');
+  const killed = await deps.durableKilled();
+  if (!withinDeadline()) return line(false, 'INCIDENT_KILL_TIMEOUT'); // a durable-kill read past the bound is not proof
+  // Lock removed within the bound but the kill is not durable → the owner's kill persistence failed (never success).
+  if (!killed) return line(false, 'INCIDENT_KILL_PERSIST_FAILED');
+  return line(true, preKilled ? 'INCIDENT_KILL_ALREADY_ENGAGED' : 'INCIDENT_KILL_ENGAGED');
 }
 
 /** The fixed installed-module descriptor path (design §5.1/§11.1.3, F02): resolved relative to THIS module so it is
@@ -252,19 +260,43 @@ export const AS1_INSTALLED_DESCRIPTOR_PATH = fileURLToPath(
 );
 
 /**
- * The COMPLETE production dependency graph (F01). It constructs the real read-only Git artifact source, Slack Web
+/** The fixed owner environment variable that supplies the INDEPENDENTLY-TRUSTED, construction-bound frozen authority
+ *  snapshot commit(s) the receive/delivery grants must descend from (design §8.1; F02). Like `AS1_SLACK_STATE_ROOT`
+ *  it is an owner-established input read once at construction — never a field learned from the candidate grant. */
+export const AS1_AUTHORITY_SNAPSHOT_ENV = 'AS1_AUTHORITY_SNAPSHOT_COMMITS';
+
+const GIT_SHA1 = /^[0-9a-f]{40}$/u;
+
+/** Parse the owner-provided frozen snapshot commits (comma-separated 40-hex). Absent/malformed → empty: the
+ *  default-disabled owner supplies none and `start()` never reaches a gate; an ENABLED owner MUST provide the real
+ *  governance baseline or the gate denies (fail closed). Never derived from the grant under review. */
+export function readFrozenAuthoritySnapshotCommits(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  const raw = env[AS1_AUTHORITY_SNAPSHOT_ENV];
+  if (raw === undefined || raw.length === 0) return [];
+  return raw.split(',').map((value) => value.trim()).filter((value) => GIT_SHA1.test(value));
+}
+
+/**
+ * The COMPLETE production dependency graph (F01/F02). It constructs the real read-only Git artifact source, Slack Web
  * client, tmux observation port, raw Socket transport factory, and the real Git provenance gate FACTORIES + evidence
- * verifier — all bound to the fixed governance repository/upstream, never a Slack/CLI/env value. The provenance gates
- * are FACTORIES because a gate's construction-bound artifact location and frozen authority snapshot are known only
- * after the composition's own trusted Git observation of the grant: the artifact location commit is the observed
- * first-add commit, and the frozen authority snapshot is the grant's OWN declared `authoritySourceCommit` (the exact
- * authority basis the evidence verifier also descends from). Nothing here connects, signals, or mutates; while the
- * committed descriptor stays default-disabled, `start()` returns before any gate/Web/Socket/tmux call runs.
+ * verifier — all bound to the fixed governance repository/upstream, never a Slack/CLI value. The provenance gates are
+ * FACTORIES because a gate's construction-bound artifact LOCATION is known only after the composition's own trusted
+ * Git observation of the grant (its location commit is the observed first-add commit). Its frozen authority SNAPSHOT
+ * commits are the INDEPENDENTLY-TRUSTED, construction-bound owner input `frozenSnapshotCommits` — NEVER the grant's
+ * own `authoritySourceCommit` (a field learned from the candidate under review). Nothing here connects, signals, or
+ * mutates; while the committed descriptor stays default-disabled, `start()` returns before any gate/Web/Socket/tmux
+ * call runs. `options` lets a deterministic test bind a throwaway repository to exercise the real gate.
  */
-export function buildAs1ProductionDependencies(): As1CompositionDependencies {
-  const gitSource = new NodeAs1GitArtifactSource();
+export function buildAs1ProductionDependencies(
+  frozenSnapshotCommits: readonly string[],
+  options: { readonly repoRoot?: string; readonly upstreamRef?: string } = {},
+): As1CompositionDependencies {
+  const repoRoot = options.repoRoot ?? AS1_GOVERNANCE_REPO_ROOT;
+  const upstreamRef = options.upstreamRef ?? AS1_GOVERNANCE_UPSTREAM_REF;
+  const gitSource = new NodeAs1GitArtifactSource(repoRoot, undefined, upstreamRef);
   const repositoryId = gitSource.getRepositoryId();
-  const authorityVerifier = new NodeAs1AuthorityProvenanceVerifier(AS1_GOVERNANCE_REPO_ROOT, repositoryId, AS1_GOVERNANCE_UPSTREAM_REF);
+  const authorityVerifier = new NodeAs1AuthorityProvenanceVerifier(repoRoot, repositoryId, upstreamRef);
+  const snapshots = [...frozenSnapshotCommits];
   return {
     gitSource,
     web: new NodeAs1WebClient(),
@@ -278,25 +310,25 @@ export function buildAs1ProductionDependencies(): As1CompositionDependencies {
         bindings.latch,
         bindings.control,
       ),
-    buildReceiveGrantProvenance: ({ receiveGrantRef, accepted, grant }) =>
+    buildReceiveGrantProvenance: ({ receiveGrantRef, accepted }) =>
       new GitAs1ReceiveGrantProvenanceGate(
         authorityVerifier,
         () => ({ path: receiveGrantRef, sourceCommit: accepted.firstAddCommit }),
-        [grant.authoritySourceCommit],
+        snapshots,
       ),
-    buildDeliveryProvenance: ({ deliveryGrantPath, accepted, grant }) =>
+    buildDeliveryProvenance: ({ deliveryGrantPath, accepted }) =>
       new GitAs1DeliveryProvenanceGate(
         authorityVerifier,
         () => ({ path: deliveryGrantPath, sourceCommit: accepted.firstAddCommit }),
-        [grant.authoritySourceCommit],
+        snapshots,
       ),
-    evidenceVerifier: new NodeAs1GitProvenanceVerifier(AS1_GOVERNANCE_REPO_ROOT, repositoryId, AS1_GOVERNANCE_UPSTREAM_REF),
+    evidenceVerifier: new NodeAs1GitProvenanceVerifier(repoRoot, repositoryId, upstreamRef),
   };
 }
 
 /** The bounded terminal cause the foreground owner resolves on (F01). A clean signal drains; SIGUSR2 durably latches;
- *  expiry/divergence are the reviewed bounded terminals; NOT_CONNECTED is the default-disabled/not-ready release. */
-export type As1OwnerStopCause = 'CLEAN_STOP' | 'INCIDENT_KILL' | 'GRANT_EXPIRED' | 'PROFILE_DIVERGED' | 'NOT_CONNECTED';
+ *  expiry/divergence/delivery-halt are the reviewed bounded terminals; NOT_CONNECTED is the disabled/not-ready release. */
+export type As1OwnerStopCause = 'CLEAN_STOP' | 'INCIDENT_KILL' | 'GRANT_EXPIRED' | 'PROFILE_DIVERGED' | 'DELIVERY_HALTED' | 'NOT_CONNECTED';
 
 /**
  * The foreground-owner boundary (F01). Production fills every seam with the real graph, process signal registration,
@@ -356,25 +388,39 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
   const deps = boundary.buildDeps();
   assertCompleteDependencies(deps);
   await boundary.initialize(boundary.stateRoot);
+
+  // The owner's terminal cause + a synchronous incident-admission closer wired the instant the control exists (F01).
+  // SIGUSR2 takes PRIORITY over any earlier clean signal and synchronously closes every incident admission; a bare
+  // closure-mutated local is read back through a typed getter so control-flow analysis keeps the full union.
+  let requested: As1OwnerStopCause | null = null;
+  let closeIncidentAdmission: (() => void) | null = null;
+  const request = (cause: As1OwnerStopCause): void => {
+    if (cause === 'INCIDENT_KILL') {
+      requested = 'INCIDENT_KILL';
+      closeIncidentAdmission?.();
+    } else {
+      requested ??= cause;
+    }
+  };
+  const pollRequested = (): As1OwnerStopCause | null => requested;
+
+  // Install ALL THREE handlers at the TRUE post-acquire boundary (before lock-owned control init) via onLockAcquired.
+  let installed: readonly As1OwnerSignal[] = [];
   const composition = await As1GatewayComposition.open(boundary.descriptor, {
     stateRoot: boundary.stateRoot,
     clock: boundary.clock,
     deps,
+    onLockAcquired: () => {
+      installed = boundary.installSignalHandlers({
+        SIGINT: () => request('CLEAN_STOP'),
+        SIGTERM: () => request('CLEAN_STOP'),
+        SIGUSR2: () => request('INCIDENT_KILL'),
+      });
+    },
   });
-
-  // Install ALL THREE owner signal handlers immediately after ownership, before any later side effect (design §11.1).
-  // The requested cause is mutated only inside the handler closures; a typed getter reads it back so control-flow
-  // analysis keeps the full union (a bare closure-mutated local would be seen as never-assigned).
-  let requested: As1OwnerStopCause | null = null;
-  const request = (cause: As1OwnerStopCause): void => {
-    requested ??= cause;
-  };
-  const pollRequested = (): As1OwnerStopCause | null => requested;
-  const installed = boundary.installSignalHandlers({
-    SIGINT: () => request('CLEAN_STOP'),
-    SIGTERM: () => request('CLEAN_STOP'),
-    SIGUSR2: () => request('INCIDENT_KILL'),
-  });
+  // The control now exists: wire the synchronous incident closer, and honor any SIGUSR2 that arrived during init.
+  closeIncidentAdmission = (): void => composition.closeIncidentGateNow();
+  if (pollRequested() === 'INCIDENT_KILL') composition.closeIncidentGateNow();
   for (const signal of REQUIRED_OWNER_SIGNALS) {
     if (!installed.includes(signal)) {
       await composition.close().catch(() => undefined);
@@ -389,10 +435,11 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
       const status = await composition.stop();
       return ownerLine(false, `NOT_CONNECTED:${started.reason}`, status.state);
     }
-    // Bounded live loop: re-observe the accepted receive grant + exclusive expiry, drive delivery + evidence, and
-    // stop ONLY on a signal, divergence, or expiry. It never renews, reconnects, or switches profile (design §6/§11).
-    // A `for (;;)` with explicit break-on-terminal keeps the exit cause well-typed without an always-null condition.
+    // Bounded live loop: re-observe the accepted receive grant + exclusive expiry, then attempt ONE delivery until it
+    // completes, then project evidence. NO broad catch: only a typed benign AWAITING outcome continues; any other
+    // delivery result, a thrown provenance/store/tmux/evidence/outbound error, or a signal/divergence/expiry ends it.
     let terminal: As1OwnerStopCause;
+    let delivered = false;
     for (;;) {
       const pending = pollRequested();
       if (pending !== null) {
@@ -408,20 +455,38 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         terminal = 'GRANT_EXPIRED';
         break;
       }
-      await composition.deliverPending().catch(() => undefined);
-      await composition.ingestEvidenceAndProject().catch(() => undefined);
+      if (!delivered) {
+        const delivery = await composition.deliverPending();
+        if (delivery.phase !== 'AWAITING' && delivery.outcome === 'DELIVERED') {
+          delivered = true;
+          await composition.ingestEvidenceAndProject(); // project ACK->INTAKE->RESULT once delivery completed
+        } else if (delivery.phase !== 'AWAITING') {
+          // Manual reconciliation, a pre-paste stop, or any non-benign delivery outcome halts the owner (the
+          // composition already latched where required) — never a swallowed result nor an unbounded retry.
+          terminal = 'DELIVERY_HALTED';
+          break;
+        }
+        // A benign AWAITING (no grant/lease yet) simply keeps polling.
+      }
       await boundary.delay(OWNER_LOOP_INTERVAL_MS);
     }
     if (terminal === 'INCIDENT_KILL') {
       const status = await composition.incidentKill();
       return ownerLine(false, 'INCIDENT_KILL_ENGAGED', status.state);
     }
-    // CLEAN_STOP, GRANT_EXPIRED, or PROFILE_DIVERGED all drain to DISABLED_CLEAN and release the writer lock.
+    // CLEAN_STOP / GRANT_EXPIRED / PROFILE_DIVERGED / DELIVERY_HALTED all drain to DISABLED_CLEAN and release.
     const status = await composition.stop();
     return ownerLine(terminal === 'CLEAN_STOP', terminal === 'CLEAN_STOP' ? 'STOPPED_CLEAN' : terminal, status.state);
   } catch (error) {
+    // A thrown security/store/provenance/tmux/evidence/outbound error (or a reverted start) terminates the owner
+    // under a stable redacted outcome — never a swallowed error or an unbounded live loop (F01).
+    const code = redactError(error).code;
+    if (composition.isOpen()) {
+      const status = await composition.latchActiveProfileAndStop(code).catch(() => null);
+      if (status !== null) return ownerLine(false, `OWNER_HALTED:${code}`, status.state);
+    }
     await composition.close().catch(() => undefined);
-    throw error;
+    return ownerLine(false, `OWNER_HALTED:${code}`, 'DISABLED_CLEAN');
   }
 }
 
@@ -491,7 +556,7 @@ async function main(): Promise<void> {
     descriptor,
     stateRoot,
     clock,
-    buildDeps: () => buildAs1ProductionDependencies(),
+    buildDeps: () => buildAs1ProductionDependencies(readFrozenAuthoritySnapshotCommits()),
     initialize: async (root: string): Promise<void> => {
       await initializeStateRoot(root, { stateRootId: 'as1-slack-pilot', initializedAt: clock.now() });
     },

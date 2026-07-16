@@ -437,25 +437,22 @@ export class As1ExactTransport {
       return stopped(`pointer artifact invalid: ${redactError(error).code}`);
     }
 
-    // The retained pointer descriptor must be closed on any pre-identity-proof reject (F04); after a successful
-    // proof, assertPinnedIdentityUnchanged has already closed it.
-    const stopClosingPin = async (reason: string): Promise<As1DeliveryResult> => {
-      await pinned.close();
-      return stopped(reason);
-    };
-
+    // F04: the retained pointer descriptor lifetime is enclosed in the try/finally below, so a thrown control or
+    // observation path can never leak it. close() is idempotent — the successful precommit proof closes it, every
+    // reject `return stopped(...)` runs the finally, and the finally closes it on any throw. No path leaves it open.
+    try {
     // Step 4: require the live predicate, then complete destination observation ONE (all 15 fields). Every
     // fresh-clock gate checks BOTH the grant AND lease exclusive expiries (F04).
-    if (!(await this.control.isDeliverable())) return stopClosingPin('owning control not actionable before observation one');
+    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before observation one');
     const observationOne = await this.port.observe(destination.paneId);
-    if (!this.clockLive(grant, lease)) return stopClosingPin('grant or lease expired before observation one');
-    if (!observationEquals(observationOne, destination)) return stopClosingPin('destination mismatch at observation one');
+    if (!this.clockLive(grant, lease)) return stopped('grant or lease expired before observation one');
+    if (!observationEquals(observationOne, destination)) return stopped('destination mismatch at observation one');
 
     // Step 5: without intervening work/mutation, require the live predicate and complete observation TWO.
-    if (!(await this.control.isDeliverable())) return stopClosingPin('owning control not actionable before observation two');
+    if (!(await this.control.isDeliverable())) return stopped('owning control not actionable before observation two');
     const observationTwo = await this.port.observe(destination.paneId);
-    if (!this.clockLive(grant, lease)) return stopClosingPin('grant or lease expired before observation two');
-    if (!observationEquals(observationTwo, destination)) return stopClosingPin('destination mismatch at observation two');
+    if (!this.clockLive(grant, lease)) return stopped('grant or lease expired before observation two');
+    if (!observationEquals(observationTwo, destination)) return stopped('destination mismatch at observation two');
 
     // Step 6: confirm the pinned descriptor/path identity and the live predicate one final time (still precommit).
     try {
@@ -481,44 +478,40 @@ export class As1ExactTransport {
       await journal.recordTmuxPhase(deliveryId, 'MANUAL_RECONCILIATION_REQUIRED');
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason };
     };
-    if (!live()) return manual('capability expired before authority consumption');
-    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before authority consumption');
+    if (!live()) return await manual('capability expired before authority consumption');
+    if (!(await this.control.isDeliverable())) return await manual('owning control not actionable before authority consumption');
     const consumed = await journal.consumeDeliveryAuthority(capability.pointerDeliveryGrantId, capability.leaseId);
-    if (!consumed) return manual('delivery authority already consumed');
+    if (!consumed) return await manual('delivery authority already consumed');
 
-    // Step 8: inspect/delete only the derived unpasted buffer under recovery proof, load ONLY the pinned bytes.
-    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer lookup');
+    // Step 8: load ONLY the pinned bytes. This is a FRESH attempt — any interrupted nonterminal phase already
+    // returned MANUAL at entry, and this attempt's own PREPARED write is NEVER treated as proof of authorized
+    // residue (F04). A pre-existing buffer with this content-addressed name is therefore unexpected and is never
+    // deleted; it fails closed to manual reconciliation, leaving the buffer untouched for the operator.
+    if (!(await this.control.isDeliverable())) return await manual('owning control not actionable before buffer lookup');
     if (await this.port.bufferExists(bufferName)) {
-      if (!live()) return manual('capability expired before buffer cleanup');
-      if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer cleanup');
-      // F04 recovery proof: delete a pre-existing buffer ONLY when the durable journal proves this delivery is at
-      // the pre-paste PREPARED window (authorized unpasted residue). Any other phase fails closed to manual.
-      if ((await journal.readTmuxPhase(deliveryId)) !== 'PREPARED') {
-        return manual('pre-existing tmux buffer without recovery-authorized PREPARED journal');
-      }
-      await this.port.deleteBuffer(bufferName);
+      return await manual('unexpected pre-existing tmux buffer; not authorized unpasted residue for this delivery');
     }
-    if (!live()) return manual('capability expired before buffer load');
-    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before buffer load');
+    if (!live()) return await manual('capability expired before buffer load');
+    if (!(await this.control.isDeliverable())) return await manual('owning control not actionable before buffer load');
     await this.port.loadVerifiedBuffer(bufferName, pinned.bytes);
-    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before BUFFER_LOADED record');
+    if (!(await this.control.isDeliverable())) return await manual('owning control not actionable before BUFFER_LOADED record');
     await journal.recordTmuxPhase(deliveryId, 'BUFFER_LOADED', facts);
 
     // Step 9: complete destination observation THREE after buffer load; compare to lease + both precommit ones.
-    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before observation three');
+    if (!(await this.control.isDeliverable())) return await manual('owning control not actionable before observation three');
     const observationThree = await this.port.observe(destination.paneId);
-    if (!live()) return manual('capability expired before observation three');
+    if (!live()) return await manual('capability expired before observation three');
     if (
       !observationEquals(observationThree, destination) ||
       !observationEquals(observationThree, observationOne) ||
       !observationEquals(observationThree, observationTwo)
     ) {
-      return manual('destination changed at the post-load observation three');
+      return await manual('destination changed at the post-load observation three');
     }
 
     // Step 10: only an exact match may record PASTE_STARTED, paste, and send Enter (the no-retry boundary).
-    if (!live()) return manual('capability expired before paste');
-    if (!(await this.control.isDeliverable())) return manual('owning control not actionable before paste');
+    if (!live()) return await manual('capability expired before paste');
+    if (!(await this.control.isDeliverable())) return await manual('owning control not actionable before paste');
     await journal.recordTmuxPhase(deliveryId, 'PASTE_STARTED', facts);
     try {
       await this.assertDeliverableOrThrow();
@@ -537,6 +530,11 @@ export class As1ExactTransport {
     } catch (error) {
       await journal.recordTmuxPhase(deliveryId, 'MANUAL_RECONCILIATION_REQUIRED');
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: redactError(error).code };
+    }
+    } finally {
+      // F04: close the retained pointer descriptor on EVERY exit path — normal return, reject `stopped(...)`, or a
+      // thrown control/observation/provenance error. Idempotent, so a prior close after the identity proof is safe.
+      await pinned.close();
     }
   }
 

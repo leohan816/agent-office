@@ -17,6 +17,7 @@ import { assertUtcTimestamp } from '../../domain/time/index.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import { writeAtomicCanonicalJson } from '../../persistence/file-store/atomic-file.js';
 import {
+  assertRegularOwnerOnlyFile,
   ensurePrivateDirectory,
   isNodeError,
   readStateRootFormat,
@@ -152,7 +153,7 @@ export class As1SlackControl {
   public static async open(
     stateRoot: string,
     clock: AgentOfficeRuntimeIdentity,
-    options: { readonly retainLockForForeground?: boolean } = {},
+    options: { readonly retainLockForForeground?: boolean; readonly onLockAcquired?: () => void } = {},
   ): Promise<As1SlackControl> {
     const canonicalRoot = await validateStateRoot(stateRoot);
     const format = await readStateRootFormat(canonicalRoot);
@@ -166,6 +167,10 @@ export class As1SlackControl {
       retainForForeground: options.retainLockForForeground === true,
     });
     try {
+      // The TRUE post-acquisition boundary (design §11.1, F01): the foreground owner installs its clean-stop and
+      // fixed incident handlers HERE — after the lock is held but BEFORE any lock-owned control read/validate/init or
+      // other side effect — so a default signal in this window cannot terminate the process with stale lock residue.
+      options.onLockAcquired?.();
       const integrity = await validateStartupState(canonicalRoot, format.stateRootId);
       if (integrity !== 'FRESH') {
         const instance = new As1SlackControl(canonicalRoot, format.stateRootId, clock, integrity.control, lock);
@@ -350,6 +355,24 @@ export class As1SlackControl {
     return hashCanonical(this.control);
   }
 
+  /**
+   * The exact pre-transition global-control and selected-profile-latch snapshot hashes (design §5.2, F02). The
+   * receive grant freezes these two values; the composition compares them against these EXACT parsed records BEFORE
+   * the first durable authority transition, so an arbitrary well-formed hash cannot become frozen evidence lineage.
+   * The global-control hash is the current single-writer in-memory record (byte-identical to the persisted canonical
+   * record); the profile-latch hash is the exact parsed selected latch record (strictly validated, never a subset).
+   */
+  public async selectedSnapshotHashes(profileSlug: string): Promise<{ readonly globalControlHash: string; readonly profileLatchHash: string }> {
+    const slug = assertProfileSlug(profileSlug);
+    this.assertOwned();
+    const latchRecord = await readJsonRecord(await this.profileLatchPath(slug));
+    if (latchRecord === null) {
+      throw new DomainError('STORE_QUARANTINED', 'selected profile latch record is missing; refusing a silent snapshot');
+    }
+    parseProfileLatch(latchRecord, slug); // strict validation before hashing the exact record
+    return { globalControlHash: hashCanonical(this.control), profileLatchHash: hashCanonical(latchRecord) };
+  }
+
   public getActiveProfileSlug(): As1ProfileSlug | null {
     return this.control.activeProfileSlug;
   }
@@ -511,6 +534,35 @@ export class As1SlackControl {
         latchedAt: null,
       });
     }
+  }
+}
+
+/**
+ * Strictly decode and identity-bind the durable KILLED control record for a separate-process observer proof (design
+ * §11.2, F05). It validates the exact state root and its established marker (state-root binding), then reads the
+ * `global-control.json` under a no-follow open with owner-only/regular/mode/size checks, a fatal-UTF-8 canonical
+ * bounded decode, and the exact-key/schema/correlation `parseControl`. Only a record that is exactly
+ * `DISABLED_LATCHED` with `killEngaged` is `KILLED`; a well-formed non-kill record is `NOT_KILLED`; ANY missing,
+ * malformed, extra-key, wrong-owner, symlinked, oversized, replaced, or non-decoding record is `UNREADABLE` (never
+ * accepted as proof). No mutation, no signal.
+ */
+export async function readDurableKillProof(stateRoot: string): Promise<'KILLED' | 'NOT_KILLED' | 'UNREADABLE'> {
+  try {
+    const canonicalRoot = await validateStateRoot(stateRoot);
+    const format = await readStateRootFormat(canonicalRoot);
+    const markerPath = await controlPath(canonicalRoot, ESTABLISHED_MARKER);
+    const marker = await readJsonRecord(markerPath);
+    if (marker === null) return 'UNREADABLE';
+    assertEstablishedMarker(marker, format.stateRootId);
+    const controlFile = await controlPath(canonicalRoot, 'global-control.json');
+    // Owner-only / regular / no group-or-other-mode / non-symlink check on the exact leaf before the no-follow read.
+    await assertRegularOwnerOnlyFile(controlFile);
+    const record = await readJsonRecord(controlFile);
+    if (record === null) return 'UNREADABLE';
+    const control = parseControl(record);
+    return control.state === 'DISABLED_LATCHED' && control.killEngaged ? 'KILLED' : 'NOT_KILLED';
+  } catch {
+    return 'UNREADABLE';
   }
 }
 

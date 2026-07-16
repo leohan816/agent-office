@@ -205,10 +205,21 @@ npm run as1:slack-pilot -- status
 npm run as1:slack-pilot -- restart
 ```
 
+The `npm run` forms above are LOCAL developer/operator convenience invocations on
+this exact worktree; they are NOT the authorized live owner. The authorized live
+owner `start` is the exact direct five-item Node argv in section 10.2, which pins
+the fixed process-incarnation literal. Treat the two as separate: the `npm run`
+form for local checks, the direct argv for any authorized live operation.
+
 `start` also requires the `AS1_SLACK_STATE_ROOT` environment value to equal the
-exact fixed owner state root, and requires `--env-file` to equal the committed
-descriptor's secret path; it resolves the descriptor from a fixed installed
-module path independent of the working directory.
+exact fixed owner state root, requires `--env-file` to equal the committed
+descriptor's secret path, and reads the independently-trusted, construction-bound
+frozen authority snapshot commit(s) from `AS1_AUTHORITY_SNAPSHOT_COMMITS`
+(comma-separated 40-hex governance commits the grant must descend from — never a
+value taken from the grant under review). It resolves the descriptor from a fixed
+installed-module path independent of the working directory. Absent an enabled
+descriptor these inputs are unused; an enabled activation without the exact frozen
+snapshot commit(s) fails closed (the provenance gate denies).
 
 Command semantics after implementation:
 
@@ -250,9 +261,13 @@ Command semantics after implementation:
   later manual start replays immutable journals under existing authority and
   never renews a grant/root slot, reconnects, or clears dedupe, journal, outbox,
   delivery-grant/lease/capability consumption, or failure latches.
-- `status` is a zero-operand read-only observer verb. It reports process/profile
-  states and stable reason codes only, never opening Web/Socket/tmux, and never
-  prints configuration values, Slack payloads, or raw grant identity values.
+- `status` is a zero-operand read-only observer verb. In this patch it prints only
+  a GENERIC observer projection — a fixed `LIVE_CONNECTION_OBSERVER` reason line —
+  and reads no lock or control state; it does not yet report live process/profile
+  state. It never opens Web/Socket/tmux and never prints configuration values,
+  Slack payloads, or raw grant identity values. (Owned-composition callers see the
+  redacted `LIVE_CONNECTION_*` projection; exact live state observation is a later
+  step.)
 
 No lifecycle command creates a Mission, pilot receive grant, post-intake
 pointer-delivery grant, readiness lease, or Advisor/tmux capability; dispatches
@@ -346,10 +361,17 @@ relative entry:
 
 ```sh
 AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot \
+  AS1_AUTHORITY_SNAPSHOT_COMMITS=<comma-separated 40-hex frozen governance snapshot commit(s)> \
   /home/leo/.nvm/versions/node/v24.18.0/bin/node \
   /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001/dist/core/runtime/as1-slack-pilot/cli.js \
   start --env-file /home/leo/.config/agent-office/as1-slack-pilot.env
 ```
+
+The two environment assignments are not argv (they do not change the exact
+process-incarnation argv recorded in the writer lock). `AS1_AUTHORITY_SNAPSHOT_COMMITS`
+supplies the independently-trusted, construction-bound frozen authority snapshot
+commit(s) the receive/delivery grants must descend from — never a field taken from
+the grant under review; absent it, an enabled activation fails closed.
 
 `start` remains disconnected unless a separately authorized value-only activation
 has set the descriptor `enabled: true` with exactly one committed/pushed
