@@ -1,0 +1,40 @@
+WORKER_PATCH_4_RESULT_POINTER
+MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
+PHASE: B_PRIVATE_LEO_ONLY_LIVE_COMPOSITION_PATCH_4
+ACTOR: Agent Office Worker
+SESSION: agent-office-opus
+MODEL_MODE_EFFORT_SKILL: Opus 4.8 (1M context) / Ultracode / max / /fable-builder
+RESULT_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_4_WORKER_RESULT.md
+RESULT_FILE_SHA256: cc9428424d1c584197388235c392dfa973e85bfb99dcbd2457e737bf533edf9c
+POINTER_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_4_WORKER_RESULT_POINTER.txt
+FOUNDATION_DOCS_COMMIT: NOT_APPLICABLE
+TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001
+TARGET_BRANCH: feature/as1-phase-b-live-pilot-001
+STARTING_PRODUCT_HEAD: cb6085b30007b51b491a89059c16cc85bb8bc038
+PATCH_3_SOURCE_CANDIDATE: d0e7ebc091f4882dbe25060812b6cb0329fb32e3
+INDEPENDENT_REVIEW: 76_PHASE_B_PATCH_3_INDEPENDENT_DELTA_REVIEW_RESULT.md
+REVIEW_RESULT_COMMIT: abeadb50b147d302ed16c3b910266977f2066a41
+REVIEW_RESULT_SHA256: 1c01a9f3d6c8f35f9a3821255722bffafebdcbf107e8cd0bfc7a0e2b54b35ace
+REVIEW_VERDICT: NEEDS_PATCH
+GOVERNANCE_RUN_PROMPT_COMMIT_77A: 758ea4ab421db7c70fe0ec6043d212af78fbbad5
+PATCH_4_IMPLEMENTATION_COMMIT: 0ab4782a79133111513fb11bc9ef62c197ed08da
+RESULT_COMMIT: ecaa00fce59edee41ebe7f4856cc22474cd102ec
+DESIGN: docs/integration/AGENT_OFFICE_AS1_PHASE_B_LIVE_COMPOSITION_DESIGN_DELTA.md
+CLOSED: F01 (CRITICAL) + F05 (HIGH) + F06 (MEDIUM); F02-F04 preserved
+SUPERSEDES: the Patch 3 result F01/F05 closure claims (runForegroundOwner prevents every next side effect; startup/error covered; retained decoder rejects a replaced object) AND its 165/165 five-file total (independently 166/166 at Patch 3); Patch 1/2/2A/3 result+pointer left byte-unchanged
+SCOPE: exact 6-path lock (cli.ts + composition.ts + as1-slack-control.ts + live-composition.test.ts + lifecycle.test.ts + AGENT_OFFICE_AS1_SLACK_SETUP.md) plus this result + pointer; no other path changed
+DIFFSTAT_cb6085b_TO_0ab4782: 6 files, 837 insertions, 156 deletions
+F01_SUMMARY: a synchronous construction-bound admission guard is checked BEFORE and AFTER every load-bearing await in start()/deliverPending()/ingestEvidenceAndProject()/observeReceiveGrantOnce() (guardedAwait) and is woven into the SUPPLIED collaborator ports — startup verifier provenance/Web/Socket (incidentGuardedStartupPorts) and transport/evidence/outbox tmux/journal/store/provenance/verifier/Web/latch (incidentGuardedPort/incidentGuardedCallback) — so an incident inside those internal awaits begins no next Git/durable/tmux/Web/outbound side effect; exact-authority/exact-transport/evidence-ingress/outbox unmodified. Owner re-samples incidentPending before AND after the idle delay; one incident routed exactly once through the durable kill. finishCleanup permits a clean drain only with empty pre-ambiguity AND open gate, else durable kill; internal drain transitions carry the admission guard; engageGlobalKill is transactional (persist-then-commit → KILL_NOT_ENGAGED/FALLBACK_KILL on failure, never an unproved in-memory latch); control.close() commits release only on success so a WriterLock-release failure retains ownership and finishCleanup fallback-kills; the owner reports the ACTUAL observed state (never a hard-coded DISABLED_LATCHED) and brings missing-handler/lock-release inside the stable owner-result boundary
+F05_SUMMARY: after the retained no-follow read, the descriptor is RE-fstat'ed (identity/link/size/mode/owner/mtime/ctime unchanged) AND the fixed leaf is RE-OPENED no-follow into a SECOND retained descriptor whose device/inode + safe metadata must MATCH the retained object before accepting KILLED; both handles close deterministically and any close ambiguity fails closed; exact canonical-byte + monotonic-deadline behavior preserved
+F06_SUMMARY: setup 10.4 states the per-await + internal-port domination, truthful never-DISABLED_CLEAN/never-unproved-DISABLED_LATCHED cleanup, transactional kill, release-failure fallback, and retained + current-leaf durable-kill proof; generic status, argv distinction, one client, fixed root, zero-operand observers, live-disabled restart preserved
+ADVERSARIAL_FAIL_ON_CANDIDATE: with the 3 source files reverted to cb6085b, 8/9 Patch 4 F01 integration tests fail (startup botsInfo runs; delivery tmux paste happens; incident-aware drain returns DISABLED_CLEAN; missing-handler raw-throws; disconnect/latch/fallback-kill/release reach DISABLED_CLEAN; evidence-internal returns ACK:ACCEPTED and persists), the control shutdown-guard test fails (DISABLED_CLEAN), and the F05 retained-replacement/same-size/metadata/noncanonical tests fail (KILLED); all pass on the fix; stashes popped and restored
+FAILURES_RETRIES: (1) divergence test mis-modeled (FakeGitSource returns DIVERGED before the lazy fire) → composition-level rewrite; (2) filesystem latch-write injection non-deterministic → deterministic disconnect pre-ambiguity + chmod 0o500 control-dir for fallback-kill; (3) EVIDENCE_WRONG_REPOSITORY fake inconsistency (observer foundation-docs vs grant agent-office) → froze one exact receive-grant object (repo = observer) set+returned+reused, no authority drift; a temporary debug console.error/dynamic-import was added then REMOVED before gates (verified no residue); (4) shared owner-harness helpers hoisted to module scope; (5) ESLint no-unnecessary-condition on closure-mutated released/deadlineFired → typed getter / helper return
+GATES: typecheck + core build + ESLint(5 changed paths, 0 errors) + git diff --check clean; 6-path scope + prior-evidence + descriptor byte-identity; secret/dynamic-target/unsafe-Git scans clean; changed-files 98/98; focused Phase B 5 files 180/180; full AS1 19 files 404/404; all --maxWorkers=1; no skips, no hangs
+PROHIBITIONS: no secret access, no Slack/network, no live tmux observe/mutate/input, no real signal, no child_process/exec/spawn, no owner-state mutation, no descriptor activation, no sub-agent, no self-review, no main/protected write, no force push
+DESCRIPTOR: config/agent-office.as1-slack-pilot.disabled.json left byte-unchanged (enabled:false, sha256 8e3b9985f09b366e046d03392bd60b2157264ec1f2eb4498bfa92e615802f5d7)
+OFFLINE_GATE_SYMLINK: untracked node_modules -> sibling AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001/node_modules; never committed; REMOVED before the commit sequence
+LIMITATIONS: a WriterLock-release failure engages a durable fallback kill but does NOT retry the release (unsafe partial-release semantics): the lock remains held until process exit and the RELEASE ambiguity is reported truthfully; all proofs are synthetic (no live activation)
+PUSH_STATUS: NON_FORCE_PUSH to origin/feature/as1-phase-b-live-pilot-001 (this pointer commit is branch HEAD; upstream-equal after push)
+RETURN_TO: agent-office-advisor
+PROPOSED_NEXT_ACTOR: agent-office-advisor (may dispatch the independent agent-office-reviewer for the Patch 3 + Patch 4 source-first delta review)
+STOP
