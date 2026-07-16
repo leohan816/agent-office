@@ -1,0 +1,32 @@
+WORKER_PATCH_2A_RESULT_POINTER
+MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
+PHASE: B_PRIVATE_LEO_ONLY_LIVE_COMPOSITION_PATCH_2A
+ACTOR: Agent Office Worker
+SESSION: agent-office-opus
+MODEL_MODE_EFFORT_SKILL: Opus 4.8 (1M context) / Ultracode / max / /fable-builder
+RESULT_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_2A_WORKER_RESULT.md
+RESULT_FILE_SHA256: 69197874200dfeb7ad594fcb1a1773d6f37d213cbff75e5d8890ee8b4a293c10
+POINTER_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_2A_WORKER_RESULT_POINTER.txt
+FOUNDATION_DOCS_COMMIT: NOT_APPLICABLE
+TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001
+TARGET_BRANCH: feature/as1-phase-b-live-pilot-001
+PATCH_2A_PARENT_COMMIT: 82f69527ab2f9aab83bd47c21b55110f44a85417
+PATCH_2_SOURCE_CANDIDATE: bd3f8fc69cd610febb6df32d8c5daa9dc92bfe38
+ADVISOR_PREFLIGHT_CORRECTION: 71_PHASE_B_PATCH_2A_ADVISOR_PREFLIGHT_CORRECTION.md
+GOVERNANCE_RUN_PROMPT_COMMIT_71A: 91ff0076fea76c75c4d901831b5d9bca97f11986
+PATCH_2A_IMPLEMENTATION_COMMIT: 67ec9842b6d7af1b2e1eb3142bfee60f4f6da250
+RESULT_COMMIT: 3ede2ee6beb876539058dc9f6f46b8dc1de7a0ec
+DESIGN: docs/integration/AGENT_OFFICE_AS1_PHASE_B_LIVE_COMPOSITION_DESIGN_DELTA.md
+CORRECTION: F03 readiness-lease evidence re-observation gap
+SUPERSEDES: the Patch 2 result F03 sentence "Evidence requires an already-accepted delivery — no first-observation fallback" (Patch 2 result/pointer left byte-unchanged)
+SCOPE: exact 4-path lock (composition.ts + live-composition.test.ts + this result + pointer); no other path changed
+DIFFSTAT_82f69527_TO_67ec9842: 2 files, 76 insertions, 0 deletions
+CORRECTION_SUMMARY: ingestEvidenceAndProject() requires BOTH accepted artifacts and re-observes both the pointer-delivery grant AND the readiness lease with their retained (firstAddCommit,blobSha256) pairs before evidence/outbound; a divergent/deleted/dirty/rewritten/unavailable/malformed lease fails closed + durably latches the profile; the re-observed lease is proven bound to the accepted delivery via canonical assertPointerGrantSnapshot + a COMPLETE shared-field comparison (no clock re-check; no duplicate partial helper)
+ADVERSARIAL_FAIL_ON_CANDIDATE: confirmed — the lease-divergence test fails on bd3f8fc6 (evidence proceeds with a diverged lease) and passes after the re-observation; restored
+GATES: typecheck + build:core + eslint(2 changed paths, 0 errors) + git-diff-check clean; 4-path scope + prior-evidence + descriptor byte-identity verified; live-composition 27/27; focused 5 files/160 tests; full as1-slack 19 files/381 tests with --maxWorkers=1
+PROHIBITIONS: no secret access, no Slack/network, no live tmux mutation, no real signal, no owner-state mutation, no pilot activation, no sub-agent, no self-review, no main/force push
+DESCRIPTOR: config/agent-office.as1-slack-pilot.disabled.json left byte-unchanged (enabled:false, sha256 8e3b9985f09b366e046d03392bd60b2157264ec1f2eb4498bfa92e615802f5d7)
+PUSH_STATUS: NON_FORCE_PUSH to origin/feature/as1-phase-b-live-pilot-001 (this pointer commit is branch HEAD)
+RETURN_TO: agent-office-advisor
+PROPOSED_NEXT_ACTOR: agent-office-advisor (may now dispatch the independent agent-office-reviewer for the Patch 2 + Patch 2A source-first delta review)
+STOP
