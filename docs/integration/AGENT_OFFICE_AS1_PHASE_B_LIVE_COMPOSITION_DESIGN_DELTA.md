@@ -1,13 +1,20 @@
 # Agent Office AS1 Phase B Live Composition Design Delta
 
-Status: `REVIEW_READY_DESIGN_ONLY`
+Status: `REVIEW_READY_PATCHED_DESIGN_ONLY`
 
 Mission: `AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001`
 
-Pass: `PHASE_B_SECURITY_TRANSPORT_DESIGN_DELTA`
+Pass: `PHASE_B_SECURITY_TRANSPORT_DESIGN_PATCH`
 
-Authority: committed Designer handoff
-`47_PHASE_B_DESIGNER_HANDOFF.md`
+Authority: committed Designer patch handoff
+`50_PHASE_B_DESIGN_PATCH_HANDOFF.md` at
+`ab0e4123a4faeb3e3abc7472542d2a2e92389435`
+
+Reviewed design commit:
+`3d359639c4d819f1c601481245daa81d5de9d5fc`
+
+Independent `NEEDS_PATCH` input:
+`49_PHASE_B_DESIGN_REVIEW_RESULT.md` at governance commit `b84393e`
 
 Active scope correction:
 `47B_PHASE_B_SCOPE_AUDIT_AND_DESIGN_CORRECTION.md` at
@@ -29,9 +36,13 @@ composition and operator wiring.
 
 The reviewed Phase A contracts support the Phase B pilot without a database,
 authority-schema change, Registry change, Exact Delivery v2 change, systemd
-unit, HTTP/UI surface, or external product-code change. The implementation may
-therefore proceed after independent design review and a new exact Advisor
-implementation handoff.
+unit, HTTP/UI surface, or external product-code change. This patch closes all
+five findings from the independent review: it separates frozen evidence
+authority from live actionability, seals the exact pointer bytes loaded into
+tmux, binds every destination fact and the selected profile, makes incident
+kill executable, and proves process ownership across PID reuse. The
+implementation may therefore proceed only after a new independent design
+review and a new exact Advisor implementation handoff.
 
 The delta is deliberately small:
 
@@ -39,10 +50,13 @@ The delta is deliberately small:
    activation material;
 2. assemble the existing store, service, Slack Web/Socket, exact delivery,
    evidence-ingress, and outbox modules into one foreground process;
-3. add the missing production Git-artifact reader and narrow AS1 tmux port;
+3. add the missing production Git-artifact reader and narrow AS1 tmux port,
+   including pinned pointer bytes and complete fresh destination proof;
 4. keep the Socket in authenticated quarantine until the durable receive state
    is armed;
-5. make the existing closed lifecycle CLI work with a long-running process;
+5. make the closed lifecycle CLI work with a long-running process, including
+   distinct fixed clean-stop and durable incident-kill actions with exact
+   process-incarnation proof;
 6. document the owner state root and the two strictly sequential rehearsals.
 
 The live scope is one configured Slack workspace, Leo as the only authorized
@@ -106,32 +120,38 @@ not current edit permission.
 
 | Path | Exact Phase B purpose |
 |---|---|
-| `src/runtime/as1-slack-pilot/composition.ts` | Replace the Phase A disconnected stub with the single-profile, one-workspace/Leo-only foreground composition for one root-to-result round trip, bounded authority/evidence polling, startup order, drain, and redacted status. |
-| `src/runtime/as1-slack-pilot/cli.ts` | Keep the existing closed grammar; use the fixed descriptor path; reject descriptor/profile/grant overrides; hold explicit `start` in foreground; implement lock-bound manual `stop` and read-only `status`; keep `restart` live-disabled. |
+| `src/runtime/as1-slack-pilot/composition.ts` | Replace the Phase A disconnected stub with the single-profile, one-workspace/Leo-only foreground composition for one root-to-result round trip; keep the receive grant's frozen evidence hashes distinct from the construction-bound live control/latch predicate; bind the selected profile into delivery; provide bounded authority/evidence polling, startup order, incident gating, drain, and redacted status. |
+| `src/runtime/as1-slack-pilot/cli.ts` | Keep a closed verb-specific grammar and fixed descriptor/state-root construction; reject descriptor/profile/grant/PID/signal/path/reason overrides; hold explicit `start` in foreground; implement distinct lock-bound zero-operand `stop` and `incident-kill`, plus read-only `status`; keep `restart` live-disabled. |
 | `src/adapters/gateways/slack-pilot/git-artifact-source.ts` | New read-only, fixed-root Git source for the receive grant, delivery grant, readiness lease, and evidence. It uses closed `/usr/bin/git` argv, never fetches, and distinguishes `NOT_READY` from accepted-artifact divergence. |
 | `src/adapters/gateways/slack-pilot/socket-client.ts` | Add authenticated-quarantine arming so no event is parsed or delivered between verified `hello` and the durable `RECEIVING_ONE_PROFILE` transition. |
-| `src/adapters/gateways/slack-pilot/exact-transport.ts` | Add the production `NodeAs1TmuxPort` behind the existing `As1ExactTransport`; preserve the reviewed journal, two preflights, one-use consumption, and no-retry boundary. |
+| `src/adapters/gateways/slack-pilot/exact-transport.ts` | Add the production `NodeAs1TmuxPort` behind the existing journal/one-use transport; open, validate, hash, and pin the contained pointer bytes before commitment; load only the pinned bytes through closed stdin; bind the selected profile; return and compare every destination fact in both preflights before `PREPARED`, consumption, or tmux mutation; preserve the no-retry boundary. |
 | `src/application/slack-pilot/inbound-store.ts` | Add read-only typed accessors for the terminal tmux delivery record and atomic grant/lease consumption record needed by `buildEvidenceAuthority`; do not change record shapes or paths. |
-| `src/operations/readiness/as1-slack-control.ts` | Add stable control/latch snapshot projection and read-only redacted observation; retain the state vocabulary, transition table, latches, and lock ownership. |
-| `src/persistence/file-store/writer-lock.ts` | Add strict read-only lock-metadata observation for the closed `stop`/`status` path; reuse `agent-office.writer-lock.v1` without changing it. |
-| `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` | Add the exact `AS1_SLACK_STATE_ROOT` owner instruction and the manual foreground start/stop procedure for the private pilot. |
+| `src/operations/readiness/as1-slack-control.ts` | Add a construction-bound live delivery-actionability predicate and redacted observation, plus the fixed operator-incident kill transition; retain the frozen authority fields, state vocabulary, transition table, latches, and lock ownership. |
+| `src/persistence/file-store/writer-lock.ts` | Add strict two-observation owner proof for the closed `stop`/`incident-kill`/`status` paths, binding the existing lock to OS process birth, UID, boot, executable inode, and exact AS1 entry; reuse `agent-office.writer-lock.v1` byte-for-byte. |
+| `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` | Add the exact `AS1_SLACK_STATE_ROOT` owner instruction and the closed foreground start, clean-stop, and zero-operand incident-kill procedure for the private pilot. |
 | `tests/adapters/as1-slack-socket-client.test.ts` | Prove authenticated quarantine, receive arm, pre-arm bounds, disconnect, and no pre-arm parse/ACK. |
-| `tests/integration/as1-slack-exact-transport.test.ts` | Prove the production tmux port's closed argv and the unchanged exact transport behavior. |
-| `tests/integration/as1-slack-live-composition.test.ts` | New single focused composition test: one fixed-workspace/Leo-only Agent Office root-to-result round trip and stop, then one Foundation round trip through the same boundaries with isolated state. |
+| `tests/integration/as1-slack-exact-transport.test.ts` | Prove exact pinned pointer bytes, no-follow/type/owner/size/grammar/correlation checks, closed stdin/argv, complete profile-bound two-preflight equality, pre-commit rejection, one-use delivery, and unchanged no-retry behavior. |
+| `tests/integration/as1-slack-live-composition.test.ts` | New single focused composition test: prove distinct frozen/live control records complete unchanged evidence equality only while the live predicate is actionable; then run one fixed-workspace/Leo-only Agent Office root-to-result round trip and stop followed by one isolated Foundation round trip. |
 | `tests/integration/as1-slack-git-artifact-source.test.ts` | New focused fixed-path test proving ready/not-ready observation, exact committed bytes, and no acceptance of a changed artifact. |
-| `tests/operations/as1-slack-lifecycle.test.ts` | Extend the existing focused lifecycle test for explicit foreground start, manual/signal-bound bounded stop, lock release, live-disabled restart, and redacted status used by the two pilots. |
+| `tests/operations/as1-slack-lifecycle.test.ts` | Extend the focused lifecycle test for explicit foreground start; distinct clean stop and durable incident kill; PID-birth/executable owner proof and race rejection; bounded shutdown/lock release; live-disabled restart; and stable redacted status. |
 
 No other source, test, configuration, package, lockfile, Registry, v2, UI, or
 external project path is needed. In particular, the implementation must not modify
 `src/adapters/gateways/tmux-advisor/*`, `src/application/advisor-inbox/*`, the
 organization Registry, Phase A contract schemas, or package dependencies.
 
+F03 does not require `src/adapters/gateways/slack-pilot/exact-authority.ts`.
+The selected closed `As1Profile` is already available to composition and is
+bound once into `As1ExactTransport`; the same exact-transport path owns the
+complete preflight shape and comparison. The implementation map therefore
+remains 14 paths, not 15.
+
 The Worker does not modify the default-disabled descriptor; the value-only
 activation is a later exact reviewed pilot operation. No separate Phase B
 as-built document is created: the existing Worker result, independent Reviewer
 result, and Advisor audit hold implementation and live evidence.
 
-### 3.2 Reviewed Phase A modules reused unchanged
+### 3.2 Reviewed Phase A boundaries reused
 
 The live composition constructs these existing modules rather than replacing
 their logic:
@@ -146,7 +166,9 @@ their logic:
   one-use capability construction;
 - `NodeAs1WebClient`, `NodeAs1ConnectionsOpener`,
   `NodeAs1WebSocketFactory`, and `As1RawSocketTransport`;
-- `As1ExactTransport` and its existing durable profile journal;
+- the existing `As1ExactTransport` durable journal, capability, one-use
+  consumption, and no-retry semantics, with only the F01-F03 checks and port
+  shape boundedly repaired in its already-listed path;
 - `buildEvidenceAuthority`, `As1EvidenceIngress`, and `As1Outbox`;
 - existing atomic-file, immutable-artifact, hashing, path-safety, runtime-clock,
   and `WriterLock` primitives.
@@ -254,9 +276,12 @@ owner-prepared directory may be initialized through the existing
 `/tmp`, a shared/group-writable directory, a symlink, a second arbitrary root,
 or a relative path fail closed. No secret is stored below this root.
 
-`redacted-check`, `start`, `stop`, `restart`, and `status` all require this same
-environment instruction. `redacted-check` remains local syntax only and does
-not open Slack or tmux.
+`redacted-check` and `start` require this exact environment instruction and the
+descriptor's exact secret path. The observer verbs `stop`, `incident-kill`,
+`status`, and live-disabled `restart` resolve only the construction-bound state-
+root literal above; they accept no state-root, secret, profile, PID, signal,
+destination, or reason operand. `redacted-check` remains local syntax only and
+does not open Slack or tmux.
 
 ### 5.2 Independent contained profile roots
 
@@ -282,14 +307,40 @@ The environment supplies only the common root; it cannot choose a contained
 profile root. `resolveContainedPath` and realpath/no-follow checks must prove the
 selected path neither aliases nor escapes to the other profile.
 
-At an authority gate, `globalControlSnapshotHash` is
-`hashCanonical(<exact parsed agent-office.as1-global-control.v1 record>)` and
-`profileLatchSnapshotHash` is
-`hashCanonical(<exact parsed selected failure-latch record>)`. Receive-grant
-comparison occurs before its first live transition. Delivery-grant comparison
-uses a fresh snapshot immediately before delivery acceptance. The hello seal
-continues to bind the live construction-owned control projection after those
-authority snapshots have been checked.
+The receive grant freezes `globalControlSnapshotHash` as
+`hashCanonical(<exact parsed pre-transition
+agent-office.as1-global-control.v1 record>)` and freezes
+`profileLatchSnapshotHash` from the exact parsed selected latch record. Those
+two evidence-authority values are immutable lineage, not live readiness. The
+pointer-delivery grant must copy them byte-for-byte from the receive grant; the
+capability and terminal delivery facts must copy them from that delivery grant.
+No delivery path recomputes either frozen field from the later live control
+record. This preserves the unchanged `buildEvidenceAuthority` equalities across
+receive grant, pointer-delivery grant, and delivery facts. No second durable
+snapshot field or schema change is introduced.
+
+### 5.3 Separate construction-bound live actionability
+
+Live control and latch state is proven by a separate, non-serializable predicate
+bound at composition construction to the owned `As1SlackControl`, selected
+profile slug, canonical common root, and writer lock. A fresh evaluation parses
+the current exact control and selected latch facts and is true only when:
+
+- the control still owns the one writer lock;
+- `state` is exactly `RECEIVING_ONE_PROFILE`;
+- `killEngaged` is false, `latchReason` is null, and `activeProfileSlug` equals
+  the selected closed profile slug;
+- the selected profile latch is exactly unlatched with null reason/time; and
+- the synchronous incident gate is open.
+
+The delivery-grant poll may parse a candidate, but it does not accept it until
+this live predicate succeeds. The exact transport evaluates it again before
+each preflight, `PREPARED`, authority consumption, buffer lookup/deletion/load,
+every journal transition, paste, and Enter. A false or unreadable predicate
+stops before the next boundary; after `PREPARED` it follows the existing manual-
+reconciliation rule. The live record and its hash are never placed in a grant,
+capability, delivery fact, evidence artifact, or new durable field. The hello
+seal continues to use its separate construction-owned authentication predicate.
 
 The existing common `WriterLock` and global control make simultaneous starts
 impossible. Under it, each profile keeps its own receive-grant state, receipts,
@@ -309,7 +360,8 @@ control as defined below and never skips forward.
    fresh root; acquire its one `WriterLock`; validate the state-root marker,
    global control, and both latch records under the lock. Reject a second
    process or stale lock. No profile is selected and no secret or network access
-   has occurred.
+   has occurred. Install the clean-stop and fixed SIGUSR2 incident handlers as
+   soon as ownership is established and before any later side effect.
 2. Read the fixed descriptor and exact committed receive-grant blob. Parse it,
    derive the one profile from `grant.profileId`, validate Registry lineage,
    selected contained-root/store integrity, state-root binding, `rootLimit: 1`,
@@ -445,9 +497,14 @@ construction-bound mission authority root for one path derived from:
 Absence is `AWAITING_POINTER_DELIVERY_GRANT`, not implied approval. The parsed
 `As1PointerDeliveryGrantV1` must match the receive binding, pilot, profile,
 intake, event, root correlation, pointer ref/hash, Team/Actor/role lineage,
-governance/Registry/control/latch snapshots, and fixed evidence prefix. It must
-be newly added, committed, pushed, clean, upstream-ancestral, unexpired, and
-unused. The gateway cannot create or complete it.
+governance/Registry snapshots, the receive grant's unchanged frozen
+`globalControlSnapshotHash` and `profileLatchSnapshotHash`, and the fixed
+evidence prefix. It must be newly added, committed, pushed, clean, upstream-
+ancestral, unexpired, and unused. Parsing or observing a candidate is not
+acceptance: the construction-bound live predicate in section 5.3 must also be
+actionable immediately before acceptance. The gateway cannot create or
+complete the grant, substitute a fresh live hash into it, or add another
+snapshot field.
 
 Only after that grant is accepted does the composition poll the sibling fixed
 path `readiness-lease.json`. The Advisor creates that lease from a fresh
@@ -457,34 +514,118 @@ pushed, exact to the grant, `useLimit: 1`, readiness exactly
 expired lease causes no fallback; the Advisor must create a new grant/lease
 chain under new explicit authority if another attempt is wanted.
 
-### 9.2 Runner reuse and fresh destination proof
+### 9.2 Exact pointer-byte seal
 
-The composition reuses the existing `As1ExactTransport` unchanged. The only
-new production adapter is `NodeAs1TmuxPort`, implementing its already-reviewed
-closed port. It exposes only structured preflight, private-buffer existence,
-load of the internally derived contained pointer file, paste to the lease-bound
-pane, Enter to that same pane, and deletion of an unpasted private buffer under
-the existing recovery proof.
+Composition binds the exact selected profile artifact root and the durable
+pointer ref produced by that profile's just-completed materialization. The
+validated grant must name that same ref; the shared contained-pointer parser
+then derives the profile slug/delivery ID, and the private buffer name follows
+from those values. The transport accepts no path parameter. Before `PREPARED`,
+authority consumption, buffer inspection, or any tmux mutation, its
+construction-bound resolver resolves that one agreed relative ref below the
+selected artifact root and performs one bounded open:
 
-The port uses fixed `/usr/bin/tmux`, `shell: false`, a fixed environment, bounded
-time/output, the reviewed structured preflight format/decoder, strict pane-ID
-grammar, and internal paths. It has no capture-pane, show-buffer, run-shell,
-new-session, arbitrary argv, caller file, generic command, or message-body
-input. Exact Delivery v2 and `NodeExactTmuxMutationRunner` remain byte- and
-behavior-compatible; AS1 does not route through v2 or widen its fixed target.
+1. validate every parent as contained, owner-UID, private, and non-symlink;
+2. open the leaf once with `O_RDONLY | O_NOFOLLOW` and retain that file
+   descriptor until the byte seal is complete;
+3. `fstat` the descriptor and require an owner-UID regular file, one link, no
+   group/other write permission, and a nonzero size no greater than the existing
+   `LIMITS.DURABLE_FILE_MAX_BYTES` ceiling;
+4. read once from that descriptor into an immutable in-memory `Buffer`, require
+   fatal UTF-8 decoding, and require the exact canonical JSON bytes for
+   `agent-office.as1-advisor-pointer.v1` with no missing/extra keys; and
+5. require raw-byte SHA-256 equality with `grant.pointerHash` and exact pointer
+   correlations for receive grant/binding, pilot, profile, intake, source event,
+   root correlation, and the grant-derived pointer artifact path/delivery ID.
 
-`As1ExactTransport` performs the first live preflight against every lease field,
-creates the in-memory capability only after that match, records `PREPARED`,
-atomically consumes the delivery grant and lease, loads the private buffer,
-then performs a second fresh preflight immediately before paste. No pane/session
-value from a previous run, current shell, historical evidence, stale lease, or
-the other profile may substitute. Target change stops before paste or records
-manual reconciliation according to the existing journal boundary.
+Immediately before the pre-commit boundary, `lstat` of the contained leaf must
+still match the retained descriptor's device, inode, type, owner, and link
+facts. Replacement before that check is `POINTER_ARTIFACT_INVALID` and leaves
+the journal absent, authority unconsumed, and tmux untouched. Replacement after
+that check cannot change the operation: the path is never opened again and only
+the already-pinned bytes are loadable.
 
-`PASTE_STARTED` remains the no-retry boundary. Paste or Enter is never repeated.
-The terminal `TRANSPORT_RECORDED` record plus the atomic consumption record are
-read through the new typed store accessors and become inputs to
-`buildEvidenceAuthority`; they are never reconstructed from logs.
+`NodeAs1TmuxPort` therefore exposes a construction-only `loadVerifiedBuffer`
+operation accepting the pinned bytes, not a file path. It invokes only fixed
+`/usr/bin/tmux load-buffer -b <derived-private-name> -` argv with `shell: false`,
+writes the exact bytes to a closed stdin, and closes stdin before awaiting the
+bounded result. It never places pointer bytes in argv, environment, logs, a
+temporary path, or a caller-selected buffer. Buffer name, argv, target, source
+root, and source relative path all remain construction-bound and must agree
+with the validated grant.
+
+### 9.3 Complete profile and destination binding
+
+Before capability creation, the lease destination must satisfy this immutable
+profile invariant:
+
+```text
+lease.profileId == selectedProfile.profileId
+lease.destination.sessionName == selectedProfile.sessionName
+lease.destination.workspace == selectedProfile.workspace
+lease.destination.currentCommand == selectedProfile.currentCommand
+```
+
+A profile-lineage match without these three physical-destination equalities is
+insufficient. A Foundation lease naming the Agent Office session/workspace (or
+the reverse) is rejected before `PREPARED`, consumption, or tmux mutation.
+
+The lease envelope's grant/profile/lineage IDs, `readiness`, `useLimit`,
+`observedAt`, `issuedAt`, and `expiresAt` are authority metadata. They are
+validated and correlated statically but are not fabricated by tmux. Every field
+inside `lease.destination` is a security-relevant live fact and must be returned
+with an exact-key decoder by *both* structured preflights:
+
+| Live destination fact | Required rule in each preflight |
+|---|---|
+| `sessionName`, `sessionId` | exact lease equality; `sessionName` also equals the selected profile |
+| `windowName`, `windowId`, `windowIndex` | exact lease equality |
+| `paneId`, `paneIndex`, `panePid` | exact lease equality; the construction-derived pane ID is the only query target |
+| `workspace`, `currentCommand` | exact lease equality and exact selected-profile equality |
+| `paneDead`, `paneInMode`, `inputOff`, `synchronizePanes` | present and exactly false |
+| `activityTime` | exact lease equality and unchanged between the two preflights |
+
+No destination field is metadata-only or optional. An omitted or additional
+field is a decoder failure, not a default. Freshness requires
+`observedAt <= issuedAt < expiresAt`, a maximum 30-second lease, and a fresh
+trusted-clock check after each preflight with both observations completed before
+the exclusive expiry. The second preflight follows the first without any
+journal write, authority consumption, tmux mutation, or caller work between
+them; all 15 live facts must equal the lease and each other. Any divergence,
+including only `sessionName`, an index, or `activityTime`, rejects before
+`PREPARED` and leaves authority unconsumed.
+
+### 9.4 Closed delivery sequence
+
+The bounded F01-F03 repair preserves the existing journal and one-use model in
+this exact order:
+
+1. validate grant/lease/provenance and unchanged frozen evidence hashes;
+2. require the live control/latch predicate and exact selected-profile
+   destination invariant;
+3. open, validate, hash, correlate, and pin the pointer bytes;
+4. require the live predicate, then perform the first complete preflight;
+5. require the live predicate, then perform the second complete preflight;
+6. confirm the pinned descriptor/path identity and live predicate one final time;
+7. only now create the in-memory capability, record `PREPARED`, and atomically
+   consume the delivery grant and lease;
+8. inspect/delete only the derived unpasted buffer when existing recovery proof
+   permits, load only the pinned bytes through closed stdin, record
+   `BUFFER_LOADED`, then paste and send Enter to the same destination under the
+   existing per-boundary capability and live-predicate checks.
+
+Every failure through step 6 has zero tmux mutation, no `PREPARED` record, and
+unconsumed authority. `PASTE_STARTED` remains the no-retry boundary; paste or
+Enter is never repeated. The complete fixed `/usr/bin/tmux` argv set uses
+`shell: false`, fixed environment, bounded time/output, and strict decoders. It
+has no capture/show pane, show-buffer, run-shell, new-session, arbitrary argv,
+caller file/bytes/target, generic command, or message-body input. Exact Delivery
+v2 and `NodeExactTmuxMutationRunner` remain byte- and behavior-compatible.
+
+The terminal `TRANSPORT_RECORDED` record and atomic consumption record carry the
+receive grant's frozen control/latch hashes through the capability unchanged and
+become direct inputs to `buildEvidenceAuthority`; they are never reconstructed
+from logs or replaced with the current live record.
 
 ## 10. Evidence ingress without terminal or prompt exposure
 
@@ -525,17 +666,49 @@ new outbound begins whenever control is draining or latched.
 ### 11.1 Foreground ownership and closed process control
 
 `start` is a foreground process and holds the existing writer lock for its full
-lifetime. It installs only SIGINT/SIGTERM shutdown handlers. It opens no local
-TCP/HTTP listener, Unix command socket, systemd unit, daemon, browser route, or
-general command endpoint.
+lifetime. It installs the clean SIGINT/SIGTERM handlers and one fixed SIGUSR2
+incident handler before secrets, network, polling, or delivery can begin. It
+opens no local TCP/HTTP listener, Unix command socket, systemd unit, daemon,
+browser route, or general command endpoint.
 
 The existing writer-lock record already binds PID, boot ID, build ID,
-state-root ID, acquisition time, and an ownership token. The read-only lock
-observer strictly parses that existing record. A separate `stop` command may
-send only SIGTERM to the PID from the exact owner-only AS1 writer lock after it
-proves the same boot, build ID `as1-slack-pilot`, state-root ID, owner UID, live
-process, and exact AS1 CLI entry. There is no PID argument and no arbitrary
-signal. It waits a bounded deadline for lock removal and reports stable codes.
+state-root ID, acquisition time, and an ownership token. Its exact
+`agent-office.writer-lock.v1` keys and bytes do not change. The read-only
+observer opens the construction-bound `locks/writer.lock` with no-follow,
+requires an owner-UID private one-link regular file, and strictly parses the
+existing schema.
+
+For `stop` and `incident-kill`, the observer makes two independent owner
+observations. Each binds the lock to this exact OS process incarnation:
+
+- lock boot ID equals the current kernel boot ID; build ID is exactly
+  `as1-slack-pilot`; state-root ID is exactly `as1-slack-pilot`;
+- `/proc/<pid>/stat` supplies the boot-relative process start ticks, normalized
+  with the same boot's `btime` and `_SC_CLK_TCK`; process birth must strictly
+  precede `acquiredAt` and the lock inode creation boundary, with equality or
+  timestamp-resolution uncertainty rejected as ambiguous;
+- all `/proc/<pid>/status` UID values equal the owner UID;
+- `/proc/<pid>/exe` realpath plus device/inode equal the construction-bound
+  Node executable identity; and
+- `/proc/<pid>/cmdline` is exactly the fixed Node executable, exact AS1 CLI
+  entry module, `start`, and descriptor-bound secret-file argument. Comparison
+  is in memory and no path or argv value is rendered.
+
+Immediately before signaling, the second observation reopens and rereads the
+lock and all process facts. The lock bytes/device/inode and the tuple
+`{pid, bootId, startTicks, uid, executableDevice, executableInode, exactEntry}`
+must be identical to the first observation. A missing process, missing fact,
+stale lock, PID reuse, executable/UID/boot mismatch, exit/reuse between
+observations, changed lock, or ambiguous clock relation returns
+`STALE_OR_AMBIGUOUS_OWNER` and sends no signal. `NO_LIVE_OWNER` is the only
+separate absent-lock status. No stale-lock recovery is implicit.
+
+After the second proof, `stop` sends only SIGTERM to that proven PID in the same
+synchronous operation, waits the fixed shutdown deadline for the exact lock
+inode to disappear, and returns only `STOPPED_CLEAN`,
+`STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`, or `STOP_TIMEOUT`. It accepts no
+PID, signal, profile, path, destination, or reason, and no reusable API accepts
+an arbitrary signal.
 
 `status` reads only strict lock/control projections and prints no IDs, paths,
 grant values, payloads, token facts, Slack response, or tmux coordinate. The
@@ -543,7 +716,41 @@ existing closed `restart` verb remains grammar-compatible but is live-disabled:
 it fails closed without opening Web/Socket/tmux activity. Only a separately
 issued foreground `start` may begin either private pilot.
 
-### 11.2 Clean drain order
+### 11.2 Fixed operator incident kill
+
+The exact zero-operand verb is `incident-kill`. It resolves only the fixed state
+root and lock above, performs the same two-observation owner proof, and then
+sends only SIGUSR2 to that exact owner. It accepts no `--env-file`, PID, signal,
+profile, path, destination, or free-form reason. Unknown or extra tokens fail
+the closed parser. `stop` and `incident-kill` are separate code paths; neither
+is a parameterized signal command.
+
+On SIGUSR2, the foreground owner synchronously closes its in-memory receive,
+Git-poll, delivery, evidence, and outbound admission gates. Under its existing
+control mutex and writer lock it then calls `engageGlobalKill` with only the
+fixed internal reason code `OPERATOR_INCIDENT_KILL`, persists and fsyncs
+`DISABLED_LATCHED`/`killEngaged: true`, and preserves the first durable kill
+reason if already engaged. No new side effect may start between the synchronous
+gate close and durable kill; only after persistence may bounded shutdown close
+the Socket, settle/mark already-started ambiguous work, and release the process
+lock. It never transitions the killed control to `DISABLED_CLEAN`.
+
+The operator command waits to the fixed deadline for both durable kill proof
+and owner-lock removal. It returns only stable redacted codes:
+`INCIDENT_KILL_ENGAGED`, `INCIDENT_KILL_ALREADY_ENGAGED`,
+`STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`,
+`INCIDENT_KILL_PERSIST_FAILED`, or `INCIDENT_KILL_TIMEOUT`. It prints no PID,
+signal, profile, path, destination, lock token, durable reason text, or process
+fact. Persistence failure leaves all in-memory admission gates closed and never
+reports success.
+
+Automatic cross-profile, secret-pair, global-control, or root-alias
+contradictions continue to engage the same irreversible durable global kill
+under the owning lock. A selected-profile provider, state, delivery, evidence,
+or outbound ambiguity uses the existing profile latch. Neither kill nor latch
+has a reset/clear command or startup auto-recovery path.
+
+### 11.3 Clean drain order
 
 SIGINT, SIGTERM, grant expiry, or planned stop executes once:
 
@@ -558,16 +765,15 @@ SIGINT, SIGTERM, grant expiry, or planned stop executes once:
    `MANUAL_RECONCILIATION_REQUIRED` and latches;
 5. disconnect the selected raw Socket, await durable latch persistence, discard
    the ephemeral URL, and prove no second Socket exists;
-6. persist `DISABLED_CLEAN`, fsync control, release the writer lock, remove the
-   foreground process, and emit redacted status.
+6. only when global kill remains disengaged, persist `DISABLED_CLEAN`, fsync
+   control, release the writer lock, remove the foreground process, and emit
+   redacted status.
 
-An irreversible global kill or profile latch closes admission and every new
-side effect immediately. Global kill is used for cross-profile, secret-pair,
-global-control, or root-alias contradictions. Profile latch is used for a
-selected-profile provider, state, delivery, evidence, or outbound ambiguity.
-Neither has a reset command.
+Clean stop never clears a global kill, profile latch, grant, journal,
+consumption, dedupe record, or evidence. If kill engages during drain, the
+incident path wins and `DISABLED_LATCHED` remains terminal.
 
-### 11.3 Manual re-entry and existing replay boundaries
+### 11.4 Manual re-entry and existing replay boundaries
 
 There is no automatic restart or reconnect. After a clean stop, only a new
 explicit foreground `start` under separate operator action may re-open the
@@ -661,19 +867,27 @@ does not authorize switching to Foundation.
 - Descriptor parsing remains exact-key v1; default disabled is proven; profile,
   descriptor, grant, repository, and destination inputs are absent from argv and
   environment.
-- State-root/ref/hash binding, Registry lineage, control/latch snapshots, and
-  common writer mutual exclusion are proven for both profiles.
+- State-root/ref/hash binding, Registry lineage, frozen evidence-authority
+  equality, the separate fresh live control/latch predicate, and common writer
+  mutual exclusion are proven for both profiles.
 - The Git source proves fixed path, unique first addition, exact blob, pushed
   ancestry, dirty/rewrite behavior, bounded output/time, no shell, and no fetch.
 - The Socket proves wrong Web/App/token pairs fail before receive, hello remains
   pre-event, arm is one-use, no pre-arm parse/ACK occurs, and the bounded raw
   handoff cannot overflow or cross generations.
-- The Node tmux port's complete argv allowlist is asserted. Static scans prove
-  no capture/show pane, generic command/target, caller file, shell, or historical
-  fallback path.
-- The closed stop path proves exact AS1 lock ownership, sends only SIGTERM to
-  that owner, drains, releases the lock, and redacts status; it has no caller PID
-  or signal input.
+- The exact transport proves the pointer leaf is no-follow, regular, owner-only,
+  bounded, exact-canonical, correlation-correct, and raw-byte-hash-equal before
+  commitment. The Node tmux port's complete argv/stdin allowlist is asserted;
+  static scans prove no path reopen, capture/show pane, show-buffer, generic
+  command/target, caller file/path, shell, or historical fallback.
+- Both preflight decoders require every destination field. The selected profile
+  binds session/workspace/command, and both fresh preflights compare all live
+  fields before `PREPARED`, consumption, or tmux mutation.
+- The closed `stop` and `incident-kill` paths prove exact AS1 process birth,
+  executable, UID, boot, entry, and unchanged two-observation lock ownership;
+  send only their fixed signals; perform bounded shutdown; and redact stable
+  status. Neither accepts caller PID/signal/profile/path/destination/reason or
+  exposes a generic signal/reset surface.
 
 ### 13.2 Focused composition and direct regressions
 
@@ -687,12 +901,32 @@ does not authorize switching to Foundation.
   and separate contained state.
 - Prove exact startup call order with spies and zero Web/Socket calls on every
   earlier failure.
+- Using distinct pre-transition and live control records (`S0 != S1`), prove the
+  pointer-delivery grant and terminal facts retain the receive grant's frozen
+  `globalControlSnapshotHash`, the live `RECEIVING_ONE_PROFILE` predicate is
+  separately actionable, and unchanged `buildEvidenceAuthority` succeeds with
+  every existing equality intact. Then prove live `DRAINING`, global kill, or a
+  selected-profile latch rejects before the next delivery boundary.
+- Prove pointer hash mismatch, symlink, non-regular file, wrong ownership/mode,
+  oversize, malformed grammar/correlation, and replacement before the final
+  inode check all produce zero tmux mutation, no `PREPARED`, and unconsumed
+  authority. A replacement after the final identity check must still load the
+  original pinned bytes through closed stdin and never the replacement.
+- Prove wrong-profile session/workspace/command, an omitted destination field,
+  and any field divergence between the two preflights reject before
+  `PREPARED`, consumption, or tmux mutation; exact all-field equality is the
+  only capability-creation case.
 - Prove one root, second-root rejection, exclusive expiry, post-ACK
   materialization, delivery-grant/lease one-use, two live preflights, no-retry
   ambiguity, and typed evidence-authority construction.
 - Prove the pilot path's ACK -> INTAKE -> RESULT order, immutable Git evidence,
   exact same-thread result, and replay without a second outbound.
-- Prove manual/signal-bound stop, bounded drain, lock release, redacted status,
+- Prove clean SIGTERM stop remains distinct from SIGUSR2 incident kill; the
+  incident gate closes before durable kill, durable global kill fsyncs before
+  bounded shutdown, and clean stop never clears it. Prove exact owner, stale PID
+  reuse, exit/reuse between observations, wrong executable, wrong UID, wrong
+  boot, and missing/ambiguous birth facts; only the exact owner receives its
+  fixed signal. Prove stable redacted codes, no generic command/reset surface,
   and that `restart` cannot open a live connection.
 - Run changed-file secret/static scans and only the directly affected Phase A
   and Exact Delivery regressions.
@@ -711,7 +945,10 @@ stable booleans/reason codes and Git artifact refs/hashes:
 - exact identity-proof stages completed, with no IDs/tokens/URL bodies logged;
 - the one configured workspace and Leo singleton held throughout;
 - exactly one root-to-final-result round trip consumed in the fixed channel;
-- one exact fresh leased destination and two matching preflights;
+- one selected-profile-bound fresh leased destination and two complete all-field
+  matching preflights before delivery commitment;
+- one exact pinned pointer byte hash loaded through closed stdin, with the
+  receive grant's frozen evidence hashes retained unchanged;
 - one terminal tmux journal or explicit manual reconciliation, never retry;
 - exact evidence stages and same-thread outbound journal;
 - clean stop, lock absence, and profile isolation before the next pilot.
@@ -735,8 +972,10 @@ authorize a workaround or the other profile.
 
 ### 14.2 During or after a live connection
 
-1. Engage the durable global kill before any new receive/delivery/outbound
-   start.
+1. Run the exact zero-operand `incident-kill` action. Require the redacted
+   `INCIDENT_KILL_ENGAGED` or `INCIDENT_KILL_ALREADY_ENGAGED` proof before any
+   new receive/delivery/outbound start; any stale/ambiguous/persistence/timeout
+   status keeps the sequence failed closed and returns to the Advisor.
 2. Stop dequeue and new side effects; mark every started ambiguous tmux/Slack
    write `MANUAL_RECONCILIATION_REQUIRED`.
 3. Close the selected Socket and prove the AS1 process, writer lock, outbound
@@ -791,6 +1030,24 @@ or persistence redesigns.
 ## 16. Implementation readiness and deliberately unset live facts
 
 Design state: `READY_FOR_INDEPENDENT_DESIGN_REVIEW`.
+
+Patch disposition submitted for independent verification:
+
+- F01 — frozen receive authority is copied unchanged through delivery/evidence;
+  a separate construction-bound live predicate gates acceptance and every side
+  effect.
+- F02 — the contained pointer is no-follow opened, type/owner/size/grammar/
+  correlation/hash checked, pinned, identity-rechecked, and loaded only from
+  closed stdin without a path reopen.
+- F03 — the closed profile binds immutable session/workspace/command, and all 15
+  destination facts are exact and fresh in both preflights before commitment.
+- F04 — zero-operand `incident-kill` proves the owner, sends only SIGUSR2,
+  durably kills before bounded shutdown, and remains distinct from clean stop.
+- F05 — both fixed signal paths bind the unchanged writer-lock v1 record to OS
+  process birth, executable inode, UID, boot, exact entry, and an unchanged
+  immediate second observation; stale/ambiguous ownership sends no signal.
+
+These are Designer dispositions, not an independent PASS or final approval.
 
 Corrected proposed implementation path count: `14`.
 
