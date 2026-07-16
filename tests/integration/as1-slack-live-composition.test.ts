@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -12,7 +12,8 @@ import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.
 import { readStateRootFormat } from '../../src/persistence/file-store/path-safety.js';
 import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
 import { selectProfile, type As1Profile } from '../../src/application/slack-pilot/profiles.js';
-import { parseReceiveGrant, type As1PilotReceiveGrantV1 } from '../../src/application/slack-pilot/contracts.js';
+import { parseContainedPointerRef, parsePointerDeliveryGrant, parseReceiveGrant, type As1PilotReceiveGrantV1 } from '../../src/application/slack-pilot/contracts.js';
+import { buildEvidenceAuthority, type As1GitProvenanceVerifier } from '../../src/application/slack-pilot/evidence-ingress.js';
 import type { As1ReceiveGrantProvenanceGate } from '../../src/adapters/gateways/slack-pilot/exact-authority.js';
 import type { As1TmuxObservationPort, As1DeliveryProvenanceGate } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
 import { parseTmuxDestination, type As1TmuxDestination } from '../../src/adapters/gateways/slack-pilot/exact-authority.js';
@@ -37,6 +38,7 @@ import {
   fakeWireWorld,
   secretText,
   slackEnvelope,
+  validAdvisorAck,
   validDestination,
   validReceiveGrant,
   validSecretValues,
@@ -246,7 +248,7 @@ async function buildDeliveryAuthority(
   return { grant, lease };
 }
 
-async function startAgentOfficeComposition() {
+async function startAgentOfficeComposition(options: { readonly socket?: FakeCompositionSocket; readonly evidenceVerifier?: As1GitProvenanceVerifier } = {}) {
   const stateRoot = await makeStateRoot();
   const world = fakeWireWorld();
   const { filePath } = await writeSecretFile(secretText(validSecretValues()));
@@ -257,7 +259,7 @@ async function startAgentOfficeComposition() {
     secretFilePath: filePath,
   });
   const gitSource = new FakeGitSource();
-  const socket = new FakeCompositionSocket();
+  const socket = options.socket ?? new FakeCompositionSocket();
   const tmuxPort = new FakeTmuxObservationPort(parseTmuxDestination(validDestination(), 'destination'));
   const clock = new FakeClock(CLOCK_ISO);
   const composition = await As1GatewayComposition.open(descriptor, {
@@ -270,15 +272,19 @@ async function startAgentOfficeComposition() {
       buildSocket: () => socket,
       buildReceiveGrantProvenance: () => ACCEPTING_RECEIVE_GATE,
       buildDeliveryProvenance: () => ACCEPTING_DELIVERY_GATE,
-      evidenceVerifier: new FakeGitVerifier(),
+      evidenceVerifier: options.evidenceVerifier ?? new FakeGitVerifier(),
       missionAuthorityRoot: AUTH_ROOT,
     },
   });
   // The control records now exist: bind ALL THREE grant hashes (state-root + pre-transition control/latch) and set
   // the grant AFTER open but BEFORE start(), so the F02 pre-transition snapshot comparison accepts it.
+  // Freeze ONE exact receive grant: its authority repository must equal the observer's repository id ('foundation-docs';
+  // the fake grant defaults to 'agent-office'), otherwise accepted evidence fails closed on EVIDENCE_WRONG_REPOSITORY
+  // before ingress. The SAME frozen object is set into Git AND returned, so no test reconstructs a drifting grant.
   const receiveGrantHashes = await boundGrantHashes(stateRoot, 'agent-office-advisor');
-  gitSource.set(RECEIVE_GRANT_REF, validReceiveGrant(receiveGrantHashes));
-  return { stateRoot, composition, gitSource, socket, tmuxPort, clock, receiveGrantHashes };
+  const receiveGrant = validReceiveGrant({ ...receiveGrantHashes, authorityRepositoryId: gitSource.getRepositoryId() });
+  gitSource.set(RECEIVE_GRANT_REF, receiveGrant);
+  return { stateRoot, composition, gitSource, socket, tmuxPort, clock, receiveGrantHashes, receiveGrant, web: world.web };
 }
 
 describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office round trip', () => {
@@ -300,7 +306,7 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
   });
 
   it('delivers the pointer through the pinned-byte tmux transport for the one accepted intake', async () => {
-    const { stateRoot, composition, socket, gitSource, tmuxPort, receiveGrantHashes } = await startAgentOfficeComposition();
+    const { stateRoot, composition, socket, gitSource, tmuxPort, receiveGrant } = await startAgentOfficeComposition();
     try {
       await composition.start();
       await socket.deliver(slackEnvelope());
@@ -309,7 +315,7 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
       if (intakeId === null) throw new Error('expected an intake');
 
       const store = await As1ProfileInboundStore.open(stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
-      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(validReceiveGrant(receiveGrantHashes)), selectProfile('AGENT_OFFICE_ADVISOR'), intakeId);
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), selectProfile('AGENT_OFFICE_ADVISOR'), intakeId);
       const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
       gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
       gitSource.set(`${base}/readiness-lease.json`, lease);
@@ -328,14 +334,14 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
   });
 
   it('F03 (Patch 2A): a readiness lease that diverges after delivery blocks evidence/outbound and latches the profile', async () => {
-    const { stateRoot, composition, socket, gitSource, receiveGrantHashes } = await startAgentOfficeComposition();
+    const { stateRoot, composition, socket, gitSource, receiveGrant } = await startAgentOfficeComposition();
     try {
       await composition.start();
       await socket.deliver(slackEnvelope());
       const intakeId = composition.lastIntake();
       if (intakeId === null) throw new Error('expected an intake');
       const store = await As1ProfileInboundStore.open(stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
-      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(validReceiveGrant(receiveGrantHashes)), selectProfile('AGENT_OFFICE_ADVISOR'), intakeId);
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), selectProfile('AGENT_OFFICE_ADVISOR'), intakeId);
       const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
       gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
       gitSource.set(`${base}/readiness-lease.json`, lease);
@@ -628,11 +634,15 @@ describe('AS1 F01 — foreground production owner', () => {
     ).rejects.toThrow(DomainError);
   });
 
-  it('fails closed if a required owner signal handler is absent', async () => {
-    const { boundary } = await makeOwnerBoundary(new FakeClock(CLOCK_ISO));
-    await expect(
-      runForegroundOwner({ ...boundary, installSignalHandlers: () => ['SIGINT', 'SIGTERM'] }),
-    ).rejects.toThrow(DomainError);
+  it('fails closed WITHIN the owner-result boundary if a required owner signal handler is absent (no raw throw)', async () => {
+    const { boundary, stateRoot } = await makeOwnerBoundary(new FakeClock(CLOCK_ISO));
+    // F01 (Patch 4): a missing handler no longer throws a raw error before the stable owner result — it returns a
+    // truthful fail-closed result and releases the lock (a fresh composition can re-open the same root).
+    const result = await runForegroundOwner({ ...boundary, installSignalHandlers: () => ['SIGINT', 'SIGTERM'] });
+    expect(result.ok).toBe(false);
+    expect(result.lines.join('|')).toContain('MISSING_HANDLER_DISABLED');
+    const reopened = await As1GatewayComposition.open(boundary.descriptor, { stateRoot, clock: new FakeClock(CLOCK_ISO), deps: boundary.buildDeps() });
+    await reopened.close();
   });
 
   it('installs all three handlers and releases cleanly for a default-disabled descriptor', async () => {
@@ -898,9 +908,9 @@ describe('AS1 Patch 2 — residual-defect closure (adversarial, fails on 187c715
   });
 });
 
-describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversarial, fails on 5a23c25c)', () => {
-  const ADVISOR_SLUG = 'agent-office-advisor';
-  const ROOT_TS = '1720000000.000100';
+// Shared Patch 3/Patch 4 owner-harness helpers (module scope so both adversarial describes can use them).
+const ADVISOR_SLUG = 'agent-office-advisor';
+const ROOT_TS = '1720000000.000100';
 
   // A live Socket whose disconnect() REJECTS: proves cleanup never synthesizes a clean state when the Socket
   // disconnect is ambiguous (design §11.2/§11.3, F01) — the ambiguity must surface, not be swallowed.
@@ -928,6 +938,10 @@ describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversaria
   async function makeLiveOwnerHarness(options: {
     readonly socketFactory?: () => FakeCompositionSocket;
     readonly depOverrides?: Partial<As1CompositionDependencies>;
+    // Build dep overrides with access to a live `fireIncident` (SIGUSR2) and the wire world, so a test can fire an
+    // incident DURING a supplied collaborator port's internal await (verifier authTest/botsInfo/connect, delivery
+    // provenance, outbox Web, …) and prove ZERO subsequent side effect.
+    readonly buildDepOverrides?: (ctx: { fireIncident: () => void; world: ReturnType<typeof fakeWireWorld> }) => Partial<As1CompositionDependencies>;
     readonly installFiresIncident?: boolean; // fire SIGUSR2 from installSignalHandlers — an incident DURING control init
     readonly onReceiveObserve?: (count: number) => void; // fires on each receive-grant observe (start=1, loop=2,3,…)
   } = {}): Promise<LiveOwnerHarness> {
@@ -965,6 +979,7 @@ describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversaria
             return socket;
           },
           ...options.depOverrides,
+          ...(options.buildDepOverrides?.({ fireIncident: () => signals.get('SIGUSR2')?.(), world }) ?? {}),
         }),
       initialize: () => Promise.resolve(),
       installSignalHandlers: (handlers) => {
@@ -1034,6 +1049,7 @@ describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversaria
     return base;
   }
 
+describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversarial, fails on 5a23c25c)', () => {
   it('an incident during lock-owned control init dominates BEFORE startup — never a masked clean revert', async () => {
     // A failing Web identity would make start() revert. On the pre-fix owner an incident that arrived during control
     // init is not honored before start(); start() runs, reverts, and the outer catch hard-codes a clean DISABLED_CLEAN,
@@ -1179,5 +1195,232 @@ describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversaria
     expect(result.ok).toBe(false);
     expect(line).toContain('CLEANUP_AMBIGUOUS');
     expect(line).toContain('DISCONNECT');
+  });
+});
+
+describe('AS1 Patch 4 — F01 per-await/internal-port guards + truthful state (adversarial, fails on cb6085b)', () => {
+  it('an incident DURING startup Web identity proof (authTest) begins ZERO subsequent Web call (guarded verifier ports)', async () => {
+    // Concern (review 76 F01 #1): a SIGUSR2 during the verifier's assertAccepted/authTest is otherwise followed by
+    // botsInfo/connect. The Patch 4 owner wraps the SUPPLIED verifier ports; an incident during authTest must prevent
+    // the NEXT identity call. On cb6085b the ports are unguarded and botsInfo runs.
+    let botsInfoCalls = 0;
+    const h = await makeLiveOwnerHarness({
+      buildDepOverrides: ({ fireIncident, world }) => ({
+        web: {
+          authTest: async (token) => {
+            const authResult = await world.web.authTest(token);
+            fireIncident(); // the incident closes admission between authTest and the next Web identity call
+            return authResult;
+          },
+          botsInfo: (token, botId) => {
+            botsInfoCalls += 1;
+            return world.web.botsInfo(token, botId);
+          },
+          postMessage: (token, request) => world.web.postMessage(token, request),
+        },
+      }),
+    });
+    const result = await runForegroundOwner(h.boundary);
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('INCIDENT_KILL_ENGAGED');
+    expect(botsInfoCalls).toBe(0);
+  });
+
+  it('an incident DURING the delivery transport (delivery provenance) begins ZERO tmux paste (guarded transport ports)', async () => {
+    // Concern (review 76 F01 #2): a SIGUSR2 inside deliver() must not be followed by the pinned-byte tmux paste. The
+    // Patch 4 owner wraps every transport port; on cb6085b the ports are unguarded and the paste happens.
+    let delivered = false;
+    const h = await makeLiveOwnerHarness({
+      buildDepOverrides: ({ fireIncident }) => ({
+        buildDeliveryProvenance: () => ({
+          assertAccepted: () => {
+            fireIncident(); // the incident closes admission inside transport.deliver, before the tmux paste
+            return Promise.resolve();
+          },
+        }),
+      }),
+    });
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: async () => {
+        if (!delivered) {
+          await deliverAndAuthorize(h);
+          delivered = true;
+        }
+      },
+    });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('INCIDENT_KILL_ENGAGED');
+    expect(h.tmux.pasteCalls).toBe(0);
+  });
+
+  it('observeReceiveGrantOnce() with admission CLOSED begins NO durable divergence latch (guarded observe + latch)', async () => {
+    // Concern (Advisor F01): observeReceiveGrantOnce() must not run its Git observe and then a durable divergence
+    // latchProfile after a SIGUSR2 closed admission. With the guard, the observe never begins and NO latch is written.
+    const { composition, gitSource, stateRoot } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      composition.closeIncidentGateNow(); // an incident closed admission
+      gitSource.divergePaths.add(RECEIVE_GRANT_REF); // the next re-observe WOULD diverge and durably latch the profile
+      await expect(composition.observeReceiveGrantOnce()).rejects.toThrow();
+      // No profile-latch was written: the guarded observe threw before the divergence latch.
+      const latchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');
+      expect((JSON.parse(latchRaw) as { readonly latched: boolean }).latched).toBe(false);
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('a clean stop() with a pending incident engages the durable kill — never a synthesized DISABLED_CLEAN (incident-aware drain)', async () => {
+    // Concern (review 76 F01 #3 + Advisor): finishCleanup's drain must consult the incident gate. On cb6085b the drain
+    // is not incident-aware and writes DISABLED_CLEAN.
+    const { composition } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      composition.closeIncidentGateNow(); // an incident closed admission before the clean drain
+      const result = await composition.stop();
+      expect(result.incidentDominated).toBe(true);
+      expect(result.state).not.toBe('DISABLED_CLEAN');
+      expect(result.state).toBe('DISABLED_LATCHED');
+      expect(result.killEngaged).toBe(true);
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('a missing handler releases the lock and reports the ACTUAL disabled state — never a synthesized DISABLED_LATCHED', async () => {
+    // Concern (review 76 F01 #4 + Advisor truthful-state): the missing-handler path returns a truthful result INSIDE
+    // the owner-result boundary and reports the real state (a clean release is DISABLED_CLEAN), not a synthesized
+    // DISABLED_LATCHED, and never discards a release failure. On cb6085b this path throws a raw error.
+    const h = await makeLiveOwnerHarness();
+    const result = await runForegroundOwner({ ...h.boundary, installSignalHandlers: () => ['SIGINT', 'SIGTERM'] });
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('MISSING_HANDLER_DISABLED');
+    expect(line).toContain('DISABLED_CLEAN');
+    expect(line).not.toContain('DISABLED_LATCHED');
+  });
+
+  it('an incident during ERROR cleanup (latchActiveProfileAndStop) dominates — durable kill, never DISABLED_CLEAN', async () => {
+    // Concern (review 76 F01 + Advisor): the owner-loop error cleanup must dominate a pending incident. On cb6085b the
+    // drain is not incident-aware and can write DISABLED_CLEAN.
+    const { composition } = await startAgentOfficeComposition();
+    await composition.start();
+    composition.closeIncidentGateNow(); // a SIGUSR2 closed admission during the error cleanup
+    const result = await composition.latchActiveProfileAndStop('OWNER_LOOP_ERROR');
+    expect(result.incidentDominated).toBe(true);
+    expect(result.state).toBe('DISABLED_LATCHED');
+    expect(result.state).not.toBe('DISABLED_CLEAN');
+    expect(result.killEngaged).toBe(true);
+  });
+
+  it('a NONEMPTY pre-cleanup ambiguity (disconnect failure) never drains to DISABLED_CLEAN — the durable kill is engaged', async () => {
+    // Concern (review 76 F01 + brief 77 + Advisor): a nonempty pre-ambiguity in the error cleanup (here a failed Socket
+    // disconnect, collected into the same `pre` array as a profile-latch/fallback-kill failure) must NOT drain to a
+    // clean DISABLED_CLEAN. The durable global kill is engaged instead; the ambiguity stays visible and DISABLED_LATCHED
+    // is claimed only because the kill persisted. On cb6085b the drain still reaches DISABLED_CLEAN.
+    const h = await makeLiveOwnerHarness({ socketFactory: () => new DisconnectFailingSocket() });
+    h.gitSource.throwOnReObservePaths.add(RECEIVE_GRANT_REF); // the loop re-observe throws → owner-loop ERROR cleanup
+    const result = await runForegroundOwner(h.boundary);
+    const line = result.lines.join('|');
+    expect(result.ok).toBe(false);
+    expect(line).toContain('OWNER_HALTED');
+    expect(line).toContain('DISCONNECT'); // the cleanup ambiguity stays visible in the stable outcome
+    expect(line).not.toContain('DISABLED_CLEAN'); // a nonempty pre-ambiguity engaged the durable kill, not a clean drain
+    expect(line).toContain('DISABLED_LATCHED'); // proven only because the durable global kill persisted
+  });
+
+  it('a FALLBACK global-kill PERSISTENCE failure reports FALLBACK_KILL + KILL_NOT_ENGAGED and the ACTUAL non-latched state', async () => {
+    // Concern (review 76 F01 + brief 77 + Advisor): with a nonempty pre-ambiguity (disconnect) AND the durable
+    // global-control write forced to fail, the TRANSACTIONAL engageGlobalKill leaves the in-memory record UNLATCHED.
+    // The result must show FALLBACK_KILL + KILL_NOT_ENGAGED and the ACTUAL live state — never a synthesized
+    // DISABLED_CLEAN nor an UNPROVED DISABLED_LATCHED.
+    const { composition, stateRoot } = await startAgentOfficeComposition({ socket: new DisconnectFailingSocket() });
+    await composition.start();
+    // Make the global-control directory unwritable so the durable global-kill atomic write cannot create its temp file.
+    const controlDir = path.join(stateRoot, 'indexes/as1-slack-pilot');
+    await chmod(controlDir, 0o500);
+    try {
+      const result = await composition.latchActiveProfileAndStop('OWNER_LOOP_ERROR');
+      expect(result.detail).toContain('DISCONNECT');
+      expect(result.detail).toContain('FALLBACK_KILL');
+      expect(result.detail).toContain('KILL_NOT_ENGAGED');
+      expect(result.state).not.toBe('DISABLED_CLEAN');
+      expect(result.state).not.toBe('DISABLED_LATCHED'); // NOT claimed — the durable kill did not persist
+      expect(result.killEngaged).toBe(false);
+      expect(result.cleanupProven).toBe(false);
+    } finally {
+      await chmod(controlDir, 0o700); // restore so the temp state root can be cleaned up
+    }
+  });
+
+  it('a writer-lock RELEASE failure engages a durable fallback kill — never a clean DISABLED_CLEAN behind a stuck lock', async () => {
+    // Concern (brief 77 + Advisor): close() commits ownership only on a successful release; a release failure retains
+    // ownership so finishCleanup durably fallback-kills instead of returning a clean DISABLED_CLEAN with a stuck lock.
+    const { composition, stateRoot } = await startAgentOfficeComposition();
+    await composition.start();
+    await unlink(path.join(stateRoot, 'locks', 'writer.lock')); // the writer-lock release will fail closed
+    const result = await composition.stop();
+    expect(result.lockReleased).toBe(false);
+    expect(result.detail).toContain('RELEASE');
+    expect(result.state).not.toBe('DISABLED_CLEAN'); // the durable fallback kill replaced the would-be clean drain
+    expect(result.state).toBe('DISABLED_LATCHED');
+    expect(result.killEngaged).toBe(true);
+    expect(result.cleanupProven).toBe(false);
+  });
+
+  it('an incident INSIDE evidence ingress (supplied verifier) begins ZERO evidence-store persistence and ZERO outbound', async () => {
+    // Concern (review 76 F01 + brief 77 + Advisor): an incident inside As1EvidenceIngress internals must prevent the
+    // NEXT store/Web side effect. A VALID ACK — built from the ACTUAL production `buildEvidenceAuthority` over the
+    // durable delivery records (no reinvented logic) — reaches the supplied verifier, which closes admission DURING
+    // provenance verification; the guarded ingress/outbox ports (the SAME incidentGuardedPort wrappers proven for the
+    // transport) then begin no store persistence and no outbound. On cb6085b those ports are unguarded.
+    const gateCloser: { close: () => void } = { close: () => undefined };
+    let verifyCalls = 0;
+    const baseVerifier = new FakeGitVerifier();
+    const firingVerifier: As1GitProvenanceVerifier = {
+      verify: (ref, snapshotCommits) => {
+        verifyCalls += 1;
+        gateCloser.close(); // an incident closes admission DURING the ACK provenance verification
+        return baseVerifier.verify(ref, snapshotCommits); // ...then return valid provenance
+      },
+    };
+    const { stateRoot, composition, gitSource, socket, receiveGrant, web } = await startAgentOfficeComposition({ evidenceVerifier: firingVerifier });
+    gateCloser.close = () => composition.closeIncidentGateNow();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const advisorProfile = selectProfile('AGENT_OFFICE_ADVISOR');
+      const store = await As1ProfileInboundStore.open(stateRoot, advisorProfile, new FakeClock(CLOCK_ISO));
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), advisorProfile, intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      gitSource.set(`${base}/readiness-lease.json`, lease);
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      // Reuse the PRODUCTION evidence-authority derivation over the durable records to construct a VALID ACK.
+      const deliveryGrant = parsePointerDeliveryGrant(grant);
+      const { deliveryId } = parseContainedPointerRef(deliveryGrant);
+      const parsedReceiveGrant = parseReceiveGrant(receiveGrant);
+      const receiveGrantState = await store.readReceiveGrantState(parsedReceiveGrant.receiveGrantId);
+      const terminalDelivery = await store.readTmuxDeliveryRecord(deliveryId);
+      const rootCorrelation = await store.findRootByIntakeId(intakeId);
+      const consumption = await store.readDeliveryAuthorityConsumption(deliveryGrant.pointerDeliveryGrantId);
+      if (receiveGrantState === null || terminalDelivery === null || rootCorrelation === null || consumption === null) {
+        throw new Error('expected all durable evidence-input records after DELIVERED');
+      }
+      const authority = buildEvidenceAuthority({ receiveGrant: parsedReceiveGrant, receiveGrantState, pointerDeliveryGrant: deliveryGrant, terminalDelivery, rootCorrelation, consumption });
+      const ack = validAdvisorAck({ intakeId: authority.intakeId, sourceEventId: authority.sourceEventId, pointerHash: authority.pointerHash, ...authority.acceptedAck });
+      gitSource.set(`${authority.evidencePrefix}/${intakeId}/ack.json`, ack);
+      await expect(composition.ingestEvidenceAndProject()).rejects.toThrow();
+      expect(verifyCalls).toBeGreaterThanOrEqual(1); // the ingress DID reach the supplied verifier (accepted-evidence path)
+      expect(await store.readAcceptedEvidence()).toHaveLength(0); // ZERO evidence-store persistence after the incident
+      expect(web.posted).toHaveLength(0); // ZERO Web postMessage / outbound projection
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
   });
 });

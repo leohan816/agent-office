@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -74,6 +74,27 @@ describe('AS1 control lifecycle', () => {
       await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
       await control.shutdown();
       expect(control.getState()).toBe('DISABLED_CLEAN');
+    } finally {
+      await control.close();
+    }
+  });
+
+  it('F01 (Patch 4): shutdown() with admission CLOSED between its internal transitions never reaches DISABLED_CLEAN', async () => {
+    const { control } = await makeControl();
+    try {
+      await control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', 'agent-office-advisor');
+      await control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+      await control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
+      // The clean drain is active -> DRAINING -> DISABLED_CLEAN. An incident that closed admission before/DURING the
+      // first transition must stop the synchronous guard BEFORE the DISABLED_CLEAN transition — the object is left at
+      // DRAINING so the caller (finishCleanup) then engages the durable kill instead of a masked clean disable.
+      await control.shutdown(() => false);
+      expect(control.getState()).toBe('DRAINING');
+      expect(control.getState()).not.toBe('DISABLED_CLEAN');
+      // The caller escalates the DRAINING object to the durable kill (as finishCleanup does on a pending incident).
+      await control.operatorIncidentKill();
+      expect(control.getState()).toBe('DISABLED_LATCHED');
+      expect(control.isGloballyLatched()).toBe(true);
     } finally {
       await control.close();
     }
@@ -664,6 +685,59 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     // Whitespace-extended (a trailing space before the LF): byte-different, JSON-equivalent. Still not proof.
     await writeFile(controlFile(killed.root), `${JSON.stringify(record)} \n`, { mode: 0o600 });
     expect(await readDurableKillProof(killed.root)).toBe('UNREADABLE');
+  });
+
+  it('F05: a retained-object REPLACEMENT after the read (fixed leaf unlinked+replaced) is rejected — stale bytes are not proof', async () => {
+    const controlFile = (root: string): string => path.join(root, 'indexes/as1-slack-pilot/global-control.json');
+    const killed = await makeControl();
+    await killed.control.engageGlobalKill('operator incident test');
+    await killed.control.close();
+    const canonical = await readFile(controlFile(killed.root));
+    // The retained descriptor reads the valid killed bytes, but BEFORE the post-read identity re-check the fixed leaf
+    // is unlinked and replaced with a fresh object: the retained descriptor's link count is now zero and the leaf
+    // names another inode. Even though a fresh open would find a valid killed record, the STALE retained bytes bound
+    // to an object no longer at the fixed leaf must NOT be accepted.
+    const proof = await readDurableKillProof(killed.root, {
+      afterRetainedRead: async () => {
+        await rm(controlFile(killed.root));
+        await writeFile(controlFile(killed.root), canonical, { mode: 0o600 }); // a NEW inode with identical content
+      },
+    });
+    expect(proof).toBe('UNREADABLE');
+    // The seam alone does not reject: with no interleaved mutation the same record still proves KILLED.
+    expect(await readDurableKillProof(killed.root)).toBe('KILLED');
+  });
+
+  it('F05: a SAME-SIZE in-place tamper of the retained object after the read is rejected (mutation metadata moved)', async () => {
+    const controlFile = (root: string): string => path.join(root, 'indexes/as1-slack-pilot/global-control.json');
+    const killed = await makeControl();
+    await killed.control.engageGlobalKill('operator incident test');
+    await killed.control.close();
+    const canonical = await readFile(controlFile(killed.root));
+    // In-place overwrite of the SAME inode with the SAME byte length: size is unchanged, but mtime/ctime move, so the
+    // post-read re-fstat rejects the object — the bytes already read are no longer trustworthy proof of current state.
+    const sameSize = Buffer.alloc(canonical.length, 0x20);
+    const proof = await readDurableKillProof(killed.root, {
+      afterRetainedRead: async () => {
+        await writeFile(controlFile(killed.root), sameSize, { mode: 0o600 });
+      },
+    });
+    expect(proof).toBe('UNREADABLE');
+  });
+
+  it('F05: an owner-only-mode/metadata change of the retained object after the read is rejected', async () => {
+    const controlFile = (root: string): string => path.join(root, 'indexes/as1-slack-pilot/global-control.json');
+    const killed = await makeControl();
+    await killed.control.engageGlobalKill('operator incident test');
+    await killed.control.close();
+    // A metadata change (group-readable) after the read: the post-read re-fstat sees a changed mode and a no-longer
+    // owner-only object, so the record is not accepted as proof.
+    const proof = await readDurableKillProof(killed.root, {
+      afterRetainedRead: async () => {
+        await chmod(controlFile(killed.root), 0o640);
+      },
+    });
+    expect(proof).toBe('UNREADABLE');
   });
 
   it('retains a close-on-exec descriptor for a foreground lock and releases it under identity agreement', async () => {

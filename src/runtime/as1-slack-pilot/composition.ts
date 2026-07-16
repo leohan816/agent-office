@@ -151,6 +151,9 @@ export interface As1RedactedStatus {
 export interface As1OwnerCleanupResult extends As1RedactedStatus {
   readonly cleanupProven: boolean;
   readonly lockReleased: boolean;
+  /** True when a supposedly-clean drain discovered a pending incident and engaged the durable kill instead of a clean
+   *  disable (design §11.2, F01): the owner reports this as an incident kill, never a synthesized clean terminal. */
+  readonly incidentDominated: boolean;
   readonly detail: string;
   readonly ambiguities: readonly string[];
 }
@@ -280,6 +283,117 @@ export class As1GatewayComposition {
     this.control.closeIncidentGate();
   }
 
+  /**
+   * Synchronous, construction-bound incident-admission guard (design §11.2, F01). Once the SIGUSR2 handler has closed
+   * the incident gate, NO further load-bearing side effect — Git observation, durable transition, secret/store read,
+   * Web/Socket identity call, delivery, evidence, outbound, or drain — may begin. Called immediately before every such
+   * boundary inside `start()`/`deliverPending()`/`ingestEvidenceAndProject()` (and woven into the startup verifier's
+   * supplied provenance/Web/Socket ports); throwing here guarantees zero later work, and the owner routes the pending
+   * incident EXACTLY ONCE through the durable incident kill. The thrown code is redacted and never leaks raw detail.
+   */
+  private assertIncidentAdmissionOpen(): void {
+    if (!this.control.isIncidentGateOpen()) {
+      throw new DomainError('GATEWAY_DISABLED', 'incident admission is closed; no further side effect may begin');
+    }
+  }
+
+  /**
+   * Run ONE load-bearing async operation with the incident-admission guard checked immediately BEFORE it begins AND
+   * immediately AFTER it resolves (design §11.2, F01). This is the single await-boundary primitive used across
+   * `start()`/`deliverPending()`/`ingestEvidenceAndProject()` so that a SIGUSR2 which closed admission before or
+   * DURING the operation reliably begins NO next side effect (latch, further observation, transition, transport,
+   * ingress, or outbound) — no boundary is left to an easily-omitted ad-hoc check. The resolved value is returned only
+   * while admission is still open.
+   */
+  private async guardedAwait<T>(op: () => Promise<T>): Promise<T> {
+    this.assertIncidentAdmissionOpen();
+    const value = await op();
+    this.assertIncidentAdmissionOpen();
+    return value;
+  }
+
+  /** Wrap the startup verifier's supplied provenance/Web/Socket ports so an incident that closes admission during
+   *  `assertAccepted`/`authTest`/`botsInfo`/`connect` deterministically prevents the NEXT verifier operation, without
+   *  editing the exact-authority verifier itself (design §11.2, F01). Each guarded call fails closed BEFORE delegating. */
+  private incidentGuardedStartupPorts(
+    receiveGrantProvenance: As1ReceiveGrantProvenanceGate,
+    web: As1WebPort,
+    socket: As1SocketPort,
+  ): { provenance: As1ReceiveGrantProvenanceGate; web: As1WebPort; socket: As1SocketPort } {
+    return {
+      provenance: {
+        assertAccepted: (grant) => {
+          this.assertIncidentAdmissionOpen();
+          return receiveGrantProvenance.assertAccepted(grant);
+        },
+      },
+      web: {
+        authTest: (token) => {
+          this.assertIncidentAdmissionOpen();
+          return web.authTest(token);
+        },
+        botsInfo: (token, botId) => {
+          this.assertIncidentAdmissionOpen();
+          return web.botsInfo(token, botId);
+        },
+        postMessage: (token, request) => {
+          this.assertIncidentAdmissionOpen();
+          return web.postMessage(token, request);
+        },
+      },
+      socket: {
+        connect: (input) => {
+          this.assertIncidentAdmissionOpen();
+          return socket.connect(input);
+        },
+        onEnvelope: (handler) => socket.onEnvelope(handler),
+        disconnect: () => socket.disconnect(),
+      },
+    };
+  }
+
+  /**
+   * Wrap a SUPPLIED collaborator port (design §11.2, F01) so EVERY method call fails closed on the incident gate both
+   * immediately before it is invoked AND immediately after any returned promise resolves. The exact transport, evidence
+   * ingress, and outbox each contain their own internal awaits and later side effects; guarding only the outer call is
+   * insufficient. Wrapping the ports they are handed — tmux, delivery journal/store, provenance, verifier, Web,
+   * delivery-control — guarantees that an incident during any internal await begins NO next tmux/store/latch/Web/
+   * outbound operation, WITHOUT modifying the forbidden collaborator source files.
+   */
+  private incidentGuardedPort<T extends object>(port: T): T {
+    const assertOpen = (): void => this.assertIncidentAdmissionOpen();
+    return new Proxy<T>(port, {
+      get: (target, property, receiver): unknown => {
+        const value: unknown = Reflect.get(target, property, receiver);
+        if (typeof value !== 'function') {
+          return value;
+        }
+        const bound = (value as (...callArgs: readonly unknown[]) => unknown).bind(target);
+        return (...callArgs: readonly unknown[]): unknown => {
+          assertOpen();
+          const outcome: unknown = bound(...callArgs);
+          return outcome instanceof Promise
+            ? outcome.then((resolved: unknown): unknown => {
+                assertOpen();
+                return resolved;
+              })
+            : outcome;
+        };
+      },
+    });
+  }
+
+  /** Wrap a supplied load-bearing callback (latch/isDeliverable/assertSendable/delay) with the same pre/post
+   *  incident-admission guard used for ports (design §11.2, F01). */
+  private incidentGuardedCallback<A extends readonly unknown[], R>(fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+    return async (...args: A): Promise<R> => {
+      this.assertIncidentAdmissionOpen();
+      const result = await fn(...args);
+      this.assertIncidentAdmissionOpen();
+      return result;
+    };
+  }
+
   /** Consume the truthful cleanup result stored by a self-cleaning startup revert (F01). Returns null if none. */
   public consumeLastCleanup(): As1OwnerCleanupResult | null {
     const cleanup = this.lastCleanup;
@@ -295,33 +409,67 @@ export class As1GatewayComposition {
    */
   private async finishCleanup(drain: boolean, fallbackReason: string, preAmbiguities: readonly string[]): Promise<As1OwnerCleanupResult> {
     const ambiguities: string[] = [...preAmbiguities];
+    // F01 (brief 77): a clean drain to DISABLED_CLEAN is permitted ONLY when NOTHING is already ambiguous (empty
+    // pre-collected latch/disconnect steps) AND no incident closed admission. Any pre-existing ambiguity, a pending
+    // incident, or a drain that could not reach DISABLED_CLEAN forces the DURABLE global kill instead of a masked clean
+    // disable. DISABLED_LATCHED is claimed only when the kill actually persists; otherwise the ACTUAL state plus a
+    // FALLBACK_KILL/KILL_NOT_ENGAGED ambiguity is reported. (`incidentKill()` passes drain=false and owns its own kill.)
+    let incidentDominated = false;
     if (drain) {
-      try {
-        await this.control.shutdown();
-      } catch (error) {
-        ambiguities.push(`DRAIN:${redactError(error).code}`);
+      const cleanDrainPermitted = ambiguities.length === 0 && this.control.isIncidentGateOpen();
+      if (cleanDrainPermitted) {
         try {
-          await this.control.engageGlobalKill(`${fallbackReason}: ${redactError(error).code}`);
-        } catch (killError) {
-          ambiguities.push(`FALLBACK_KILL:${redactError(killError).code}`);
+          // The synchronous admission guard stops the internal drain BEFORE the DISABLED_CLEAN transition if an incident
+          // closes admission mid-drain; the durable kill below then takes over.
+          await this.control.shutdown(() => this.control.isIncidentGateOpen());
+        } catch (error) {
+          ambiguities.push(`DRAIN:${redactError(error).code}`);
         }
+      }
+      incidentDominated = !this.control.isIncidentGateOpen();
+      // Engage the durable kill unless a fully-clean drain actually reached DISABLED_CLEAN with no ambiguity.
+      const drainedClean = ambiguities.length === 0 && !incidentDominated && this.control.getState() === 'DISABLED_CLEAN';
+      if (!drainedClean && !this.control.isGloballyLatched()) {
+        try {
+          if (incidentDominated) {
+            await this.control.operatorIncidentKill();
+          } else {
+            await this.control.engageGlobalKill(fallbackReason);
+          }
+        } catch (error) {
+          ambiguities.push(`${incidentDominated ? 'KILL' : 'FALLBACK_KILL'}:${redactError(error).code}`);
+        }
+        if (!this.control.isGloballyLatched()) ambiguities.push('KILL_NOT_ENGAGED');
       }
     }
     this.receiving = false;
-    const status = this.status();
     let lockReleased = true;
     try {
       await this.control.close();
     } catch (error) {
       lockReleased = false;
       ambiguities.push(`RELEASE:${redactError(error).code}`);
+      // The release failed with ownership RETAINED (control.close commits release only on success). Durably
+      // fallback-kill so a clean DISABLED_CLEAN is never left behind a stuck lock. Partial-release semantics make a
+      // release RETRY unsafe, so the RELEASE ambiguity is PRESERVED (never a clean success) and the lock remains held —
+      // a truthfully-flagged limitation, not a synthesized clean/latched state.
+      if (this.control.isOpen() && !this.control.isGloballyLatched()) {
+        try {
+          await this.control.engageGlobalKill(fallbackReason);
+        } catch (killError) {
+          ambiguities.push(`FALLBACK_KILL:${redactError(killError).code}`);
+        }
+        if (!this.control.isGloballyLatched()) ambiguities.push('KILL_NOT_ENGAGED');
+      }
     }
+    const status = this.status(); // re-observed AFTER close/release + any release-failure fallback kill (never stale)
     const cleanupProven = ambiguities.length === 0 && lockReleased;
     return {
       ...status,
       cleanupProven,
       lockReleased,
-      detail: cleanupProven ? 'CLEANUP_PROVEN' : `CLEANUP_AMBIGUOUS:${ambiguities.join(',')}`,
+      incidentDominated,
+      detail: cleanupProven ? (incidentDominated ? 'INCIDENT_KILL_DOMINATED_CLEANUP' : 'CLEANUP_PROVEN') : `CLEANUP_AMBIGUOUS:${ambiguities.join(',')}`,
       ambiguities,
     };
   }
@@ -372,8 +520,10 @@ export class As1GatewayComposition {
     const deps = this.deps;
     const receiveGrantRef = this.descriptor.receiveGrantRef;
 
-    // Step 2: observe the fixed committed receive-grant blob (no fetch, no mutable ref trust) and parse it.
-    const observed = await deps.gitSource.observe(receiveGrantRef);
+    // Step 2: observe the fixed committed receive-grant blob (no fetch, no mutable ref trust) and parse it. F01: every
+    // load-bearing await in start() is wrapped by `guardedAwait` (incident-admission guard immediately BEFORE and AFTER
+    // it), so a SIGUSR2 that closes admission before or during any step begins NO next side effect.
+    const observed = await this.guardedAwait(() => deps.gitSource.observe(receiveGrantRef));
     if (observed.status !== 'READY' || observed.bytes === null || observed.firstAddCommit === null || observed.blobSha256 === null) {
       return { connected: false, reason: 'RECEIVE_GRANT_NOT_READY', state: this.control.getState() };
     }
@@ -392,13 +542,13 @@ export class As1GatewayComposition {
     if (!(Date.parse(this.clock.now()) < Date.parse(grant.expiresAt))) {
       return { connected: false, reason: 'RECEIVE_GRANT_NOT_READY', state: this.control.getState() };
     }
-    await this.assertProfileStateRootBinding(grant, slug);
-    const snapshots = await this.control.selectedSnapshotHashes(slug);
+    await this.guardedAwait(() => this.assertProfileStateRootBinding(grant, slug));
+    const snapshots = await this.guardedAwait(() => this.control.selectedSnapshotHashes(slug));
     if (grant.globalControlSnapshotHash !== snapshots.globalControlHash || grant.profileLatchSnapshotHash !== snapshots.profileLatchHash) {
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'receive grant frozen control/latch snapshots do not bind the exact pre-transition records');
     }
     const receiveGrantProvenance = deps.buildReceiveGrantProvenance({ receiveGrantRef, accepted: acceptedReceiveGrant, grant });
-    await receiveGrantProvenance.assertAccepted(grant);
+    await this.guardedAwait(() => receiveGrantProvenance.assertAccepted(grant));
 
     // Step 3 (F02.3): the FIRST durable authority transition is now INSIDE the rollback/kill envelope, so a
     // transition/persistence failure at that boundary reverts/closes to a legal clean state and releases ownership —
@@ -406,13 +556,13 @@ export class As1GatewayComposition {
     let startedSocket: As1CompositionSocketPort | null = null;
     try {
       if (this.control.getState() === 'DISABLED_CLEAN') {
-        await this.control.transition('DISABLED_CLEAN', 'DISABLED_DEFAULT');
+        await this.guardedAwait(() => this.control.transition('DISABLED_CLEAN', 'DISABLED_DEFAULT'));
       }
-      await this.control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', slug);
+      await this.guardedAwait(() => this.control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', slug));
 
       // Step 4: parse the owner-only secret, prove one shared workspace + the sole Leo identity + cross-profile
       // separation, and retain ONLY the selected profile's wire identity.
-      const secret = await parseSecretConfigFile(this.descriptor.secretFilePath);
+      const secret = await this.guardedAwait(() => parseSecretConfigFile(this.descriptor.secretFilePath));
       this.assertGrantMatchesSecret(grant, secret);
       const profileSecret = secret.secretFor(grant.profileId);
       const wire: As1ProfileWireIdentity = {
@@ -425,8 +575,8 @@ export class As1GatewayComposition {
       };
 
       // Step 5: open the selected store, replay receive-grant state, construct the service, build and bind the Socket.
-      const store = await As1ProfileInboundStore.open(this.stateRoot, profile, this.clock);
-      await store.initReceiveGrantState(grant);
+      const store = await this.guardedAwait(() => As1ProfileInboundStore.open(this.stateRoot, profile, this.clock));
+      await this.guardedAwait(() => store.initReceiveGrantState(grant));
       const gate = controlProfileControlPort(this.control, slug);
       const context: As1ProfileRuntimeContext = {
         profile,
@@ -447,14 +597,18 @@ export class As1GatewayComposition {
       // Step 6/7: durably AUTHENTICATE, prove auth.test/bots.info/hello identity, and leave AUTHENTICATED_QUARANTINE.
       // The verifier re-runs the same construction-bound provenance gate (idempotent, defense in depth) plus the
       // fresh-clock connect gate and Web/Socket identity proof.
-      await this.control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE');
+      await this.guardedAwait(() => this.control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE'));
+      // F01: guard the verifier's supplied provenance/Web/Socket ports so an incident inside assertAccepted/authTest/
+      // botsInfo/connect deterministically prevents the NEXT verifier operation (exact-authority.ts stays unmodified);
+      // `guardedAwait` additionally re-checks immediately AFTER verify(), before the service/onEnvelope registration.
+      const guardedPorts = this.incidentGuardedStartupPorts(receiveGrantProvenance, deps.web, socket);
       const verifier = new As1StartupIdentityVerifier(
         () => this.clock.now(),
-        receiveGrantProvenance,
+        guardedPorts.provenance,
         () => this.control.liveControlSnapshotHash(),
         () => this.control.isConnectReady(slug),
       );
-      const proof = await verifier.verify({ profile, wire, grant, web: deps.web, socket });
+      const proof = await this.guardedAwait(() => verifier.verify({ profile, wire, grant, web: guardedPorts.web, socket: guardedPorts.socket }));
       const boundContext: As1ProfileRuntimeContext = { ...context, botUserId: proof.botUserId };
       const service = new As1InboundService(boundContext, grant, store, gate);
       socket.onEnvelope(async (envelope) => {
@@ -463,12 +617,13 @@ export class As1GatewayComposition {
       });
 
       // Step 8: durably transition to RECEIVING, recheck the selected facts, then one-use arm receive.
-      await this.control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE');
+      await this.guardedAwait(() => this.control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE'));
       if (!this.control.isReceiveReady(slug)) {
         throw new DomainError('GATEWAY_DISABLED', 'control is not receive-ready immediately before arm');
       }
       // Step 9: bounded recovery, then arm — only now may the raw transport parse and deliver an Events API envelope.
-      await service.recoverPending();
+      await this.guardedAwait(() => service.recoverPending());
+      this.assertIncidentAdmissionOpen(); // F01: NEVER arm live receive after an incident has closed admission (sync op)
       socket.armReceive();
 
       this.live = {
@@ -513,7 +668,8 @@ export class As1GatewayComposition {
     this.receiving = false;
     this.live = null;
     this.closed = true;
-    if (!this.control.isIncidentGateOpen()) {
+    let incidentDominated = !this.control.isIncidentGateOpen();
+    if (incidentDominated) {
       // A SIGUSR2 incident closed the gate during startup → durable kill, never a clean rollback.
       try {
         await this.control.operatorIncidentKill();
@@ -523,7 +679,8 @@ export class As1GatewayComposition {
       if (!this.control.isGloballyLatched()) ambiguities.push('KILL_NOT_ENGAGED');
     } else {
       try {
-        await this.control.rollbackToDisabled();
+        // The rollback carries the synchronous admission guard through its internal drain transitions.
+        await this.control.rollbackToDisabled(() => this.control.isIncidentGateOpen());
       } catch (error) {
         ambiguities.push(`ROLLBACK:${redactError(error).code}`);
         try {
@@ -531,6 +688,16 @@ export class As1GatewayComposition {
         } catch (killError) {
           ambiguities.push(`FALLBACK_KILL:${redactError(killError).code}`);
         }
+      }
+      // F01: an incident that closed admission DURING the rollback transitions dominates the clean revert.
+      if (!this.control.isIncidentGateOpen()) {
+        incidentDominated = true;
+        try {
+          await this.control.operatorIncidentKill();
+        } catch (error) {
+          ambiguities.push(`KILL:${redactError(error).code}`);
+        }
+        if (!this.control.isGloballyLatched()) ambiguities.push('KILL_NOT_ENGAGED');
       }
     }
     const status = this.status();
@@ -546,7 +713,8 @@ export class As1GatewayComposition {
       ...status,
       cleanupProven,
       lockReleased,
-      detail: cleanupProven ? 'CLEANUP_PROVEN' : `CLEANUP_AMBIGUOUS:${ambiguities.join(',')}`,
+      incidentDominated,
+      detail: cleanupProven ? (incidentDominated ? 'INCIDENT_KILL_DOMINATED_CLEANUP' : 'CLEANUP_PROVEN') : `CLEANUP_AMBIGUOUS:${ambiguities.join(',')}`,
       ambiguities,
     };
   }
@@ -571,10 +739,11 @@ export class As1GatewayComposition {
     const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
     const deliveryGrantPath = `${base}/pointer-delivery-grant.json`;
     // F03: re-observe the pointer-delivery grant with its internally bound accepted pair (once captured) so a
-    // post-acceptance rewrite/deletion/ancestry reuse latches instead of silently re-accepting.
-    const grantObs = await deps.gitSource.observe(deliveryGrantPath, this.acceptedDeliveryGrant ?? undefined);
+    // post-acceptance rewrite/deletion/ancestry reuse latches instead of silently re-accepting. F01: `guardedAwait`
+    // guards incident admission BEFORE and AFTER every observation/latch/transport await below.
+    const grantObs = await this.guardedAwait(() => deps.gitSource.observe(deliveryGrantPath, this.acceptedDeliveryGrant ?? undefined));
     if (grantObs.status === 'DIVERGED') {
-      await this.control.latchProfile(live.slug, `pointer-delivery grant diverged post-acceptance: ${grantObs.reason}`);
+      await this.guardedAwait(() => this.control.latchProfile(live.slug, `pointer-delivery grant diverged post-acceptance: ${grantObs.reason}`));
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'DELIVERY_GRANT_DIVERGED' };
     }
     if (grantObs.status !== 'READY' || grantObs.bytes === null || grantObs.firstAddCommit === null || grantObs.blobSha256 === null) {
@@ -587,9 +756,9 @@ export class As1GatewayComposition {
     const provisionalDeliveryGrant: As1AcceptedArtifact = { firstAddCommit: grantObs.firstAddCommit, blobSha256: grantObs.blobSha256 };
     // F03: the readiness lease is re-observed with its own accepted pair (once retained) so a post-acceptance
     // rewrite/deletion/dirty lease latches instead of silently re-accepting or classifying as benign NOT_READY.
-    const leaseObs = await deps.gitSource.observe(`${base}/readiness-lease.json`, this.acceptedLease ?? undefined);
+    const leaseObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/readiness-lease.json`, this.acceptedLease ?? undefined));
     if (leaseObs.status === 'DIVERGED') {
-      await this.control.latchProfile(live.slug, `readiness lease diverged post-acceptance: ${leaseObs.reason}`);
+      await this.guardedAwait(() => this.control.latchProfile(live.slug, `readiness lease diverged post-acceptance: ${leaseObs.reason}`));
       return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'READINESS_LEASE_DIVERGED' };
     }
     if (leaseObs.status !== 'READY' || leaseObs.bytes === null || leaseObs.firstAddCommit === null || leaseObs.blobSha256 === null) {
@@ -601,17 +770,22 @@ export class As1GatewayComposition {
     // full provenance/binding/expiry inside deliver(); the live-actionability predicate follows. Fresh per attempt —
     // the durable journal, not the instance, enforces no-retry.
     const deliveryProvenance = deps.buildDeliveryProvenance({ deliveryGrantPath, accepted: provisionalDeliveryGrant, grant: deliveryGrant });
+    // F01: EVERY port/callback handed to the exact transport is incident-guarded, so an incident during any internal
+    // await inside deliver() (provenance, journal read/write, actionability, or a latch) begins no next tmux paste or
+    // durable write. The forbidden `exact-transport.ts` is unmodified.
     const transport = new As1ExactTransport(
       () => this.clock.now(),
       this.stateRoot,
       live.profile,
-      deps.tmuxPort,
-      live.store,
-      deliveryProvenance,
-      { isDeliverable: () => Promise.resolve(this.control.isLiveDeliveryActionable(live.slug)) },
-      (reason: string) => this.control.latchProfile(live.slug, reason),
+      this.incidentGuardedPort(deps.tmuxPort),
+      this.incidentGuardedPort(live.store),
+      this.incidentGuardedPort(deliveryProvenance),
+      { isDeliverable: this.incidentGuardedCallback(() => Promise.resolve(this.control.isLiveDeliveryActionable(live.slug))) },
+      this.incidentGuardedCallback((reason: string) => this.control.latchProfile(live.slug, reason)),
     );
-    const result = await transport.deliver(deliveryGrant, lease);
+    // F01: NEVER begin the exact tmux paste/delivery once incident admission has closed; guardedAwait re-checks after
+    // it too, so a during-delivery incident is not followed by retaining accepted pairs or looping into evidence.
+    const result = await this.guardedAwait(() => transport.deliver(deliveryGrant, lease));
     if (result.outcome === 'DELIVERED') {
       // F03: ONLY a fully-accepted delivery atomically retains the accepted pairs for later evidence re-observation.
       this.acceptedDeliveryGrant = provisionalDeliveryGrant;
@@ -637,11 +811,13 @@ export class As1GatewayComposition {
     if (this.acceptedDeliveryGrant === null) {
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted delivery authority');
     }
+    const acceptedDeliveryGrant = this.acceptedDeliveryGrant;
     // Re-observe the pointer-delivery grant with its bound accepted pair — a post-acceptance divergence latches the
-    // profile rather than building evidence authority from a rewritten grant.
-    const grantObs = await deps.gitSource.observe(`${base}/pointer-delivery-grant.json`, this.acceptedDeliveryGrant);
+    // profile rather than building evidence authority from a rewritten grant. F01: `guardedAwait` guards incident
+    // admission BEFORE and AFTER every observation/latch/store/ingress/outbound await in this method.
+    const grantObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/pointer-delivery-grant.json`, acceptedDeliveryGrant));
     if (grantObs.status === 'DIVERGED') {
-      await this.control.latchProfile(live.slug, `pointer-delivery grant diverged at evidence: ${grantObs.reason}`);
+      await this.guardedAwait(() => this.control.latchProfile(live.slug, `pointer-delivery grant diverged at evidence: ${grantObs.reason}`));
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer-delivery grant diverged post-acceptance');
     }
     if (grantObs.status !== 'READY' || grantObs.bytes === null) {
@@ -658,9 +834,10 @@ export class As1GatewayComposition {
     if (this.acceptedLease === null) {
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted readiness lease');
     }
-    const leaseObs = await deps.gitSource.observe(`${base}/readiness-lease.json`, this.acceptedLease);
+    const acceptedLease = this.acceptedLease;
+    const leaseObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/readiness-lease.json`, acceptedLease));
     if (leaseObs.status === 'DIVERGED') {
-      await this.control.latchProfile(live.slug, `readiness lease diverged at evidence: ${leaseObs.reason}`);
+      await this.guardedAwait(() => this.control.latchProfile(live.slug, `readiness lease diverged at evidence: ${leaseObs.reason}`));
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease diverged post-acceptance');
     }
     if (leaseObs.status !== 'READY' || leaseObs.bytes === null) {
@@ -669,10 +846,11 @@ export class As1GatewayComposition {
     const evidenceLease = parseReadinessLease(JSON.parse(leaseObs.bytes.toString('utf8')));
     this.assertLeaseBoundToDelivery(evidenceLease, deliveryGrant);
 
-    const receiveGrantState = await live.store.readReceiveGrantState(live.grant.receiveGrantId);
-    const terminalDelivery = await live.store.readTmuxDeliveryRecord(deliveryId);
-    const rootCorrelation = await live.store.findRootByIntakeId(intakeId);
-    const consumption = await live.store.readDeliveryAuthorityConsumption(deliveryGrant.pointerDeliveryGrantId);
+    // F01: guard incident admission between EACH durable evidence-input read (not one guard for the group).
+    const receiveGrantState = await this.guardedAwait(() => live.store.readReceiveGrantState(live.grant.receiveGrantId));
+    const terminalDelivery = await this.guardedAwait(() => live.store.readTmuxDeliveryRecord(deliveryId));
+    const rootCorrelation = await this.guardedAwait(() => live.store.findRootByIntakeId(intakeId));
+    const consumption = await this.guardedAwait(() => live.store.readDeliveryAuthorityConsumption(deliveryGrant.pointerDeliveryGrantId));
     if (receiveGrantState === null || terminalDelivery === null || rootCorrelation === null || consumption === null) {
       throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence authority inputs are not all durable yet');
     }
@@ -684,42 +862,47 @@ export class As1GatewayComposition {
       rootCorrelation,
       consumption,
     });
+    // F01: EVERY port/callback handed to evidence ingress + outbox is incident-guarded, so an incident during any
+    // internal await (store read/write, verifier, Web send, latch, or sendability check) begins no next store/Web/
+    // outbound side effect. The forbidden `evidence-ingress.ts`/`outbox.ts` sources are unmodified.
     const ingress = new As1EvidenceIngress(
       live.profile,
-      live.store,
-      deps.evidenceVerifier,
+      this.incidentGuardedPort(live.store),
+      this.incidentGuardedPort(deps.evidenceVerifier),
       authority,
-      (reason: string) => this.control.latchProfile(live.slug, reason),
+      this.incidentGuardedCallback((reason: string) => this.control.latchProfile(live.slug, reason)),
     );
     const profileSecret = live.secret.secretFor(live.profile.profileId);
     const outbox = new As1Outbox({
       profile: live.profile,
       secret: { workspaceId: live.wire.workspaceId, appId: live.wire.appId, channelId: live.wire.channelId, botToken: profileSecret.botToken },
-      store: live.store,
-      web: deps.web,
-      latch: (reason: string) => this.control.latchProfile(live.slug, reason),
-      assertSendable: () => {
+      store: this.incidentGuardedPort(live.store),
+      web: this.incidentGuardedPort(deps.web),
+      latch: this.incidentGuardedCallback((reason: string) => this.control.latchProfile(live.slug, reason)),
+      assertSendable: this.incidentGuardedCallback(() => {
         if (!this.control.isLiveDeliveryActionable(live.slug)) {
           return Promise.reject(new DomainError('GATEWAY_DISABLED', 'profile is not sendable'));
         }
         return Promise.resolve();
-      },
-      delay: () => Promise.resolve(),
+      }),
+      delay: this.incidentGuardedCallback(() => Promise.resolve()),
     });
     const outcomes: string[] = [];
     // The private Phase B round trip exercises only ACK -> INTAKE -> RESULT (no question cycle).
     for (const kind of ['ACK', 'INTAKE', 'RESULT'] as const) {
-      const evidenceObs = await deps.gitSource.observe(`${authority.evidencePrefix}/${intakeId}/${kind.toLowerCase()}.json`);
+      // F01: guard admission around EACH evidence observation, ingress, and outbound send.
+      const evidenceObs = await this.guardedAwait(() => deps.gitSource.observe(`${authority.evidencePrefix}/${intakeId}/${kind.toLowerCase()}.json`));
       if (evidenceObs.status !== 'READY' || evidenceObs.bytes === null) {
         outcomes.push(`${kind}:NOT_READY`);
         continue;
       }
       const value: unknown = JSON.parse(evidenceObs.bytes.toString('utf8'));
       const ref = { repositoryId: deps.gitSource.getRepositoryId(), sourceCommit: evidenceObs.firstAddCommit ?? '', path: `${authority.evidencePrefix}/${intakeId}/${kind.toLowerCase()}.json`, blobSha256: evidenceObs.blobSha256 ?? '' };
-      const ingested = await ingress.ingest(kind, value, ref);
+      const ingested = await this.guardedAwait(() => ingress.ingest(kind, value, ref));
       outcomes.push(`${kind}:${ingested.outcome}`);
       if (ingested.outcome === 'ACCEPTED' && ingested.accepted !== null) {
-        const sent = await outbox.send(ingested.accepted);
+        const accepted = ingested.accepted; // NEVER project outbound to Leo's thread after an incident (guarded)
+        const sent = await this.guardedAwait(() => outbox.send(accepted));
         outcomes.push(`${kind}_OUTBOUND:${sent.outcome}`);
       }
     }
@@ -821,9 +1004,11 @@ export class As1GatewayComposition {
   public async observeReceiveGrantOnce(): Promise<'RECEIVING' | 'DIVERGED' | 'EXPIRED'> {
     const live = this.requireLive();
     const deps = this.requireDeps();
-    const reObserved = await deps.gitSource.observe(live.receiveGrantRef, live.acceptedReceiveGrant);
+    // F01: guard incident admission BEFORE and AFTER the re-observe (so a SIGUSR2 during the observe await does not
+    // resume into a durable divergence latch before the owner resamples), and again around the latch itself.
+    const reObserved = await this.guardedAwait(() => deps.gitSource.observe(live.receiveGrantRef, live.acceptedReceiveGrant));
     if (reObserved.status === 'DIVERGED') {
-      await this.control.latchProfile(live.slug, `receive-grant diverged post-acceptance: ${reObserved.reason}`);
+      await this.guardedAwait(() => this.control.latchProfile(live.slug, `receive-grant diverged post-acceptance: ${reObserved.reason}`));
       this.receiving = false;
       return 'DIVERGED';
     }

@@ -453,24 +453,56 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
   // The control now exists: wire the synchronous incident closer, and honor any SIGUSR2 that arrived during init.
   closeIncidentAdmission = (): void => composition.closeIncidentGateNow();
   if (pollRequested() === 'INCIDENT_KILL') composition.closeIncidentGateNow();
-  for (const signal of REQUIRED_OWNER_SIGNALS) {
-    if (!installed.includes(signal)) {
-      await composition.close().catch(() => undefined);
-      throw new DomainError('GATEWAY_DISABLED', 'the foreground owner did not install every required signal handler');
-    }
-  }
 
   // F01: a pending SIGUSR2 incident DOMINATES — before startup, after every awaited boundary, and before selecting
   // any non-incident terminal — and is routed EXACTLY ONCE through the durable incident kill. Cleanup is reported
   // truthfully: a synthesized clean DISABLED_CLEAN is never claimed when latch/kill/disconnect/lock-release is
-  // ambiguous. `incidentPending()` re-samples the closure-mutated flag through the typed getter.
+  // ambiguous, and a cleanup that discovered a pending incident (`incidentDominated`) is reported as the incident
+  // kill. `incidentPending()` re-samples the closure-mutated flag through the typed getter.
   const incidentPending = (): boolean => pollRequested() === 'INCIDENT_KILL';
-  const cleanupLine = (result: As1OwnerCleanupResult, provenOutcome: string, provenOk: boolean): As1CliResult =>
-    ownerLine(result.cleanupProven && provenOk, result.cleanupProven ? provenOutcome : result.detail, result.state);
+  const cleanupLine = (result: As1OwnerCleanupResult, provenOutcome: string, provenOk: boolean): As1CliResult => {
+    if (result.incidentDominated) {
+      return ownerLine(false, result.cleanupProven ? 'INCIDENT_KILL_ENGAGED' : result.detail, result.state);
+    }
+    return ownerLine(result.cleanupProven && provenOk, result.cleanupProven ? provenOutcome : result.detail, result.state);
+  };
   const runIncidentKill = async (): Promise<As1CliResult> => {
     const result = await composition.incidentKill();
     return cleanupLine(result, 'INCIDENT_KILL_ENGAGED', false);
   };
+  // Close the owned lock and REPORT whether the release actually succeeded (a release failure is never discarded, and
+  // an unproved release is never reported as clean). The boolean is returned from this helper so control-flow analysis
+  // does not narrow the closure-mutated flag at the caller's condition.
+  const closeReported = async (): Promise<boolean> => {
+    let released = true;
+    await composition.close().catch(() => {
+      released = false;
+    });
+    return released;
+  };
+  // The ACTUAL last observed control state (never a synthesized DISABLED_LATCHED). `status()` reads the in-memory
+  // state and does not require the lock, so it is truthful even after release; capture it BEFORE closing. Cleanup/latch
+  // uncertainty is encoded only in the stable OUTCOME string, never by claiming a durable-latch state that was not proven.
+  const observeState = (): string => {
+    try {
+      return composition.status().state;
+    } catch {
+      return 'STATE_UNAVAILABLE';
+    }
+  };
+
+  // A required signal handler is missing: fail closed truthfully INSIDE the stable owner-result boundary — never
+  // discard a lock-release failure nor throw a raw error before returning a result. A pending incident here is still
+  // dominated (the drain sees the closed gate and reports the durable kill via `incidentDominated`).
+  for (const signal of REQUIRED_OWNER_SIGNALS) {
+    if (!installed.includes(signal)) {
+      const result = await composition.stop().catch(() => null);
+      if (result !== null) return cleanupLine(result, 'MISSING_HANDLER_DISABLED', false);
+      const state = observeState();
+      const released = await closeReported();
+      return ownerLine(false, released ? 'MISSING_HANDLER_DISABLED' : 'MISSING_HANDLER_DISABLED:RELEASE_UNPROVEN', state);
+    }
+  }
 
   try {
     if (incidentPending()) return await runIncidentKill(); // dominate BEFORE startup
@@ -530,6 +562,11 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         }
         // A benign AWAITING (no grant/lease yet) simply keeps polling.
       }
+      // F01: a pending incident must NOT begin another timer await — check immediately BEFORE the delay as well as after.
+      if (incidentPending()) {
+        terminal = 'INCIDENT_KILL';
+        break;
+      }
       await boundary.delay(OWNER_LOOP_INTERVAL_MS);
       if (incidentPending()) {
         terminal = 'INCIDENT_KILL';
@@ -549,18 +586,29 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
     if (incidentPending()) {
       if (reverted !== null) return cleanupLine(reverted, 'INCIDENT_KILL_ENGAGED', false);
       if (composition.isOpen()) return await runIncidentKill();
-      await composition.close().catch(() => undefined);
-      return ownerLine(false, 'INCIDENT_KILL_UNPROVEN', 'DISABLED_LATCHED');
+      // Not open and no stored cleanup: report the actual last observed state and close truthfully, never discarding a
+      // release failure nor synthesizing DISABLED_LATCHED.
+      const state = observeState();
+      const released = await closeReported();
+      return ownerLine(false, released ? 'INCIDENT_KILL_UNPROVEN' : 'INCIDENT_KILL_UNPROVEN:RELEASE_UNPROVEN', state);
     }
     if (reverted !== null) {
       return ownerLine(false, `OWNER_HALTED:${code}:${reverted.detail}`, reverted.state);
     }
     if (composition.isOpen()) {
       const result = await composition.latchActiveProfileAndStop(code).catch(() => null);
-      if (result !== null) return ownerLine(false, `OWNER_HALTED:${code}:${result.detail}`, result.state);
+      if (result !== null) {
+        // The latch/cleanup result is truthful: an incident discovered during the drain is reported as the kill.
+        if (result.incidentDominated) return cleanupLine(result, 'INCIDENT_KILL_ENGAGED', false);
+        return ownerLine(false, `OWNER_HALTED:${code}:${result.detail}`, result.state);
+      }
     }
-    await composition.close().catch(() => undefined);
-    return ownerLine(false, `OWNER_HALTED:${code}`, 'DISABLED_LATCHED');
+    // Last resort (latchActiveProfileAndStop threw, or the composition was already closed): report the actual last
+    // observed state and close truthfully. NEVER synthesize a proven latch/clean state — the outcome records that
+    // cleanup/release could not be proven.
+    const state = observeState();
+    const released = await closeReported();
+    return ownerLine(false, `OWNER_HALTED:${code}:${released ? 'CLEANUP_UNPROVEN' : 'RELEASE_UNPROVEN'}`, state);
   }
 }
 

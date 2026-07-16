@@ -401,17 +401,30 @@ node dist/core/runtime/as1-slack-pilot/cli.js incident-kill
   eventual return. It returns only `STOPPED_CLEAN`, `STALE_OR_AMBIGUOUS_OWNER`,
   `NO_LIVE_OWNER`, or `STOP_TIMEOUT`.
 - `incident-kill` sends the fixed SIGUSR2 through one Linux pidfd. A pending
-  incident DOMINATES in the owner — before startup and after every awaited
-  boundary (receive re-observation, delivery, evidence, and the idle poll) — and
-  is routed EXACTLY ONCE through the synchronous incident-gate close and the
-  irreversible global kill (`OPERATOR_INCIDENT_KILL`, `DISABLED_LATCHED`); a later
-  clean terminal can never mask it. The owner's cleanup is reported TRUTHFULLY: if
-  the durable kill, profile latch, Socket disconnect, or writer-lock release is
-  ambiguous, the reported outcome carries that ambiguity and is never a synthesized
-  clean state. The observer then proves EXACT lock removal and the durable killed
-  record WITHIN the fixed `10,000 ms` deadline: every post-signal await is raced
-  against one monotonic, latched deadline, so a blocked or never-resolving read
-  returns `INCIDENT_KILL_TIMEOUT` within the bound rather than an eventual or
+  incident DOMINATES in the owner at EVERY load-bearing async boundary — a
+  synchronous incident-admission guard is checked immediately BEFORE and AFTER each
+  await in startup, delivery, evidence, and the idle poll, AND is woven into the
+  supplied startup/transport/evidence/outbound ports (provenance, Web, Socket, tmux,
+  store) so an incident inside those collaborators' internal awaits begins no next
+  Git, durable, network, tmux, or outbound side effect. One incident is routed
+  EXACTLY ONCE through the synchronous incident-gate close and the irreversible
+  global kill (`OPERATOR_INCIDENT_KILL`, `DISABLED_LATCHED`); no later clean terminal
+  can mask it. Cleanup is reported TRUTHFULLY and NEVER synthesizes a clean
+  `DISABLED_CLEAN` nor an unproved `DISABLED_LATCHED`: a pending incident OR any
+  pre-existing latch/disconnect/drain ambiguity engages the durable kill instead of
+  a clean drain (the internal drain transitions carry the same admission guard); the
+  durable kill is TRANSACTIONAL (the in-memory latch commits only after the record
+  persists, else `KILL_NOT_ENGAGED`/`FALLBACK_KILL`); a writer-lock RELEASE failure
+  retains ownership and engages a fallback kill rather than leaving a clean state
+  behind a stuck lock; and the reported STATE is the ACTUAL observed control state,
+  with any ambiguity encoded only in the outcome. The observer then proves EXACT
+  lock removal and the durable killed record WITHIN the fixed `10,000 ms` deadline:
+  the record is read through one retained no-follow descriptor whose identity and
+  metadata are re-`fstat`ed after the read AND correlated by device/inode to a fresh
+  no-follow re-open of the fixed leaf (a replaced/unlinked/symlinked leaf fails
+  closed), accepted only on exact canonical bytes, and every post-signal await is
+  raced against one monotonic, latched deadline, so a blocked or never-resolving
+  read returns `INCIDENT_KILL_TIMEOUT` within the bound rather than an eventual or
   late-accepted success. It returns only `INCIDENT_KILL_ENGAGED`,
   `INCIDENT_KILL_ALREADY_ENGAGED`, `STALE_OR_AMBIGUOUS_OWNER`, `NO_LIVE_OWNER`,
   `INCIDENT_KILL_PERSIST_FAILED`, or `INCIDENT_KILL_TIMEOUT`. A durable latch has no

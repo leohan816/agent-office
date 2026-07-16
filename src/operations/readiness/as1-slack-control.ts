@@ -325,9 +325,12 @@ export class As1SlackControl {
   public async close(): Promise<void> {
     await this.mutex.run(async () => {
       const lock = this.lock;
+      // F01 (brief 77): commit ownership release ONLY after a SUCCESSFUL durable release. If `release()` throws,
+      // ownership is RETAINED (the lock stays set and `released` stays false), so the caller can durably fallback-kill
+      // while still owning the lock and never reports a clean release it did not achieve.
+      if (lock !== null) await lock.release();
       this.lock = null;
       this.released = true;
-      if (lock !== null) await lock.release();
     });
   }
 
@@ -390,7 +393,11 @@ export class As1SlackControl {
     await this.mutex.run(async () => {
       this.assertOwned();
       if (this.isGloballyLatched()) return; // preserve the first durable kill; never overwrite its reason
-      this.control = {
+      // F01 (brief 77): the durable kill is TRANSACTIONAL — persist the DISABLED_LATCHED record BEFORE committing it in
+      // memory. A persistence failure leaves the in-memory record UNCHANGED (still not latched) and rethrows, so
+      // `isGloballyLatched()` stays false and the caller records KILL_NOT_ENGAGED rather than an UNPROVED in-memory
+      // DISABLED_LATCHED. Only after the durable write succeeds is the kill committed.
+      const next: As1GlobalControlV1 = {
         ...this.control,
         state: 'DISABLED_LATCHED',
         killEngaged: true,
@@ -398,7 +405,8 @@ export class As1SlackControl {
         activeProfileSlug: null,
         updatedAt: this.clock.now(),
       };
-      await this.persist();
+      await this.persistControl(next);
+      this.control = next;
     });
   }
 
@@ -470,12 +478,17 @@ export class As1SlackControl {
   }
 
   /** Clean shutdown: any active state drains through DRAINING to DISABLED_CLEAN via the legal table only. */
-  public async shutdown(): Promise<void> {
+  public async shutdown(admissionOpen?: () => boolean): Promise<void> {
     this.assertOwned();
     if (this.isGloballyLatched()) return;
     if (stateIsActive(this.control.state) && this.control.state !== 'DRAINING') {
       await this.transition(this.control.state, 'DRAINING');
     }
+    // F01: a clean drain is a TWO-transition sequence (active -> DRAINING -> DISABLED_CLEAN). A SIGUSR2 that closed
+    // incident admission before or DURING the first transition must NOT be followed by the DISABLED_CLEAN transition;
+    // the synchronous admission guard is re-checked here, between the internal awaits, so the caller can then engage
+    // the durable kill from DRAINING/DISABLED_DEFAULT instead of a masked clean disable.
+    if (admissionOpen !== undefined && !admissionOpen()) return;
     if (this.control.state === 'DRAINING') {
       await this.transition('DRAINING', 'DISABLED_CLEAN');
     } else if (this.control.state === 'DISABLED_DEFAULT') {
@@ -487,13 +500,15 @@ export class As1SlackControl {
    * Rollback (security §20). Never bypasses DRAINING: an active/receiving state drains through the legal table
    * first; a pre-connection RECEIVE_GRANTED state returns to DISABLED_DEFAULT. A latch is never cleared.
    */
-  public async rollbackToDisabled(): Promise<void> {
+  public async rollbackToDisabled(admissionOpen?: () => boolean): Promise<void> {
     this.assertOwned();
     if (this.isGloballyLatched()) return;
     if (this.control.state === 'RECEIVING_ONE_PROFILE' || this.control.state === 'AUTHENTICATING_ONE_PROFILE' || this.control.state === 'DRAINING') {
-      await this.shutdown(); // active connection: drain, do not bypass DRAINING
+      await this.shutdown(admissionOpen); // active connection: drain, do not bypass DRAINING (incident-guarded)
       return;
     }
+    // F01: an incident that closed admission must not be followed by a clean DISABLED_DEFAULT revert either.
+    if (admissionOpen !== undefined && !admissionOpen()) return;
     if (this.control.state === 'RECEIVE_GRANTED_ONE_PROFILE') {
       await this.transition('RECEIVE_GRANTED_ONE_PROFILE', 'DISABLED_DEFAULT');
     }
@@ -506,10 +521,16 @@ export class As1SlackControl {
   }
 
   private async persist(): Promise<void> {
+    await this.persistControl(this.control);
+  }
+
+  /** Persist a SPECIFIC control record durably (atomic write). Used by the transactional durable-kill path so the
+   *  in-memory record is committed only after the durable write succeeds. */
+  private async persistControl(record: As1GlobalControlV1): Promise<void> {
     const target = await resolveContainedPath(this.stateRoot, path.posix.join(INDEX_DIR, 'global-control.json'), {
       allowMissingLeaf: true,
     });
-    await writeAtomicCanonicalJson(target, this.control);
+    await writeAtomicCanonicalJson(target, record);
   }
 
   private async persistEstablishedMarker(): Promise<void> {
@@ -538,59 +559,153 @@ export class As1SlackControl {
 }
 
 /**
- * Read the fixed control leaf with ONE retained no-follow descriptor and prove the killed record's identity + exact
- * bytes on that same object (design §11.2, F05). It `fstat`s the RETAINED descriptor (never a separate `lstat`) for a
- * regular file, current owner, owner-only mode, single link, and a `1..DURABLE_FILE_MAX_BYTES` size; reads the exact
- * bytes from the SAME descriptor; strictly parses them (`parseControl`); and accepts only when the raw bytes equal
- * `canonicalBytes(parsed)` plus EXACTLY one terminal LF — so a reordered, pretty-printed, whitespace-extended,
- * multi-object, or otherwise JSON-equivalent noncanonical value is rejected. Returns the strictly parsed control on a
- * full proof, else null.
+ * Test-only deterministic-race seam (F05). `afterRetainedRead` fires AFTER the retained descriptor's bytes are read
+ * and BEFORE the post-read re-`fstat` + current-fixed-leaf correlation, so a retained-object unlink/replacement or a
+ * same-size in-place tamper can be interleaved deterministically to prove the stale-object rejection. Production
+ * callers of `readDurableKillProof` never supply it.
  */
-async function readCanonicalControlRecord(controlFile: string): Promise<As1GlobalControlV1 | null> {
+export interface As1DurableKillProofRaceHooks {
+  readonly afterRetainedRead?: () => void | Promise<void>;
+}
+
+/** The safe metadata a retained control descriptor must satisfy: regular file, current owner, owner-only mode, a
+ *  SINGLE hard link (an unlinked object drops to zero), and a `1..DURABLE_FILE_MAX_BYTES` size. */
+function isSafeRetainedControlStat(st: import('node:fs').BigIntStats, currentUid: number | undefined): boolean {
+  return (
+    st.isFile() &&
+    st.nlink === 1n &&
+    (Number(st.mode) & 0o077) === 0 &&
+    (currentUid === undefined || Number(st.uid) === currentUid) &&
+    st.size >= 1n &&
+    st.size <= BigInt(LIMITS.DURABLE_FILE_MAX_BYTES)
+  );
+}
+
+/** The retained descriptor's identity + mutation metadata must be BYTE-for-byte unchanged between the pre-read and the
+ *  post-read `fstat`: same device/inode (identity), link count, size, mode/owner, and mtime/ctime (no same-size or
+ *  metadata tampering under the retained handle after it was validated). */
+function sameRetainedControlObject(a: import('node:fs').BigIntStats, b: import('node:fs').BigIntStats): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.nlink === b.nlink &&
+    a.size === b.size &&
+    a.mode === b.mode &&
+    a.uid === b.uid &&
+    a.gid === b.gid &&
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs
+  );
+}
+
+/**
+ * Prove the killed record's identity + exact bytes across TWO retained no-follow descriptors (design §11.2, F05),
+ * WITHOUT closing either (the caller owns both closes + close-ambiguity via `handles`). It (1) `fstat`s the RETAINED
+ * descriptor for safe metadata, (2) reads the exact bytes from the SAME descriptor, (3) RE-`fstat`s the retained
+ * descriptor and requires its identity + link/size/mode/owner + mtime/ctime metadata UNCHANGED (an unlink/rename/
+ * truncate/same-size tamper under the handle after the first stat is rejected — its link count drops to zero or its
+ * metadata moves), (4) RE-OPENS the CURRENT fixed leaf `O_NOFOLLOW` into a SECOND retained handle (a symlink swap or a
+ * removed leaf fails the open), `fstat`s that handle, and requires its safe metadata plus device/inode to MATCH the
+ * retained object (a post-`fstat` unlink+replace or rename-over of the fixed leaf that leaves the stale first descriptor
+ * readable is rejected), retaining the second handle THROUGH acceptance, and (5) requires the raw bytes to equal
+ * `canonicalBytes(parsed)` plus EXACTLY one terminal LF. Returns the strictly parsed control on a full proof, else null.
+ */
+async function proveRetainedKilledRecord(
+  handle: import('node:fs/promises').FileHandle,
+  controlFile: string,
+  hooks: As1DurableKillProofRaceHooks | undefined,
+  handles: { current: import('node:fs/promises').FileHandle | null },
+): Promise<As1GlobalControlV1 | null> {
+  const currentUid = process.getuid?.();
+  // (1) fstat the RETAINED descriptor itself (one-object identity proof).
+  const first = await handle.stat({ bigint: true });
+  if (!isSafeRetainedControlStat(first, currentUid)) return null;
+  const size = Number(first.size);
+  // (2) Read exactly `size` bytes from the retained descriptor; a byte-count change under it is rejected.
+  const buffer = Buffer.allocUnsafe(size + 1);
+  const read = await handle.read(buffer, 0, size + 1, 0);
+  if (read.bytesRead !== size) return null;
+  // Test-only deterministic-race seam (F05): fired AFTER the retained read and BEFORE the post-read re-fstat +
+  // current-leaf re-open, so a retained-object replacement / same-size tamper is provable deterministically.
+  // Production callers never pass it.
+  if (hooks?.afterRetainedRead !== undefined) await hooks.afterRetainedRead();
+  // (3) Re-fstat the SAME descriptor: its identity + mutation metadata must be unchanged across the read (no
+  // unlink/rename/truncate/same-size tamper under the handle after the first validation).
+  const second = await handle.stat({ bigint: true });
+  if (!isSafeRetainedControlStat(second, currentUid) || !sameRetainedControlObject(first, second)) return null;
+  // (4) RE-OPEN the CURRENT fixed leaf `O_NOFOLLOW` into a SECOND retained handle (a symlink swap or removed leaf fails
+  // the open), and require its safe metadata + device/inode to MATCH the retained object. The handle is stored in
+  // `handles.current` so the caller ALWAYS closes it (even on a later throw), and is RETAINED through acceptance below.
+  try {
+    handles.current = await open(controlFile, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch {
+    return null;
+  }
+  const currentStat = await handles.current.stat({ bigint: true });
+  if (!isSafeRetainedControlStat(currentStat, currentUid) || currentStat.dev !== second.dev || currentStat.ino !== second.ino) {
+    return null;
+  }
+  const bytes = buffer.subarray(0, size);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+  let control: As1GlobalControlV1;
+  try {
+    control = parseControl(parsed as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+  // (5) Exact canonical-plus-one-LF proof (the retained + current handles both bind the same object): JSON-equivalent
+  // noncanonical bytes are NOT accepted as durable-kill proof.
+  if (!bytes.equals(Buffer.concat([canonicalBytes(control), Buffer.from('\n', 'utf8')]))) return null;
+  return control;
+}
+
+/**
+ * Read the fixed control leaf with a retained no-follow descriptor, prove the killed record's identity + exact bytes,
+ * and correlate the CURRENT fixed leaf through a SECOND retained no-follow descriptor (design §11.2, F05). BOTH handles
+ * are closed DETERMINISTICALLY; ANY close ambiguity fails closed (never accepted as proof). See
+ * `proveRetainedKilledRecord` for the identity/mutation/current-leaf-reopen proof.
+ */
+async function readCanonicalControlRecord(
+  controlFile: string,
+  hooks?: As1DurableKillProofRaceHooks,
+): Promise<As1GlobalControlV1 | null> {
   let handle: import('node:fs/promises').FileHandle;
   try {
     handle = await open(controlFile, constants.O_RDONLY | constants.O_NOFOLLOW);
   } catch {
     return null;
   }
+  const handles: { current: import('node:fs/promises').FileHandle | null } = { current: null };
   try {
-    // fstat the RETAINED descriptor itself (one-object identity proof, no separate lstat/TOCTOU).
-    const st = await handle.stat({ bigint: true });
-    const currentUid = process.getuid?.();
-    if (
-      !st.isFile() ||
-      st.nlink !== 1n ||
-      (Number(st.mode) & 0o077) !== 0 ||
-      (currentUid !== undefined && Number(st.uid) !== currentUid) ||
-      st.size < 1n ||
-      st.size > BigInt(LIMITS.DURABLE_FILE_MAX_BYTES)
-    ) {
-      return null;
-    }
-    const size = Number(st.size);
-    // Read exactly `size` bytes from the retained descriptor; a byte-count change under it is rejected.
-    const buffer = Buffer.allocUnsafe(size + 1);
-    const read = await handle.read(buffer, 0, size + 1, 0);
-    if (read.bytesRead !== size) return null;
-    const bytes = buffer.subarray(0, size);
-    let parsed: unknown;
+    const proven = await proveRetainedKilledRecord(handle, controlFile, hooks, handles);
+    // Deterministic close of BOTH retained handles. Close ambiguity fails closed: an object whose descriptor(s) could
+    // not be cleanly closed is not durable-kill proof.
+    let closeOk = true;
     try {
-      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+      await handle.close();
     } catch {
-      return null;
+      closeOk = false;
     }
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
-    let control: As1GlobalControlV1;
-    try {
-      control = parseControl(parsed as Record<string, unknown>);
-    } catch {
-      return null;
+    if (handles.current !== null) {
+      try {
+        await handles.current.close();
+      } catch {
+        closeOk = false;
+      }
     }
-    // Exact canonical-plus-one-LF proof: JSON-equivalent noncanonical bytes are NOT accepted as durable-kill proof.
-    if (!bytes.equals(Buffer.concat([canonicalBytes(control), Buffer.from('\n', 'utf8')]))) return null;
-    return control;
-  } finally {
-    await handle.close();
+    return closeOk ? proven : null;
+  } catch (error) {
+    // `proveRetainedKilledRecord` returns null (not throws) on every failure; any unexpected throw is ambiguous — close
+    // BOTH handles and re-raise to the caller's fail-closed handler.
+    await handle.close().catch(() => undefined);
+    if (handles.current !== null) await handles.current.close().catch(() => undefined);
+    throw error;
   }
 }
 
@@ -602,14 +717,17 @@ async function readCanonicalControlRecord(controlFile: string): Promise<As1Globa
  * missing, malformed, noncanonical, wrong-owner, symlinked, oversized, replaced, or non-decoding record is
  * `UNREADABLE` (never accepted as proof). No mutation, no signal.
  */
-export async function readDurableKillProof(stateRoot: string): Promise<'KILLED' | 'NOT_KILLED' | 'UNREADABLE'> {
+export async function readDurableKillProof(
+  stateRoot: string,
+  hooks?: As1DurableKillProofRaceHooks,
+): Promise<'KILLED' | 'NOT_KILLED' | 'UNREADABLE'> {
   try {
     const canonicalRoot = await validateStateRoot(stateRoot);
     const format = await readStateRootFormat(canonicalRoot);
     const marker = await readJsonRecord(await controlPath(canonicalRoot, ESTABLISHED_MARKER));
     if (marker === null) return 'UNREADABLE';
     assertEstablishedMarker(marker, format.stateRootId);
-    const control = await readCanonicalControlRecord(await controlPath(canonicalRoot, 'global-control.json'));
+    const control = await readCanonicalControlRecord(await controlPath(canonicalRoot, 'global-control.json'), hooks);
     if (control === null) return 'UNREADABLE';
     return control.state === 'DISABLED_LATCHED' && control.killEngaged ? 'KILLED' : 'NOT_KILLED';
   } catch {
