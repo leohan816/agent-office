@@ -1,29 +1,30 @@
 # Agent Office AS1 Phase B R2 Recovery Design Delta
 
-Status: DESIGN PATCH CANDIDATE — same-Reviewer delta review and an exact
-Advisor implementation handoff are still required.
+Status: F02 DESIGN CANDIDATE — same-Reviewer review and an exact Advisor
+implementation handoff are still required.
 
 Mission: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 
-Pass: PHASE_B_R2_RECOVERY_DESIGN_PATCH_1
+Work unit: PHASE_B_R2_RECOVERY_F02_FIXED_ORIGINAL_ROOT_PRESERVATION_DESIGN
 
-Patch authority: the committed Designer patch handoff
-advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/91_PHASE_B_R2_RECOVERY_DESIGN_PATCH_HANDOFF.md
-at governance handoff commit b0c76339803a6e77e931786816af0ef670671657,
-as corrected without scope change by 91B at governance commit
-1b45aaf206dacfda136321437a3e27dd46dfbe7b. Its parent
-5711729fd06d2f0a589fed7934fc4ac0136256ff contains independent review result
-90. The original design authority remains handoff 88.
+F02 authority: the committed Designer handoff
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/102_PHASE_B_R2_RECOVERY_F02_DESIGNER_HANDOFF.md
+and run prompt 102A at governance commit
+50507326ee3c4e2dba9b6defd45ab73d3b599cc2.
 
-Product patch base and reviewed candidate:
-e2c9d002e030eefae0f67081653fab28f6500d4d.
+Accepted R2 design commit:
+a837bbf9d4072638a6dac676fb5ccc8da9bfa1ff.
 
-Frozen reviewed implementation source:
-cca0cb5e2485c029b6d1715e37abf9bc55c548bd.
+Current F01-reviewed product baseline:
+d0b14949181d89c2caeb4e93bca91a2ea1647c80.
 
 ## 1. Decision and scope
 
-HOLD: NO.
+F02_DESIGN_HOLD: NO.
+
+LIVE_R2_SLACK_ACTIVATION: BLOCKED pending implementation, fixed-scratch
+privilege/filesystem validation, same-Reviewer PASS, and a separate live
+handoff.
 
 The exact recovery fits the existing Phase B architecture without a new
 authority schema, durable-store schema, database, or notification framework.
@@ -41,6 +42,11 @@ This document is additive and controls the R2 recovery where it differs from
 the accepted Phase B design. Every identity, provenance, one-use delivery,
 incident gate, no-blind-resend, and single-profile rule not changed here
 remains in force.
+
+This F02 delta closes only the concrete production preservation-helper,
+invocation, manifest, result, and validation surfaces left open by Advisor
+audit 101. It does not redesign F01, Exact Delivery, Slack routing, identity,
+status behavior, or the sequential two-profile architecture.
 
 This is a design result only. It grants no implementation, activation, secret
 access, Slack connection, state-root mutation, tmux mutation, risk acceptance,
@@ -314,18 +320,64 @@ not a value to update opportunistically.
 This is a later, exact operator step. The Designer did not execute it and did
 not inspect or mutate either real state root. A shell `find`/path-based `chmod`
 sequence is insufficient because a path or writer can race its checks. The
-implementation must instead place one fixed, reviewed, no-argument
-preservation helper in the setup document and test its algorithm through the
-existing lifecycle-test path. Its production root literal is only:
+single repository-owned production helper artifact is exactly:
+
+    scripts/as1-preserve-original-root.mjs
+
+It is a self-contained Node ESM script using only Node built-ins and one
+byte/hash-identified embedded Python literal for Linux `openat`, `fstatat`,
+mount-id, `fchmod`, and `FS_IOC_GETFLAGS`/`FS_IOC_SETFLAGS`. It imports no
+product module, package, configuration, secret, or runtime composition. The
+existing TypeScript `preserveOriginalRootTree` remains the accepted injected-
+seam algorithm proof; it is not a second production helper and is unchanged.
+
+The helper's sole production state-root literals are:
 
     /home/leo/.local/state/agent-office/as1-slack-pilot
+    /home/leo/.local/state/agent-office/as1-slack-pilot-r2
 
-It accepts no path, environment override, discovery result, or generic
-destination. If the required descriptor-relative or immutable-flag operation
-is unavailable, the operator gate returns HOLD; it never falls back to
-path-based traversal or a weaker claim.
+The original literal is used only by this forensic helper and the setup
+document's forensic section, never by active owner source. The R2 literal is
+used only for the installed-build proof; the helper never initializes, opens,
+or writes R2. There is no second helper, shell wrapper, package-script alias,
+CLI verb, root/path/environment operand, discovery, fallback, copy, migration,
+repair, or unseal surface.
 
-#### 4.4.1 Install R2-only code before preservation
+#### 4.4.1 One fixed no-argument invocation
+
+The sole production invocation is byte-for-byte:
+
+~~~bash
+/usr/bin/sudo -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+  /home/leo/.nvm/versions/node/v24.18.0/bin/node \
+  --disable-proto=throw \
+  /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001/scripts/as1-preserve-original-root.mjs
+~~~
+
+The helper requires exactly the script entry in `process.argv`, exact
+`LANG`/`LC_ALL`, closes and never reads stdin, resets cwd to `/`, and rejects
+inherited `NODE_OPTIONS` or other environment. Any argument, redirected
+instruction, unexpected environment key, non-root launcher, or second invocation mode returns
+`INVOCATION_REJECTED` before manifest or state-root access. The invocation
+contains no path operand: every path above is part of the reviewed surface.
+
+The root Node parent opens no state root. It verifies the manifest, helper,
+installed build, descriptor, Node object, and exact `/usr/bin/python3.14`
+object, retains the no-follow interpreter descriptor, and executes that same
+file description as child `/proc/self/fd/3` with a fixed argv and complete
+two-key environment. Before opening the original root, the Python child drops
+to UID/GID 1000, drops every bounding/permitted/effective capability except
+`CAP_LINUX_IMMUTABLE`, sets `no_new_privs`, and verifies the resulting
+`/proc/self/status` capability mask. Failure is HOLD. The privileged parent
+does not inspect either state root and only records the child's bounded result.
+
+The script has no normal unseal code. It permits only two journal-derived
+behaviors through the same invocation: no terminal journal means one
+preservation attempt; an already durable `PRESERVED` journal means read-only
+seal/digest reverification. A STARTED, HOLD, malformed, or conflicting journal
+blocks all root access and requires Advisor routing.
+
+#### 4.4.2 Install R2-only code before preservation
 
 The descriptor remains committed disabled throughout this sequence. Before
 opening the original root, the later operator must install the exact
@@ -349,7 +401,7 @@ owner argv is active and proves through the pinned original-root descriptor
 that `locks/writer.lock` is absent. A process or lock produces a fixed
 `ORIGINAL_ROOT_BUSY` outcome before any tree permission change.
 
-#### 4.4.2 Fixed descriptor-relative preservation algorithm
+#### 4.4.3 Fixed descriptor-relative preservation algorithm
 
 The helper runs with the exact reviewed interpreter and only the privilege
 needed for the Linux immutable inode flag. It performs these ordered steps:
@@ -426,6 +478,131 @@ state-root literal. A sibling identity-swap assertion verifies that a replaced
 root inode is likewise rejected through the pinned-parent comparison. These
 are test-only seams; the production helper remains fixed-root and
 no-argument.
+
+The production helper applies fixed bounds before sealing: at most 8,192
+retained entries, depth 32, 255 UTF-8 bytes per component, 4,096 UTF-8 bytes
+per relative path, 8 MiB per regular file, and 256 MiB total file bytes. It
+requires a descriptor limit sufficient to retain every accepted entry plus
+the fixed ancestor/result/manifest descriptors. A bound or descriptor shortfall
+is HOLD before success, never truncation, streaming path re-open, or discovery.
+
+#### 4.4.4 Reviewed build/install manifest
+
+The fixed manifest evidence path is:
+
+    artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_PRESERVATION_BUILD_INSTALL_MANIFEST.json
+
+It is canonical JSON plus LF, generated only after the future implementation
+source commit is clean and `npm run build:core` succeeds. It is committed with
+the future implementation result evidence, independently regenerated, and its
+file SHA-256 is pinned by the same Reviewer's result and the later operator
+handoff. It is evidence and an integrity precondition, not delivery or live
+authority.
+
+The closed schema records: schema version; implementation source commit; exact
+build command; fixed worktree identity; complete sorted regular-file counts and
+canonical path/size/SHA-256 tree digests for `src` and `dist/core`; helper byte
+count and SHA-256; package-lock, package, and build-tsconfig SHA-256 values;
+disabled descriptor SHA-256; exact Node and Python device/inode/owner/mode/
+link/size/SHA-256 facts; sealed Python-literal byte count/SHA-256; zero active
+old-root and old-root-ID comparison counts; and exact R2 CLI/lock/root-ID/
+bridge proof digests. It contains no token, secret, environment value, state
+byte, caller-selected path, or executable operand.
+
+The helper owns the fixed paths and exact manifest keys. It never executes or
+opens a path supplied by the manifest. Before the original-root descriptor is
+opened, it no-follow opens and pins the fixed worktree, helper, manifest,
+disabled descriptor, `src`, and `dist/core`; rejects a symlink, special file,
+mount transition, multiply-linked regular file, entry-set drift, or unexpected
+manifest key; recomputes every byte/tree/static proof; and requires the
+committed descriptor to remain `enabled: false` and `receiveGrantRef: null`
+with accepted SHA-256
+`8e3b9985f09b366e046d03392bd60b2157264ec1f2eb4498bfa92e615802f5d7`.
+Any missing or mismatched provenance fact is `HOLD_PROVENANCE`; no state root
+is opened and no weaker source-only or caller assertion is accepted.
+
+#### 4.4.5 Durable redacted result and recovery
+
+The fixed operator-result journal is:
+
+    artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_ORIGINAL_ROOT_PRESERVATION_OPERATOR_RESULT.jsonl
+
+Before original-root access, the helper no-follow pins the existing artifacts
+directory, exclusively creates the absent journal at mode 0600, writes one
+canonical STARTED record, `fchown`s the retained file to UID/GID 1000 while
+preserving mode 0600, `fdatasync`s the file, and `fsync`s the directory. It
+re-verifies the retained file identity/owner/mode/link count and keeps that
+descriptor for the whole operation. Every terminal record is appended plus LF
+and `fdatasync`ed; the helper never overwrites or deletes the journal. A crash
+or durability failure leaving STARTED without a terminal record is HOLD and
+forbids automatic retry.
+
+A PRESERVED record contains only: schema/version, phase, reviewed manifest
+SHA-256, equal initial/final byte-path digests, hashed parent/root identity,
+entry/file-byte counts, and fixed true/false proofs for disabled, R2-only,
+process-absent, lock-absent, no-follow, single-mount, one-link, zero-write, and
+immutable. It contains no evidence bytes, raw inode, PID, argv, path, secret,
+provider text, exception, or stack. Reinvocation after PRESERVED performs only
+the same descriptor-relative traversal, process/lock/identity/seal checks and
+digest comparison, then appends REVERIFIED; it performs no `fchmod` or
+`FS_IOC_SETFLAGS`.
+
+The helper emits exactly one bounded canonical redacted result line and empty
+stderr. Fixed outcomes are PRESERVED, REVERIFIED, INVOCATION_REJECTED,
+HOLD_PROVENANCE, HOLD_PRIVILEGE_OR_FILESYSTEM, ORIGINAL_ROOT_BUSY,
+ORIGINAL_ROOT_PRESERVATION_RACE, HOLD_TRAVERSAL, HOLD_PARTIAL_SEAL,
+HOLD_DIGEST, and RESULT_DURABILITY_FAILED. Dynamic exceptions map to one of
+those codes and are never included in output or the journal.
+
+#### 4.4.6 Exact HOLD behavior
+
+- Missing privilege, unsupported ioctl/immutable behavior, unproved interpreter
+  or build provenance, enabled descriptor, process/old-lock presence,
+  identity/mount/traversal drift, rejected type/link/path, insufficient bound,
+  incomplete zero-write/immutable seal, digest mismatch, or result durability
+  failure never produces PRESERVED.
+- A pre-seal failure opens no state root when possible and changes no original
+  metadata. Once any seal step begins, every failure is
+  HOLD_PARTIAL_SEAL or a stronger race/digest code; the helper never clears an
+  immutable flag, restores a write bit, retries, repairs, or deletes evidence.
+- ORIGINAL_ROOT_BUSY before sealing and any ambiguous STARTED journal require
+  Advisor routing. No status permits a Worker, Reviewer, or later owner to
+  infer activation authority.
+- Rollback has no preservation-helper mutation. It stops only an R2 owner,
+  keeps the descriptor disabled, retains both roots, and may invoke the same
+  helper only for read-only REVERIFIED proof after a durable PRESERVED record.
+
+#### 4.4.7 Synthetic and server-filesystem validation
+
+`tests/operations/as1-slack-preservation-helper.test.ts` imports the actual
+helper module without executing its direct-entry main and tests its production
+core through injected in-memory descriptors/process facts. It covers exact
+argv/env rejection before root access; manifest and helper-byte drift; all
+type/link/mount/path rejections; entry and byte bounds; process/lock at entry
+and at every race boundary; root/entry substitution; namespace-first sealing;
+unsupported or partial immutable behavior; final-proof-before-final-digest
+ordering; digest mismatch; journal STARTED/PRESERVED/REVERIFIED recovery; and
+redaction. Normal tests resolve neither real state-root literal.
+
+The existing `tests/operations/as1-slack-lifecycle.test.ts` changes only its
+stale F02 HOLD assertion: it requires this one helper artifact and invocation,
+keeps the accepted TypeScript seam tests, and proves the seam and helper core
+share the closed outcomes. No F01 test or behavior changes.
+
+Real privilege/filesystem support is a separate, later exact validation on
+this server, not part of implementation tests and not run by this Designer.
+The focused test named `F02_SERVER_FILESYSTEM_PRIVILEGE_VALIDATION` runs only
+under an explicit privileged validation handoff. It uses the helper's fixed
+test-only capability routine on the sole exclusive scratch path
+`/home/leo/.local/state/agent-office/.as1-f02-preservation-filesystem-validation`;
+it never stats, opens, names as a target, traverses, or mutates either real
+state root. The scratch is a validation fixture, never a third state root or a
+selectable path. It proves same-filesystem descriptor `fchmod`, immutable
+set/get, write/create rejection while sealed, and cleanup by clearing
+immutable only on the synthetic scratch, removing it, and fsyncing the parent.
+Pre-existing scratch, cleanup failure, unexpected mount identity, or any
+skipped assertion is HOLD. Its redacted committed result and hash require the
+same independent Reviewer before preservation.
 
 The original tree is never copied into R2. R2 starts as a new root under a
 separately authorized initialization. No receipt, latch, marker, index,
@@ -783,43 +960,42 @@ does not reopen work: startup derives the failure-only admission state from
 the preserved outbox record before any actionable boundary and repeats the
 same fixed latch transition.
 
-## 6. Exact implementation allowlist
+## 6. Accepted prior scope and exact F02 implementation allowlist
 
-The proposed implementation handoff should authorize exactly these 12 paths
-and no others:
+The earlier 12-path R2/F01 train is accepted history at the current baseline;
+F02 does not reopen any of its source, status, delivery, Socket, CLI, bridge,
+or test behavior. The future F02 implementation handoff must authorize exactly
+these four source/script/doc/test paths and no others before result/pointer
+evidence:
 
-1. src/adapters/gateways/slack-pilot/socket-frame.ts
-2. src/application/slack-pilot/outbox.ts
-3. src/runtime/as1-slack-pilot/composition.ts
-4. src/runtime/as1-slack-pilot/cli.ts
-5. src/persistence/file-store/writer-lock.ts
-6. docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md
-7. tests/adapters/as1-slack-socket-frame.test.ts
-8. tests/adapters/as1-slack-socket-client.test.ts
-9. tests/integration/as1-slack-outbound.test.ts
-10. tests/integration/as1-slack-live-composition.test.ts
-11. tests/operations/as1-slack-lifecycle.test.ts
-12. tests/recovery/as1-slack-recovery.test.ts
-
-No change is required to contracts.ts, inbound-store.ts,
-evidence-ingress.ts, socket-client.ts, web-client.ts, exact-transport.ts,
-as1-slack-control.ts, a helper, package file, configuration, descriptor,
-secret file, generated dist output, or accepted historical evidence.
+1. scripts/as1-preserve-original-root.mjs
+2. docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md
+3. tests/operations/as1-slack-preservation-helper.test.ts
+4. tests/operations/as1-slack-lifecycle.test.ts
 
 Path responsibilities are exact:
 
-- socket-frame.ts owns only the local depth-10 structural walk.
-- outbox.ts owns only the closed status kind/text/identity, all-phase sibling
-  classifier, and reuse of the existing send state machine.
-- composition.ts owns safe target construction, initial/recovery projection,
-  failure-only admission/latch transition, delivery/ACK/failure triggers,
-  INTAKE progress suppression, and result preservation.
-- cli.ts owns the R2 root/ID and bounded post-delivery evidence polling.
-- writer-lock.ts owns the R2 fixed lock, sealed literal R2 checks, and frozen
-  17,989-byte literal identity.
-- the setup document owns the fixed no-argument descriptor-relative
-  preservation helper, disabled rollout, R2 initialization instructions,
-  proof, and rollback.
+- `scripts/as1-preserve-original-root.mjs` is the sole production helper,
+  direct-entry parser, pinned-interpreter child boundary, manifest verifier,
+  descriptor-relative traversal/sealer/reverifier, and redacted result-journal
+  writer.
+- The setup document replaces only its F02 HOLD text with the exact helper,
+  manifest, validation, invocation, one-way activation, and rollback contract.
+- The focused helper test owns synthetic production-core, manifest, journal,
+  redaction, race, and separately gated fixed-scratch privilege validation.
+- The lifecycle test keeps every existing seam/F01 proof and replaces only the
+  stale assertion that no production helper exists.
+
+The later implementation/result handoff may additionally name only the
+manifest, implementation result/pointer, fixed-scratch validation
+result/pointer, and eventual operator journal as evidence artifacts. Those are
+not source or an expansion of the four-path implementation allowlist.
+
+No change is required or permitted to `package.json`, a dependency, active
+`src`, generated `dist`, configuration, descriptor, secret, accepted F01
+evidence, either state root, or another project. In particular,
+`writer-lock.ts`, `cli.ts`, `composition.ts`, `outbox.ts`, Exact Delivery, and
+the sealed pidfd bridge remain byte-identical to baseline d0b1494.
 
 ## 7. Focused proof contract
 
@@ -851,6 +1027,14 @@ The tests must prove:
   all other sealed facts remain unchanged;
 - active source and installed output have no original state-root path or old
   expected root-ID comparison;
+- exactly one production helper exists at
+  `scripts/as1-preserve-original-root.mjs`, and the setup document contains
+  exactly one production invocation equal to section 4.4.1;
+- any argv/environment addition rejects before manifest or root access, and
+  no package alias, CLI verb, wrapper, alternate mode, unseal, or generic path
+  exists;
+- the reviewed manifest is canonical, independently reproducible, and fully
+  reverified before the original-root descriptor is opened;
 - the fixed production preservation helper accepts no root input, uses only
   retained no-follow descriptors, rejects symlink/hard-link/mount/path escape
   and parent/root identity drift, and requires zero-write plus immutable flags
@@ -860,7 +1044,12 @@ The tests must prove:
 - the deterministic temporary-tree race creates the synthetic old lock/owner
   after the initial scan and receives ORIGINAL_ROOT_PRESERVATION_RACE with no
   final digest or success. A root-inode substitution is also rejected. Neither
-  real root is opened or mutated.
+  real root is opened or mutated;
+- STARTED without a terminal journal blocks retry, PRESERVED permits only
+  read-only REVERIFIED, and every durable line is canonical/redacted; and
+- normal tests make zero real-root calls, while the separately authorized
+  fixed-scratch server validation proves immutable support and cleanup without
+  touching either real root.
 
 Tests use temporary roots and injected observer seams. They do not inspect or
 mutate either real root.
@@ -931,11 +1120,11 @@ REQUEST_STARTED, RESPONSE_RECORDED, and MANUAL_RECONCILIATION_REQUIRED:
 Run from the authorized product worktree:
 
 ~~~bash
-npx eslint src/adapters/gateways/slack-pilot/socket-frame.ts src/application/slack-pilot/outbox.ts src/runtime/as1-slack-pilot/composition.ts src/runtime/as1-slack-pilot/cli.ts src/persistence/file-store/writer-lock.ts tests/adapters/as1-slack-socket-frame.test.ts tests/adapters/as1-slack-socket-client.test.ts tests/integration/as1-slack-outbound.test.ts tests/integration/as1-slack-live-composition.test.ts tests/operations/as1-slack-lifecycle.test.ts tests/recovery/as1-slack-recovery.test.ts
+npx eslint scripts/as1-preserve-original-root.mjs tests/operations/as1-slack-preservation-helper.test.ts tests/operations/as1-slack-lifecycle.test.ts
 
 npx tsc --noEmit -p tsconfig.json
 
-npx vitest run --maxWorkers=1 tests/adapters/as1-slack-socket-frame.test.ts tests/adapters/as1-slack-socket-client.test.ts tests/integration/as1-slack-outbound.test.ts tests/integration/as1-slack-live-composition.test.ts tests/operations/as1-slack-lifecycle.test.ts tests/recovery/as1-slack-recovery.test.ts
+npx vitest run --maxWorkers=1 tests/operations/as1-slack-preservation-helper.test.ts tests/operations/as1-slack-lifecycle.test.ts
 
 npm run build:core
 
@@ -944,11 +1133,25 @@ git diff --check
 test -z "$(rg -l -F '/home/leo/.local/state/agent-office/as1-slack-pilot/' src || true)"
 
 test -z "$(rg -l -F 'value["stateRootId"] == "as1-slack-pilot"' src || true)"
+
+test "$(rg -l -F '/home/leo/.local/state/agent-office/as1-slack-pilot' scripts docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md | sort)" = "docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md
+scripts/as1-preserve-original-root.mjs"
 ~~~
 
-The implementation handoff may require additional inherited gates, but it
-must not silently expand the file allowlist. The Designer ran no product
-suite.
+The implementation Worker then generates the fixed canonical build/install
+manifest from the clean source commit and build, commits it only with result
+evidence, and returns without executing the helper. The independent Reviewer
+must reproduce the commands and manifest before any server validation.
+
+The real-filesystem test is not part of the command block above. Only a later
+exact privilege-validation handoff may run the one focused
+`F02_SERVER_FILESYSTEM_PRIVILEGE_VALIDATION` test as the fixed privileged user;
+the result is invalid if any other test runs privileged, the named test skips,
+the scratch cleanup is unproved, or either real root is accessed.
+
+The implementation handoff may require inherited documentation/Git gates but
+must not expand the four source/script/doc/test paths. The Designer ran no
+product suite.
 
 ## 8. Disabled rollout and rollback
 
@@ -957,24 +1160,32 @@ suite.
 The safe order is:
 
 1. keep the committed descriptor disabled;
-2. independently review and accept this design;
-3. issue an exact implementation handoff;
-4. implement, test, commit, push, and independently review the 12-path patch;
-5. install the exact reviewed build at the fixed active executable path while
-   still disabled, then prove its manifest and active source/output select
-   only the fixed R2 root and ID with no original-root fallback;
-6. prove no AS1 process and no original lock, execute the fixed
-   descriptor-relative original-root preservation gate, and record its equal
-   byte/path digests, pinned identity, zero-write, and immutable proofs;
-7. re-prove the installed R2-only manifest and permanent original-root seal;
-8. under a separate live-owner handoff, initialize only the R2 root with ID
+2. obtain the same independent Reviewer's PASS on this F02 design;
+3. issue an exact four-path implementation handoff;
+4. implement the helper, setup delta, and synthetic tests without root access;
+   commit/push the source patch, build from that clean commit, generate the
+   manifest and result evidence, and obtain the same Reviewer's source/test/
+   manifest PASS;
+5. under a separate exact server-validation handoff, run only the fixed-scratch
+   privilege/filesystem test, commit its redacted result, and obtain the same
+   Reviewer's validation PASS;
+6. install the exact reviewed helper/build/manifest at the fixed worktree while
+   still disabled, then re-prove the reviewed manifest, helper bytes, active
+   R2-only source/output, and exact disabled descriptor;
+7. prove no AS1 process and no original lock, run the sole no-argument helper
+   once, and require a durable PRESERVED journal with equal byte/path digests;
+8. run the same invocation again in journal-derived read-only mode and require
+   durable REVERIFIED seal/digest proof;
+9. under a separate live-owner handoff, initialize only the R2 root with ID
    as1-slack-pilot-r2;
-9. mint fresh R2-bound grant/lease evidence; never copy or reuse original-root
+10. mint fresh R2-bound grant/lease evidence; never copy or reuse original-root
    state;
-10. perform redacted preflight with no tmux mutation, including the read-only
-    original-root seal proof; and
-11. only Leo/GPT may authorize value-only activation and the next single
-    Agent Office message.
+11. reverify the live Agent Office destination and redacted preflight with no
+    tmux mutation, including another read-only original-root seal proof;
+12. only Leo/GPT may authorize value-only activation and exactly one Agent
+    Office Slack round trip; and
+13. stop the R2 owner, prove lock/process absence, retain both roots and the
+    journal, and return the complete audit before any further pilot.
 
 No step here authorizes those later actions.
 
@@ -996,7 +1207,9 @@ A source revert must never restore an active reference to the original root.
 If parser/status code must later be backed out, a new reviewed patch must keep
 the R2 path/ID and descriptor disabled. Re-enabling the original root is not a
 rollback option. Rollback never clears an original-root immutable flag or
-changes its digest, relative paths, or bytes.
+changes its digest, relative paths, or bytes. It never runs a preservation
+mutation again: after PRESERVED, the sole helper invocation is read-only
+REVERIFIED or HOLD.
 
 ## 9. Non-expansion confirmation
 
@@ -1036,16 +1249,26 @@ Known, bounded unknowns:
   `FS_IMMUTABLE_FL` are supported with the authorized privilege on the actual
   original-root filesystem. Unsupported behavior is HOLD, never a weaker
   fallback; this Designer did not probe the real root or filesystem.
+- The future source commit, helper/Python-literal hashes, tree digests, and
+  manifest SHA-256 do not exist yet. The implementation and same-Reviewer
+  evidence must record them; they are never supplied as runtime operands or
+  guessed by this design.
+- The fixed production helper and fixed-scratch validation are designed but
+  not implemented or executed. F02 therefore remains a live-activation HOLD
+  even though this design has no unresolved architectural HOLD.
 - No live Slack post, real status delivery, real R2 initialization, or real
   tmux delivery has been performed by this Designer.
 
 Implementation readiness:
 
-READY only if the same independent Reviewer accepts this delta and the
-responsible Advisor issues an exact implementation handoff with the 12-path
-allowlist.
-Live readiness remains a later Leo/GPT decision after independent
-implementation review and disabled preflight.
+DESIGN_STATE: READY_FOR_SAME_REVIEWER_F02_DESIGN_REVIEW.
+
+Implementation is ready only if the same independent Reviewer accepts this
+delta and the responsible Advisor issues an exact implementation handoff with
+the four-path allowlist. Live readiness remains blocked until the implemented
+helper, reproducible manifest, fixed-scratch privilege result, actual
+PRESERVED/REVERIFIED journal, R2-only initialization, and live destination
+preflight each pass their separate authority and review gates.
 
 This Designer result is not independent review, implementation approval, risk
 acceptance, final closure, or authority to start the next mission.
