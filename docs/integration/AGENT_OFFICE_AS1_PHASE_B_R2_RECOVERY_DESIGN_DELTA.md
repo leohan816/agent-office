@@ -1,18 +1,22 @@
 # Agent Office AS1 Phase B R2 Recovery Design Delta
 
-Status: DESIGN CANDIDATE — independent review and an exact Advisor
-implementation handoff are still required.
+Status: DESIGN PATCH CANDIDATE — same-Reviewer delta review and an exact
+Advisor implementation handoff are still required.
 
 Mission: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 
-Pass: PHASE_B_R2_SOCKET_COMPATIBILITY_AND_STATUS_DESIGN_DELTA
+Pass: PHASE_B_R2_RECOVERY_DESIGN_PATCH_1
 
-Authority: the committed Designer handoff
-advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/88_PHASE_B_R2_RECOVERY_DESIGNER_HANDOFF.md
-at governance commit 0ab13cdf0a6bf31c19cba9af987625f24b169ca0.
+Patch authority: the committed Designer patch handoff
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/91_PHASE_B_R2_RECOVERY_DESIGN_PATCH_HANDOFF.md
+at governance handoff commit b0c76339803a6e77e931786816af0ef670671657,
+as corrected without scope change by 91B at governance commit
+1b45aaf206dacfda136321437a3e27dd46dfbe7b. Its parent
+5711729fd06d2f0a589fed7934fc4ac0136256ff contains independent review result
+90. The original design authority remains handoff 88.
 
-Product recovery baseline:
-64d15e34b50ec953fca5dc6c27c2c48703c6513f.
+Product patch base and reviewed candidate:
+e2c9d002e030eefae0f67081653fab28f6500d4d.
 
 Frozen reviewed implementation source:
 cca0cb5e2485c029b6d1715e37abf9bc55c548bd.
@@ -307,80 +311,121 @@ not a value to update opportunistically.
 
 ### 4.4 Original-root preservation gate
 
-This is an operator step for a later exact implementation/live handoff. It was
-not executed by the Designer.
+This is a later, exact operator step. The Designer did not execute it and did
+not inspect or mutate either real state root. A shell `find`/path-based `chmod`
+sequence is insufficient because a path or writer can race its checks. The
+implementation must instead place one fixed, reviewed, no-argument
+preservation helper in the setup document and test its algorithm through the
+existing lifecycle-test path. Its production root literal is only:
 
-Prerequisites are a committed disabled descriptor, no AS1 owner process, and
-an absent original writer lock. The following fixed command block rejects
-symlinks, special files, and multiply-linked files, computes a
-path-and-content aggregate before and after, removes write bits only, and
-proves the byte aggregate is unchanged. It performs no deletion, reset,
-repair, rename, copy, or content write:
+    /home/leo/.local/state/agent-office/as1-slack-pilot
 
-~~~bash
-set -euo pipefail
+It accepts no path, environment override, discovery result, or generic
+destination. If the required descriptor-relative or immutable-flag operation
+is unavailable, the operator gate returns HOLD; it never falls back to
+path-based traversal or a weaker claim.
 
-readonly OLD_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot
-readonly OLD_LOCK=/home/leo/.local/state/agent-office/as1-slack-pilot/locks/writer.lock
-readonly OWNER_PATTERN='[a]s1-slack-pilot/cli\.js start'
+#### 4.4.1 Install R2-only code before preservation
 
-test -d "$OLD_ROOT"
-test ! -L "$OLD_ROOT"
-test ! -e "$OLD_LOCK"
-test ! -L "$OLD_LOCK"
-if /usr/bin/pgrep -f "$OWNER_PATTERN" >/dev/null; then
-  exit 20
-fi
-if /usr/bin/find "$OLD_ROOT" -xdev ! -type d ! -type f -print -quit |
-  /usr/bin/grep -q .; then
-  exit 21
-fi
-if /usr/bin/find "$OLD_ROOT" -xdev -type f ! -links 1 -print -quit |
-  /usr/bin/grep -q .; then
-  exit 22
-fi
+The descriptor remains committed disabled throughout this sequence. Before
+opening the original root, the later operator must install the exact
+independently accepted implementation commit at the fixed active executable
+argv and record its build manifest. Against both the reviewed `src` tree and
+the installed `dist/core` tree, the gate must prove:
 
-old_tree_digest() {
-  {
-    printf 'PATHS\0'
-    /usr/bin/find "$OLD_ROOT" -xdev -printf '%y %P\0' |
-      LC_ALL=C /usr/bin/sort -z
-    printf 'FILES\0'
-    /usr/bin/find "$OLD_ROOT" -xdev -type f -print0 |
-      LC_ALL=C /usr/bin/sort -z |
-      /usr/bin/xargs -0 -r /usr/bin/sha256sum --zero --
-  } |
-    /usr/bin/sha256sum |
-    /usr/bin/awk '{print $1}'
-}
+- the original absolute state-root literal has zero active occurrence;
+- an old `stateRootId` comparison has zero active occurrence;
+- the exact R2 root, R2 root ID, fixed R2 lock, and sealed R2 bridge facts are
+  present at their specified sites;
+- start and observer surfaces accept no state-root operand, alternative
+  environment value, discovery, compatibility read, or fallback; and
+- the installed executable and every loaded product module are regular,
+  no-follow-opened, one-link objects whose hashes match the reviewed build
+  manifest.
 
-readonly BEFORE_DIGEST="$(old_tree_digest)"
-/usr/bin/find "$OLD_ROOT" -xdev -type f -exec /usr/bin/chmod a-w -- {} +
-/usr/bin/find "$OLD_ROOT" -xdev -depth -type d -exec /usr/bin/chmod a-w -- {} +
-readonly AFTER_DIGEST="$(old_tree_digest)"
+Only after that proof may preservation begin. Thus any newly started exact AS1
+owner would be R2-only. The gate then proves from `/proc` that no exact AS1
+owner argv is active and proves through the pinned original-root descriptor
+that `locks/writer.lock` is absent. A process or lock produces a fixed
+`ORIGINAL_ROOT_BUSY` outcome before any tree permission change.
 
-test "$BEFORE_DIGEST" = "$AFTER_DIGEST"
-test -z "$(/usr/bin/find "$OLD_ROOT" -xdev \( -type f -o -type d \) -perm /222 -print -quit)"
-test ! -e "$OLD_LOCK"
-test ! -L "$OLD_LOCK"
-if /usr/bin/pgrep -f "$OWNER_PATTERN" >/dev/null; then
-  exit 23
-fi
+#### 4.4.2 Fixed descriptor-relative preservation algorithm
 
-printf 'ORIGINAL_ROOT_READ_ONLY=YES\n'
-printf 'ORIGINAL_ROOT_BYTES_UNCHANGED=YES\n'
-printf 'ORIGINAL_ROOT_AGGREGATE_SHA256=%s\n' "$AFTER_DIGEST"
-printf 'ORIGINAL_ROOT_LOCK_ABSENT=YES\n'
-printf 'AS1_OWNER_PROCESS_ABSENT=YES\n'
-~~~
+The helper runs with the exact reviewed interpreter and only the privilege
+needed for the Linux immutable inode flag. It performs these ordered steps:
 
-The before and after aggregate must be recorded in the later operator gate.
-Only mode bits change. Evidence bytes and paths do not. The post-check closes
-the process/lock race: if an old owner acquired the namespace during the
-operation, preservation fails rather than claiming success. After the R2 code
-is installed, active code has no path back to the original tree; the removed
-write bits additionally cause an old binary to fail before it can create a
-lock or state.
+1. Starting at a no-follow-opened `/` descriptor, open every fixed ancestor,
+   the parent, root, and `locks` directory with `openat` plus
+   `O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`. Retain the descriptors and record each
+   `(st_dev, st_ino, mount-id)` tuple. At every phase, `fstatat` from the pinned
+   parent with `AT_SYMLINK_NOFOLLOW` must still name the same pinned root.
+2. Walk only by sorted directory entries and `openat` relative to retained
+   directory descriptors. Never reopen a concatenated pathname. Reject `.`,
+   `..`, slash-bearing or otherwise non-contained components, symlinks,
+   devices, sockets, FIFOs, mount transitions, duplicate `(device,inode)`
+   identities, and every regular file whose link count is not one. Every
+   opened entry must retain the root mount ID.
+3. Retain a no-follow descriptor for every accepted directory and regular file
+   until its identity and seal are verified. Descriptor exhaustion or any
+   unapproved changed type, link count, device, inode, mount ID, size, data
+   modification time, or entry set before that inode's seal fails closed.
+   Ctime changes caused only by the prescribed mode/immutable operations are
+   expected metadata, not evidence-byte or path drift.
+4. Compute the initial byte/path digest from the pinned descriptors. The
+   canonical stream is the sorted sequence of
+   `type NUL relative-path NUL size NUL file-SHA256 NUL`; it includes empty
+   directories and excludes only the mode/immutable metadata intentionally
+   changed by this gate.
+5. Re-prove the installed R2-only manifest, disabled descriptor, absent exact
+   AS1 process, absent original lock, full ancestor/root identity, unchanged
+   traversal, and unchanged initial digest.
+6. Establish exclusive original namespace quiescence before changing the
+   remainder: through the retained descriptors, remove write bits from the
+   root and `locks` directory and set `FS_IMMUTABLE_FL` on both with
+   `FS_IOC_SETFLAGS`. Immediately re-prove process absence, lock absence,
+   ancestor/root/locks identity, the complete entry set, and the initial
+   digest. If a lock or substitution won the preceding interval, the helper
+   reports `ORIGINAL_ROOT_PRESERVATION_RACE` and does not continue. With the
+   exact lock namespace immutable and no old-root-capable active executable,
+   no AS1 owner can reacquire the original root during the remaining work.
+7. For every remaining pinned directory and regular file, remove all write
+   bits with descriptor `fchmod`, set `FS_IMMUTABLE_FL` with descriptor ioctl,
+   and verify the same descriptor identity and flag. Never clear an existing
+   immutable bit. A partial failure remains fail-closed and makes no
+   preservation-success claim; it does not unseal or roll back protected
+   entries.
+8. Before calculating the final digest, re-prove no AS1 process, no original
+   lock, the complete pinned ancestor/root relationship, one mount ID, the
+   exact same sorted path/inode set, allowed types, one-link regular files,
+   zero write bits, and the immutable flag on every root entry. Only after all
+   of those final proofs may the helper read the pinned regular-file
+   descriptors, calculate the final byte/path digest, and require it to equal
+   the initial digest.
+
+The recorded success evidence contains both equal digests, the reviewed build
+manifest hash, the pinned parent/root identity, the entry count, and fixed
+boolean process/lock/no-follow/one-link/single-mount/zero-write/immutable
+proofs. It contains no evidence bytes or secret values.
+
+Immutable flags plus removed write bits are the persistent forensic seal; the
+R2-only executable is the independent namespace barrier. Every later AS1
+preflight and rollback must re-run the read-only descriptor-relative identity,
+digest, zero-write, and immutable proof. Any missing flag, writable inode,
+identity drift, old-root reference, or digest mismatch is HOLD. No normal
+rollback clears the seal. Clearing it requires a new, explicit forensic-risk
+decision outside this mission, so preservation does not rest on narrative or
+one reversible mode-bit check.
+
+The lifecycle proof uses only a temporary synthetic tree and injected
+filesystem/process seams. At the deterministic boundary after the initial
+scan and before namespace quiescence, a child creates the synthetic old lock
+and presents the exact synthetic owner marker. The immediate recheck must
+return `ORIGINAL_ROOT_PRESERVATION_RACE`, perform no remaining permission
+changes, emit no final digest or success record, and never resolve either real
+state-root literal. A sibling identity-swap assertion verifies that a replaced
+root inode is likewise rejected through the pinned-parent comparison. These
+are test-only seams; the production helper remains fixed-root and
+no-argument.
 
 The original tree is never copied into R2. R2 starts as a new root under a
 separately authorized initialization. No receipt, latch, marker, index,
@@ -523,10 +568,12 @@ is RESPONSE_RECORDED, not merely that a Web call began.
 | Proven pre-paste stop | Exact transport returns STOPPED_BEFORE_PASTE and a fresh derived-delivery journal read is null | Send DELIVERY_FAILED | Terminal owner halt |
 | Ambiguous/in-flight delivery | PREPARED or any later nonterminal/manual journal exists | None; never claim non-execution | Manual reconciliation and halt |
 | Terminal tmux, ACK absent | Exact journal is TRANSPORT_RECORDED; accepted server Advisor ACK evidence is not READY | None; evidence polling continues | ACK acceptance or post-delivery failure |
-| Advisor ACK accepted | TRANSPORT_RECORDED is re-read and ACK evidence passes the full accepted evidence authority | Send DELIVERY_CONFIRMED before considering INTAKE or RESULT projection | Await/process remaining evidence |
-| Post-delivery processing failure | TRANSPORT_RECORDED is re-read; a non-benign evidence/projection operation fails while incident/control output remains open | Send PROCESSING_FAILED once, then latch/stop | Terminal halt |
+| Advisor ACK accepted | TRANSPORT_RECORDED is re-read, ACK evidence passes the full accepted evidence authority, and both failure-status records are absent in every phase | Send DELIVERY_CONFIRMED before considering INTAKE or RESULT projection | Await/process remaining evidence |
+| Post-delivery processing failure | TRANSPORT_RECORDED is re-read; a non-benign evidence/projection operation fails while incident/control output remains open | Start PROCESSING_FAILED once; its first durable phase immediately becomes the processing terminal barrier | Failure-only recovery, then durable latch/stop |
+| Any durable DELIVERY_FAILED phase | Its deterministic sibling record exists, including PREPARED | Enter delivery-failure-only recovery; never inspect or mutate tmux or reuse delivery authority | Complete only the identical PREPARED failure status if permitted, then durable latch/stop |
+| Any durable PROCESSING_FAILED phase | Its deterministic sibling record exists, including PREPARED | Enter processing-failure-only recovery; never resume evidence, status progression, or business projection | Complete only the identical PREPARED failure status if permitted, then durable latch/stop |
 | Security latch or incident already closed | Profile/global latch, divergence latch, incident gate, or unsafe target is active | None; status never bypasses the gate | Existing fail-closed halt |
-| Final result accepted | ACK and INTAKE chain accepted and RESULT authority accepted | Send the existing RESULT business outbound | Manual clean stop/audit |
+| Final result accepted | ACK and INTAKE chain accepted, RESULT authority accepted, and neither failure record exists in any phase | Send the existing RESULT business outbound | Manual clean stop/audit |
 
 STOPPED_BEFORE_PASTE is safe for DELIVERY_FAILED only because the exact
 transport returns it before PREPARED and before buffer load, paste, or Enter.
@@ -547,35 +594,103 @@ existing latch wins.
 
 ### 5.6 Ordering and mutual exclusion
 
-Before starting any status, sendStatus derives all four sibling IDs and reads
-their existing journal records.
+Before any status or post-intake work, composition derives all four sibling
+IDs and reads their outbox records. Record *existence*, not successful Slack
+delivery, is the durable fact. Define the closed classifier:
+
+    no DELIVERY_FAILED record + no PROCESSING_FAILED record -> OPEN
+    any DELIVERY_FAILED phase + no PROCESSING_FAILED record -> DELIVERY_FAILED_BARRIER
+    no DELIVERY_FAILED record + any PROCESSING_FAILED phase -> PROCESSING_FAILED_BARRIER
+    both failure records present -> FAILURE_STATUS_CONFLICT
+
+`PREPARED`, `REQUEST_STARTED`, `RESPONSE_RECORDED`, and
+`MANUAL_RECONCILIATION_REQUIRED` all count. The classifier uses the existing
+deterministic status IDs and existing outbox records; it adds no store or
+schema.
 
 The exact rules are:
 
 1. Every later status requires ACCEPTED at RESPONSE_RECORDED.
-2. If a later status record exists while ACCEPTED is absent or nonterminal,
-   treat the set as corrupt/ambiguous, latch, and send nothing.
-3. DELIVERY_FAILED is allowed only when DELIVERY_CONFIRMED and
-   PROCESSING_FAILED have no durable record of any phase.
-4. DELIVERY_CONFIRMED is allowed only when DELIVERY_FAILED has no durable
-   record of any phase.
-5. PROCESSING_FAILED is allowed only after terminal tmux proof and when
-   DELIVERY_FAILED has no durable record of any phase. It may follow
-   DELIVERY_CONFIRMED or, if processing failed before ACK acceptance, follow
-   ACCEPTED directly.
-6. If either failure kind has any durable phase, the other failure kind may
-   never start.
-7. A RESPONSE_RECORDED sibling is replay success with no network. A
-   REQUEST_STARTED or MANUAL_RECONCILIATION_REQUIRED sibling is terminal and
-   never resent. PREPARED may proceed only after identical request-hash proof.
-8. The single foreground writer lock, one in-flight Socket handler, and
+2. A later status with absent or nonterminal ACCEPTED is corrupt/ambiguous;
+   latch and send nothing.
+3. DELIVERY_FAILED may begin only while DELIVERY_CONFIRMED and
+   PROCESSING_FAILED are wholly absent.
+4. DELIVERY_CONFIRMED may begin only while both DELIVERY_FAILED and
+   PROCESSING_FAILED are wholly absent. Recheck this immediately before its
+   PREPARED write, REQUEST_STARTED write, Web call, response write, and
+   RESPONSE_RECORDED write.
+5. PROCESSING_FAILED may begin only after terminal tmux proof and while
+   DELIVERY_FAILED is wholly absent. It may follow DELIVERY_CONFIRMED or, if
+   processing failed before ACK acceptance, ACCEPTED directly.
+6. Once either failure record reaches its first durable phase, no other
+   status, evidence checkpoint, business outbound, or delivery operation may
+   begin. The only exception is exact recovery of that same failure kind from
+   its own PREPARED record with an identical request hash.
+7. Same-failure PREPARED recovery may execute only the existing bounded safe
+   outbox path for that byte-identical request. It never observes a grant,
+   lease, capability, tmux pane, ACK, INTAKE, or RESULT. REQUEST_STARTED is
+   never resent; RESPONSE_RECORDED is already terminal; manual remains
+   terminal.
+8. A failure-status conflict sends nothing and uses the stronger fixed
+   `status-terminal-conflict` latch code. No conflict repair, deletion, or
+   precedence-based retry exists.
+9. The single foreground writer lock, one in-flight Socket handler, and
    sequential owner loop remain the concurrency boundary; no parallel status
    sender is added.
 
-These checks yield exactly one applicable failure status. They also prevent a
-late delivery confirmation after a recorded delivery failure.
+The outbox record itself is the crash-durable terminal barrier. It therefore
+survives a crash before the separate profile latch, which is defense in depth
+rather than the sole authority stop.
+
+#### 5.6.1 Deterministic recovery and latch transition
+
+On observing a failure barrier, composition synchronously enters a closed
+failure-only admission state before returning the intake to the owner. It
+sets `lastIntakeId` to unavailable for delivery, discards retained in-memory
+delivery-grant/lease pairs, and refuses every pointer-grant, lease, capability,
+tmux, evidence, nonmatching status, and business-output entry point.
+
+It then performs exactly one deterministic transition:
+
+- DELIVERY_FAILED_BARRIER uses latch code
+  `status-terminal-delivery-failed`;
+- PROCESSING_FAILED_BARRIER uses latch code
+  `status-terminal-processing-failed`; and
+- FAILURE_STATUS_CONFLICT uses latch code `status-terminal-conflict`.
+
+For PREPARED only, the failure-only admission state may first let the same
+status ID finish through the identical-request safe outbox path. It then
+durably latches and stops whether that completion delivered, reconciled, or
+was refused. For REQUEST_STARTED, RESPONSE_RECORDED, manual, or conflict, it
+latches and stops immediately without a Web retry. If the process crashes
+before or during latch, the unchanged failure outbox record recreates the
+same failure-only state and same latch decision on the next start. No reset or
+operator retry can reinterpret that record as delivery or processing
+authority.
 
 ### 5.7 Trigger placement and crash recovery
+
+Terminal-status inspection is the first post-store recovery decision. During
+startup, after the fixed receive grant selects the one R2 profile and its
+existing receive state/root correlation identifies an intake, but before
+Socket arm, `lastIntakeId` exposure, pointer-grant/lease observation, tmux,
+evidence, status replay, or business outbound, composition derives and reads
+the failure siblings. It handles a barrier exactly as section 5.6.1 and does
+not enter the live owner loop. Only an OPEN classification may continue with
+ordinary ACCEPTED recovery and receive arm.
+
+The same classifier is re-read at these immediate boundaries:
+
+- at `deliverPending` entry, before observing a pointer-delivery grant or
+  readiness lease, and again immediately before invoking exact transport;
+- at `ingestEvidenceAndProject` entry, before observing ACK or other evidence,
+  and before every evidence checkpoint, status, or business projection;
+- at `sendStatus` entry and before each durable or Web side effect; and
+- before assigning or reusing an in-memory accepted grant/lease pair.
+
+Because the owner loop is sequential and no parallel sender is added, these
+checks close every permitted interleaving. The exact transport need not be
+weakened or changed.
 
 ACCEPTED:
 
@@ -586,7 +701,8 @@ ACCEPTED:
 - Only then assign lastIntakeId, allowing deliverPending to observe it.
 
 A crash after MATERIALIZED but before lastIntakeId assignment is closed on
-startup. After service.recoverPending and before armReceive:
+startup. After the terminal-sibling OPEN proof and service.recoverPending, and
+before armReceive:
 
 1. read the current receive-grant state;
 2. if it is bound, resolve the matching root by boundRootTs;
@@ -594,8 +710,9 @@ startup. After service.recoverPending and before armReceive:
    agree;
 4. require the source transport to be MATERIALIZED with the same intake and
    pointer; and
-5. replay ACCEPTED through its deterministic outbox ID, assigning
-   lastIntakeId only after RESPONSE_RECORDED.
+5. re-read the failure siblings; only while still OPEN, replay ACCEPTED through
+   its deterministic outbox ID, assigning lastIntakeId only after
+   RESPONSE_RECORDED and one final OPEN proof.
 
 If the prior process stopped at REQUEST_STARTED, replay moves to manual
 reconciliation and latches without resend or delivery. If RESPONSE_RECORDED
@@ -609,7 +726,8 @@ DELIVERY_CONFIRMED:
   250 ms loop after delivery, rather than calling it only once.
 - ACK NOT_READY is benign.
 - When ACK ingestion returns ACCEPTED, buildEvidenceAuthority has already
-  required and hash-bound TRANSPORT_RECORDED. Post DELIVERY_CONFIRMED before
+  required and hash-bound TRANSPORT_RECORDED. Re-require complete absence of
+  both failure records, then post DELIVERY_CONFIRMED before
   observing/projecting INTAKE and RESULT in that tick.
 - Re-observed identical ACK evidence produces the same status ID and no
   duplicate post.
@@ -621,13 +739,19 @@ DELIVERY_FAILED:
 - It is emitted inside the delivery composition while the parsed grant and
   derived delivery ID are still available, after the null-journal proof and
   before the owner drains.
+- As soon as PREPARED is durable, its record is the terminal delivery barrier.
+  The grant, lease, and capability are never observed or consumed again, and
+  neither tmux nor a contradictory result can resume after a crash.
 
 PROCESSING_FAILED:
 
 - It is attempted only by the narrow post-delivery evidence/projection catch.
 - It re-reads TRANSPORT_RECORDED and sibling status state.
+- Its first durable phase becomes the processing barrier before any later ACK,
+  DELIVERY_CONFIRMED, INTAKE, RESULT, business, or alternate failure action.
 - After the attempt, successful or not, the original processing error remains
-  terminal and the owner latches/stops; no dynamic reason is posted.
+  terminal and the owner latches/stops; no dynamic reason is posted. Restart
+  can only complete its own identical PREPARED status, never processing.
 
 ### 5.8 Failure of a status post
 
@@ -654,7 +778,10 @@ Composition must:
 
 An unsafe or unavailable reply target therefore causes zero network sends.
 An ambiguous status may have reached Slack, so it is never retried and no
-ordering claim is invented.
+ordering claim is invented. For either failure status, a crash before step 2
+does not reopen work: startup derives the failure-only admission state from
+the preserved outbox record before any actionable boundary and repeats the
+same fixed latch transition.
 
 ## 6. Exact implementation allowlist
 
@@ -682,16 +809,17 @@ secret file, generated dist output, or accepted historical evidence.
 Path responsibilities are exact:
 
 - socket-frame.ts owns only the local depth-10 structural walk.
-- outbox.ts owns only the closed status kind/text/identity, sibling ordering,
-  and reuse of the existing send state machine.
+- outbox.ts owns only the closed status kind/text/identity, all-phase sibling
+  classifier, and reuse of the existing send state machine.
 - composition.ts owns safe target construction, initial/recovery projection,
-  delivery/ACK/failure triggers, INTAKE progress suppression, and result
-  preservation.
+  failure-only admission/latch transition, delivery/ACK/failure triggers,
+  INTAKE progress suppression, and result preservation.
 - cli.ts owns the R2 root/ID and bounded post-delivery evidence polling.
 - writer-lock.ts owns the R2 fixed lock, sealed literal R2 checks, and frozen
   17,989-byte literal identity.
-- the setup document owns the disabled rollout, original preservation, R2
-  initialization instructions, proof, and rollback.
+- the setup document owns the fixed no-argument descriptor-relative
+  preservation helper, disabled rollout, R2 initialization instructions,
+  proof, and rollback.
 
 ## 7. Focused proof contract
 
@@ -720,9 +848,19 @@ The tests must prove:
 - the bridge literal is exactly 17,989 UTF-8 bytes with SHA-256
   d5b831e29dfb19b23f194e928258d74f2a43a2bfb51fa76350ec6595537a8de2;
 - its embedded LOCK_PATH and stateRootId are exact R2 values while buildId and
-  all other sealed facts remain unchanged; and
-- active source has no original state-root path or old expected root-ID
-  comparison.
+  all other sealed facts remain unchanged;
+- active source and installed output have no original state-root path or old
+  expected root-ID comparison;
+- the fixed production preservation helper accepts no root input, uses only
+  retained no-follow descriptors, rejects symlink/hard-link/mount/path escape
+  and parent/root identity drift, and requires zero-write plus immutable flags
+  on the complete synthetic tree;
+- its final digest is calculated only after final process, lock, identity,
+  traversal, and immutable proofs and equals the initial byte/path digest; and
+- the deterministic temporary-tree race creates the synthetic old lock/owner
+  after the initial scan and receives ORIGINAL_ROOT_PRESERVATION_RACE with no
+  final digest or success. A root-inode substitution is also rejected. Neither
+  real root is opened or mutated.
 
 Tests use temporary roots and injected observer seams. They do not inspect or
 mutate either real root.
@@ -738,9 +876,11 @@ The tests must prove:
 - a missing/mismatched root produces no network;
 - ACCEPTED is required before later statuses;
 - DELIVERY_FAILED and PROCESSING_FAILED are mutually exclusive across every
-  durable phase, not only successful phases;
+  durable phase, not only successful phases, and DELIVERY_CONFIRMED requires
+  both failure siblings to be wholly absent;
 - REQUEST_STARTED/manual replay never resends;
-- PREPARED replay requires the identical request hash;
+- failure PREPARED replay requires the identical request hash and may complete
+  only that same failure kind;
 - ambiguous status posting latches and no alternate status is attempted; and
 - no status artifact or message includes a token, dynamic error, stack, path,
   session ID, raw frame, or payload.
@@ -767,6 +907,24 @@ The tests must prove:
   PROCESSING_FAILED and then halts;
 - a pre-existing latch/incident sends no status; and
 - status failure stops all subsequent tmux/evidence/outbound work.
+
+The restart matrix is exact and runs once for each of PREPARED,
+REQUEST_STARTED, RESPONSE_RECORDED, and MANUAL_RECONCILIATION_REQUIRED:
+
+- with a DELIVERY_FAILED record plus otherwise-ready unused grant/lease, each
+  restart makes zero tmux observe/buffer/load/paste/Enter calls, zero delivery
+  authority observations or consumptions, and zero DELIVERY_CONFIRMED or
+  RESULT sends. PREPARED may make only the byte-identical DELIVERY_FAILED Web
+  attempt; the other three phases make no Web attempt. Every case ends with
+  the fixed delivery-failure latch;
+- with a PROCESSING_FAILED record plus ready ACK/INTAKE/RESULT artifacts, each
+  restart performs zero delivery-authority reuse, evidence observation or
+  checkpoint, INTAKE/RESULT projection, business output, DELIVERY_CONFIRMED,
+  DELIVERY_FAILED, or other status. PREPARED may make only the byte-identical
+  PROCESSING_FAILED Web attempt; the other phases make no Web attempt. Every
+  case ends with the fixed processing-failure latch; and
+- with both failure records present, restart performs no Web, tmux, evidence,
+  status, or business work and records only the fixed conflict latch.
 
 ### 7.5 Exact focused commands for a later Worker
 
@@ -802,15 +960,20 @@ The safe order is:
 2. independently review and accept this design;
 3. issue an exact implementation handoff;
 4. implement, test, commit, push, and independently review the 12-path patch;
-5. prove no AS1 process and no original lock, then execute and record the
-   original-root preservation gate;
-6. install the reviewed build while still disabled;
-7. under a separate live-owner handoff, initialize only the R2 root with ID
+5. install the exact reviewed build at the fixed active executable path while
+   still disabled, then prove its manifest and active source/output select
+   only the fixed R2 root and ID with no original-root fallback;
+6. prove no AS1 process and no original lock, execute the fixed
+   descriptor-relative original-root preservation gate, and record its equal
+   byte/path digests, pinned identity, zero-write, and immutable proofs;
+7. re-prove the installed R2-only manifest and permanent original-root seal;
+8. under a separate live-owner handoff, initialize only the R2 root with ID
    as1-slack-pilot-r2;
-8. mint fresh R2-bound grant/lease evidence; never copy or reuse original-root
+9. mint fresh R2-bound grant/lease evidence; never copy or reuse original-root
    state;
-9. perform redacted preflight with no tmux mutation;
-10. only Leo/GPT may authorize value-only activation and the next single
+10. perform redacted preflight with no tmux mutation, including the read-only
+    original-root seal proof; and
+11. only Leo/GPT may authorize value-only activation and the next single
     Agent Office message.
 
 No step here authorizes those later actions.
@@ -824,7 +987,7 @@ root binding:
 2. prove the R2 writer lock absent and no AS1 process;
 3. restore or retain the committed disabled descriptor;
 4. make no further Socket, Web, evidence, status, or tmux attempt;
-5. retain the original root read-only and byte-preserved;
+5. retain the original root byte/path-identical, zero-write, and immutable;
 6. retain the entire R2 root as recovery evidence; do not reset, delete,
    repair, merge, or copy either tree; and
 7. return both root states and redacted process/lock proof to the Advisor.
@@ -832,7 +995,8 @@ root binding:
 A source revert must never restore an active reference to the original root.
 If parser/status code must later be backed out, a new reviewed patch must keep
 the R2 path/ID and descriptor disabled. Re-enabling the original root is not a
-rollback option.
+rollback option. Rollback never clears an original-root immutable flag or
+changes its digest, relative paths, or bytes.
 
 ## 9. Non-expansion confirmation
 
@@ -868,13 +1032,18 @@ Known, bounded unknowns:
 - The sealed R2 bridge identity is calculated from exactly two substitutions
   against the frozen baseline. Any other literal edit invalidates this design
   identity.
+- The later preservation gate must prove that descriptor `fchmod` and
+  `FS_IMMUTABLE_FL` are supported with the authorized privilege on the actual
+  original-root filesystem. Unsupported behavior is HOLD, never a weaker
+  fallback; this Designer did not probe the real root or filesystem.
 - No live Slack post, real status delivery, real R2 initialization, or real
   tmux delivery has been performed by this Designer.
 
 Implementation readiness:
 
-READY only if an independent Reviewer accepts this design and the responsible
-Advisor issues an exact implementation handoff with the 12-path allowlist.
+READY only if the same independent Reviewer accepts this delta and the
+responsible Advisor issues an exact implementation handoff with the 12-path
+allowlist.
 Live readiness remains a later Leo/GPT decision after independent
 implementation review and disabled preflight.
 
