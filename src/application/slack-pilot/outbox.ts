@@ -11,6 +11,7 @@
 // request write, 5xx, malformed success, or lost response is ambiguous: durably latch, record manual
 // reconciliation, and NEVER blind-resend. Success requires the exact channel and a valid Slack timestamp.
 import { DomainError } from '../../contracts/types.js';
+import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import { LIMITS, containsSecretShapedValue, requireBoundedMessageText, requireSlackTs } from './contracts.js';
 import { acceptedOutboundId, acceptedOutboundRecord, type As1AcceptedOutbound, type As1ResultOutboundRecord } from './evidence-ingress.js';
 import { rootKeyHash, type As1OutboxHashes, type As1RootCorrelationV1 } from './inbound-store.js';
@@ -60,6 +61,51 @@ export function renderOutbound(record: As1OutboundRecord): string {
     throw new DomainError('INVALID_SCHEMA', 'outbound text carries a Slack mention control form');
   }
   return requireBoundedMessageText(text, 'outbound text');
+}
+
+/**
+ * The internal, closed same-thread user-status vocabulary (R2 recovery design §5.1). It is NOT a durable schema and
+ * is never accepted from Slack, CLI, evidence, or an external caller — a caller supplies only an intake and one of
+ * these four kinds. The renderer below is a TOTAL constant map; there is no free-form status text.
+ */
+export type As1UserStatusKind = 'ACCEPTED' | 'DELIVERY_CONFIRMED' | 'DELIVERY_FAILED' | 'PROCESSING_FAILED';
+
+/** Total constant renderer (R2 recovery design §5.1). The full plain Korean sentence is available to visual and
+ *  screen-reader clients without blocks, emoji-only meaning, mentions, or layout assumptions. */
+const AS1_USER_STATUS_TEXT: Readonly<Record<As1UserStatusKind, string>> = {
+  ACCEPTED: '요청 접수 완료 · Advisor에게 전달 중',
+  DELIVERY_CONFIRMED: '메시지 전달 완료 · 답변 대기 중',
+  DELIVERY_FAILED: '전달 실패 · 요청은 실행되지 않았습니다',
+  PROCESSING_FAILED: '처리 실패 · 안전하게 중지되었습니다',
+};
+
+/**
+ * Deterministic per-profile/intake/kind status identity (R2 recovery design §5.3): the lowercase SHA-256 hex of the
+ * canonical `{schemaVersion, profileId, intakeId, statusKind}`, prefixed `as1status-` — 74 ASCII bytes, a valid
+ * opaque id/path segment. The same status for the same profile/intake has EXACTLY one journal identity; a different
+ * kind has a different identity. No timestamp, retry counter, reason, channel, or caller nonce participates.
+ */
+export function userStatusOutboundId(profileId: string, intakeId: string, statusKind: As1UserStatusKind): string {
+  const digest = hashCanonical({
+    schemaVersion: 'agent-office.as1-user-status-identity.v1',
+    profileId,
+    intakeId,
+    statusKind,
+  }).slice('sha256:'.length);
+  return `as1status-${digest}`;
+}
+
+/** Render one closed status kind to its exact constant text and re-run the same leak/injection/bound guards as the
+ *  accepted renderer (defense in depth — the text is a compile-time constant and never carries caller data). */
+function renderStatusText(statusKind: As1UserStatusKind): string {
+  const text = AS1_USER_STATUS_TEXT[statusKind];
+  if (containsSecretShapedValue(text)) {
+    throw new DomainError('INVALID_SCHEMA', 'status text carries a token-shaped or bearer-like value');
+  }
+  if (MENTION_CONTROL.test(text)) {
+    throw new DomainError('INVALID_SCHEMA', 'status text carries a Slack mention control form');
+  }
+  return requireBoundedMessageText(text, 'status text');
 }
 
 export interface As1OutboxJournal {
@@ -132,10 +178,65 @@ export class As1Outbox {
   public constructor(private readonly deps: As1OutboxDependencies) {}
 
   public async send(accepted: As1AcceptedOutbound): Promise<As1OutboxResult> {
-    // A durable STORE_QUARANTINED surfacing from a journal/root store operation must NOT escape unlatched: it
-    // durably latches the profile with a stable code and fails closed with no network (review B08).
+    // The existing branded accepted path (ACK/QUESTION/RESULT) — unchanged semantics. Derive the deterministic
+    // accepted outbound id, resolve the record's intake, and route through the shared state machine; the render
+    // runs at the exact original position (after resume + root validation) so REJECTED_RENDER is unchanged.
+    return this.guardQuarantine(() => {
+      const record = acceptedOutboundRecord(accepted);
+      return this.runOutbox(
+        acceptedOutboundId(accepted),
+        record.intakeId,
+        () => renderOutbound(record),
+        (text, root, channel, threadTs) => ({
+          kind: record.kind,
+          profileId: this.deps.profile.profileId,
+          intakeId: record.intakeId,
+          rootTs: root.rootTs,
+          rootKeyHash: root.rootKeyHash,
+          sourceEventId: root.sourceEventId,
+          channel,
+          threadTs,
+          text,
+        }),
+      );
+    });
+  }
+
+  /**
+   * Send ONE closed same-thread user status (R2 recovery design §5). It accepts neither a target nor text: the
+   * channel/thread come only from the bound profile secret and the immutable accepted root for `intakeId`, and the
+   * text is the total constant for `statusKind`. It shares the EXACT root-resolution, request-artifact, phase,
+   * retry, response-validation, and reconciliation path as accepted evidence, and reuses the deterministic
+   * `as1status-` identity so a same-kind replay re-derives byte-identical request content or reconciles — it never
+   * replaces an artifact and never resends REQUEST_STARTED.
+   */
+  public async sendStatus(intakeId: string, statusKind: As1UserStatusKind): Promise<As1OutboxResult> {
+    return this.guardQuarantine(() =>
+      this.runOutbox(
+        userStatusOutboundId(this.deps.profile.profileId, intakeId, statusKind),
+        intakeId,
+        () => renderStatusText(statusKind),
+        (text, root, channel, threadTs) => ({
+          kind: 'USER_STATUS',
+          statusKind,
+          profileId: this.deps.profile.profileId,
+          intakeId,
+          rootTs: root.rootTs,
+          rootKeyHash: root.rootKeyHash,
+          sourceEventId: root.sourceEventId,
+          channel,
+          threadTs,
+          text,
+        }),
+      ),
+    );
+  }
+
+  /** A durable STORE_QUARANTINED from a journal/root store operation must NOT escape unlatched: durably latch the
+   *  profile with a stable code and fail closed with no network (review B08). Shared by every send entry point. */
+  private async guardQuarantine(op: () => Promise<As1OutboxResult>): Promise<As1OutboxResult> {
     try {
-      return await this.sendInner(accepted);
+      return await op();
     } catch (error) {
       if (error instanceof DomainError && error.code === 'STORE_QUARANTINED') {
         await this.deps.latch('outbox durable store quarantined');
@@ -145,9 +246,20 @@ export class As1Outbox {
     }
   }
 
-  private async sendInner(accepted: As1AcceptedOutbound): Promise<As1OutboxResult> {
-    const record = acceptedOutboundRecord(accepted);
-    const outboundId = acceptedOutboundId(accepted);
+  /**
+   * The single durable outbound state machine shared by accepted evidence and user status. `renderText` runs at the
+   * exact original position — AFTER the resume/no-blind-resend check and root-target validation, BEFORE any durable
+   * write — so a render rejection is REJECTED_RENDER and an already-terminal record never renders; `buildRequestPayload`
+   * yields the immutable request artifact. Resume, root+rootKeyHash validation, control gates, PREPARED/REQUEST_STARTED
+   * phases, bounded safe retry, trusted-success response, and reconciliation are identical for both callers, so no
+   * target or identity can be caller-selected.
+   */
+  private async runOutbox(
+    outboundId: string,
+    intakeId: string,
+    renderText: () => string,
+    buildRequestPayload: (text: string, root: As1RootCorrelationV1, channel: string, threadTs: string) => Record<string, unknown>,
+  ): Promise<As1OutboxResult> {
     const { profile, secret, store, web, latch, delay } = this.deps;
 
     // Resume: never touch the network once a terminal or in-flight phase is durable (no blind resend).
@@ -166,11 +278,11 @@ export class As1Outbox {
       return { outcome: 'MANUAL_RECONCILIATION_REQUIRED', phase: 'MANUAL_RECONCILIATION_REQUIRED', attempts: 0, reason: 'interrupted after request start' };
     }
 
-    // Resolve the immutable accepted root by the record's intakeId from the profile-local store; the record's
-    // intake must match, and the root's rootKeyHash MUST equal the hash recomputed from the profile + bound
-    // secret's workspace/app/channel — a config change (or a wrong root) refuses the send (review B07).
-    const root = await store.findRootByIntakeId(record.intakeId);
-    if (root?.intakeId !== record.intakeId) {
+    // Resolve the immutable accepted root by intakeId from the profile-local store; the root's intake must match, and
+    // the root's rootKeyHash MUST equal the hash recomputed from the profile + bound secret's workspace/app/channel —
+    // a config change (or a wrong root) refuses the send (review B07; R2 recovery design §5.4).
+    const root = await store.findRootByIntakeId(intakeId);
+    if (root?.intakeId !== intakeId) {
       return { outcome: 'REJECTED_ROOT', phase: 'PREPARED', attempts: 0, reason: 'no accepted root for the intake' };
     }
     const expectedRootKeyHash = rootKeyHash(profile.profileId, secret.workspaceId, secret.appId, secret.channelId, root.rootTs);
@@ -180,7 +292,7 @@ export class As1Outbox {
 
     let text: string;
     try {
-      text = renderOutbound(record);
+      text = renderText();
     } catch (error) {
       return { outcome: 'REJECTED_RENDER', phase: 'PREPARED', attempts: 0, reason: error instanceof DomainError ? error.code : 'render' };
     }
@@ -188,17 +300,7 @@ export class As1Outbox {
     const channel = secret.channelId;
     const threadTs = root.rootTs;
     const postRequest: As1PostMessageRequest = { channel, threadTs, text };
-    const requestPayload = {
-      kind: record.kind,
-      profileId: profile.profileId,
-      intakeId: record.intakeId,
-      rootTs: root.rootTs,
-      rootKeyHash: root.rootKeyHash,
-      sourceEventId: root.sourceEventId,
-      channel,
-      threadTs,
-      text,
-    };
+    const requestPayload = buildRequestPayload(text, root, channel, threadTs);
 
     // Control/latch gate immediately before the FIRST durable write. Refuse cleanly BEFORE REQUEST_STARTED.
     const refusal = await this.gateBeforeStart();

@@ -55,7 +55,7 @@ import {
   buildEvidenceAuthority,
   type As1GitProvenanceVerifier,
 } from '../../application/slack-pilot/evidence-ingress.js';
-import { As1Outbox } from '../../application/slack-pilot/outbox.js';
+import { As1Outbox, userStatusOutboundId, type As1OutboxResult, type As1UserStatusKind } from '../../application/slack-pilot/outbox.js';
 import type { AgentOfficeRuntimeIdentity } from '../identity.js';
 import { hashCanonical } from '../../persistence/file-store/hashing.js';
 import { readStateRootFormat, resolveContainedPath } from '../../persistence/file-store/path-safety.js';
@@ -237,6 +237,11 @@ export class As1GatewayComposition {
    *  delivery/evidence re-observation so a post-acceptance rewrite/deletion latches (F03). */
   private acceptedDeliveryGrant: As1AcceptedArtifact | null = null;
   private acceptedLease: As1AcceptedArtifact | null = null;
+  /** R2 recovery §5.6.1: once a durable failure barrier is observed, the owner is in a CLOSED failure-only admission
+   *  state — `lastIntakeId` is withheld from delivery, retained grant/lease pairs are discarded, and every delivery/
+   *  evidence/status/business entry point is refused. The barrier's own durable outbox record recreates this state
+   *  (and its deterministic latch) on the next start, so no reset can reinterpret it as delivery/processing authority. */
+  private failureAdmission: 'DELIVERY_FAILED_BARRIER' | 'PROCESSING_FAILED_BARRIER' | 'FAILURE_STATUS_CONFLICT' | null = null;
   /** The truthful cleanup result of a self-cleaning startup revert (F01), so the owner can report it after start()
    *  rethrows without re-opening the closed composition. Consumed exactly once. */
   private lastCleanup: As1OwnerCleanupResult | null = null;
@@ -642,6 +647,19 @@ export class As1GatewayComposition {
           ...envelope,
           acknowledge: this.incidentGuardedCallback(() => envelope.acknowledge()),
         });
+        // R2 recovery §5.7 ACCEPTED: ONLY a NEW_MISSION_ROOT with a durably materialized intake triggers the first
+        // status. While the failure siblings are still OPEN, send ACCEPTED through RESPONSE_RECORDED BEFORE exposing the
+        // intake to delivery — a rejected/duplicate/continuation/bot/wrong-user/wrong-channel/malformed event sends none.
+        if (result.classification === 'NEW_MISSION_ROOT' && result.intakeId !== null) {
+          const liveState = this.live;
+          if (liveState === null) return;
+          const intakeId = result.intakeId;
+          if ((await this.classifyFailureSiblings(liveState, intakeId)) !== 'OPEN') return;
+          const accepted = await this.sendUserStatus(liveState, deps, intakeId, 'ACCEPTED');
+          // Expose the intake to deliverPending ONLY after ACCEPTED is durably RESPONSE_RECORDED.
+          if (accepted.outcome === 'DELIVERED') this.lastIntakeId = intakeId;
+          return;
+        }
         if (result.intakeId !== null) this.lastIntakeId = result.intakeId;
       });
 
@@ -650,11 +668,9 @@ export class As1GatewayComposition {
       if (!this.control.isReceiveReady(slug)) {
         throw new DomainError('GATEWAY_DISABLED', 'control is not receive-ready immediately before arm');
       }
-      // Step 9: bounded recovery, then arm — only now may the raw transport parse and deliver an Events API envelope.
-      await this.guardedAwait(() => service.recoverPending());
-      this.assertIncidentAdmissionOpen(); // F01: NEVER arm live receive after an incident has closed admission (sync op)
-      socket.armReceive();
-
+      // Step 9: BIND the live state, run bounded recovery, then R2 terminal-status inspection, and finally arm. Live is
+      // bound BEFORE recovery/arm so the status/delivery context (and a held frame dispatched synchronously during arm)
+      // always has it.
       this.live = {
         profile,
         slug,
@@ -667,7 +683,15 @@ export class As1GatewayComposition {
         service,
         socket,
       };
+      await this.guardedAwait(() => service.recoverPending());
+      this.assertIncidentAdmissionOpen(); // F01: NEVER arm live receive after an incident has closed admission (sync op)
+      // R2 recovery §5.7: terminal-status inspection is the FIRST post-store recovery decision — before Socket arm,
+      // intake exposure, and any delivery/evidence/status/business work. A durably materialized intake with a failure
+      // barrier is handled exactly as §5.6.1 (the owner loop then halts); only an OPEN classification replays ACCEPTED
+      // and exposes the intake to delivery.
+      await this.recoverTerminalStatusAndAccepted(this.live, deps);
       this.receiving = true;
+      socket.armReceive();
       return { connected: true, reason: 'RECEIVING_ARMED', state: this.control.getState() };
     } catch (error) {
       // F02: revert every later startup failure to the legal clean state and release ownership; leave NO actionable
@@ -767,6 +791,11 @@ export class As1GatewayComposition {
   public async deliverPending(): Promise<As1DeliveryResult | { readonly phase: 'AWAITING'; readonly outcome: 'AWAITING_POINTER_DELIVERY_GRANT' | 'AWAITING_READINESS_LEASE'; readonly reason: string }> {
     const live = this.requireLive();
     const deps = this.requireDeps();
+    // R2 recovery §5.6.1/§5.7: a durable failure barrier refuses every delivery entry point — observe no grant/lease,
+    // reuse no authority, and begin no tmux side effect. The owner loop halts on the barrier separately.
+    if (this.failureAdmission !== null) {
+      return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure-only admission — no delivery' };
+    }
     const intakeId = this.lastIntakeId;
     if (intakeId === null) {
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'no intake yet' };
@@ -825,6 +854,20 @@ export class As1GatewayComposition {
       // F03: ONLY a fully-accepted delivery atomically retains the accepted pairs for later evidence re-observation.
       this.acceptedDeliveryGrant = provisionalDeliveryGrant;
       this.acceptedLease = provisionalLease;
+      return result;
+    }
+    // R2 recovery §5.5/§5.7 DELIVERY_FAILED: a proven pre-paste stop is the ONLY safe non-execution. Derive the delivery
+    // id from the already-parsed grant and FRESHLY prove the derived-delivery journal is null (no PREPARED-or-later
+    // record) BEFORE posting — only then is "요청은 실행되지 않았습니다" true. Send DELIVERY_FAILED and enter the terminal
+    // delivery-failure barrier; its outbox record is the crash-durable barrier. A MANUAL_RECONCILIATION_REQUIRED result,
+    // any PREPARED-or-later journal record, or a missing proof sends NO delivery failure (never claim non-execution).
+    if (result.outcome === 'STOPPED_BEFORE_PASTE') {
+      const { deliveryId } = parseContainedPointerRef(deliveryGrant);
+      const journalPhase = await this.guardedAwait(() => live.store.readTmuxPhase(deliveryId));
+      if (journalPhase === null) {
+        await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_FAILED');
+        await this.enterFailureBarrier(live, 'DELIVERY_FAILED_BARRIER');
+      }
     }
     return result;
   }
@@ -837,6 +880,11 @@ export class As1GatewayComposition {
   public async ingestEvidenceAndProject(): Promise<readonly string[]> {
     const live = this.requireLive();
     const deps = this.requireDeps();
+    // R2 recovery §5.6.1/§5.7: a durable failure barrier refuses evidence/ACK progression, status, and every business
+    // projection — no confirmation, INTAKE/RESULT projection, retry, or alternate status may begin.
+    if (this.failureAdmission !== null) {
+      return [`FAILURE_ADMISSION_REFUSED:${this.failureAdmission}`];
+    }
     const intakeId = this.lastIntakeId;
     if (intakeId === null) throw new DomainError('GATEWAY_DISABLED', 'no intake to ingest evidence for');
     const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
@@ -900,6 +948,30 @@ export class As1GatewayComposition {
     // F01: EVERY port/callback handed to evidence ingress + outbox is incident-guarded, so an incident during any
     // internal await (store read/write, verifier, Web send, latch, or sendability check) begins no next store/Web/
     // outbound side effect. The forbidden `evidence-ingress.ts`/`outbox.ts` sources are unmodified.
+    // R2 recovery §5.5/§5.7 PROCESSING_FAILED: the post-TRANSPORT_RECORDED evidence/projection work runs under a NARROW
+    // catch. A benign NOT_READY is an outcome (not a throw); an incident closes admission (the incident kill wins) and
+    // an existing profile latch wins — both are refused by `attemptProcessingFailure`. Any other non-benign failure
+    // starts PROCESSING_FAILED exactly once and enters the processing barrier, and the original error stays terminal.
+    try {
+      return await this.projectAcceptedEvidence(live, deps, intakeId, authority);
+    } catch (error) {
+      await this.attemptProcessingFailure(live, deps, intakeId).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * The post-TRANSPORT_RECORDED evidence projection (design §10; R2 recovery §5). ACK acceptance triggers
+   * DELIVERY_CONFIRMED (Korean), the INTAKE legacy English progress ACK is suppressed, and only the RESULT business
+   * outbound is projected. Every port/callback is incident-guarded; a throw here routes to the narrow
+   * PROCESSING_FAILED catch in `ingestEvidenceAndProject`.
+   */
+  private async projectAcceptedEvidence(
+    live: LiveState,
+    deps: As1CompositionDependencies,
+    intakeId: string,
+    authority: ReturnType<typeof buildEvidenceAuthority>,
+  ): Promise<readonly string[]> {
     const ingress = new As1EvidenceIngress(
       live.profile,
       this.incidentGuardedPort(live.store),
@@ -907,21 +979,7 @@ export class As1GatewayComposition {
       authority,
       this.incidentGuardedCallback((reason: string) => this.control.latchProfile(live.slug, reason)),
     );
-    const profileSecret = live.secret.secretFor(live.profile.profileId);
-    const outbox = new As1Outbox({
-      profile: live.profile,
-      secret: { workspaceId: live.wire.workspaceId, appId: live.wire.appId, channelId: live.wire.channelId, botToken: profileSecret.botToken },
-      store: this.incidentGuardedPort(live.store),
-      web: this.incidentGuardedPort(deps.web),
-      latch: this.incidentGuardedCallback((reason: string) => this.control.latchProfile(live.slug, reason)),
-      assertSendable: this.incidentGuardedCallback(() => {
-        if (!this.control.isLiveDeliveryActionable(live.slug)) {
-          return Promise.reject(new DomainError('GATEWAY_DISABLED', 'profile is not sendable'));
-        }
-        return Promise.resolve();
-      }),
-      delay: this.incidentGuardedCallback(() => Promise.resolve()),
-    });
+    const outbox = this.buildStatusOutbox(live, deps);
     const outcomes: string[] = [];
     // The private Phase B round trip exercises only ACK -> INTAKE -> RESULT (no question cycle).
     for (const kind of ['ACK', 'INTAKE', 'RESULT'] as const) {
@@ -935,13 +993,167 @@ export class As1GatewayComposition {
       const ref = { repositoryId: deps.gitSource.getRepositoryId(), sourceCommit: evidenceObs.firstAddCommit ?? '', path: `${authority.evidencePrefix}/${intakeId}/${kind.toLowerCase()}.json`, blobSha256: evidenceObs.blobSha256 ?? '' };
       const ingested = await this.guardedAwait(() => ingress.ingest(kind, value, ref));
       outcomes.push(`${kind}:${ingested.outcome}`);
+      // R2 recovery §5.7 DELIVERY_CONFIRMED: the Advisor server ACK acceptance (buildEvidenceAuthority already required
+      // and hash-bound TRANSPORT_RECORDED) is the confirmation trigger. Re-require BOTH failure siblings wholly absent,
+      // then post DELIVERY_CONFIRMED before observing/projecting INTAKE and RESULT in this tick.
+      if (kind === 'ACK' && ingested.outcome === 'ACCEPTED') {
+        const classification = await this.classifyFailureSiblings(live, intakeId);
+        if (classification !== 'OPEN') {
+          await this.enterFailureBarrier(live, classification);
+          outcomes.push(`DELIVERY_CONFIRMED:SUPPRESSED_BY_${classification}`);
+          return outcomes;
+        }
+        const confirmed = await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
+        outcomes.push(`DELIVERY_CONFIRMED:${confirmed.outcome}`);
+      }
       if (ingested.outcome === 'ACCEPTED' && ingested.accepted !== null) {
-        const accepted = ingested.accepted; // NEVER project outbound to Leo's thread after an incident (guarded)
-        const sent = await this.guardedAwait(() => outbox.send(accepted));
-        outcomes.push(`${kind}_OUTBOUND:${sent.outcome}`);
+        // R2 recovery §5.1: the INTAKE evidence's legacy fixed English progress ACK projection is SUPPRESSED —
+        // DELIVERY_CONFIRMED (Korean, above) replaces it. The accepted RESULT business projection is unchanged.
+        if (kind === 'INTAKE') {
+          outcomes.push('INTAKE_OUTBOUND:SUPPRESSED_R2');
+        } else {
+          const accepted = ingested.accepted; // NEVER project outbound to Leo's thread after an incident (guarded)
+          const sent = await this.guardedAwait(() => outbox.send(accepted));
+          outcomes.push(`${kind}_OUTBOUND:${sent.outcome}`);
+        }
       }
     }
     return outcomes;
+  }
+
+  /**
+   * Build the profile-bound status/outbound sender (R2 recovery §5.4). Channel/thread/token come ONLY from the bound
+   * profile secret and the immutable accepted root; every port is incident-guarded and the sole sendability gate is
+   * the construction-bound live-delivery predicate (control owned + RECEIVING + not killed/latched + gate open),
+   * re-evaluated before each durable/network side effect. This is the SAME As1Outbox the accepted RESULT path uses.
+   */
+  private buildStatusOutbox(live: LiveState, deps: As1CompositionDependencies): As1Outbox {
+    const profileSecret = live.secret.secretFor(live.profile.profileId);
+    return new As1Outbox({
+      profile: live.profile,
+      secret: { workspaceId: live.wire.workspaceId, appId: live.wire.appId, channelId: live.wire.channelId, botToken: profileSecret.botToken },
+      store: this.incidentGuardedPort(live.store),
+      web: this.incidentGuardedPort(deps.web),
+      latch: this.incidentGuardedCallback((reason: string) => this.control.latchProfile(live.slug, reason)),
+      assertSendable: this.incidentGuardedCallback(() => {
+        if (!this.control.isLiveDeliveryActionable(live.slug)) {
+          return Promise.reject(new DomainError('GATEWAY_DISABLED', 'profile is not sendable'));
+        }
+        return Promise.resolve();
+      }),
+      delay: this.incidentGuardedCallback(() => Promise.resolve()),
+    });
+  }
+
+  /** Send exactly ONE closed same-thread user status through the shared outbox (R2 recovery §5); it takes no target or
+   *  text and reuses the deterministic `as1status-` identity so a replay never resends. Guarded before/after. */
+  private sendUserStatus(live: LiveState, deps: As1CompositionDependencies, intakeId: string, kind: As1UserStatusKind): Promise<As1OutboxResult> {
+    const outbox = this.buildStatusOutbox(live, deps);
+    return this.guardedAwait(() => outbox.sendStatus(intakeId, kind));
+  }
+
+  /**
+   * Classify the two deterministic failure siblings for an intake over ALL durable outbox phases (R2 recovery §5.6).
+   * Record EXISTENCE (PREPARED/REQUEST_STARTED/RESPONSE_RECORDED/MANUAL_RECONCILIATION_REQUIRED), not successful Slack
+   * delivery, is the durable fact. It adds no store or schema — only the existing deterministic ids and outbox records.
+   */
+  private async classifyFailureSiblings(live: LiveState, intakeId: string): Promise<'OPEN' | 'DELIVERY_FAILED_BARRIER' | 'PROCESSING_FAILED_BARRIER' | 'FAILURE_STATUS_CONFLICT'> {
+    const hasDelivery = (await live.store.readOutboxRecord(userStatusOutboundId(live.profile.profileId, intakeId, 'DELIVERY_FAILED'))) !== null;
+    const hasProcessing = (await live.store.readOutboxRecord(userStatusOutboundId(live.profile.profileId, intakeId, 'PROCESSING_FAILED'))) !== null;
+    if (hasDelivery && hasProcessing) return 'FAILURE_STATUS_CONFLICT';
+    if (hasDelivery) return 'DELIVERY_FAILED_BARRIER';
+    if (hasProcessing) return 'PROCESSING_FAILED_BARRIER';
+    return 'OPEN';
+  }
+
+  /**
+   * Enter the closed failure-only admission state and perform the one deterministic latch transition (R2 recovery
+   * §5.6.1). It withholds the intake from delivery, discards retained grant/lease pairs, and refuses every later
+   * pointer-grant/lease/capability/tmux/evidence/nonmatching-status/business entry point. The latch code is fixed per
+   * barrier; a crash before/during the latch is re-derived from the unchanged outbox record on the next start.
+   */
+  private async enterFailureBarrier(live: LiveState, barrier: 'DELIVERY_FAILED_BARRIER' | 'PROCESSING_FAILED_BARRIER' | 'FAILURE_STATUS_CONFLICT'): Promise<void> {
+    this.failureAdmission = barrier;
+    this.lastIntakeId = null; // withhold the intake from delivery
+    this.acceptedDeliveryGrant = null;
+    this.acceptedLease = null;
+    const latchCode =
+      barrier === 'DELIVERY_FAILED_BARRIER'
+        ? 'status-terminal-delivery-failed'
+        : barrier === 'PROCESSING_FAILED_BARRIER'
+          ? 'status-terminal-processing-failed'
+          : 'status-terminal-conflict';
+    await this.guardedAwait(() => this.control.latchProfile(live.slug, latchCode));
+  }
+
+  /**
+   * Attempt PROCESSING_FAILED for a NON-benign post-TRANSPORT_RECORDED evidence/projection failure (R2 recovery
+   * §5.5/§5.7). Eligibility is narrow: ONLY while the incident gate is still open (else the incident kill wins), the
+   * profile is not already latched/killed (else that latch wins), and no failure barrier exists yet. If a
+   * DELIVERY_FAILED sibling already exists, PROCESSING_FAILED is forbidden and that barrier is entered instead. Its
+   * first durable outbox phase is the crash-durable processing barrier; the caller re-throws the original error.
+   */
+  private async attemptProcessingFailure(live: LiveState, deps: As1CompositionDependencies, intakeId: string): Promise<void> {
+    if (!this.control.isIncidentGateOpen() || !this.control.isLiveDeliveryActionable(live.slug) || this.failureAdmission !== null) {
+      return; // incident or an existing latch wins; a barrier already dominates — never synthesize a user failure
+    }
+    const classification = await this.classifyFailureSiblings(live, intakeId);
+    if (classification === 'DELIVERY_FAILED_BARRIER' || classification === 'FAILURE_STATUS_CONFLICT') {
+      await this.enterFailureBarrier(live, classification); // §5.6 rule 5: PROCESSING_FAILED forbidden while DELIVERY_FAILED exists
+      return;
+    }
+    // OPEN or an existing PROCESSING_FAILED record: (re-)attempt the same PROCESSING_FAILED once, then latch and stop.
+    await this.sendUserStatus(live, deps, intakeId, 'PROCESSING_FAILED');
+    await this.enterFailureBarrier(live, 'PROCESSING_FAILED_BARRIER');
+  }
+
+  /** True once a durable failure barrier has been observed/entered (R2 recovery §5.6). The owner loop halts on it so
+   *  no delivery/evidence/business work runs behind a DELIVERY_FAILED/PROCESSING_FAILED/conflict terminal. */
+  public hasFailureBarrier(): boolean {
+    return this.failureAdmission !== null;
+  }
+
+  /**
+   * R2 recovery §5.7 startup crash recovery: reconstruct a DURABLY MATERIALIZED intake from the receive-grant state,
+   * root correlation, and transport, or null if none is proven. It requires phase ROOT_BOUND with a bound source event,
+   * a MATERIALIZED transport carrying the intake, and a root correlation whose source event and intake agree — so a
+   * partial/unmaterialized or disagreeing graph exposes no intake.
+   */
+  private async recoverStartupIntake(live: LiveState): Promise<string | null> {
+    const state = await live.store.readReceiveGrantState(live.grant.receiveGrantId);
+    if (state?.phase !== 'ROOT_BOUND' || state.boundSourceEventId === null) {
+      return null;
+    }
+    const transport = await live.store.readTransport(state.boundSourceEventId);
+    if (transport?.state !== 'MATERIALIZED' || transport.intakeId === null) {
+      return null;
+    }
+    const root = await live.store.findRootByIntakeId(transport.intakeId);
+    if (root?.sourceEventId !== state.boundSourceEventId || root.intakeId !== transport.intakeId) {
+      return null;
+    }
+    return transport.intakeId;
+  }
+
+  /**
+   * R2 recovery §5.7 terminal-status recovery: BEFORE arm/intake-exposure, reconstruct a durably materialized intake,
+   * read its failure siblings, and either enter the barrier (§5.6.1 — the owner loop then halts) or, only while OPEN,
+   * replay ACCEPTED idempotently. The intake is exposed to delivery ONLY after ACCEPTED is durably RESPONSE_RECORDED
+   * and a FINAL OPEN proof; a prior REQUEST_STARTED moves to manual + latch (no resend, no delivery), and a prior
+   * RESPONSE_RECORDED makes no second post.
+   */
+  private async recoverTerminalStatusAndAccepted(live: LiveState, deps: As1CompositionDependencies): Promise<void> {
+    const recoveredIntake = await this.guardedAwait(() => this.recoverStartupIntake(live));
+    if (recoveredIntake === null) return;
+    const classification = await this.classifyFailureSiblings(live, recoveredIntake);
+    if (classification !== 'OPEN') {
+      await this.enterFailureBarrier(live, classification);
+      return;
+    }
+    const accepted = await this.sendUserStatus(live, deps, recoveredIntake, 'ACCEPTED');
+    if (accepted.outcome === 'DELIVERED' && (await this.classifyFailureSiblings(live, recoveredIntake)) === 'OPEN') {
+      this.lastIntakeId = recoveredIntake; // expose to delivery ONLY after RESPONSE_RECORDED + final OPEN proof
+    }
   }
 
   /**

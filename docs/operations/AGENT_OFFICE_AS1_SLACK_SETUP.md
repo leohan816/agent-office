@@ -323,24 +323,40 @@ separately Advisor-authorized value-only activation commit sets it.
 
 ### 10.1 Owner state root
 
-The one approved Phase B state root is
-`/home/leo/.local/state/agent-office/as1-slack-pilot`. The owner prepares it
-OUTSIDE every repository with a private umask and mode `0700`, then exports the
-exact literal to every closed command:
+The sole active Phase B state root is the versioned R2 recovery root
+`/home/leo/.local/state/agent-office/as1-slack-pilot-r2` with state-root ID
+`as1-slack-pilot-r2` (R2 recovery design §4). The prior
+`/home/leo/.local/state/agent-office/as1-slack-pilot` root is NOT an active root
+anymore — it is preserved read-only forensic evidence (see §10.6) and is named in
+this document ONLY in that forensic-preservation section. There is no
+environment-selected alternative, old-root fallback, discovery, copy-forward,
+compatibility read, or root search: the original tree is never copied into R2, and
+R2 starts as a NEW root under a separately authorized initialization. The owner
+prepares the R2 root OUTSIDE every repository with a private umask and mode `0700`,
+then exports the exact literal to every closed command:
 
 ```sh
 umask 077
-install -d -m 0700 /home/leo/.local/state/agent-office/as1-slack-pilot
-export AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot
+install -d -m 0700 /home/leo/.local/state/agent-office/as1-slack-pilot-r2
+export AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot-r2
 ```
 
 The CLI requires an absolute, real, owner-UID, non-symlink root with the existing
-`agent-office.state-root.v1` marker and state-root ID `as1-slack-pilot`. A
-repository path, `/tmp`, a shared/group-writable directory, a symlink, a second
-arbitrary root, or a relative path fails closed. No secret is stored below this
-root. Only `start` and `redacted-check` read `AS1_SLACK_STATE_ROOT` and the
-descriptor's exact secret path; the observer verbs resolve only the fixed
-construction-bound state-root literal above and accept no operand.
+`agent-office.state-root.v1` marker and state-root ID `as1-slack-pilot-r2`. The
+original root path, a repository path, `/tmp`, a shared/group-writable directory, a
+symlink, a second arbitrary root, or a relative path fails closed. The internal
+durable namespace `indexes/as1-slack-pilot`, the profile slugs, pilot ID, build ID
+`as1-slack-pilot`, descriptor/secret file names, and the executable argv are
+protocol/product namespaces, NOT state-root selectors, and do not change. No secret
+is stored below this root. Only `start` and `redacted-check` read
+`AS1_SLACK_STATE_ROOT` and the descriptor's exact secret path; the observer verbs
+resolve only the fixed construction-bound R2 state-root literal above and accept no
+operand. The sealed pidfd bridge hardcodes the exact R2 lock
+`/home/leo/.local/state/agent-office/as1-slack-pilot-r2/locks/writer.lock` and
+requires the lock record `stateRootId` to equal `as1-slack-pilot-r2`; those are the
+only two `-r2` substitutions against the frozen sealed literal, whose recomputed
+identity is exactly `17,989` UTF-8 bytes and
+`sha256:d5b831e29dfb19b23f194e928258d74f2a43a2bfb51fa76350ec6595537a8de2`.
 
 ### 10.2 Mutation-free capability gate
 
@@ -365,7 +381,7 @@ environment, not argv), never an `npm`/shell wrapper, alternate worktree, or
 relative entry:
 
 ```sh
-AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot \
+AS1_SLACK_STATE_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot-r2 \
   AS1_AUTHORITY_SNAPSHOT_COMMITS=<comma-separated 40-hex frozen governance snapshot commit(s)> \
   /home/leo/.nvm/versions/node/v24.18.0/bin/node \
   /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001/dist/core/runtime/as1-slack-pilot/cli.js \
@@ -450,3 +466,118 @@ Exactly one profile is live at a time. Run the Agent Office pilot, then stop and
 audit it, before a new value-only activation names the Foundation receive grant
 and its pilot runs. A failure in one pilot never authorizes switching to the
 other. There is no automatic restart, reconnect, or rollover.
+
+### 10.6 Original-root preservation gate (later operator step)
+
+This is a LATER, exact operator step (R2 recovery design §4.4). It is not executed
+by implementation or by any normal `start`; it makes the original forensic root
+`/home/leo/.local/state/agent-office/as1-slack-pilot` byte/path-identical,
+zero-write, and immutable so it can never again obtain a writer lock. It is a
+fixed, no-argument, descriptor-relative helper: it accepts NO path, environment
+override, discovery result, or generic destination — its production root literal is
+only that original path. If the required descriptor-relative or Linux immutable-flag
+operation is unavailable on the actual filesystem with the authorized privilege,
+the gate returns `HOLD`; it never falls back to a path-based `find`/`chmod`
+traversal or a weaker claim. (A path or writer can race a shell path-based check;
+this gate does not.)
+
+Install R2-only code first, while disabled. Before opening the original root, the
+operator installs the exact independently accepted implementation commit at the
+fixed active executable argv and records its build manifest. Against both the
+reviewed `src` tree and the installed `dist/core` tree the gate proves: the
+original absolute state-root literal has zero active occurrence; an old
+`stateRootId` comparison has zero active occurrence; the exact R2 root, R2 root ID,
+fixed R2 lock, and sealed R2 bridge facts are present at their specified sites;
+`start` and the observer surfaces accept no state-root operand, alternative
+environment value, discovery, compatibility read, or fallback; and every loaded
+product module is a regular, no-follow-opened, one-link object whose hash matches
+the manifest. Only after that proof — so any newly started AS1 owner would be
+R2-only — does preservation begin. The gate then proves from `/proc` that no exact
+AS1 owner argv is active and proves through the pinned original-root descriptor that
+`locks/writer.lock` is absent; a process or lock yields `ORIGINAL_ROOT_BUSY` before
+any permission change.
+
+Fixed descriptor-relative algorithm. The helper runs with the exact reviewed
+interpreter and only the privilege needed for the Linux immutable inode flag, and
+performs these ordered steps:
+
+1. Starting at a no-follow-opened `/` descriptor, `openat` every fixed ancestor,
+   the parent, root, and `locks` directory with `O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`;
+   retain the descriptors and record each `(st_dev, st_ino, mount-id)`. At every
+   phase, `fstatat` from the pinned parent with `AT_SYMLINK_NOFOLLOW` must still
+   name the same pinned root.
+2. Walk only by sorted directory entries and `openat` relative to retained
+   descriptors — never a concatenated pathname. Reject `.`, `..`, slash-bearing or
+   non-contained components, symlinks, devices, sockets, FIFOs, mount transitions,
+   duplicate `(device,inode)` identities, and every regular file whose link count
+   is not one. Every opened entry must retain the root mount id.
+3. Retain a no-follow descriptor for every accepted directory/regular file until
+   its identity and seal are verified. Descriptor exhaustion or any unapproved
+   changed type, link count, device, inode, mount id, size, data-modification time,
+   or entry set before that inode's seal fails closed. Ctime changes from the
+   prescribed mode/immutable operations are expected metadata, not drift.
+4. Compute the initial byte/path digest from the pinned descriptors. The canonical
+   stream is the sorted sequence of `type NUL relative-path NUL size NUL
+   file-SHA256 NUL`; it includes empty directories and excludes only the
+   mode/immutable metadata this gate intentionally changes.
+5. Re-prove the installed R2-only manifest, disabled descriptor, absent AS1
+   process, absent original lock, full ancestor/root identity, unchanged traversal,
+   and unchanged initial digest.
+6. Establish exclusive namespace quiescence before changing the remainder: through
+   the retained descriptors, remove write bits from the root and `locks` directory
+   and set `FS_IMMUTABLE_FL` on both with `FS_IOC_SETFLAGS`; immediately re-prove
+   process/lock absence, ancestor/root/locks identity, the complete entry set, and
+   the initial digest. If a lock or substitution won the interval, the helper
+   reports `ORIGINAL_ROOT_PRESERVATION_RACE` and does not continue.
+7. For every remaining pinned directory/regular file, remove all write bits with
+   descriptor `fchmod`, set `FS_IMMUTABLE_FL` with descriptor ioctl, and verify the
+   same descriptor identity and flag. Never clear an existing immutable bit. A
+   partial failure stays fail-closed and makes no success claim; it never unseals.
+8. Before the final digest, re-prove no AS1 process, no original lock, the complete
+   pinned ancestor/root relationship, one mount id, the exact same sorted
+   path/inode set, allowed types, one-link regular files, zero write bits, and the
+   immutable flag on every root entry. ONLY after all of those final proofs may the
+   helper read the pinned descriptors, compute the final byte/path digest, and
+   require it to equal the initial digest.
+
+The recorded success evidence contains both equal digests, the reviewed build
+manifest hash, the pinned parent/root identity, the entry count, and fixed boolean
+process/lock/no-follow/one-link/single-mount/zero-write/immutable proofs — no
+evidence bytes or secret values. Immutable flags plus removed write bits are the
+persistent forensic seal; the R2-only executable is the independent namespace
+barrier. Every later AS1 preflight and rollback re-runs the read-only
+descriptor-relative identity/digest/zero-write/immutable proof; any missing flag,
+writable inode, identity drift, old-root reference, or digest mismatch is `HOLD`.
+No normal rollback clears the seal — clearing it requires a new, explicit
+forensic-risk decision outside this mission. The original tree is never copied into
+R2. The algorithm (control flow, identity pinning, race rejection, root-inode-swap
+rejection, and final-digest-equals-initial ordering) is proven on a temporary
+synthetic tree with injected filesystem/process seams in the lifecycle test
+(`preserveOriginalRootTree`); those tests never open, inspect, chmod, seal, digest,
+or otherwise resolve either real state-root literal, and the production helper
+remains fixed-root and no-argument.
+
+### 10.7 R2 disabled rollout and rollback
+
+Rollout order (each gate stays disabled until the next is authorized): keep the
+committed descriptor disabled; independently review this 12-path patch; install the
+exact reviewed build at the fixed executable path while still disabled and prove
+its manifest and active source/output select ONLY the fixed R2 root/ID with no
+original-root fallback; prove no AS1 process and no original lock, run the fixed
+§10.6 preservation gate, and record its equal byte/path digests, pinned identity,
+zero-write, and immutable proofs; re-prove the installed R2-only manifest and the
+permanent original-root seal; under a SEPARATE live-owner handoff, initialize only
+the R2 root with ID `as1-slack-pilot-r2`; mint fresh R2-bound grant/lease evidence
+(never copy or reuse original-root state); perform redacted preflight with no tmux
+mutation, including the read-only original-root seal proof; and only Leo/GPT may
+authorize value-only activation and the next single Agent Office message.
+
+Rollback is disabled configuration, NOT restoration of the old-root binding: stop
+the foreground owner through the fixed R2 observer path; prove the R2 writer lock
+absent and no AS1 process; restore/retain the committed disabled descriptor; make
+no further Socket/Web/evidence/status/tmux attempt; retain the original root
+byte/path-identical, zero-write, and immutable; retain the entire R2 root as
+recovery evidence (never reset, delete, repair, merge, or copy either tree); and
+return both root states and redacted process/lock proof to the Advisor. A source
+revert must never restore an active reference to the original root, and rollback
+never clears an original-root immutable flag or changes its digest/paths/bytes.

@@ -14,6 +14,7 @@ import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inboun
 import { selectProfile, type As1Profile } from '../../src/application/slack-pilot/profiles.js';
 import { parseContainedPointerRef, parsePointerDeliveryGrant, parseReceiveGrant, type As1PilotReceiveGrantV1 } from '../../src/application/slack-pilot/contracts.js';
 import { buildEvidenceAuthority, type As1GitProvenanceVerifier } from '../../src/application/slack-pilot/evidence-ingress.js';
+import { userStatusOutboundId } from '../../src/application/slack-pilot/outbox.js';
 import type { As1ReceiveGrantProvenanceGate } from '../../src/adapters/gateways/slack-pilot/exact-authority.js';
 import type { As1TmuxObservationPort, As1DeliveryProvenanceGate } from '../../src/adapters/gateways/slack-pilot/exact-transport.js';
 import { parseTmuxDestination, type As1TmuxDestination } from '../../src/adapters/gateways/slack-pilot/exact-authority.js';
@@ -1448,10 +1449,13 @@ describe('AS1 Patch 4 — F01 per-await/internal-port guards + truthful state (a
       const authority = buildEvidenceAuthority({ receiveGrant: parsedReceiveGrant, receiveGrantState, pointerDeliveryGrant: deliveryGrant, terminalDelivery, rootCorrelation, consumption });
       const ack = validAdvisorAck({ intakeId: authority.intakeId, sourceEventId: authority.sourceEventId, pointerHash: authority.pointerHash, ...authority.acceptedAck });
       gitSource.set(`${authority.evidencePrefix}/${intakeId}/ack.json`, ack);
+      // The accepted-root delivery already sent the R2 ACCEPTED status; the incident-affected evidence ingest must add
+      // ZERO further Web posts (no DELIVERY_CONFIRMED, no INTAKE/RESULT projection).
+      const postsBeforeEvidence = web.posted.length;
       await expect(composition.ingestEvidenceAndProject()).rejects.toThrow();
       expect(verifyCalls).toBeGreaterThanOrEqual(1); // the ingress DID reach the supplied verifier (accepted-evidence path)
       expect(await store.readAcceptedEvidence()).toHaveLength(0); // ZERO evidence-store persistence after the incident
-      expect(web.posted).toHaveLength(0); // ZERO Web postMessage / outbound projection
+      expect(web.posted).toHaveLength(postsBeforeEvidence); // ZERO NEW Web postMessage / outbound projection from the incident
     } finally {
       await composition.incidentKill().catch(() => undefined);
     }
@@ -1624,6 +1628,120 @@ describe('AS1 Patch 5 — F01-A live inbound-callback guards (adversarial, fails
       expect(await readControlState(seed.stateRoot)).toBe('DISABLED_LATCHED');
     } finally {
       await recover.composition.incidentKill().catch(() => undefined);
+    }
+  });
+});
+
+// R2 recovery §5 same-thread user status: ACCEPTED on a NEW_MISSION_ROOT, DELIVERY_CONFIRMED on an accepted Advisor
+// ACK with the legacy English progress ACK suppressed, and the durable failure barrier that halts the owner on restart.
+const STATUS_ACCEPTED = '요청 접수 완료 · Advisor에게 전달 중';
+const STATUS_DELIVERY_CONFIRMED = '메시지 전달 완료 · 답변 대기 중';
+
+describe('AS1 R2 recovery — same-thread user status (design §5)', () => {
+  it('posts ACCEPTED (Korean) on a NEW_MISSION_ROOT and exposes the intake only after it is recorded', async () => {
+    const { composition, socket, web } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      expect(composition.lastIntake()).not.toBeNull();
+      expect(web.posted.map((p) => p.request.text)).toContain(STATUS_ACCEPTED);
+      expect(web.posted.some((p) => p.request.text.startsWith('ACK:'))).toBe(false); // no English progress ACK
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('an exact duplicate delivery re-derives the same ACCEPTED id and posts no second status', async () => {
+    const { composition, socket, web } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      await socket.deliver(slackEnvelope()); // exact retry of the same envelope/event → DUPLICATE, not NEW_MISSION_ROOT
+      expect(web.posted.filter((p) => p.request.text === STATUS_ACCEPTED)).toHaveLength(1);
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('posts DELIVERY_CONFIRMED on an accepted Advisor ACK and SUPPRESSES the legacy English INTAKE ACK', async () => {
+    const { stateRoot, composition, socket, gitSource, receiveGrant, web } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const advisorProfile = selectProfile('AGENT_OFFICE_ADVISOR');
+      const store = await As1ProfileInboundStore.open(stateRoot, advisorProfile, new FakeClock(CLOCK_ISO));
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), advisorProfile, intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      gitSource.set(`${base}/readiness-lease.json`, lease);
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      // Build and publish a VALID Advisor ACK so ACK ingestion ACCEPTS and triggers DELIVERY_CONFIRMED.
+      const deliveryGrant = parsePointerDeliveryGrant(grant);
+      const { deliveryId } = parseContainedPointerRef(deliveryGrant);
+      const parsedReceiveGrant = parseReceiveGrant(receiveGrant);
+      const receiveGrantState = await store.readReceiveGrantState(parsedReceiveGrant.receiveGrantId);
+      const terminalDelivery = await store.readTmuxDeliveryRecord(deliveryId);
+      const rootCorrelation = await store.findRootByIntakeId(intakeId);
+      const consumption = await store.readDeliveryAuthorityConsumption(deliveryGrant.pointerDeliveryGrantId);
+      if (receiveGrantState === null || terminalDelivery === null || rootCorrelation === null || consumption === null) throw new Error('expected durable records');
+      const authority = buildEvidenceAuthority({ receiveGrant: parsedReceiveGrant, receiveGrantState, pointerDeliveryGrant: deliveryGrant, terminalDelivery, rootCorrelation, consumption });
+      const ack = validAdvisorAck({ intakeId: authority.intakeId, sourceEventId: authority.sourceEventId, pointerHash: authority.pointerHash, ...authority.acceptedAck });
+      gitSource.set(`${authority.evidencePrefix}/${intakeId}/ack.json`, ack);
+      const outcomes = await composition.ingestEvidenceAndProject();
+      expect(outcomes).toContain('DELIVERY_CONFIRMED:DELIVERED');
+      expect(web.posted.map((p) => p.request.text)).toContain(STATUS_DELIVERY_CONFIRMED);
+      expect(web.posted.some((p) => p.request.text.startsWith('ACK:'))).toBe(false); // INTAKE English ACK suppressed
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('a durable DELIVERY_FAILED record is a cross-restart barrier: the owner withholds the intake and refuses delivery', async () => {
+    const first = await startAgentOfficeComposition();
+    let intakeId: string;
+    try {
+      await first.composition.start();
+      await first.socket.deliver(slackEnvelope());
+      const id = first.composition.lastIntake();
+      if (id === null) throw new Error('expected an intake');
+      intakeId = id;
+      const store = await As1ProfileInboundStore.open(first.stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+      await store.recordOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'DELIVERY_FAILED'), 'PREPARED', { requestHash: `sha256:${'3'.repeat(64)}` });
+    } finally {
+      await first.composition.stop();
+    }
+    const second = await startAgentOfficeComposition({ stateRoot: first.stateRoot });
+    try {
+      await second.composition.start();
+      expect(second.composition.hasFailureBarrier()).toBe(true);
+      expect(second.composition.lastIntake()).toBeNull(); // withheld from delivery
+      expect((await second.composition.deliverPending()).phase).toBe('AWAITING'); // refused — no authority/tmux
+      expect(second.tmuxPort.pasteCalls).toBe(0);
+    } finally {
+      await second.composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('restart after ACCEPTED is RESPONSE_RECORDED recovers the SAME intake and makes NO second Web post', async () => {
+    const first = await startAgentOfficeComposition();
+    try {
+      await first.composition.start();
+      await first.socket.deliver(slackEnvelope());
+      expect(first.composition.lastIntake()).not.toBeNull();
+      expect(first.web.posted).toHaveLength(1); // the one ACCEPTED post
+    } finally {
+      await first.composition.stop();
+    }
+    const second = await startAgentOfficeComposition({ stateRoot: first.stateRoot });
+    try {
+      await second.composition.start();
+      expect(second.composition.lastIntake()).not.toBeNull(); // §5.7: the durable ACCEPTED is re-derived, intake recovered
+      expect(second.web.posted).toHaveLength(0); // NO duplicate Slack post on the fresh Web port
+      expect(second.composition.hasFailureBarrier()).toBe(false);
+    } finally {
+      await second.composition.stop();
     }
   });
 });

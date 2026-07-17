@@ -54,8 +54,14 @@ import {
   type As1SocketBindings,
 } from './composition.js';
 
-/** The exact fixed owner state root (design §5.1). The observer verbs resolve ONLY this construction-bound literal. */
-export const AS1_OWNER_STATE_ROOT = '/home/leo/.local/state/agent-office/as1-slack-pilot';
+/**
+ * The exact fixed owner state root (design §5.1; R2 recovery design §4). The sole active root is the versioned R2
+ * path; the observer verbs resolve ONLY this construction-bound literal and accept no root operand, environment
+ * override, discovery, or old-root fallback. The original `…/as1-slack-pilot` root is preserved read-only forensic
+ * evidence, never an active source reference. The internal durable namespace `indexes/as1-slack-pilot`, profile
+ * slugs, pilot ID, descriptor/secret file names, and executable argv are protocol namespaces and are unchanged.
+ */
+export const AS1_OWNER_STATE_ROOT = '/home/leo/.local/state/agent-office/as1-slack-pilot-r2';
 
 export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check'] as const;
 export type As1Command = (typeof AS1_COMMANDS)[number];
@@ -541,26 +547,51 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         terminal = 'GRANT_EXPIRED';
         break;
       }
+      // R2 recovery §5.6/§5.7: a durable failure barrier (DELIVERY_FAILED / PROCESSING_FAILED / conflict) halts the
+      // owner — no delivery, evidence, status, or business work runs behind it. A startup barrier halts immediately.
+      if (composition.hasFailureBarrier()) {
+        terminal = 'DELIVERY_HALTED';
+        break;
+      }
       if (!delivered) {
         const delivery = await composition.deliverPending();
         if (incidentPending()) {
           terminal = 'INCIDENT_KILL';
           break;
         }
+        if (composition.hasFailureBarrier()) {
+          // A proven pre-paste stop just posted DELIVERY_FAILED and latched the terminal delivery barrier.
+          terminal = 'DELIVERY_HALTED';
+          break;
+        }
         if (delivery.phase !== 'AWAITING' && delivery.outcome === 'DELIVERED') {
           delivered = true;
-          await composition.ingestEvidenceAndProject(); // project ACK->INTAKE->RESULT once delivery completed
-          if (incidentPending()) {
-            terminal = 'INCIDENT_KILL';
-            break;
-          }
         } else if (delivery.phase !== 'AWAITING') {
-          // Manual reconciliation, a pre-paste stop, or any non-benign delivery outcome halts the owner (the
+          // Manual reconciliation, an ambiguous pre-paste stop, or any non-benign delivery outcome halts the owner (the
           // composition already latched where required) — never a swallowed result nor an unbounded retry.
           terminal = 'DELIVERY_HALTED';
           break;
         }
         // A benign AWAITING (no grant/lease yet) simply keeps polling.
+      }
+      if (delivered) {
+        // R2 recovery §5.7: continue projecting evidence on the 250 ms loop AFTER delivery, not once — ACK acceptance
+        // posts DELIVERY_CONFIRMED (Korean), the INTAKE English progress ACK is suppressed, and RESULT is projected —
+        // until RESULT_OUTBOUND:DELIVERED, then stop cleanly. A post-delivery processing failure latches and halts.
+        const outcomes = await composition.ingestEvidenceAndProject();
+        if (incidentPending()) {
+          terminal = 'INCIDENT_KILL';
+          break;
+        }
+        if (composition.hasFailureBarrier()) {
+          terminal = 'DELIVERY_HALTED';
+          break;
+        }
+        if (outcomes.includes('RESULT_OUTBOUND:DELIVERED')) {
+          terminal = 'CLEAN_STOP';
+          break;
+        }
+        // Otherwise (ACK/RESULT evidence not ready yet, DELIVERY_CONFIRMED already posted) keep polling on the loop.
       }
       // F01: a pending incident must NOT begin another timer await — check immediately BEFORE the delay as well as after.
       if (incidentPending()) {
@@ -680,7 +711,7 @@ async function main(): Promise<void> {
     clock,
     buildDeps: () => buildAs1ProductionDependencies(readFrozenAuthoritySnapshotCommits()),
     initialize: async (root: string): Promise<void> => {
-      await initializeStateRoot(root, { stateRootId: 'as1-slack-pilot', initializedAt: clock.now() });
+      await initializeStateRoot(root, { stateRootId: 'as1-slack-pilot-r2', initializedAt: clock.now() });
     },
     installSignalHandlers: (handlers): readonly As1OwnerSignal[] => {
       const installed: As1OwnerSignal[] = [];

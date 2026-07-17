@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
+import { LIMITS, assertBoundedJsonStructure } from '../../src/application/slack-pilot/contracts.js';
 import {
   isDisconnectFrame,
+  parseEventsApiFrame,
   parseEventsApiValue,
   parseTrustedJson,
 } from '../../src/adapters/gateways/slack-pilot/socket-frame.js';
@@ -57,7 +59,7 @@ describe('AS1 socket frame parser — exact limits (B08)', () => {
     // Raw byte bound (RAW_SOCKET_ENVELOPE_MAX_BYTES = 32_768).
     const oversize = JSON.stringify({ type: 'events_api', envelope_id: 'E', payload: { blob: 'x'.repeat(40_000) } });
     expect(() => parseTrustedJson(oversize)).toThrow(DomainError);
-    // Nesting depth bound (JSON_NESTING_DEPTH_MAX = 8).
+    // Socket-local nesting depth bound (SOCKET_EVENT_JSON_DEPTH_MAX = 10): a 12-wrap value is depth 13 and rejects.
     let nested: unknown = 0;
     for (let i = 0; i < 12; i += 1) nested = { n: nested };
     expect(() => parseTrustedJson(JSON.stringify(nested))).toThrow(DomainError);
@@ -70,5 +72,81 @@ describe('AS1 socket frame parser — exact limits (B08)', () => {
     expect(isDisconnectFrame({ type: 'events_api' })).toBe(false);
     expect(isDisconnectFrame(null)).toBe(false);
     expect(isDisconnectFrame([{ type: 'disconnect' }])).toBe(false);
+  });
+});
+
+// R2 recovery design §3: the post-hello Socket structural walk is depth 10 (not the shared 8) so an ordinary plain
+// rich-text message reaches its inline text primitive at depth 10; the one-level-over depth-11 mutation fails closed.
+// The exact accepted §3.3 fixture and the §3.4 reject fixture differ only in the single inline text element.
+const richTextFrame = (inlineTextElement: Record<string, unknown>): string =>
+  JSON.stringify({
+    type: 'events_api',
+    envelope_id: 'Env0AGENTOFFICE01',
+    accepts_response_payload: false,
+    payload: {
+      type: 'event_callback',
+      team_id: 'TWORKSPACE001',
+      api_app_id: 'AAGENTOFFICE01',
+      event_id: 'Ev0AGENTOFFICE01',
+      event_time: 1720000000,
+      authorizations: [
+        { enterprise_id: null, team_id: 'TWORKSPACE001', user_id: 'UAGENTBOT001', is_bot: true, is_enterprise_install: false },
+      ],
+      event: {
+        type: 'message',
+        user: 'ULEO0000001',
+        channel: 'CAGENTOFFICE01',
+        channel_type: 'group',
+        ts: '1720000000.000100',
+        event_ts: '1720000000.000100',
+        text: 'please start a new mission',
+        // Events API outer=1 · payload=2 · event=3 · blocks[]=4 · rich_text=5 · elements[]=6 · rich_text_section=7 ·
+        // elements[]=8 · inline text element=9 · (its "text" primitive)=10.
+        blocks: [
+          {
+            type: 'rich_text',
+            block_id: 'b1',
+            elements: [{ type: 'rich_text_section', elements: [inlineTextElement] }],
+          },
+        ],
+      },
+    },
+  });
+
+// The inline text element's "text" primitive is at depth 10 — the maximum accepted path.
+const ACCEPTED_INLINE_TEXT = { type: 'text', text: 'please start a new mission' } as const;
+// One level over: the "unexpected" object is depth 10 and its "leaf" primitive is depth 11 — reject before field access.
+const DEPTH_11_INLINE_TEXT = { type: 'text', text: 'please start a new mission', unexpected: { leaf: true } } as const;
+
+describe('AS1 socket frame parser — R2 Socket-local depth 10 (design §3)', () => {
+  it('accepts the exact ordinary rich-text frame whose inline text primitive is at depth 10', () => {
+    expect(() => parseTrustedJson(richTextFrame(ACCEPTED_INLINE_TEXT))).not.toThrow();
+    const parsed = parseEventsApiFrame(richTextFrame(ACCEPTED_INLINE_TEXT));
+    expect(parsed.envelopeId).toBe('Env0AGENTOFFICE01');
+    expect(parsed.acceptsResponsePayload).toBe(false);
+  });
+
+  it('rejects the one-level-over depth-11 mutation before field access, with a non-payload INVALID_SCHEMA detail', () => {
+    let thrown: unknown;
+    try {
+      parseTrustedJson(richTextFrame(DEPTH_11_INLINE_TEXT));
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(DomainError);
+    expect((thrown as DomainError).code).toBe('INVALID_SCHEMA');
+    // The stable detail never echoes raw bytes/values/IDs from the rejected frame.
+    expect((thrown as DomainError).message).not.toContain('please start a new mission');
+    expect(() => parseEventsApiFrame(richTextFrame(DEPTH_11_INLINE_TEXT))).toThrow(DomainError);
+  });
+
+  it('keeps the shared general JSON nesting depth at exactly 8', () => {
+    expect(LIMITS.JSON_NESTING_DEPTH_MAX).toBe(8);
+    // A depth-9 leaf still rejects through the unchanged shared walk (outer=1 … the 0 leaf=9).
+    const depth9 = { d2: { d3: { d4: { d5: { d6: { d7: { d8: { d9: 0 } } } } } } } };
+    expect(() => assertBoundedJsonStructure(depth9, 'general value')).toThrow(DomainError);
+    // Depth 8 (the 0 leaf at depth 8) is still accepted by the shared walk.
+    const depth8 = { d2: { d3: { d4: { d5: { d6: { d7: { d8: 0 } } } } } } };
+    expect(() => assertBoundedJsonStructure(depth8, 'general value')).not.toThrow();
   });
 });

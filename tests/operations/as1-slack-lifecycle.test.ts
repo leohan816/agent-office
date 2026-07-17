@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { chmod, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -7,14 +8,19 @@ import { describe, expect, it } from 'vitest';
 import { DomainError } from '../../src/contracts/types.js';
 import { As1SlackControl, readDurableKillProof } from '../../src/operations/readiness/as1-slack-control.js';
 import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
-import { parseAs1Cli, runAs1Cli, runObserverSignal } from '../../src/runtime/as1-slack-pilot/cli.js';
+import { AS1_OWNER_STATE_ROOT, parseAs1Cli, runAs1Cli, runObserverSignal } from '../../src/runtime/as1-slack-pilot/cli.js';
 import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.js';
 import {
+  AS1_FIXED_OWNER_LOCK_PATH,
+  AS1_PIDFD_BRIDGE_LITERAL_IDENTITY,
   deriveSignalRequest,
+  preserveOriginalRootTree,
   probeCapability,
   WriterLock,
   type As1BridgeChildOutput,
   type As1BridgeResult,
+  type As1OriginalRootPreservationSeams,
+  type As1PreservationEntry,
 } from '../../src/persistence/file-store/writer-lock.js';
 import { FakeClock, secretText, validSecretValues, writeSecretFile } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
@@ -826,5 +832,172 @@ describe('AS1 F05 pidfd capability bridge + retained writer-lock descriptor (§1
     } finally {
       if (acquired.second !== null) await acquired.second.release();
     }
+  });
+});
+
+describe('AS1 R2 fixed root/ID and sealed bridge identity (R2 recovery design §4)', () => {
+  const R2_ROOT = '/home/leo/.local/state/agent-office/as1-slack-pilot-r2';
+  const OLD_ROOT = '/home/leo/.local/state/agent-office/as1-slack-pilot';
+
+  it('resolves ONLY the fixed R2 owner state root and R2 writer lock — never the original root', () => {
+    // start / redacted-check compare AS1_SLACK_STATE_ROOT to this literal, and the zero-operand observer verbs resolve
+    // only it, so the original root and any other value fail closed before initialization.
+    expect(AS1_OWNER_STATE_ROOT).toBe(R2_ROOT);
+    expect(AS1_FIXED_OWNER_LOCK_PATH).toBe(`${R2_ROOT}/locks/writer.lock`);
+    expect(AS1_OWNER_STATE_ROOT).not.toBe(OLD_ROOT);
+    expect(AS1_FIXED_OWNER_LOCK_PATH).not.toBe(`${OLD_ROOT}/locks/writer.lock`);
+    // The internal durable namespace and protocol names are NOT state-root selectors and are unchanged.
+    expect(AS1_OWNER_STATE_ROOT.endsWith('as1-slack-pilot-r2')).toBe(true);
+  });
+
+  it('is the frozen sealed bridge with EXACTLY 17,989 bytes, sha256 d5b831e2…, and only the two -r2 substitutions', () => {
+    const { bytes, sha256, source } = AS1_PIDFD_BRIDGE_LITERAL_IDENTITY;
+    // The declared identity equals the design-normative values.
+    expect(bytes).toBe(17_989);
+    expect(sha256).toBe('sha256:d5b831e29dfb19b23f194e928258d74f2a43a2bfb51fa76350ec6595537a8de2');
+    // The declared identity is RECOMPUTED from the staged literal and must equal it (drift fails the sealed spawn).
+    expect(Buffer.byteLength(source, 'utf8')).toBe(bytes);
+    expect(`sha256:${createHash('sha256').update(Buffer.from(source, 'utf8')).digest('hex')}`).toBe(sha256);
+    // Substitution 1: the embedded LOCK_PATH is the R2 lock and equals the TS-exported fixed lock; the old path is gone.
+    expect(source).toContain(`LOCK_PATH = "${R2_ROOT}/locks/writer.lock"`);
+    expect(source).toContain(`LOCK_PATH = "${AS1_FIXED_OWNER_LOCK_PATH}"`);
+    expect(source).not.toContain(`LOCK_PATH = "${OLD_ROOT}/locks/writer.lock"`);
+    // Substitution 2: the expected lock-record stateRootId is R2; the old comparison is gone.
+    expect(source).toContain('value["stateRootId"] == "as1-slack-pilot-r2"');
+    expect(source).not.toContain('value["stateRootId"] == "as1-slack-pilot"');
+    // buildId and every other sealed fact are UNCHANGED: buildId stays as1-slack-pilot; the executable argv and secret
+    // file name (protocol namespaces, not state-root selectors) are unchanged.
+    expect(source).toContain('value["buildId"] == "as1-slack-pilot"');
+    expect(source).not.toContain('value["buildId"] == "as1-slack-pilot-r2"');
+    expect(source).toContain('dist/core/runtime/as1-slack-pilot/cli.js');
+    expect(source).toContain('/home/leo/.config/agent-office/as1-slack-pilot.env');
+  });
+});
+
+// R2 recovery design §4.4: the fixed descriptor-relative original-root preservation ALGORITHM, proven over a
+// TEMPORARY SYNTHETIC tree with injected filesystem/process seams. No real state-root literal is opened, inspected,
+// chmod-ed, sealed, or digested — the seams model everything, and a synthetic old lock/owner is created only at the
+// deterministic boundary AFTER the initial scan.
+interface SyntheticState {
+  entries: As1PreservationEntry[];
+  process: boolean;
+  lock: boolean;
+  root: { dev: string; ino: string; mountId: string };
+  scans: number;
+  sealNamespaceCalls: number;
+  sealedEntries: string[];
+}
+
+const ROOT_ID = { dev: '2049', ino: '100', mountId: 'm1' };
+const baseEntries = (): As1PreservationEntry[] => [
+  { type: 'DIR', relativePath: '.', identity: ROOT_ID, writable: true, immutable: false },
+  { type: 'DIR', relativePath: 'locks', identity: { dev: '2049', ino: '101', mountId: 'm1' }, writable: true, immutable: false },
+  { type: 'DIR', relativePath: 'indexes/as1-slack-pilot', identity: { dev: '2049', ino: '102', mountId: 'm1' }, writable: true, immutable: false },
+  { type: 'FILE', relativePath: 'indexes/as1-slack-pilot/global-control.json', identity: { dev: '2049', ino: '103', mountId: 'm1' }, writable: true, immutable: false },
+];
+
+function makeSeams(opts: {
+  onInitialScan?: (s: SyntheticState) => void;
+  process?: boolean;
+  lock?: boolean;
+  rejectEntry?: boolean;
+  manifestUnproven?: boolean;
+  incompleteSeal?: boolean;
+} = {}): { seams: As1OriginalRootPreservationSeams; state: SyntheticState } {
+  const state: SyntheticState = {
+    entries: baseEntries(),
+    process: opts.process ?? false,
+    lock: opts.lock ?? false,
+    root: { ...ROOT_ID },
+    scans: 0,
+    sealNamespaceCalls: 0,
+    sealedEntries: [],
+  };
+  const seal = (path: string): void => {
+    if (opts.incompleteSeal === true) return; // simulate a partial/unsupported seal — the entry stays writable
+    for (const entry of state.entries) {
+      if (entry.relativePath === path || (path === 'namespace' && (entry.relativePath === '.' || entry.relativePath === 'locks'))) {
+        const i = state.entries.indexOf(entry);
+        state.entries[i] = { ...entry, writable: false, immutable: true };
+      }
+    }
+  };
+  const seams: As1OriginalRootPreservationSeams = {
+    reproveInstalledR2Manifest: () => opts.manifestUnproven !== true,
+    as1ProcessActive: () => state.process,
+    originalLockPresent: () => state.lock,
+    currentRootIdentity: () => state.root,
+    scanEntries: () => {
+      state.scans += 1;
+      if (opts.rejectEntry === true) throw new DomainError('INVALID_SCHEMA', 'symlink component rejected');
+      if (state.scans === 1 && opts.onInitialScan !== undefined) opts.onInitialScan(state); // inject the race AFTER the initial scan
+      return state.entries.map((e) => ({ ...e }));
+    },
+    computeDigest: (entries) =>
+      // Byte/path digest EXCLUDES mode/immutable metadata (design §4.4.2 step 4), so it is stable across sealing.
+      canonicalBytes(entries.map((e) => [e.type, e.relativePath, e.identity.dev, e.identity.ino, e.identity.mountId])).toString('hex'),
+    sealNamespace: () => {
+      state.sealNamespaceCalls += 1;
+      seal('namespace');
+    },
+    sealEntry: (path) => {
+      state.sealedEntries.push(path);
+      seal(path);
+    },
+  };
+  return { seams, state };
+}
+
+describe('AS1 R2 original-root preservation algorithm (R2 recovery design §4.4)', () => {
+  it('PRESERVES a quiescent synthetic tree: equal initial/final byte-path digest, complete zero-write + immutable seal', () => {
+    const { seams, state } = makeSeams();
+    const outcome = preserveOriginalRootTree(seams);
+    expect(outcome.kind).toBe('PRESERVED');
+    if (outcome.kind !== 'PRESERVED') throw new Error('expected PRESERVED');
+    expect(outcome.initialDigest).toBe(outcome.finalDigest); // final digest computed only after final proofs, equals initial
+    expect(outcome.entryCount).toBe(4);
+    expect(state.sealNamespaceCalls).toBe(1);
+    expect(state.entries.every((e) => !e.writable && e.immutable)).toBe(true);
+  });
+
+  it('reports ORIGINAL_ROOT_BUSY (before ANY permission change) when a process or lock exists at entry', () => {
+    const withProcess = makeSeams({ process: true });
+    expect(preserveOriginalRootTree(withProcess.seams).kind).toBe('ORIGINAL_ROOT_BUSY');
+    expect(withProcess.state.sealNamespaceCalls).toBe(0);
+    const withLock = makeSeams({ lock: true });
+    expect(preserveOriginalRootTree(withLock.seams).kind).toBe('ORIGINAL_ROOT_BUSY');
+    expect(withLock.state.sealNamespaceCalls).toBe(0);
+  });
+
+  it('reports ORIGINAL_ROOT_PRESERVATION_RACE when a synthetic lock is created AFTER the initial scan — no seal, no success', () => {
+    const { seams, state } = makeSeams({ onInitialScan: (s) => { s.lock = true; } });
+    const outcome = preserveOriginalRootTree(seams);
+    expect(outcome.kind).toBe('ORIGINAL_ROOT_PRESERVATION_RACE');
+    expect(state.sealNamespaceCalls).toBe(0); // NO remaining permission change
+    expect(state.sealedEntries).toHaveLength(0);
+  });
+
+  it('rejects a root-inode SUBSTITUTION through the pinned-parent comparison', () => {
+    const { seams, state } = makeSeams({ onInitialScan: (s) => { s.root = { dev: '2049', ino: '999', mountId: 'm1' }; } });
+    const outcome = preserveOriginalRootTree(seams);
+    expect(outcome.kind).toBe('ORIGINAL_ROOT_PRESERVATION_RACE');
+    if (outcome.kind !== 'ORIGINAL_ROOT_PRESERVATION_RACE') throw new Error('expected RACE');
+    expect(outcome.reason).toContain('ROOT_IDENTITY_DRIFT');
+    expect(state.sealNamespaceCalls).toBe(0);
+  });
+
+  it('fails closed to HOLD on a rejected contained component (symlink/hard-link/mount/path escape)', () => {
+    expect(preserveOriginalRootTree(makeSeams({ rejectEntry: true }).seams).kind).toBe('HOLD');
+  });
+
+  it('fails closed to HOLD when the seal is incomplete (a writable/mutable inode remains — unsupported immutable flag)', () => {
+    const outcome = preserveOriginalRootTree(makeSeams({ incompleteSeal: true }).seams);
+    expect(outcome.kind).toBe('HOLD');
+    if (outcome.kind !== 'HOLD') throw new Error('expected HOLD');
+    expect(outcome.reason).toBe('INCOMPLETE_SEAL');
+  });
+
+  it('fails closed to HOLD when the installed R2-only manifest is unproven', () => {
+    expect(preserveOriginalRootTree(makeSeams({ manifestUnproven: true }).seams).kind).toBe('HOLD');
   });
 });

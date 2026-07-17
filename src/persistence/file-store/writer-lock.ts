@@ -61,7 +61,7 @@ const AS1_PROC_SELF_FD_3 = '/proc/self/fd/3';
  * literal hardcodes. The production observer signal boundary uses ONLY this fixed path; no caller-selected lock
  * path exists at the production surface (F05).
  */
-export const AS1_FIXED_OWNER_LOCK_PATH = '/home/leo/.local/state/agent-office/as1-slack-pilot/locks/writer.lock';
+export const AS1_FIXED_OWNER_LOCK_PATH = '/home/leo/.local/state/agent-office/as1-slack-pilot-r2/locks/writer.lock';
 /** Linux `O_CLOEXEC` (0o2000000) — Node opens every fd close-on-exec; this value is only used to VERIFY the bit. */
 const LINUX_O_CLOEXEC = 0o2_000_000;
 /** The fixed owner-shutdown deadline the observer CLI waits for lock removal after a same-pidfd send (§11.1.2). */
@@ -130,7 +130,7 @@ EXPECTED_OWNER_ARGV = (
     "--env-file",
     "/home/leo/.config/agent-office/as1-slack-pilot.env",
 )
-LOCK_PATH = "/home/leo/.local/state/agent-office/as1-slack-pilot/locks/writer.lock"
+LOCK_PATH = "/home/leo/.local/state/agent-office/as1-slack-pilot-r2/locks/writer.lock"
 EXPECTED_LOCK_KEYS = frozenset((
     "acquiredAt", "bootId", "buildId", "ownershipToken", "pid",
     "schemaVersion", "stateRootId",
@@ -395,7 +395,7 @@ def _read_lock(request):
         and value["pid"] == request["expectedOwnerPid"]
         and value["bootId"] == _read_boot_id()
         and value["buildId"] == "as1-slack-pilot"
-        and value["stateRootId"] == "as1-slack-pilot"
+        and value["stateRootId"] == "as1-slack-pilot-r2"
         and type(value["ownershipToken"]) is str
         and re.fullmatch(r"[0-9a-f]{64}", value["ownershipToken"]) is not None
         and type(value["acquiredAt"]) is str
@@ -607,8 +607,25 @@ def _run():
 raise SystemExit(_run())
 `;
 
-const PIDFD_BRIDGE_SOURCE_BYTES = 17_983;
-const PIDFD_BRIDGE_SOURCE_SHA256 = 'sha256:557e32a2ab54beea3b3ec8ce1a68bb69a7f3b756db4e3b007d18a452f7a22d75';
+// R2 recovery design §4.3: the sealed bridge is the frozen baseline with EXACTLY two substitutions — LOCK_PATH and
+// the expected lock-record stateRootId each gain `-r2`. No operation, interpreter fact, owner argv, signal, deadline,
+// bound, or result changes. Those two `-r2` additions extend the frozen 17,983-byte literal by 6 bytes to 17,989 and
+// change its SHA-256 to d5b831e2…; the values are recomputed from the staged literal and proven, never updated blind.
+const PIDFD_BRIDGE_SOURCE_BYTES = 17_989;
+const PIDFD_BRIDGE_SOURCE_SHA256 = 'sha256:d5b831e29dfb19b23f194e928258d74f2a43a2bfb51fa76350ec6595537a8de2';
+
+/**
+ * Read-only sealed-bridge literal identity (R2 recovery design §4.3), exposed only so the exact byte-length, SHA-256,
+ * and the two permitted `-r2` substitutions (embedded LOCK_PATH + expected lock-record stateRootId) can be verified
+ * while buildId and every other sealed fact stay unchanged. Exposing the already-committed, non-secret literal string
+ * grants no capability: a spawn still requires the pinned interpreter, `/proc/self/fd/3`, and the exact fd wiring,
+ * and `assertBridgeLiteralIdentity()` re-proves these same values before every child creation.
+ */
+export const AS1_PIDFD_BRIDGE_LITERAL_IDENTITY = Object.freeze({
+  bytes: PIDFD_BRIDGE_SOURCE_BYTES,
+  sha256: PIDFD_BRIDGE_SOURCE_SHA256,
+  source: PIDFD_BRIDGE_SOURCE,
+});
 
 /**
  * Before every spawn, TypeScript requires the exact UTF-8 length and SHA-256 of the embedded literal so a
@@ -1354,4 +1371,152 @@ function defaultProcessAlive(pid: number): boolean {
   } catch (error) {
     return !isNodeError(error, 'ESRCH');
   }
+}
+
+// ─── R2 recovery design §4.4: fixed, no-argument, descriptor-relative ORIGINAL-ROOT PRESERVATION ────────────────
+//
+// The LATER operator gate that makes the original forensic root byte/path-identical, zero-write, and immutable. Its
+// SOLE production root is `/home/leo/.local/state/agent-office/as1-slack-pilot` (documented, with the full operator
+// procedure, in docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md); the production helper accepts NO path/root/env/
+// discovery input and runs the actual `openat(O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC)` / `FS_IOC_SETFLAGS` operations under
+// the pinned reviewed interpreter with only the privilege needed for `FS_IMMUTABLE_FL`. Those real filesystem/
+// privilege operations remain a later HOLD gate — never a weaker path-based fallback, and never probed here.
+//
+// This function implements the exact ORDERED CONTROL FLOW and the identity/digest/race decisions over INJECTED seams
+// so the algorithm can be proven on a temporary synthetic tree (with test-only filesystem/process seams) without
+// opening, inspecting, chmod-ing, sealing, or digesting either real root. `preserveOriginalRootTree` NEVER resolves a
+// real state-root literal; the seams do.
+
+/** A pinned inode identity tuple (st_dev, st_ino, mount-id) recorded no-follow from a retained descriptor (§4.4.2). */
+export interface As1PinnedIdentity {
+  readonly dev: string;
+  readonly ino: string;
+  readonly mountId: string;
+}
+
+/** One accepted contained entry: a directory or a one-link regular file, with its pinned identity and seal state. */
+export interface As1PreservationEntry {
+  readonly type: 'DIR' | 'FILE';
+  readonly relativePath: string;
+  readonly identity: As1PinnedIdentity;
+  readonly writable: boolean;
+  readonly immutable: boolean;
+}
+
+/**
+ * Injected filesystem/process seams (test-only). The production helper implements these with retained no-follow
+ * descriptors, `fstatat(AT_SYMLINK_NOFOLLOW)`, sorted `openat` traversal, `fchmod`, descriptor `FS_IOC_SETFLAGS`, and
+ * `/proc` scans. `scanEntries` REJECTS (throws) a `.`/`..`/slash/non-contained component, symlink, device, socket,
+ * FIFO, mount transition, duplicate `(dev,ino)`, or a regular file whose link count is not one.
+ */
+export interface As1OriginalRootPreservationSeams {
+  /** §4.4.1/§4.4.2 steps 1,5,8: re-prove the installed R2-only build manifest and the disabled descriptor. */
+  readonly reproveInstalledR2Manifest: () => boolean;
+  /** True iff an exact AS1 owner argv is active in /proc. */
+  readonly as1ProcessActive: () => boolean;
+  /** True iff the pinned original root's fixed `locks/writer.lock` leaf exists (through the pinned root descriptor). */
+  readonly originalLockPresent: () => boolean;
+  /** The pinned root identity, re-`fstatat`ed no-follow from the pinned parent. A replaced root inode drifts here. */
+  readonly currentRootIdentity: () => As1PinnedIdentity;
+  /** The sorted contained entry set, re-read from the retained descriptors. Throws on any rejected component/type. */
+  readonly scanEntries: () => readonly As1PreservationEntry[];
+  /** The byte/path digest: sorted `type NUL relative-path NUL size NUL file-SHA256 NUL`, empty dirs included, mode/
+   *  immutable metadata excluded. */
+  readonly computeDigest: (entries: readonly As1PreservationEntry[]) => string;
+  /** Remove write bits + set `FS_IMMUTABLE_FL` on the root and `locks` directory (namespace quiescence). */
+  readonly sealNamespace: () => void;
+  /** Remove write bits + set `FS_IMMUTABLE_FL` on one remaining pinned entry; never clears an existing immutable bit. */
+  readonly sealEntry: (relativePath: string) => void;
+}
+
+export type As1OriginalRootPreservationOutcome =
+  | { readonly kind: 'PRESERVED'; readonly initialDigest: string; readonly finalDigest: string; readonly entryCount: number }
+  | { readonly kind: 'ORIGINAL_ROOT_BUSY' }
+  | { readonly kind: 'ORIGINAL_ROOT_PRESERVATION_RACE'; readonly reason: string }
+  | { readonly kind: 'HOLD'; readonly reason: string };
+
+function pinnedIdentityEqual(a: As1PinnedIdentity, b: As1PinnedIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino && a.mountId === b.mountId;
+}
+
+/**
+ * Run the fixed descriptor-relative original-root preservation algorithm over the injected seams (R2 recovery
+ * §4.4.2). It fails closed at every phase: ORIGINAL_ROOT_BUSY before any permission change if a process/lock exists;
+ * ORIGINAL_ROOT_PRESERVATION_RACE if a lock/process/root-identity/traversal/digest change wins any interval; HOLD if
+ * the R2-only manifest is unproven, a component is rejected, or the seal is incomplete. The FINAL byte/path digest is
+ * computed ONLY after the final process/lock/identity/traversal/immutable proofs and MUST equal the initial digest.
+ */
+export function preserveOriginalRootTree(seams: As1OriginalRootPreservationSeams): As1OriginalRootPreservationOutcome {
+  // Step 1 (§4.4.1): install the R2-only build first, then pin. Before ANY permission change, prove no AS1 process and
+  // no original lock — otherwise ORIGINAL_ROOT_BUSY.
+  if (!seams.reproveInstalledR2Manifest()) return { kind: 'HOLD', reason: 'R2_MANIFEST_UNPROVEN' };
+  if (seams.as1ProcessActive() || seams.originalLockPresent()) return { kind: 'ORIGINAL_ROOT_BUSY' };
+  const pinnedRoot = seams.currentRootIdentity();
+
+  // Steps 2-4: sorted no-follow traversal (a rejected component throws), then the initial byte/path digest.
+  let entries: readonly As1PreservationEntry[];
+  try {
+    entries = seams.scanEntries();
+  } catch (error) {
+    return { kind: 'HOLD', reason: `REJECTED_ENTRY:${releaseErrorCode(error)}` };
+  }
+  const initialDigest = seams.computeDigest(entries);
+
+  // Step 5: re-prove the R2-only manifest, pinned root identity, unchanged traversal, and unchanged initial digest.
+  const step5 = reproveInvariant(seams, pinnedRoot, initialDigest);
+  if (step5 !== null) return step5;
+
+  // Step 6: establish exclusive namespace quiescence. Prove no process/lock/root-drift IMMEDIATELY BEFORE the seal —
+  // a lock or root substitution that won the interval after the initial scan halts here with NO permission change.
+  if (seams.as1ProcessActive() || seams.originalLockPresent()) {
+    return { kind: 'ORIGINAL_ROOT_PRESERVATION_RACE', reason: 'LOCK_OR_PROCESS_APPEARED_BEFORE_QUIESCENCE' };
+  }
+  if (!pinnedIdentityEqual(seams.currentRootIdentity(), pinnedRoot)) {
+    return { kind: 'ORIGINAL_ROOT_PRESERVATION_RACE', reason: 'ROOT_IDENTITY_DRIFT_BEFORE_QUIESCENCE' };
+  }
+  seams.sealNamespace(); // remove write bits + FS_IMMUTABLE_FL on the root + locks directory
+  // Immediately re-prove after the seal (a lock or substitution during the seal interval fails closed).
+  const step6 = reproveInvariant(seams, pinnedRoot, initialDigest);
+  if (step6 !== null) return step6;
+
+  // Step 7: seal every remaining pinned directory/regular file. A partial failure stays fail-closed (never unseals).
+  for (const entry of entries) seams.sealEntry(entry.relativePath);
+
+  // Step 8: final proofs, THEN the final digest — and only then require final == initial and a complete seal.
+  const step8 = reproveInvariant(seams, pinnedRoot, initialDigest);
+  if (step8 !== null) return step8;
+  const finalEntries = seams.scanEntries();
+  const finalDigest = seams.computeDigest(finalEntries);
+  if (finalDigest !== initialDigest) {
+    return { kind: 'ORIGINAL_ROOT_PRESERVATION_RACE', reason: 'FINAL_DIGEST_MISMATCH' };
+  }
+  if (finalEntries.some((entry) => entry.writable || !entry.immutable)) {
+    return { kind: 'HOLD', reason: 'INCOMPLETE_SEAL' }; // zero write bits + immutable flag required on EVERY entry
+  }
+  return { kind: 'PRESERVED', initialDigest, finalDigest, entryCount: entries.length };
+}
+
+/** Re-prove the R2-only manifest, no process, no lock, the pinned root identity, and the unchanged traversal digest. */
+function reproveInvariant(
+  seams: As1OriginalRootPreservationSeams,
+  pinnedRoot: As1PinnedIdentity,
+  initialDigest: string,
+): As1OriginalRootPreservationOutcome | null {
+  if (!seams.reproveInstalledR2Manifest()) return { kind: 'HOLD', reason: 'R2_MANIFEST_UNPROVEN' };
+  if (seams.as1ProcessActive() || seams.originalLockPresent()) {
+    return { kind: 'ORIGINAL_ROOT_PRESERVATION_RACE', reason: 'LOCK_OR_PROCESS_APPEARED' };
+  }
+  if (!pinnedIdentityEqual(seams.currentRootIdentity(), pinnedRoot)) {
+    return { kind: 'ORIGINAL_ROOT_PRESERVATION_RACE', reason: 'ROOT_IDENTITY_DRIFT' };
+  }
+  let entries: readonly As1PreservationEntry[];
+  try {
+    entries = seams.scanEntries();
+  } catch (error) {
+    return { kind: 'HOLD', reason: `REJECTED_ENTRY:${releaseErrorCode(error)}` };
+  }
+  if (seams.computeDigest(entries) !== initialDigest) {
+    return { kind: 'ORIGINAL_ROOT_PRESERVATION_RACE', reason: 'TRAVERSAL_CHANGED' };
+  }
+  return null;
 }

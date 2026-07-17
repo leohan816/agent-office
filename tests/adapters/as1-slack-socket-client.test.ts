@@ -887,3 +887,63 @@ describe('AS1 raw socket transport — pre-Socket connect reservation (B05 V7)',
     expect(ctx.transport.getPhase()).toBe('CLOSED'); // the clean stopped state is intact
   });
 });
+
+// R2 recovery design §3.3/§3.4: the armed post-hello Socket must DELIVER the exact ordinary depth-10 rich-text
+// message once through the normal path (no malformed-frame latch), and must REJECT the one-level-over depth-11
+// mutation with the existing stable malformed-frame observation — one durable owning-profile latch, no handler,
+// no Socket ACK, and no raw frame text in any log or latch reason.
+const richTextEventFrame = (inlineTextElement: Record<string, unknown>): Buffer =>
+  Buffer.from(
+    JSON.stringify({
+      type: 'events_api',
+      envelope_id: 'Env0AGENTOFFICE01',
+      accepts_response_payload: false,
+      payload: {
+        type: 'event_callback',
+        team_id: 'TWORKSPACE001',
+        api_app_id: APP_ID,
+        event_id: 'Ev0AGENTOFFICE01',
+        event_time: 1720000000,
+        authorizations: [
+          { enterprise_id: null, team_id: 'TWORKSPACE001', user_id: 'UAGENTBOT001', is_bot: true, is_enterprise_install: false },
+        ],
+        event: {
+          type: 'message',
+          user: 'ULEO0000001',
+          channel: 'CAGENTOFFICE01',
+          channel_type: 'group',
+          ts: '1720000000.000100',
+          event_ts: '1720000000.000100',
+          text: 'please start a new mission',
+          blocks: [{ type: 'rich_text', block_id: 'b1', elements: [{ type: 'rich_text_section', elements: [inlineTextElement] }] }],
+        },
+      },
+    }),
+    'utf8',
+  );
+
+describe('AS1 raw socket transport — R2 Socket-local depth 10 through an armed Socket (design §3)', () => {
+  it('delivers the exact depth-10 rich-text frame to the handler exactly once with no malformed-frame latch', async () => {
+    const ctx = await connectReady();
+    ctx.fakeWs.emit('message', richTextEventFrame({ type: 'text', text: 'please start a new mission' }), false);
+    await flush();
+    expect(ctx.received).toHaveLength(1); // reaches the handler once through the normal path
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY'); // no latch
+    expect(ctx.durableLatches).toHaveLength(0);
+  });
+
+  it('rejects the depth-11 mutation with one durable latch, no handler, no ACK, and no raw frame text', async () => {
+    const ctx = await connectReady();
+    ctx.fakeWs.emit('message', richTextEventFrame({ type: 'text', text: 'please start a new mission', unexpected: { leaf: true } }), false);
+    await flush();
+    expect(ctx.received).toHaveLength(0); // no handler call
+    expect(ctx.fakeWs.sent).toHaveLength(0); // no Socket ACK
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches).toHaveLength(1); // one durable owning-profile latch
+    for (const line of [...ctx.logs, ...ctx.durableLatches]) {
+      expect(line).not.toContain('please start a new mission');
+      expect(line).not.toContain('leaf');
+      expect(line).not.toContain('unexpected');
+    }
+  });
+});

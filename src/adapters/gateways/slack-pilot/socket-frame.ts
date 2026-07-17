@@ -11,9 +11,21 @@
 // `unknown`, walks bounded structure, and accepts only the exact events-api outer keys.
 import { DomainError } from '../../../contracts/types.js';
 import { assertRecord, isRecord } from '../../../contracts/validation.js';
-import { LIMITS, SLACK_ID_GRAMMARS, assertBoundedJsonStructure } from '../../../application/slack-pilot/contracts.js';
+import { LIMITS, SLACK_ID_GRAMMARS } from '../../../application/slack-pilot/contracts.js';
 
 const APP_ID = SLACK_ID_GRAMMARS.appId;
+
+/**
+ * Socket-only maximum JSON nesting depth for the POST-HELLO event structural walk (R2 recovery design §3.2). The
+ * shared LIMITS.JSON_NESTING_DEPTH_MAX stays exactly 8 for every other caller; this local boundary permits the
+ * ordinary plain rich-text message whose deepest path is the inline text primitive at depth 10 (Events API outer
+ * =1 … inline text element object =9, inline text primitive =10). It is two levels narrower than an unbounded
+ * block parser: an optional deeper block structure (e.g. an inline child object with a primitive below it) is
+ * depth 11 and fails closed. The pilot does not interpret blocks; the authoritative content is the separately
+ * bounded event.text string. This constant is intentionally local to socket-frame.ts so the general JSON contract
+ * is never silently redefined.
+ */
+const SOCKET_EVENT_JSON_DEPTH_MAX = 10;
 const PLAIN_KEY = /^[a-z_]{1,32}$/u;
 const OPAQUE_ID = /^[\x21-\x7e]{1,128}$/u;
 
@@ -246,8 +258,44 @@ export function parseTrustedJson(text: string): unknown {
   } catch {
     throw frameError('event frame is not valid JSON');
   }
-  assertBoundedJsonStructure(value, 'event frame', LIMITS.RAW_SOCKET_ENVELOPE_MAX_BYTES);
+  assertSocketBoundedJsonStructure(value);
   return value;
+}
+
+/**
+ * Socket-local bounded structural walk (R2 recovery design §3.2). Preserves every existing bound — JSON.stringify
+ * of the parsed value at most 32,768 UTF-8 bytes, every array at most LIMITS.PARSED_ARRAY_MAX entries — and uses
+ * the exact same counting convention as the shared walk (the outer value is depth 1; every object property or
+ * array element, including a primitive leaf, advances depth by one). The ONLY difference from the shared walk is
+ * the local depth ceiling of SOCKET_EVENT_JSON_DEPTH_MAX (10) instead of LIMITS.JSON_NESTING_DEPTH_MAX (8). Over
+ * -depth, oversized arrays, and non-serializable values reject before any field access; no rejection includes raw
+ * bytes, values, IDs, URLs, tokens, or provider text.
+ */
+function assertSocketBoundedJsonStructure(value: unknown): void {
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(value);
+  } catch {
+    throw frameError('event frame is not serializable JSON');
+  }
+  if (typeof serialized !== 'string' || Buffer.byteLength(serialized, 'utf8') > LIMITS.RAW_SOCKET_ENVELOPE_MAX_BYTES) {
+    throw frameError('event frame exceeds its bounded byte size');
+  }
+  walkSocketBoundedJson(value, 1);
+}
+
+function walkSocketBoundedJson(value: unknown, depth: number): void {
+  if (depth > SOCKET_EVENT_JSON_DEPTH_MAX) {
+    throw frameError('event frame exceeds the maximum Socket event JSON nesting depth');
+  }
+  if (Array.isArray(value)) {
+    if (value.length > LIMITS.PARSED_ARRAY_MAX) {
+      throw frameError('event frame array exceeds the maximum entry count');
+    }
+    for (const item of value) walkSocketBoundedJson(item, depth + 1);
+  } else if (isRecord(value)) {
+    for (const key of Object.keys(value)) walkSocketBoundedJson(value[key], depth + 1);
+  }
 }
 
 /** Validate an already-parsed, already-bounded value under the exact events-api outer contract. */

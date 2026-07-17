@@ -10,7 +10,9 @@ import {
   As1Outbox,
   As1OutboundError,
   renderOutbound,
+  userStatusOutboundId,
   type As1OutboundRecord,
+  type As1UserStatusKind,
 } from '../../src/application/slack-pilot/outbox.js';
 import type { As1AcceptedOutbound } from '../../src/application/slack-pilot/evidence-ingress.js';
 import { FakeClock, FakeWebPort, sealAcceptedOutboundVia } from '../helpers/as1-slack-fakes.js';
@@ -250,5 +252,81 @@ describe('AS1 outbound transport', () => {
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
     expect(result.attempts).toBe(3);
     expect(web.posted).toHaveLength(3);
+  });
+});
+
+// R2 recovery design §5: the narrow closed same-thread user-status sender. It shares the exact accepted send state
+// machine; it accepts neither a target nor free-form text.
+const STATUS_TEXT: Readonly<Record<As1UserStatusKind, string>> = {
+  ACCEPTED: '요청 접수 완료 · Advisor에게 전달 중',
+  DELIVERY_CONFIRMED: '메시지 전달 완료 · 답변 대기 중',
+  DELIVERY_FAILED: '전달 실패 · 요청은 실행되지 않았습니다',
+  PROCESSING_FAILED: '처리 실패 · 안전하게 중지되었습니다',
+};
+const ALL_KINDS: readonly As1UserStatusKind[] = ['ACCEPTED', 'DELIVERY_CONFIRMED', 'DELIVERY_FAILED', 'PROCESSING_FAILED'];
+const INTAKE = 'as1-intake-0001';
+
+describe('AS1 same-thread user status (R2 recovery design §5)', () => {
+  it('renders each kind to EXACTLY its constant Korean text on the profile channel and accepted rootTs', async () => {
+    for (const kind of ALL_KINDS) {
+      const { web, outbox } = await makeOutbox();
+      const result = await outbox.sendStatus(INTAKE, kind);
+      expect(result.outcome).toBe('DELIVERED');
+      expect(web.posted).toHaveLength(1);
+      expect(web.posted[0]?.request).toStrictEqual({ channel: 'CAGENTOFFICE01', threadTs: ROOT_TS, text: STATUS_TEXT[kind] });
+      // No token, dynamic error, stack, path, session id, raw frame, or payload leaks into the message.
+      expect(web.posted[0]?.request.text).not.toMatch(/xox|token|sha256:|Error|\/home\/|Ev0|as1-intake/u);
+    }
+  });
+
+  it('derives four stable, distinct 74-byte deterministic ids with no caller nonce', () => {
+    const ids = ALL_KINDS.map((k) => userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, k));
+    for (const id of ids) {
+      expect(id).toMatch(/^as1status-[0-9a-f]{64}$/u);
+      expect(Buffer.byteLength(id, 'utf8')).toBe(74);
+    }
+    expect(new Set(ids).size).toBe(4); // distinct per kind
+    // Stable: same profile/intake/kind → identical id (no timestamp/retry/nonce).
+    expect(userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'ACCEPTED')).toBe(ids[0]);
+    // A different intake yields a different id.
+    expect(userStatusOutboundId('AGENT_OFFICE_ADVISOR', 'as1-intake-9999', 'ACCEPTED')).not.toBe(ids[0]);
+  });
+
+  it('posts a same-kind status exactly once across replays (no blind resend)', async () => {
+    const { web, outbox } = await makeOutbox();
+    expect((await outbox.sendStatus(INTAKE, 'ACCEPTED')).outcome).toBe('DELIVERED');
+    const again = await outbox.sendStatus(INTAKE, 'ACCEPTED');
+    expect(again.outcome).toBe('DELIVERED');
+    expect(again.phase).toBe('RESPONSE_RECORDED');
+    expect(web.posted).toHaveLength(1); // one network send for one deterministic status id
+  });
+
+  it('sends NO network when the accepted root is missing or its key hash disagrees', async () => {
+    const none = await makeOutbox({ seedRoot: 'none' });
+    expect((await none.outbox.sendStatus(INTAKE, 'ACCEPTED')).outcome).toBe('REJECTED_ROOT');
+    expect(none.web.posted).toHaveLength(0);
+    const wrong = await makeOutbox({ seedRoot: 'wrong' });
+    expect((await wrong.outbox.sendStatus(INTAKE, 'ACCEPTED')).outcome).toBe('REJECTED_ROOT');
+    expect(wrong.web.posted).toHaveLength(0);
+  });
+
+  it('never resends after a durable REQUEST_STARTED: it latches and moves to manual reconciliation', async () => {
+    const { store, web, outbox, latched } = await makeOutbox();
+    const id = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'ACCEPTED');
+    await store.recordOutboxPhase(id, 'PREPARED', { requestHash: `sha256:${'1'.repeat(64)}` });
+    await store.recordOutboxPhase(id, 'REQUEST_STARTED');
+    const result = await outbox.sendStatus(INTAKE, 'ACCEPTED');
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(web.posted).toHaveLength(0);
+    expect(latched.length).toBeGreaterThan(0);
+  });
+
+  it('latches on an ambiguous status post and attempts no alternate status as a fallback', async () => {
+    const { web, outbox, latched } = await makeOutbox();
+    web.setPostScript([new As1OutboundError('AMBIGUOUS', 'timeout after request write')]);
+    const result = await outbox.sendStatus(INTAKE, 'ACCEPTED');
+    expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
+    expect(latched.length).toBeGreaterThan(0);
+    expect(web.posted).toHaveLength(1); // the one ambiguous attempt only — no alternate status is tried
   });
 });
