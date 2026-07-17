@@ -23,6 +23,7 @@ import type { As1InboundEnvelope, As1SocketConnectInput, As1SocketConnectResult 
 import type { As1WebPort } from '../../src/adapters/gateways/slack-pilot/web-client.js';
 import {
   As1GatewayComposition,
+  AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
   parseRuntimeDescriptor,
   type As1CompositionDependencies,
   type As1CompositionSocketPort,
@@ -172,6 +173,44 @@ class FakeTmuxObservationPort implements As1TmuxObservationPort {
   }
 }
 
+/** A tmux port that returns the fixed profile-bound destination, except that when `failNextObserve` is set it returns
+ *  a profile-mismatching destination on the NEXT observe and resets — used to force ONE personal-mode per-message
+ *  delivery failure (the built internal lease then does not bind the profile → STOPPED_BEFORE_PASTE) and prove the
+ *  owner posts DELIVERY_FAILED, does not latch, and continues to the next Leo root. */
+class ControllableTmuxObservationPort implements As1TmuxObservationPort {
+  public pasteCalls = 0;
+  public enterCalls = 0;
+  public failNextObserve = false;
+  public constructor(
+    private readonly ok: As1TmuxDestination,
+    private readonly mismatch: As1TmuxDestination,
+  ) {}
+  public observe(): Promise<As1TmuxDestination> {
+    if (this.failNextObserve) {
+      this.failNextObserve = false;
+      return Promise.resolve(this.mismatch);
+    }
+    return Promise.resolve(this.ok);
+  }
+  public bufferExists(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+  public loadVerifiedBuffer(): Promise<void> {
+    return Promise.resolve();
+  }
+  public pasteBuffer(): Promise<void> {
+    this.pasteCalls += 1;
+    return Promise.resolve();
+  }
+  public sendEnter(): Promise<void> {
+    this.enterCalls += 1;
+    return Promise.resolve();
+  }
+  public deleteBuffer(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 async function buildDeliveryAuthority(
   stateRoot: string,
   store: As1ProfileInboundStore,
@@ -255,6 +294,8 @@ async function startAgentOfficeComposition(options: {
   readonly decorateInboundStore?: (store: As1ProfileInboundStore) => As1ProfileInboundStore;
   readonly stateRoot?: string;
   readonly personalLeoOnly?: boolean;
+  readonly tmuxPort?: FakeTmuxObservationPort | ControllableTmuxObservationPort;
+  readonly expectedPersonalRoot?: string;
 } = {}) {
   const stateRoot = options.stateRoot ?? (await makeStateRoot());
   const world = fakeWireWorld();
@@ -267,12 +308,16 @@ async function startAgentOfficeComposition(options: {
   });
   const gitSource = new FakeGitSource();
   const socket = options.socket ?? new FakeCompositionSocket();
-  const tmuxPort = new FakeTmuxObservationPort(parseTmuxDestination(validDestination(), 'destination'));
+  const tmuxPort = options.tmuxPort ?? new FakeTmuxObservationPort(parseTmuxDestination(validDestination(), 'destination'));
   const clock = new FakeClock(CLOCK_ISO);
   const composition = await As1GatewayComposition.open(descriptor, {
     stateRoot,
     clock,
     personalLeoOnly: options.personalLeoOnly === true,
+    // Handoff 116 narrow test seam: a temporary root satisfies the personal-mode gate WITHOUT touching the live fixed
+    // root; production omits this and the gate stays the exact leo-v1 literal. A test may pass a DIFFERENT expected root
+    // to exercise the fail-closed gate.
+    ...(options.personalLeoOnly === true ? { expectedPersonalRoot: options.expectedPersonalRoot ?? stateRoot } : {}),
     deps: {
       gitSource,
       web: world.web,
@@ -371,11 +416,89 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     // The personal Leo-only mode binds ONLY the fixed leo-v1 state root. A composition opened in that mode against any
     // other root (here the temp harness root) never arms receive — it returns DISABLED_DEFAULT_NO_AUTHORITY before any
     // authority is observed, so no message is accepted and the R2/original roots are never operated on.
-    const { composition } = await startAgentOfficeComposition({ personalLeoOnly: true });
+    // Require the EXACT production leo-v1 literal as the expected root (never the temp harness root), so the gate is the
+    // real fail-closed path: a personal composition on any other root returns DISABLED before any authority is observed.
+    const { composition } = await startAgentOfficeComposition({ personalLeoOnly: true, expectedPersonalRoot: AS1_PERSONAL_LEO_ONLY_STATE_ROOT });
     try {
       const start = await composition.start();
       expect(start.connected).toBe(false);
       expect(start.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('handoff 116 §5/§6: personal Leo-only delivers via the internal per-message lease with NO Git grant/lease', async () => {
+    const { composition, socket, tmuxPort, gitSource } = await startAgentOfficeComposition({ personalLeoOnly: true });
+    try {
+      const start = await composition.start();
+      expect(start.connected).toBe(true);
+      await socket.deliver(slackEnvelope());
+      expect(composition.lastIntake()).not.toBeNull();
+      const result = await composition.deliverPending();
+      expect(result.outcome).toBe('DELIVERED'); // the auto-created internal lease delivered through the fixed %26 pane
+      expect(tmuxPort.pasteCalls).toBe(1);
+      expect(tmuxPort.enterCalls).toBe(1);
+      // No Git pointer-delivery grant or readiness lease was ever observed — the delivery authority is entirely internal.
+      expect(
+        gitSource.acceptedCalls.some((c) => c.path.includes('pointer-delivery-grant.json') || c.path.includes('readiness-lease.json')),
+      ).toBe(false);
+      expect(await composition.ingestEvidenceAndProject()).toContain('ACK:NOT_READY');
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('handoff 116 §1/§4: personal Leo-only processes two sequential Leo roots via fresh per-message internal grants', async () => {
+    const { composition, socket, tmuxPort } = await startAgentOfficeComposition({ personalLeoOnly: true });
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
+      const intake1 = composition.lastIntake();
+      expect(intake1).not.toBeNull();
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      await composition.ingestEvidenceAndProject();
+      // The owner remains running: after the delivered result it resets and mints a fresh single-use grant (one grant
+      // equals one root) for the next Leo root, which is accepted and delivered sequentially.
+      composition.resetForNextLeoRoot();
+      expect(composition.lastIntake()).toBeNull();
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
+      const intake2 = composition.lastIntake();
+      expect(intake2).not.toBeNull();
+      expect(intake2).not.toBe(intake1); // a DISTINCT second top-level root produced a new intake (not rejected)
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      expect(tmuxPort.pasteCalls).toBe(2);
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('handoff 116 §7: a personal Leo-only per-message delivery failure posts FAILED, does NOT latch, and the next root proceeds', async () => {
+    const tmuxPort = new ControllableTmuxObservationPort(
+      parseTmuxDestination(validDestination(), 'ok'),
+      parseTmuxDestination(validDestination({ sessionName: 'not-the-advisor' }), 'bad'),
+    );
+    const { composition, socket, stateRoot } = await startAgentOfficeComposition({ personalLeoOnly: true, tmuxPort });
+    try {
+      const start = await composition.start(); // startup destination validation observes the OK pane and passes
+      expect(start.connected).toBe(true);
+      // Message 1: the next observe returns a profile-mismatching pane, so the built internal lease does not bind the
+      // selected profile and delivery stops before paste (a per-message failure).
+      tmuxPort.failNextObserve = true;
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
+      const failed = await composition.deliverPending();
+      expect(failed.outcome).toBe('STOPPED_BEFORE_PASTE');
+      expect(composition.personalMessageFailurePending()).toBe(true); // DELIVERY_FAILED posted; message-local
+      // §7: no profile latch for a per-message failure (reserved for the corruption classes).
+      const latchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');
+      expect((JSON.parse(latchRaw) as { readonly latched: boolean }).latched).toBe(false);
+      // The owner resets and the NEXT valid Leo root proceeds and delivers.
+      composition.resetForNextLeoRoot();
+      expect(composition.personalMessageFailurePending()).toBe(false);
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
+      expect(composition.lastIntake()).not.toBeNull();
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      expect(tmuxPort.pasteCalls).toBe(1); // only message 2 pasted; message 1 stopped before paste
     } finally {
       await composition.stop();
     }

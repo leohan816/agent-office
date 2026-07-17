@@ -103,6 +103,10 @@ const AS1_LEO_ADVISOR_SESSION_NAME = 'agent-office-advisor';
  *  (grant <= 5 min, lease <= 30 s) enforced by `parsePointerDeliveryGrant` / `parseReadinessLease`. */
 const AS1_INTERNAL_GRANT_LIFETIME_MS = 4 * 60 * 1000;
 const AS1_INTERNAL_LEASE_LIFETIME_MS = 25 * 1000;
+/** Handoff 116 §5 (PERSONAL_LEO_ONLY): the lifetime of an internally-minted single-use receive grant. One grant binds
+ *  exactly one root; a fresh grant is minted per message, so this bounds a single round trip (well under the 15-minute
+ *  receive-grant ceiling `parseReceiveGrant` enforces) and needs no external response window. */
+const AS1_INTERNAL_RECEIVE_GRANT_LIFETIME_MS = 10 * 60 * 1000;
 
 const DESCRIPTOR_SCHEMA_VERSION = 'agent-office.as1-slack-pilot-descriptor.v1' as const;
 const DESCRIPTOR_KEYS = ['schemaVersion', 'enabled', 'receiveGrantRef', 'secretFilePath'] as const;
@@ -272,6 +276,13 @@ export class As1GatewayComposition {
    *  accepted internal delivery, so the same-message evidence round trip reuses it WITHOUT observing any Git grant. */
   private internalDeliveryGrant: As1PointerDeliveryGrantV1 | null = null;
   private internalLease: As1AdvisorReadinessLeaseV1 | null = null;
+  /** Handoff 116 §7 (PERSONAL_LEO_ONLY): a per-message delivery/processing failure posted its FAILED status and is
+   *  LOCAL to that message — no profile/global latch. The owner loop consumes this to reset and continue to the next
+   *  Leo root. Distinct from `failureAdmission`/`progressionHalted`, which stay reserved for the corruption classes. */
+  private personalMessageFailed = false;
+  /** Handoff 116 §5 (PERSONAL_LEO_ONLY): monotonic sequence for the per-message minted single-use receive grants, so
+   *  each minted grant carries a unique `receiveGrantId` (hence its own immutable binding — no reuse, no key change). */
+  private leoRootSeq = 0;
 
   private constructor(
     private readonly descriptor: As1RuntimeDescriptorV1,
@@ -284,6 +295,10 @@ export class As1GatewayComposition {
      *  (no Git pointer-delivery grant / readiness lease is observed); per-message parse/delivery/work failures are
      *  local to that message and only credential/identity/fixed-destination/durable-state corruption stops the owner. */
     private readonly personalLeoOnly: boolean,
+    /** Handoff 116: the state root the PERSONAL_LEO_ONLY gate requires. Production leaves this the exact fixed leo-v1
+     *  literal (`AS1_PERSONAL_LEO_ONLY_STATE_ROOT`); a focused test may inject a temporary root through the composition
+     *  boundary so the positive paths run WITHOUT touching the live fixed root. Never a caller/env/message value. */
+    private readonly expectedPersonalRoot: string,
   ) {
     this.control = control;
   }
@@ -291,6 +306,11 @@ export class As1GatewayComposition {
   /** Handoff 116: is this composition the Founder-approved personal Leo-only runtime? */
   public isPersonalLeoOnly(): boolean {
     return this.personalLeoOnly;
+  }
+
+  /** Handoff 116 §7: has a per-message local failure been recorded (FAILED posted, no latch) awaiting owner reset? */
+  public personalMessageFailurePending(): boolean {
+    return this.personalMessageFailed;
   }
 
   /**
@@ -309,6 +329,10 @@ export class As1GatewayComposition {
       readonly onLockAcquired?: () => void;
       /** Handoff 116: enable the personal Leo-only runtime (internal per-message lease; message-local failures). */
       readonly personalLeoOnly?: boolean;
+      /** Handoff 116: the state root the personal Leo-only gate requires. Omitted in production (defaults to the exact
+       *  fixed leo-v1 literal, so the production gate is unchanged); a focused test may inject a temporary root so the
+       *  positive paths run through the composition boundary WITHOUT touching the live fixed root. */
+      readonly expectedPersonalRoot?: string;
     },
   ): Promise<As1GatewayComposition> {
     const foreground = options.deps !== undefined;
@@ -316,7 +340,15 @@ export class As1GatewayComposition {
       retainLockForForeground: foreground,
       ...(options.onLockAcquired !== undefined ? { onLockAcquired: options.onLockAcquired } : {}),
     });
-    return new As1GatewayComposition(descriptor, control, options.stateRoot, options.clock, options.deps ?? null, options.personalLeoOnly === true);
+    return new As1GatewayComposition(
+      descriptor,
+      control,
+      options.stateRoot,
+      options.clock,
+      options.deps ?? null,
+      options.personalLeoOnly === true,
+      options.expectedPersonalRoot ?? AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
+    );
   }
 
   /** Is the owned control still open (holding its lock)? Used by the owner to distinguish a reverted start from a
@@ -584,9 +616,9 @@ export class As1GatewayComposition {
     const receiveGrantRef = this.descriptor.receiveGrantRef;
 
     // Handoff 116 §1/§2/§9: the personal Leo-only runtime binds ONLY the fixed leo-v1 state root — never the R2 root or
-    // the original root. A wrong root fails closed before any authority is observed (a durable-state/identity corruption
-    // class that stops the owner, not a per-message failure).
-    if (this.personalLeoOnly && this.stateRoot !== AS1_PERSONAL_LEO_ONLY_STATE_ROOT) {
+    // the original root. A wrong root fails closed before any authority is observed. `expectedPersonalRoot` defaults to
+    // the exact fixed leo-v1 literal in production (gate unchanged); a focused test injects a temporary root.
+    if (this.personalLeoOnly && this.stateRoot !== this.expectedPersonalRoot) {
       return { connected: false, reason: 'DISABLED_DEFAULT_NO_AUTHORITY', state: this.control.getState() };
     }
 
@@ -861,6 +893,46 @@ export class As1GatewayComposition {
   /** The intake id the socket handler recorded for the one accepted root (design §7). */
   public lastIntake(): string | null {
     return this.lastIntakeId;
+  }
+
+  /**
+   * Handoff 116 §5 (PERSONAL_LEO_ONLY): internally mint ONE fresh single-use receive grant, derived from the
+   * startup-validated grant. It copies every startup-validated authority/binding field unchanged and overrides ONLY a
+   * fresh unique `receiveGrantId` (so it earns its own immutable single-root binding — no reuse, no slot reopen, no
+   * key change) and a fresh short lifetime. It requires no manual grant, caller input, env target, or response window,
+   * and `parseReceiveGrant` re-validates the exact schema/expiry ceilings. One grant binds exactly one root.
+   */
+  private mintNextReceiveGrant(previous: As1PilotReceiveGrantV1): As1PilotReceiveGrantV1 {
+    this.leoRootSeq += 1;
+    const nowIso = this.clock.now();
+    const nowMs = Date.parse(nowIso);
+    const idSuffix = hashCanonical({ base: previous.receiveGrantId, seq: this.leoRootSeq }).slice('sha256:'.length, 'sha256:'.length + 24);
+    return parseReceiveGrant({
+      ...previous,
+      receiveGrantId: `as1-leo-rg-${this.leoRootSeq}-${idSuffix}`,
+      issuedAt: nowIso,
+      expiresAt: new Date(nowMs + AS1_INTERNAL_RECEIVE_GRANT_LIFETIME_MS).toISOString(),
+    });
+  }
+
+  /**
+   * Handoff 116 §1/§7 (PERSONAL_LEO_ONLY): after a round trip completes (RESULT delivered) OR a per-message failure
+   * posts its FAILED status, clear ONLY this message's transient authority/progression state and mint + swap in a
+   * fresh single-use receive grant for the next root, so the owner remains running and accepts the next valid Leo root
+   * sequentially. No profile/global latch, no durable barrier — those stay reserved for the corruption classes.
+   */
+  public resetForNextLeoRoot(): void {
+    const live = this.live;
+    if (live === null) return;
+    const next = this.mintNextReceiveGrant(live.grant);
+    live.service.useReceiveGrant(next);
+    this.live = { ...live, grant: next };
+    this.lastIntakeId = null;
+    this.internalDeliveryGrant = null;
+    this.internalLease = null;
+    this.acceptedDeliveryGrant = null;
+    this.acceptedLease = null;
+    this.personalMessageFailed = false;
   }
 
   /**
@@ -1232,6 +1304,12 @@ export class As1GatewayComposition {
       return await this.projectAcceptedEvidence(live, deps, intakeId, authority);
     } catch (error) {
       await this.attemptProcessingFailure(live, deps, intakeId).catch(() => undefined);
+      // Handoff 116 §7: in PERSONAL_LEO_ONLY a processing failure that posted PROCESSING_FAILED is a per-message LOCAL
+      // failure — surface a benign marker (not a throw) so the owner resets and continues to the next root. A failure
+      // that reached no per-message local outcome (incident / durable-state corruption) still throws and halts.
+      if (this.personalLeoOnly && this.personalMessageFailed) {
+        return ['RESULT_OUTBOUND:PERSONAL_MESSAGE_FAILED'];
+      }
       throw error;
     }
   }
@@ -1379,6 +1457,19 @@ export class As1GatewayComposition {
    * barrier; a crash before/during the latch is re-derived from the unchanged outbox record on the next start.
    */
   private async enterFailureBarrier(live: LiveState, barrier: 'DELIVERY_FAILED_BARRIER' | 'PROCESSING_FAILED_BARRIER' | 'FAILURE_STATUS_CONFLICT'): Promise<void> {
+    // Handoff 116 §7: in PERSONAL_LEO_ONLY a DELIVERY_FAILED / PROCESSING_FAILED status is a per-message LOCAL failure —
+    // the FAILED status is already durable in the outbox; clear ONLY this message's transient authority and continue.
+    // NO profile/global latch. FAILURE_STATUS_CONFLICT (both siblings present) is a durable-state corruption and still
+    // latches even here, matching the reserved corruption classes.
+    if (this.personalLeoOnly && barrier !== 'FAILURE_STATUS_CONFLICT') {
+      this.personalMessageFailed = true;
+      this.lastIntakeId = null;
+      this.internalDeliveryGrant = null;
+      this.internalLease = null;
+      this.acceptedDeliveryGrant = null;
+      this.acceptedLease = null;
+      return;
+    }
     this.failureAdmission = barrier;
     this.lastIntakeId = null; // withhold the intake from delivery
     this.acceptedDeliveryGrant = null;
@@ -1400,6 +1491,18 @@ export class As1GatewayComposition {
    * barrier already latched wins and this only records the halt.
    */
   private async haltProgression(live: LiveState, reason: string): Promise<void> {
+    // Handoff 116 §7: in PERSONAL_LEO_ONLY a non-delivered STATUS is a per-message LOCAL failure — clear ONLY this
+    // message's transient authority and continue to the next root. NO profile latch (reserved for the corruption
+    // classes); the exact outbox state is preserved (no substitute status), exactly as the default path preserves it.
+    if (this.personalLeoOnly) {
+      this.personalMessageFailed = true;
+      this.lastIntakeId = null;
+      this.internalDeliveryGrant = null;
+      this.internalLease = null;
+      this.acceptedDeliveryGrant = null;
+      this.acceptedLease = null;
+      return Promise.resolve();
+    }
     this.progressionHalted ??= reason;
     this.lastIntakeId = null;
     this.acceptedDeliveryGrant = null;

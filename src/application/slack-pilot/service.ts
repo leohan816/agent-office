@@ -113,13 +113,29 @@ const AUTHORIZATION_KEYS = ['enterprise_id', 'team_id', 'user_id', 'is_bot', 'is
 
 export class As1InboundService {
   private latched = false;
+  /** The active receive grant. Fixed for the default runtime; in the PERSONAL_LEO_ONLY runtime the composition swaps
+   *  in a freshly-minted single-use grant per message (handoff 116) via `useReceiveGrant`, so every `this.grant`
+   *  reference below reads the current message's grant with no other change. */
+  private activeGrant: As1PilotReceiveGrantV1;
 
   public constructor(
     private readonly context: As1ProfileRuntimeContext,
-    private readonly grant: As1PilotReceiveGrantV1,
+    grant: As1PilotReceiveGrantV1,
     private readonly store: As1ProfileInboundStore,
     private readonly gate: As1ProfileControlPort,
-  ) {}
+  ) {
+    this.activeGrant = grant;
+  }
+
+  private get grant(): As1PilotReceiveGrantV1 {
+    return this.activeGrant;
+  }
+
+  /** Handoff 116 (PERSONAL_LEO_ONLY only): swap the active single-use receive grant BETWEEN messages. Never called by
+   *  the default runtime, so the fixed-grant behavior is byte-unchanged. */
+  public useReceiveGrant(grant: As1PilotReceiveGrantV1): void {
+    this.activeGrant = grant;
+  }
 
   public isLatched(): boolean {
     return this.latched;

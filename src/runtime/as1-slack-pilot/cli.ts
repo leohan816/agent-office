@@ -639,10 +639,16 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         if (delivery.phase !== 'AWAITING' && delivery.outcome === 'DELIVERED') {
           delivered = true;
         } else if (delivery.phase !== 'AWAITING') {
-          // Manual reconciliation, an ambiguous pre-paste stop, or any non-benign delivery outcome halts the owner (the
-          // composition already latched where required) — never a swallowed result nor an unbounded retry.
-          terminal = 'DELIVERY_HALTED';
-          break;
+          // Handoff 116 §7: in PERSONAL_LEO_ONLY a per-message delivery failure has already posted DELIVERY_FAILED and
+          // cleared only this message's transient state (no latch); reset and continue to the next valid Leo root.
+          if (composition.isPersonalLeoOnly() && composition.personalMessageFailurePending()) {
+            composition.resetForNextLeoRoot();
+          } else {
+            // Manual reconciliation, an ambiguous pre-paste stop, or any non-benign delivery outcome halts the owner (the
+            // composition already latched where required) — never a swallowed result nor an unbounded retry.
+            terminal = 'DELIVERY_HALTED';
+            break;
+          }
         }
         // A benign AWAITING (no grant/lease yet) simply keeps polling.
       }
@@ -659,9 +665,20 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
           terminal = 'DELIVERY_HALTED';
           break;
         }
-        if (outcomes.includes('RESULT_OUTBOUND:DELIVERED')) {
-          terminal = 'CLEAN_STOP';
-          break;
+        if (composition.isPersonalLeoOnly() && (outcomes.includes('RESULT_OUTBOUND:PERSONAL_MESSAGE_FAILED') || composition.personalMessageFailurePending())) {
+          // Handoff 116 §7: per-message processing failure — PROCESSING_FAILED already posted; reset and continue.
+          composition.resetForNextLeoRoot();
+          delivered = false;
+        } else if (outcomes.includes('RESULT_OUTBOUND:DELIVERED')) {
+          if (composition.isPersonalLeoOnly()) {
+            // Handoff 116 §1: the PERSONAL_LEO_ONLY owner remains running after a delivered result and accepts the next
+            // valid Leo root sequentially (a fresh single-use grant is minted for it). Default mode still stops clean.
+            composition.resetForNextLeoRoot();
+            delivered = false;
+          } else {
+            terminal = 'CLEAN_STOP';
+            break;
+          }
         }
         // Otherwise (ACK/RESULT evidence not ready yet, DELIVERY_CONFIRMED already posted) keep polling on the loop.
       }
