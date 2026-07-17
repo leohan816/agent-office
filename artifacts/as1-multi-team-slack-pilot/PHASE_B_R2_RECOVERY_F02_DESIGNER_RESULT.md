@@ -1,51 +1,52 @@
-# AS1 Phase B R2 Recovery F02 Designer Result
+# AS1 Phase B R2 Recovery F02 Designer Patch Result
 
 MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 
-WORK_UNIT: PHASE_B_R2_RECOVERY_F02_FIXED_ORIGINAL_ROOT_PRESERVATION_DESIGN
+WORK_UNIT: PHASE_B_R2_RECOVERY_F02_DESIGN_PATCH_D1_D6
 
 ACTOR: agent-office-designer
 
 ROLE: Agent Office Designer
 
 AUTHORITY:
-advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/102_PHASE_B_R2_RECOVERY_F02_DESIGNER_HANDOFF.md
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/105_PHASE_B_R2_RECOVERY_F02_DESIGN_PATCH_HANDOFF.md
 
-RUN_PROMPT:
-advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/102A_PHASE_B_R2_RECOVERY_F02_DESIGNER_RUN_PROMPT.md
-
-AUTHORITY_COMMIT: 50507326ee3c4e2dba9b6defd45ab73d3b599cc2
+AUTHORITY_COMMIT: ea8783b9572bfeb30f9896de273dd70c25b92878
 
 AUTHORITY_SHA256:
-739a740fc44cc0137a007c9b0436cd9ae74d0cbd06dbf809d44602a443bb49fe
+9e896c598da25ab0d3228bee9c63bc7cd51855b14c4a3fb65e1d39dbf8a3ee5c
 
-RUN_PROMPT_SHA256:
-928755d45af034486decfa5c8abe2d29f28933525a3a8ccb3e19054bf0e2a2f2
+REVIEW_RESULT:
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/104_PHASE_B_R2_RECOVERY_F02_INDEPENDENT_DESIGN_REVIEW_RESULT.md
 
-ADVISOR_AUDIT_101_SHA256:
-6222c6d8a51e8f8fb376c8ceac4ab85b346fff91b797afdf123099491ff64ea8
+REVIEW_RESULT_COMMIT: 7b0bdb43f2fcd00f1aceba6f9c1a23c5a2ea5132
+
+REVIEW_RESULT_SHA256:
+35488329b1634793cba26b20d41cf169e426644cac6fd6bc1b54a789bddd393f
 
 PRODUCT_BRANCH: feature/as1-phase-b-live-pilot-001
 
-PRODUCT_BASELINE: d0b14949181d89c2caeb4e93bca91a2ea1647c80
+PATCH_BASE: 44eb5975eca2de1b8cc9abda2ab749d422d1e7a7
 
 ACCEPTED_R2_DESIGN_COMMIT: a837bbf9d4072638a6dac676fb5ccc8da9bfa1ff
 
-DESIGN_STATE: READY_FOR_SAME_REVIEWER_F02_DESIGN_REVIEW
+DESIGN_STATE: READY_FOR_SAME_REVIEWER_F02_D1_D6_DELTA_REVIEW
 
-F02_DESIGN_HOLD: NO
+F02_DESIGN_HOLD: NO_KNOWN_ALLOWLIST_CONFLICT
 
-LIVE_R2_SLACK_ACTIVATION: BLOCKED
+LIVE_R2_SLACK_ACTIVATION: BLOCKED_F02
 
 RUNTIME_IMPLEMENTATION: NONE
 
-REAL_STATE_ROOT_ACCESS_OR_MUTATION: NONE
+ROOT_OR_SCRATCH_ACCESS_OR_MUTATION: NONE
 
-SECRET_ACCESS: NONE
+SECRET_OR_ENVIRONMENT_VALUE_ACCESS: NONE
 
-SLACK_CONNECTION_OR_POST: NONE
+SLACK_OR_NETWORK_CONNECTION: NONE
 
-TMUX_INPUT: NONE
+DESCRIPTOR_OR_PROCESS_ACTION: NONE
+
+TMUX_INPUT_OR_OTHER_ACTOR_ACTION: NONE
 
 PRODUCT_TEST_SUITES: NOT_RUN_BY_DESIGNER
 
@@ -55,9 +56,10 @@ RETURN_TO: agent-office-advisor
 
 ## Result
 
-The F02 design is review-ready. It closes the concrete helper/invocation gap
-identified by Advisor audit 101 without changing F01, Exact Delivery, Slack
-routing, identity, status behavior, or sequential profile operation.
+The bounded patch candidate applies only same-Reviewer findings F02-D1 through
+F02-D6. It preserves the accepted traversal/sealing algorithm, scratch
+validation sequence, R2/F01/Exact Delivery behavior, descriptor-disabled state,
+private bindings, and sequential one-profile operation.
 
 The patched design is:
 
@@ -65,129 +67,175 @@ docs/integration/AGENT_OFFICE_AS1_PHASE_B_R2_RECOVERY_DESIGN_DELTA.md
 
 Its SHA-256 is:
 
-1d31ce8b096f48780b7129e1e8516b89ae3b9a1d684a1fbb991d438b686e24a5
+b35c8e52f0f00822bfb8e0c4722707128a29ae7dbaefb2ae9bfbfb621851e9ec
 
-## Exact production helper and invocation
+## Finding disposition for same-Reviewer delta review
 
-The sole repository-owned production helper artifact is:
+### F02-D1 — noninteractive fixed invocation
 
-scripts/as1-preserve-original-root.mjs
+The candidate replaces interactive sudo with one detached `setsid --fork
+--wait`, empty-environment, `sudo -n`, isolated-Python bootstrap construction
+using fixed `/dev/null` stdin and discarded external stderr. S contains no
+runnable command; E binds the one reviewed M/J object and contains the sole
+final preservation command. Sudo denial is separately classified before helper output.
+A synthetic constructor must prove password, askpass, stdin, controlling-
+terminal, shell expansion, and retry paths are unreachable. The final E
+literal binds one canonical reviewed object containing M's digest and J's
+exact immutable journal-anchor facts.
 
-The sole production invocation is the fixed, zero-argument command recorded
-in design section 4.4.1. It uses `/usr/bin/sudo`, an empty environment with
-only fixed locale keys, the fixed Node executable, and the absolute helper
-path. The helper accepts no root/path/environment/CLI operand, discovery,
-fallback, copy, migration, repair, or unseal input.
+PATCH_DISPOSITION_F02_D1: READY_FOR_REVIEW
 
-The self-contained script uses only Node built-ins and a byte/hash-identified
-embedded Python literal executed through a no-follow-pinned
-`/usr/bin/python3.14` descriptor. Before original-root access, the child drops
-to UID/GID 1000 with only CAP_LINUX_IMMUTABLE and verifies that boundary.
+### F02-D2 — non-circular pre-execution trust
 
-## Required design closure
+The final command carries an inline, independently reviewed isolated-Python
+bootstrap. It embeds the reviewed manifest-file digest, authenticates that
+manifest before parsing, derives the helper digest from the authenticated
+manifest, retains no-follow Node/helper/manifest descriptors, and executes only
+`/proc/self/fd/3` plus `/proc/self/fd/4`. The manifest/helper do not contain the
+manifest-file or final-bootstrap hash, so the binding has no hash cycle and no
+pathname-reopen interval.
 
-1. One helper artifact: `scripts/as1-preserve-original-root.mjs`.
-2. One direct no-argument production invocation; no wrapper, package alias, or
-   AS1 CLI verb.
-3. Four future implementation paths, below the six-path ceiling.
-4. A canonical reviewed build/install manifest proves helper, source,
-   `dist/core`, descriptor, Node/Python, R2 literals, and sealed bridge facts
-   before original-root open.
-5. The only production state roots remain the fixed original and R2 literals.
-6. No caller-selected or environment-selected path/operation exists.
-7. The helper retains no-follow descriptors and pins ancestor/root/entry
-   identity, mount/device/type/link/entry set while rejecting path escape,
-   symlink, hard-link ambiguity, special files, and mount transitions.
-8. Namespace-first and then complete zero-write plus FS_IMMUTABLE_FL sealing
-   has no weaker fallback and no unseal code.
-9. The final canonical byte/path digest is computed only after final proofs and
-   must equal the initial digest; a fixed append-only redacted journal is
-   durably synced.
-10. Privilege, filesystem, provenance, quiescence, identity, traversal,
-    bounds, sealing, digest, or result-durability uncertainty is HOLD.
-11. Synthetic helper tests never resolve either root; a separately authorized
-    fixed-scratch test validates actual server filesystem/capability support
-    without touching either root.
-12. Activation is one-way: reviewed build and disabled proof, preserve,
-    read-only reverify, initialize only R2, reverify the Agent Office
-    destination, one round trip, then stop/audit.
+PATCH_DISPOSITION_F02_D2: READY_FOR_REVIEW
 
-Rollback never modifies or unseals the original root. It may only stop the R2
-owner, retain/restore disabled configuration, retain both roots and evidence,
-and perform journal-derived read-only reverification after PRESERVED.
+### F02-D3 — exact reproducible grammar
 
-## Exact future implementation allowlist
+The candidate fixes every manifest key and nested shape, ASCII canonical-JSON
+serializer and LF rule, decimal/hash/mode grammar, `REPO_TREE_V1` and
+`ORIGINAL_TREE_V1` domains/records/order/terminators, fixed generator and
+independently authored read-only reproducer, and the source S -> manifest M ->
+evidence-binding E sequence. Neither evidence surface has a state-root or
+operation selector.
+
+PATCH_DISPOSITION_F02_D3: READY_FOR_REVIEW
+
+### F02-D4 — closed import-safe seam
+
+The helper module exposes exactly seven named pure functions. Its exact
+direct-entry predicate alone reaches an unexported private production main;
+fixed paths, filesystem/process/journal/privilege adapters and scratch behavior
+remain private and non-injectable. Import evaluation has an explicit zero-I/O,
+zero-spawn, zero-root contract and namespace test.
+
+PATCH_DISPOSITION_F02_D4: READY_FOR_REVIEW
+
+### F02-D5 — interpreter and privilege transition
+
+The candidate fixes `/usr/bin/python3.14`, `-I -S -B -c`, literal operand, cwd,
+two-key environment, fd mapping, `/dev/null`, output caps, deadline, exit map,
+and conservative child-failure handling. It gives an ordered transition for
+all real/effective/saved/fs IDs, supplementary groups, securebits/keep-caps,
+bounding/permitted/effective/inheritable/ambient sets, `no_new_privs`, and exact
+`/proc/self/status` values. Any mismatch maps to one HOLD before root open.
+
+PATCH_DISPOSITION_F02_D5: READY_FOR_REVIEW
+
+### F02-D6 — monotonic anti-retry journal
+
+The authoritative journal moves from an owner-writable worktree file to one
+preinstalled root-owned fixed `/var/lib` path. Its dedicated directory is
+immutable and file append-only. The helper never creates or repairs it; it
+requires no-follow identity/owner/mode/link/flag proofs, `O_APPEND`, exclusive
+nonblocking flock, exact canonical hash-chained states, sync and complete
+pre/post-terminal rereads. Absence, deletion, replacement, truncation, tamper,
+ambiguity, HOLD, or concurrency can never become a fresh mutation attempt.
+The worktree JSONL is only a later redacted evidence projection.
+
+PATCH_DISPOSITION_F02_D6: READY_FOR_REVIEW
+
+## Exact future implementation allowlist retained
 
 1. scripts/as1-preserve-original-root.mjs
 2. docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md
 3. tests/operations/as1-slack-preservation-helper.test.ts
 4. tests/operations/as1-slack-lifecycle.test.ts
 
-Evidence manifest/result/pointer and later validation/operator journals require
-their own exact handoff but do not expand these four implementation paths.
-`writer-lock.ts`, `cli.ts`, `composition.ts`, `outbox.ts`, Exact Delivery, F01,
-the sealed pidfd bridge, package/dependencies, configuration, descriptor,
-secret, generated output, and both roots remain unchanged by this design.
+No package, dependency, config, descriptor, active `src`, generated `dist`,
+accepted F01 evidence, root, scratch, secret, Slack, tmux, process, or other
+actor surface is added to implementation scope.
 
-## Exact evidence surfaces for later handoffs
+## Exact later evidence and host surfaces
 
 - Build/install manifest:
   `artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_PRESERVATION_BUILD_INSTALL_MANIFEST.json`
-- Durable operator journal:
+- Journal-anchor install receipt:
+  `artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_PRESERVATION_JOURNAL_ANCHOR_INSTALL_RECEIPT.json`
+- Authoritative monotonic journal:
+  `/var/lib/agent-office/as1-f02-original-root-preservation/records.jsonl`
+- Redacted journal evidence projection:
   `artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_ORIGINAL_ROOT_PRESERVATION_OPERATOR_RESULT.jsonl`
 - Test-only server scratch:
   `/home/leo/.local/state/agent-office/.as1-f02-preservation-filesystem-validation`
 
-The manifest and journal contain redacted hashes/proofs only. They confer no
-activation or delivery authority.
+Those paths require later exact handoffs. This Designer did not stat, open,
+create, traverse, hash, chmod, seal, or mutate any of them except editing this
+design's text references to the future evidence paths.
 
 ## Required reads completed
 
-The Designer read the exact committed handoff/run prompt at 5050732, current
-repository entry instructions, Team operating model, Designer role, accepted
-design at a837bbf, current candidate d0b1494, the F02 HOLD in Advisor audit 101,
-the existing injected-seam algorithm in `writer-lock.ts`, and only the bounded
-setup, CLI, build, package, and lifecycle-test surfaces needed to name the
-helper and invocation.
-
-The accepted design file is byte-identical between a837bbf and d0b1494. The
-current product worktree began clean and upstream-equal at the exact baseline.
+The Designer read the exact handoff at governance commit ea8783b, repository
+entry instructions, Team operating model, Designer role, the existing design/
+result/pointer at exact patch base 44eb597, and the same-Reviewer result/pointer
+at governance commit 7b0bdb4. The Reviewer result SHA-256 matched the handoff.
+Only its cited writer-lock interpreter/preservation regions and bounded
+file/config names were read for implementability. The product worktree began
+clean, upstream-equal, on the authorized branch at the exact patch base.
 
 ## Validation and attempts
 
-The Designer ran only document, exact-path, hash, and Git checks. The design
-check passed with exactly four future implementation paths, one helper, one
-production invocation, ten Markdown fence lines, and clean `git diff --check`.
-No product lint, typecheck, build, test, privilege validation, or live check was
-run.
+The successful docs-only precheck proved: exact clean/upstream-equal base and
+authorized branch; exactly the three allowed modified paths; clean
+`git diff --check`; 28 paired Markdown fence lines; exactly four future
+implementation paths in design and result; exactly seven pure exports; exactly
+six design traceability rows/result dispositions/pointer dispositions; one
+review-binding marker only in the non-runnable S template; exactly one
+preservation command construction in section 4.4.1; absence of the old
+interactive sudo command; presence of the D1 denial, D2 trust, D3 grammar, D4
+export, D5 securebits, D6 journal, authority, and patch-base anchors.
 
-One read-only hash command mistyped the audit directory as
-`as1_multi_TEAM_SLACK_PILOT_001`. The authority/run-prompt hashes completed,
-but the audit read failed with a path-not-found error and wrote nothing. The
-exact lowercase-path retry succeeded and produced the audit SHA-256 recorded
-above.
+No product lint, typecheck, build, test, privilege, filesystem, helper, sudo,
+installer, root, scratch, live, network, descriptor, process, or tmux check was
+run by this Designer.
 
-The first combined docs-only precheck expected the capitalized fragment
-`The single repository-owned production helper artifact is exactly:`. The
-document line contains the lowercase fragment after a line break, so `rg`
-returned no count and the shell integer assertion stopped. The check wrote
-nothing; the retry used the exact lowercase fragment and passed.
+One `apply_patch` attempt used context beginning at `Installation fsyncs`, but
+the actual paragraph placed those words after the preceding sentence on the
+same line. Patch verification failed and changed nothing. The retry used the
+exact current context and succeeded.
 
-## Bounded unknowns
+A second `apply_patch` attempt expected `state-root literal` while the current
+line began `no state-root literal`. Patch verification failed and changed
+nothing. The exact-context retry succeeded.
 
-1. The future implementation source commit, helper/Python-literal byte hashes,
-   source/dist tree digests, and final manifest hash do not yet exist; Worker
-   and same-Reviewer evidence must fix them.
-2. CAP_LINUX_IMMUTABLE, descriptor fchmod, and immutable ioctl behavior on the
-   intended server filesystem are untested. The separately authorized scratch
-   validation must PASS or F02 remains HOLD.
-3. The production helper, manifest, scratch validation, preservation, R2
+The first aggregate docs-only precheck used a `sed` start pattern that omitted
+the Markdown backticks around `.mjs`, so its seven-export count was empty and
+the silent assertion stopped the command. Diagnostic counts identified only
+that check-pattern error; it wrote nothing. The corrected exact-heading range
+was used for the retry.
+
+That retry's orchestration string then included the literal Markdown backticks
+inside a JavaScript template string. The wrapper parsed them as template
+syntax and failed before invoking the shell, so no repository command or write
+occurred. The next retry used a backtick-free heading regex.
+
+One later read-only `rg` search placed the hyphen-leading `-I -S -c` pattern
+before the option terminator, so `rg` treated it as a flag and exited without
+reading a target or writing anything. The corrected search placed `--` before
+the pattern.
+
+## Remaining bounded unknowns
+
+1. Source S, manifest M, evidence commit E, helper/bootstrap/Python literal
+   bytes and hashes, exact system/journal-anchor identities, and final command
+   hash do not yet exist; later Worker/install/Reviewer evidence must bind them.
+2. The intended server's exact capability, securebits, immutable, append-only,
+   flock, descriptor-fchmod, and filesystem behavior is untested. Fixed-scratch
+   and journal-anchor validation remain separate HOLD gates.
+3. The helper, generator/reproducer, journal anchor, preservation, R2
    initialization, live destination preflight, and Slack round trip have not
    been implemented or executed.
 
-This Designer result is not independent review, implementation authority,
-privilege-validation authority, state-root authority, live authority, risk
-acceptance, final approval, or mission closure.
+This result is Designer evidence, not independent review, implementation or
+installation authority, privilege/root/scratch/live authority, risk acceptance,
+final approval, or mission closure.
 
 Return this result and its committed pointer to agent-office-advisor, then
 STOP.
