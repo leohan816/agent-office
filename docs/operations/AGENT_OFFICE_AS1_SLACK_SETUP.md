@@ -466,143 +466,61 @@ audit it, before a new value-only activation names the Foundation receive grant
 and its pilot runs. A failure in one pilot never authorizes switching to the
 other. There is no automatic restart, reconnect, or rollover.
 
-### 10.6 Original-root preservation gate (later operator step)
+### 10.6 Original-root handling (trusted-server rule)
 
-This is a LATER, exact operator step (R2 recovery design §4.4). It is not executed
-by implementation or by any normal `start`; it makes the original forensic root
-`/home/leo/.local/state/agent-office/as1-slack-pilot` byte/path-identical,
-zero-write, and immutable so it can never again obtain a writer lock. It is a
-fixed, no-argument, descriptor-relative helper: it accepts NO path, environment
-override, discovery result, or generic destination — its production root literal is
-only that original path. If the required descriptor-relative or Linux immutable-flag
-operation is unavailable on the actual filesystem with the authorized privilege,
-the gate returns `HOLD`; it never falls back to a path-based `find`/`chmod`
-traversal or a weaker claim. (A path or writer can race a shell path-based check;
-this gate does not.)
+For this private Leo-only pilot the Founder trusts this host and the `leo` Unix
+account, and explicitly SUPERSEDES the enterprise-grade F02 threat model. The
+proposed privileged original-root preservation helper, build/install manifest,
+monotonic host journal, `FS_IMMUTABLE_FL` immutable-seal framework, host
+attestation, and generic executable-trust framework are **superseded for this
+pilot and deferred to a separate later commercial hardening mission**. They are
+not implemented, installed, run, or claimed here; no immutable sealing of the
+original root has occurred, and no manifest, journal, receipt, seal, or privileged
+command is required or produced by this pilot.
 
-Install R2-only code first, while disabled. Before opening the original root, the
-operator installs the exact independently accepted implementation commit at the
-fixed active executable argv and records its build manifest. Against both the
-reviewed `src` tree and the installed `dist/core` tree the gate proves: the
-original absolute state-root literal has zero active occurrence; an old
-`stateRootId` comparison has zero active occurrence; the exact R2 root, R2 root ID,
-fixed R2 lock, and sealed R2 bridge facts are present at their specified sites;
-`start` and the observer surfaces accept no state-root operand, alternative
-environment value, discovery, compatibility read, or fallback; and every loaded
-product module is a regular, no-follow-opened, one-link object whose hash matches
-the manifest. Only after that proof — so any newly started AS1 owner would be
-R2-only — does preservation begin. The gate then proves from `/proc` that no exact
-AS1 owner argv is active and proves through the pinned original-root descriptor that
-`locks/writer.lock` is absent; a process or lock yields `ORIGINAL_ROOT_BUSY` before
-any permission change.
+The operational rule is simple and preserving by trusted-server convention, not by
+a kernel seal:
 
-Production helper status — HOLD (not yet represented; do not claim it exists). The
-complete fixed no-argument reviewed production helper/command required by design
-§4.4 is NOT delivered by this implementation Work Unit. It cannot be represented as
-a self-contained fixed literal here without either weakening the design or making an
-unvalidated claim: the mandatory R2-only build-manifest proof (§4.4.1 — the
-installed executable and every loaded product module hash-match the reviewed build
-manifest) depends on install-time build data that cannot be embedded in a fixed
-literal and must not be reduced to a caller assertion, and a root-privileged
-descriptor-relative forensic tool cannot be validated (mount-id enforcement,
-`/`-fd ancestor pinning, `FS_IMMUTABLE_FL` support, drift/digest proofs) without
-opening, inspecting, or mutating the real original root — which this Work Unit is
-forbidden to do. Therefore the production helper, its real-filesystem/privilege
-support, and its execution remain a later, explicit `HOLD` gate; no weaker
-path-based/mode-bit-only fallback and no unproven "helper exists" claim is
-permitted. The ordered algorithm below is the reviewed SPECIFICATION that the later
-production helper must implement in full, and the TypeScript `preserveOriginalRootTree`
-is its injected-seam ALGORITHM PROOF (control flow, identity pinning, race
-rejection, root-inode-swap rejection, final-digest-equals-initial ordering) exercised
-only over a temporary synthetic tree — it is NOT the production helper and never
-resolves a real state-root literal.
+- The only active state root is the fixed R2 root
+  `/home/leo/.local/state/agent-office/as1-slack-pilot-r2`. The owner and observer
+  surfaces resolve only this construction-bound literal and accept no state-root
+  operand, environment override, discovery, or fallback.
+- The original root `/home/leo/.local/state/agent-office/as1-slack-pilot` is
+  retained as untouched forensic evidence. By operational rule the operator never
+  resets, deletes, modifies, reuses, copies, migrates, or actively resolves it; no
+  active source, `start` path, or observer verb references it.
+- Before any state-root mutation, secret read, network, tmux, or live side effect,
+  `start` and `redacted-check` run the fixed trusted-Node application preflight in
+  the CLI: `process.execPath` must equal the exact trusted NVM Node, which must be
+  a regular non-symlink file with at least one execute bit and no group/world write
+  bit. It requires no root ownership, content hash, inode pin, `PATH`/`realpath`
+  discovery, alternatives, fallback, caller input, or environment selection; the
+  file may be owned by Leo. On failure the CLI fails closed with the single redacted
+  reason `TRUSTED_NODE_REQUIRED`, printing no path or metadata, and performs no
+  initialization, secret read, network, or tmux action.
 
-Fixed descriptor-relative algorithm (the reviewed specification the later HELD
-production helper must implement). It runs with the exact reviewed interpreter and
-only the privilege needed for the Linux immutable inode flag, and performs these
-ordered steps:
-
-1. Starting at a no-follow-opened `/` descriptor, `openat` every fixed ancestor,
-   the parent, root, and `locks` directory with `O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`;
-   retain the descriptors and record each `(st_dev, st_ino, mount-id)`. At every
-   phase, `fstatat` from the pinned parent with `AT_SYMLINK_NOFOLLOW` must still
-   name the same pinned root.
-2. Walk only by sorted directory entries and `openat` relative to retained
-   descriptors — never a concatenated pathname. Reject `.`, `..`, slash-bearing or
-   non-contained components, symlinks, devices, sockets, FIFOs, mount transitions,
-   duplicate `(device,inode)` identities, and every regular file whose link count
-   is not one. Every opened entry must retain the root mount id.
-3. Retain a no-follow descriptor for every accepted directory/regular file until
-   its identity and seal are verified. Descriptor exhaustion or any unapproved
-   changed type, link count, device, inode, mount id, size, data-modification time,
-   or entry set before that inode's seal fails closed. Ctime changes from the
-   prescribed mode/immutable operations are expected metadata, not drift.
-4. Compute the initial byte/path digest from the pinned descriptors. The canonical
-   stream is the sorted sequence of `type NUL relative-path NUL size NUL
-   file-SHA256 NUL`; it includes empty directories and excludes only the
-   mode/immutable metadata this gate intentionally changes.
-5. Re-prove the installed R2-only manifest, disabled descriptor, absent AS1
-   process, absent original lock, full ancestor/root identity, unchanged traversal,
-   and unchanged initial digest.
-6. Establish exclusive namespace quiescence before changing the remainder: through
-   the retained descriptors, remove write bits from the root and `locks` directory
-   and set `FS_IMMUTABLE_FL` on both with `FS_IOC_SETFLAGS`; immediately re-prove
-   process/lock absence, ancestor/root/locks identity, the complete entry set, and
-   the initial digest. If a lock or substitution won the interval, the helper
-   reports `ORIGINAL_ROOT_PRESERVATION_RACE` and does not continue.
-7. For every remaining pinned directory/regular file, remove all write bits with
-   descriptor `fchmod`, set `FS_IMMUTABLE_FL` with descriptor ioctl, and verify the
-   same descriptor identity and flag. Never clear an existing immutable bit. A
-   partial failure stays fail-closed and makes no success claim; it never unseals.
-8. Before the final digest, re-prove no AS1 process, no original lock, the complete
-   pinned ancestor/root relationship, one mount id, the exact same sorted
-   path/inode set, allowed types, one-link regular files, zero write bits, and the
-   immutable flag on every root entry. ONLY after all of those final proofs may the
-   helper read the pinned descriptors, compute the final byte/path digest, and
-   require it to equal the initial digest.
-
-The recorded success evidence contains both equal digests, the reviewed build
-manifest hash, the pinned parent/root identity, the entry count, and fixed boolean
-process/lock/no-follow/one-link/single-mount/zero-write/immutable proofs — no
-evidence bytes or secret values. Immutable flags plus removed write bits are the
-persistent forensic seal; the R2-only executable is the independent namespace
-barrier. Every later AS1 preflight and rollback re-runs the read-only
-descriptor-relative identity/digest/zero-write/immutable proof; any missing flag,
-writable inode, identity drift, old-root reference, or digest mismatch is `HOLD`.
-No normal rollback clears the seal — clearing it requires a new, explicit
-forensic-risk decision outside this mission. The original tree is never copied into
-R2. The complete fixed no-argument production helper that implements this
-specification is a later `HOLD` gate (see "Production helper status — HOLD" above);
-it is NOT delivered or claimed here. The TypeScript `preserveOriginalRootTree` is
-NOT that helper — it is the ALGORITHM PROOF of the same control flow (identity
-pinning, race rejection, root-inode-swap rejection, and final-digest-equals-initial
-ordering) exercised over a temporary synthetic tree with injected filesystem/process
-seams in the lifecycle test. Those seam tests never open, inspect, chmod, seal,
-digest, or otherwise resolve either real state-root literal; neither real root nor
-its privilege is probed in this implementation Work Unit, and unsupported
-ioctl/privilege remains the later `HOLD` gate with no weaker fallback.
+This replaces the earlier privileged-helper HOLD gate; there is no weaker path-based
+fallback because there is no privileged seal to fall back from.
 
 ### 10.7 R2 disabled rollout and rollback
 
 Rollout order (each gate stays disabled until the next is authorized): keep the
-committed descriptor disabled; independently review this 12-path patch; install the
-exact reviewed build at the fixed executable path while still disabled and prove
-its manifest and active source/output select ONLY the fixed R2 root/ID with no
-original-root fallback; prove no AS1 process and no original lock, run the fixed
-§10.6 preservation gate, and record its equal byte/path digests, pinned identity,
-zero-write, and immutable proofs; re-prove the installed R2-only manifest and the
-permanent original-root seal; under a SEPARATE live-owner handoff, initialize only
-the R2 root with ID `as1-slack-pilot-r2`; mint fresh R2-bound grant/lease evidence
-(never copy or reuse original-root state); perform redacted preflight with no tmux
-mutation, including the read-only original-root seal proof; and only Leo/GPT may
-authorize value-only activation and the next single Agent Office message.
+committed descriptor disabled; independently review this delta; install the exact
+reviewed build at the fixed executable path while still disabled and prove active
+source/output select ONLY the fixed R2 root/ID with no original-root fallback;
+prove the running interpreter passes the fixed trusted-Node CLI preflight; prove no
+AS1 process and no original lock; under a SEPARATE live-owner handoff, initialize
+only the R2 root with ID `as1-slack-pilot-r2`; mint fresh R2-bound grant/lease
+evidence (never copy or reuse original-root state); perform redacted preflight with
+no tmux mutation; and only Leo/GPT may authorize value-only activation and the next
+single Agent Office message. No privileged preservation helper, manifest, journal,
+or immutable seal is installed or run.
 
 Rollback is disabled configuration, NOT restoration of the old-root binding: stop
 the foreground owner through the fixed R2 observer path; prove the R2 writer lock
 absent and no AS1 process; restore/retain the committed disabled descriptor; make
 no further Socket/Web/evidence/status/tmux attempt; retain the original root
-byte/path-identical, zero-write, and immutable; retain the entire R2 root as
-recovery evidence (never reset, delete, repair, merge, or copy either tree); and
-return both root states and redacted process/lock proof to the Advisor. A source
-revert must never restore an active reference to the original root, and rollback
-never clears an original-root immutable flag or changes its digest/paths/bytes.
+untouched by operational rule; retain the entire R2 root as recovery evidence
+(never reset, delete, repair, merge, or copy either tree); and return both root
+states and redacted process/lock proof to the Advisor. A source revert must never
+restore an active reference to the original root.

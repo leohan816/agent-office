@@ -8,7 +8,18 @@ import { describe, expect, it } from 'vitest';
 import { DomainError } from '../../src/contracts/types.js';
 import { As1SlackControl, readDurableKillProof } from '../../src/operations/readiness/as1-slack-control.js';
 import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
-import { AS1_OWNER_STATE_ROOT, parseAs1Cli, runAs1Cli, runObserverSignal } from '../../src/runtime/as1-slack-pilot/cli.js';
+import {
+  AS1_FIXED_TRUSTED_NODE,
+  AS1_OWNER_STATE_ROOT,
+  checkTrustedNode,
+  parseAs1Cli,
+  preflightTrustedNode,
+  runAs1Cli,
+  runForegroundOwner,
+  runObserverSignal,
+  TRUSTED_NODE_REQUIRED,
+  type As1ForegroundOwnerBoundary,
+} from '../../src/runtime/as1-slack-pilot/cli.js';
 import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.js';
 import {
   AS1_FIXED_OWNER_LOCK_PATH,
@@ -1002,32 +1013,88 @@ describe('AS1 R2 original-root preservation algorithm (R2 recovery design §4.4)
   });
 });
 
-// R2 recovery design §4.4 / handoff-95 F02: the complete fixed no-argument production preservation helper cannot be
-// safely represented as a fixed literal in this Work Unit, so it is explicitly HELD — the setup document must NOT claim
-// a production helper exists, and the original-root STATE-ROOT literal must appear ONLY in the forensic section §10.6.
-describe('AS1 R2 original-root preservation — HOLD + forensic-only original-root literal (setup §10.6)', () => {
+// handoff 112 (Founder Leo-only minimal recovery): the enterprise F02 privileged-helper/manifest/journal/immutable-seal
+// model is SUPERSEDED and deferred; setup §10.6 is now the concise trusted-server rule, and the CLI adds only the fixed
+// trusted-Node preflight. These prove the superseded documentation, the deterministic preflight, and its CLI ordering.
+describe('AS1 R2 original-root handling — trusted-server rule (setup §10.6, handoff 112)', () => {
   const setup = readFileSync(path.join(REPO_ROOT, 'docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md'), 'utf8');
   const section106 = setup.slice(setup.indexOf('### 10.6'));
 
-  it('explicitly HOLDS the production helper (no false "helper exists" claim) and names the TS as the algorithm proof only', () => {
-    // The production helper is a later HOLD gate, NOT delivered/claimed here.
-    expect(section106).toContain('Production helper status — HOLD');
-    expect(section106).toContain('is NOT delivered by this implementation Work Unit');
-    // The §4.4 algorithm remains the reviewed SPECIFICATION the later HELD helper must implement.
-    expect(section106).toContain('reviewed SPECIFICATION');
-    // The TS algorithm is explicitly NOT the production helper — only the injected-seam algorithm proof.
-    expect(section106).toContain('`preserveOriginalRootTree`');
-    expect(section106).toContain('is NOT the production helper');
-    // No unproven fixed-literal helper command is presented (no embedded argv-rejecting script literal claim).
-    expect(section106).not.toContain('if len(sys.argv) > 1');
-    // Unsupported ioctl/privilege remains a HOLD with no weaker fallback.
-    expect(section106).toContain('HOLD');
-    expect(section106).toMatch(/no weaker[\s\S]*fallback/u);
+  it('marks the enterprise F02 helper/manifest/journal/immutable-seal model superseded and deferred, with no sealing claim', () => {
+    expect(section106).toContain('trusted-server rule');
+    expect(section106).toContain('SUPERSEDES the enterprise-grade F02 threat model');
+    expect(section106).toContain('deferred to a separate later commercial hardening mission');
+    expect(section106).toContain('no immutable sealing'); // do NOT claim sealing occurred
+    expect(section106).toContain('The only active state root is the fixed R2 root');
+    expect(section106).toContain('resets, deletes, modifies, reuses, copies, migrates, or actively resolves');
+    // The trusted-Node CLI preflight replaces the privileged gate; the old false "helper exists"/HOLD text is gone.
+    expect(section106).toContain('TRUSTED_NODE_REQUIRED');
+    expect(section106).not.toContain('Production helper status — HOLD');
   });
 
-  it('names the original-root STATE-ROOT literal ONLY inside §10.6 (never in §10.1 or elsewhere before it)', () => {
+  it('names the original-root STATE-ROOT literal ONLY inside §10.6, never before it, and keeps R2 the sole active root', () => {
     const beforeForensic = setup.slice(0, setup.indexOf('### 10.6'));
     // The bare original state-root literal (not the R2 root, not the internal namespace, not the cli.js argv path).
     expect(beforeForensic).not.toMatch(/state\/agent-office\/as1-slack-pilot(?![-/\w])/u);
+    expect(AS1_OWNER_STATE_ROOT).toBe('/home/leo/.local/state/agent-office/as1-slack-pilot-r2');
+  });
+});
+
+// handoff 112 §5.1/§6: the fixed trusted-Node preflight is a pure, deterministic seam — it requires ONLY the exact NVM
+// path, a regular non-symlink file, an execute bit, and no group/world write; it may be owned by Leo, needs no root
+// ownership/content-hash/inode-pin, and fails closed with the single redacted TRUSTED_NODE_REQUIRED (no path/metadata).
+describe('AS1 fixed trusted-Node preflight (handoff 112 §5.1)', () => {
+  const OK_FACTS = { isSymbolicLink: false, isFile: true, mode: 0o755 } as const;
+
+  it('accepts exactly the fixed regular NVM Node executable (execute bit, no group/world write)', () => {
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, OK_FACTS)).toBeNull();
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, { isSymbolicLink: false, isFile: true, mode: 0o555 })).toBeNull();
+  });
+
+  it('rejects a wrong execPath with the single redacted reason and no path leak', () => {
+    const reason = checkTrustedNode('/usr/bin/node', OK_FACTS);
+    expect(reason).toBe(TRUSTED_NODE_REQUIRED);
+    expect(reason).not.toContain('/home/leo');
+  });
+
+  it('rejects a symlink, a non-regular file, or a missing/unreadable fixed path', () => {
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, { isSymbolicLink: true, isFile: false, mode: 0o777 })).toBe(TRUSTED_NODE_REQUIRED);
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, { isSymbolicLink: false, isFile: false, mode: 0o755 })).toBe(TRUSTED_NODE_REQUIRED);
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, null)).toBe(TRUSTED_NODE_REQUIRED);
+  });
+
+  it('rejects a file with no execute bit', () => {
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, { isSymbolicLink: false, isFile: true, mode: 0o644 })).toBe(TRUSTED_NODE_REQUIRED);
+  });
+
+  it('rejects a group-writable or world-writable file', () => {
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, { isSymbolicLink: false, isFile: true, mode: 0o775 })).toBe(TRUSTED_NODE_REQUIRED);
+    expect(checkTrustedNode(AS1_FIXED_TRUSTED_NODE, { isSymbolicLink: false, isFile: true, mode: 0o757 })).toBe(TRUSTED_NODE_REQUIRED);
+  });
+
+  it('the async wrapper fails closed to the redacted reason on an unstattable path or a wrong interpreter', async () => {
+    expect(await preflightTrustedNode(AS1_FIXED_TRUSTED_NODE, () => Promise.reject(new Error('ENOENT')))).toBe(TRUSTED_NODE_REQUIRED);
+    expect(await preflightTrustedNode('/somewhere/else/node', () => Promise.resolve(OK_FACTS))).toBe(TRUSTED_NODE_REQUIRED);
+    expect(await preflightTrustedNode(AS1_FIXED_TRUSTED_NODE, () => Promise.resolve(OK_FACTS))).toBeNull();
+  });
+
+  it('fails closed BEFORE dependency build / state-root initialization in the foreground-owner ordering seam', async () => {
+    const calls = { buildDeps: false, initialize: false };
+    const boundary = {
+      descriptor: parseRuntimeDescriptor(JSON.parse(readFileSync(DESCRIPTOR_PATH, 'utf8'))),
+      stateRoot: AS1_OWNER_STATE_ROOT,
+      clock: { now: () => '2026-07-14T22:00:00.000Z' },
+      buildDeps: () => { calls.buildDeps = true; return {}; },
+      initialize: () => { calls.initialize = true; return Promise.resolve(); },
+      installSignalHandlers: () => ['SIGINT', 'SIGTERM', 'SIGUSR2'],
+      delay: () => Promise.resolve(),
+      trustedNodePreflight: () => Promise.resolve(TRUSTED_NODE_REQUIRED),
+    } as unknown as As1ForegroundOwnerBoundary;
+    const result = await runForegroundOwner(boundary);
+    expect(result.ok).toBe(false);
+    expect(result.lines.join('|')).toContain(TRUSTED_NODE_REQUIRED);
+    expect(result.lines.join('|')).not.toContain('.nvm'); // no path/metadata leak
+    expect(calls.buildDeps).toBe(false); // no dependency graph (Web/tmux/network) built
+    expect(calls.initialize).toBe(false); // no state-root mutation
   });
 });

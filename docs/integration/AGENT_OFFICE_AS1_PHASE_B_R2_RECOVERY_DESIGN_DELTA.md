@@ -338,6 +338,23 @@ not a value to update opportunistically.
 
 ### 4.4 Original-root preservation gate
 
+> **SUPERSEDED (handoff 112 — Founder Leo-only scope correction).** For this
+> private Leo-only pilot the Founder trusts this host and the `leo` Unix account
+> and explicitly supersedes the enterprise-grade F02 threat model in this §4.4:
+> the privileged descriptor-relative preservation helper, the reviewed build/
+> install manifest, the monotonic host journal, the `FS_IMMUTABLE_FL` immutable-
+> seal framework, the pinned-launcher/host-attestation trust root, and the generic
+> executable-trust framework. None of it is implemented, installed, run, or
+> claimed, and no immutable sealing of the original root has occurred. The original
+> root is retained as untouched forensic evidence by operational rule only; the
+> sole active root remains the already-implemented fixed R2 root; and a small fixed
+> trusted-Node CLI preflight (running interpreter must be the exact regular
+> non-symlink NVM Node with an execute bit and no group/world write bit, else the
+> redacted `TRUSTED_NODE_REQUIRED`) replaces the privileged gate — see
+> `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` §10.6. The enterprise §4.4.1–
+> §4.4.8 content below is deferred to a separate later commercial hardening mission
+> and is retained only for that future reference; it is not part of this pilot.
+
 This is a later, exact operator step. The Designer did not execute it and did
 not inspect or mutate either real state root. A shell `find`/path-based `chmod`
 sequence is insufficient because a path or writer can race its checks. The

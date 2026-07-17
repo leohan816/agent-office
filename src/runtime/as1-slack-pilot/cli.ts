@@ -63,6 +63,59 @@ import {
  */
 export const AS1_OWNER_STATE_ROOT = '/home/leo/.local/state/agent-office/as1-slack-pilot-r2';
 
+/**
+ * Handoff 112 (Founder Leo-only minimal recovery): the single fixed trusted Node interpreter for this private pilot.
+ * The Founder trusts this host and the `leo` account, so the enterprise F02 privileged-helper/manifest/journal model is
+ * superseded. The preflight requires ONLY the exact NVM path, a regular (non-symlink) file, at least one execute bit,
+ * and no group/world write bit. It requires no root ownership, content hash, inode pin, PATH/`realpath` discovery,
+ * alternatives, fallback, caller input, or environment selection; the file may be owned by Leo.
+ */
+export const AS1_FIXED_TRUSTED_NODE = '/home/leo/.nvm/versions/node/v24.18.0/bin/node';
+
+/** The single stable redacted reason for a failed trusted-Node preflight. It never includes the path or any metadata. */
+export const TRUSTED_NODE_REQUIRED = 'TRUSTED_NODE_REQUIRED';
+
+/** The minimal no-follow facts of the fixed Node path that the pure preflight inspects. */
+export interface As1TrustedNodeFacts {
+  readonly isSymbolicLink: boolean;
+  readonly isFile: boolean;
+  readonly mode: number;
+}
+
+/**
+ * The pure, deterministic trusted-Node preflight (handoff 112 §5.1) — the sole injectable seam. It returns `null` when
+ * the running interpreter is exactly the fixed trusted Node (a regular file, at least one execute bit set, and no
+ * group/world write bit), and the single redacted `TRUSTED_NODE_REQUIRED` otherwise. It reads no filesystem and reveals
+ * no path or metadata.
+ */
+export function checkTrustedNode(execPath: string, facts: As1TrustedNodeFacts | null): string | null {
+  if (execPath !== AS1_FIXED_TRUSTED_NODE) return TRUSTED_NODE_REQUIRED;
+  if (facts === null || facts.isSymbolicLink || !facts.isFile) return TRUSTED_NODE_REQUIRED; // must be a regular file, never a symlink
+  if ((facts.mode & 0o111) === 0) return TRUSTED_NODE_REQUIRED; // at least one execute bit
+  if ((facts.mode & 0o022) !== 0) return TRUSTED_NODE_REQUIRED; // group or world write forbidden
+  return null;
+}
+
+/**
+ * Production wrapper: no-follow `lstat` the fixed Node path and evaluate the pure check against `process.execPath`. A
+ * missing/unreadable path fails closed to `TRUSTED_NODE_REQUIRED`. The `execPath`/`readFacts` seams keep it deterministic.
+ */
+export async function preflightTrustedNode(
+  execPath: string = process.execPath,
+  readFacts: () => Promise<As1TrustedNodeFacts> = async (): Promise<As1TrustedNodeFacts> => {
+    const st = await lstat(AS1_FIXED_TRUSTED_NODE);
+    return { isSymbolicLink: st.isSymbolicLink(), isFile: st.isFile(), mode: st.mode };
+  },
+): Promise<string | null> {
+  let facts: As1TrustedNodeFacts | null;
+  try {
+    facts = await readFacts();
+  } catch {
+    facts = null;
+  }
+  return checkTrustedNode(execPath, facts);
+}
+
 export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check'] as const;
 export type As1Command = (typeof AS1_COMMANDS)[number];
 
@@ -386,6 +439,9 @@ export interface As1ForegroundOwnerBoundary {
    *  the required three is absent (production returns all three; a test can drop one to prove the closure). */
   readonly installSignalHandlers: (handlers: Readonly<Record<As1OwnerSignal, () => void>>) => readonly As1OwnerSignal[];
   readonly delay: (ms: number) => Promise<void>;
+  /** Handoff 112 §5.1: the fixed trusted-Node preflight, run BEFORE buildDeps/initialize/secret/network/tmux. Optional
+   *  so the existing owner-harness tests keep their exact behavior; production supplies `() => preflightTrustedNode()`. */
+  readonly trustedNodePreflight?: () => Promise<string | null>;
 }
 
 const OWNER_LOOP_INTERVAL_MS = 250;
@@ -423,6 +479,11 @@ function ownerLine(ok: boolean, outcome: string, state: string): As1CliResult {
  * adds no reconnect, profile rollover, generic scheduler, or framework, and opens no listener/socket/route.
  */
 export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): Promise<As1CliResult> {
+  // handoff 112 §5.1: the fixed trusted-Node preflight gates the foreground owner BEFORE the dependency graph is built
+  // or the state root initialized — a non-trusted interpreter fails closed with the single redacted reason, having
+  // performed no buildDeps, initialize, secret, network, or tmux side effect.
+  const trustedNodeReason = (await boundary.trustedNodePreflight?.()) ?? null;
+  if (trustedNodeReason !== null) return ownerLine(false, trustedNodeReason, 'DISABLED_DEFAULT');
   const deps = boundary.buildDeps();
   assertCompleteDependencies(deps);
   await boundary.initialize(boundary.stateRoot);
@@ -673,6 +734,15 @@ async function main(): Promise<void> {
   }
 
   // `start` / `redacted-check`: the only two verbs that cross the owner filesystem/secret boundary.
+  // handoff 112 §5.1: the fixed trusted-Node preflight is the FIRST gate for both — BEFORE the capability bridge,
+  // secret read, state-root mutation, network, or tmux. A non-trusted interpreter fails closed with the single redacted
+  // reason and never leaks the path or metadata.
+  if ((await preflightTrustedNode()) !== null) {
+    process.stdout.write(`AS1_SLACK_PILOT ERROR\nREASON: ${TRUSTED_NODE_REQUIRED}\n`);
+    process.exitCode = 2;
+    return;
+  }
+
   // Mutation-free capability gate BEFORE any state-root mutation (design §11.1.3).
   const capability = await probeCapability();
   if (!capability.ok) {
@@ -716,6 +786,7 @@ async function main(): Promise<void> {
     stateRoot,
     clock,
     buildDeps: () => buildAs1ProductionDependencies(readFrozenAuthoritySnapshotCommits()),
+    trustedNodePreflight: () => preflightTrustedNode(),
     initialize: async (root: string): Promise<void> => {
       await initializeStateRoot(root, { stateRootId: 'as1-slack-pilot-r2', initializedAt: clock.now() });
     },
