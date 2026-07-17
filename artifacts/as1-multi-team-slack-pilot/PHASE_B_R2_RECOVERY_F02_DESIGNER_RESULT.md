@@ -1,38 +1,48 @@
-# AS1 Phase B R2 Recovery F02 Designer Patch Result
+# AS1 Phase B R2 Recovery F02 Fixed Launcher Compatibility Designer Result
 
 MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 
-WORK_UNIT: PHASE_B_R2_RECOVERY_F02_DESIGN_PATCH_D1_D6
+WORK_UNIT: PHASE_B_R2_RECOVERY_F02_FIXED_LAUNCHER_COMPATIBILITY_PATCH
 
 ACTOR: agent-office-designer
 
 ROLE: Agent Office Designer
 
 AUTHORITY:
-advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/105_PHASE_B_R2_RECOVERY_F02_DESIGN_PATCH_HANDOFF.md
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/110_PHASE_B_R2_RECOVERY_F02_LAUNCHER_COMPATIBILITY_DESIGN_PATCH_HANDOFF.md
 
-AUTHORITY_COMMIT: ea8783b9572bfeb30f9896de273dd70c25b92878
+AUTHORITY_COMMIT: 9ed0d1d256dd8ea62949a0509cd5e25acd66df13
 
 AUTHORITY_SHA256:
-9e896c598da25ab0d3228bee9c63bc7cd51855b14c4a3fb65e1d39dbf8a3ee5c
+bab393eddbd39448a0eb811138d262ab91e83a2137c9329c42c68ec08db01f68
 
 REVIEW_RESULT:
-advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/104_PHASE_B_R2_RECOVERY_F02_INDEPENDENT_DESIGN_REVIEW_RESULT.md
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/107_PHASE_B_R2_RECOVERY_F02_DESIGN_PATCH_INDEPENDENT_DELTA_REVIEW_RESULT.md
 
-REVIEW_RESULT_COMMIT: 7b0bdb43f2fcd00f1aceba6f9c1a23c5a2ea5132
+REVIEW_RESULT_COMMIT: 3df77ffba0d95dac96abfdbabe1b0e897d273313
 
 REVIEW_RESULT_SHA256:
-35488329b1634793cba26b20d41cf169e426644cac6fd6bc1b54a789bddd393f
+d4a23e3dcb806af065c455752fd886198fff02f624d6e602859cced4017aaf9f
+
+WORKER_PREFLIGHT_RECORD:
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/109_PHASE_B_R2_RECOVERY_F02_SOURCE_PREFLIGHT_HOLD.md
+
+WORKER_PREFLIGHT_RECORD_COMMIT: 9ed0d1d256dd8ea62949a0509cd5e25acd66df13
+
+WORKER_PREFLIGHT_RECORD_SHA256:
+e29bf87114527d3e74abf01c604f7c0a8e73f5fdaafc05537a7b864a6e67110a
 
 PRODUCT_BRANCH: feature/as1-phase-b-live-pilot-001
 
-PATCH_BASE: 44eb5975eca2de1b8cc9abda2ab749d422d1e7a7
+PATCH_BASE: e8c8f529e08ea547e1504d425c80fc8a2216b51b
 
 ACCEPTED_R2_DESIGN_COMMIT: a837bbf9d4072638a6dac676fb5ccc8da9bfa1ff
 
-DESIGN_STATE: READY_FOR_SAME_REVIEWER_F02_D1_D6_DELTA_REVIEW
+DESIGN_STATE: READY_FOR_SAME_REVIEWER_F02_FIXED_LAUNCHER_COMPATIBILITY_DELTA_REVIEW
 
-F02_DESIGN_HOLD: NO_KNOWN_ALLOWLIST_CONFLICT
+LAUNCHER_COMPATIBILITY_DISPOSITION: READY_FOR_SAME_REVIEWER
+
+F02_DESIGN_HOLD: NO_KNOWN_FIXED_LAUNCHER_CONFLICT
 
 LIVE_R2_SLACK_ACTIVATION: BLOCKED_F02
 
@@ -56,10 +66,14 @@ RETURN_TO: agent-office-advisor
 
 ## Result
 
-The bounded patch candidate applies only same-Reviewer findings F02-D1 through
-F02-D6. It preserves the accepted traversal/sealing algorithm, scratch
-validation sequence, R2/F01/Exact Delivery behavior, descriptor-disabled state,
-private bindings, and sequential one-profile operation.
+The bounded patch candidate changes only three fixed-launcher concerns: final
+env/sudo literals, role-specific no-follow inode trust (including the sole
+manifest-pinned env multicall link-count exception), and corresponding
+construction/vector/drift rejection proofs. It preserves the same Reviewer's
+F02-D1 through F02-D6 PASS, the accepted traversal/sealing algorithm,
+original-root no-follow/one-link rules, scratch validation sequence,
+R2/F01/Exact Delivery behavior, descriptor-disabled state, private bindings,
+and sequential one-profile operation.
 
 The patched design is:
 
@@ -67,7 +81,31 @@ docs/integration/AGENT_OFFICE_AS1_PHASE_B_R2_RECOVERY_DESIGN_DELTA.md
 
 Its SHA-256 is:
 
-b35c8e52f0f00822bfb8e0c4722707128a29ae7dbaefb2ae9bfbfb621851e9ec
+70d711e724169f10a6b5c62a3e56dd17726ed3630844d2b55d69f6cc83678a0f
+
+## Fixed launcher compatibility disposition
+
+- Every executable command shape now uses final regular-file literals
+  `/usr/lib/cargo/bin/coreutils/env` and `/usr/lib/cargo/bin/sudo`.
+  `/usr/bin/setsid`, `/usr/bin/python3.14`, `/usr/bin/git`, and the fixed Node
+  literal remain unchanged. Generic symlink resolution, `realpath`, PATH,
+  alternatives, caller/environment selectors, fallback, and launcher
+  abstraction are explicitly forbidden.
+- M fixes each launcher object's exact final path, no-follow regular inode,
+  root ownership/group, non-writability, role-specific mode, device, inode,
+  link count, byte count, and content hash. Env alone may carry its exact
+  reviewed multi-link count at mode 0755; sudo remains one-link mode 4755;
+  every other launcher and every original-root evidence object retains its
+  one-link rule. Retained descriptors and all facts are re-proved before
+  helper/root access; drift is HOLD.
+- The fixed literals preserve the non-circular boundary: M does not contain
+  its own hash, E embeds the independently reviewed M hash, and the bootstrap
+  authenticates M and retained objects before root access. Synthetic command,
+  manifest, generator, reproducer, and S/M/J/E requirements reject the former
+  aliases, changed paths, symlink/writable/non-root/wrong-mode targets,
+  unexpected link counts, replacement, and content/hash drift.
+
+LAUNCHER_COMPATIBILITY_DISPOSITION: READY_FOR_SAME_REVIEWER
 
 ## Finding disposition for same-Reviewer delta review
 
@@ -172,54 +210,52 @@ design's text references to the future evidence paths.
 
 ## Required reads completed
 
-The Designer read the exact handoff at governance commit ea8783b, repository
-entry instructions, Team operating model, Designer role, the existing design/
-result/pointer at exact patch base 44eb597, and the same-Reviewer result/pointer
-at governance commit 7b0bdb4. The Reviewer result SHA-256 matched the handoff.
-Only its cited writer-lock interpreter/preservation regions and bounded
-file/config names were read for implementability. The product worktree began
-clean, upstream-equal, on the authorized branch at the exact patch base.
+The Designer read handoff 110 from exact governance commit
+`9ed0d1d256dd8ea62949a0509cd5e25acd66df13`, repository entry instructions,
+Team operating model, Designer role, the three current design evidence files at
+exact product base `e8c8f529e08ea547e1504d425c80fc8a2216b51b`, the same-
+Reviewer PASS at governance commit
+`3df77ffba0d95dac96abfdbabe1b0e897d273313`, and Worker preflight record 109.
+The handoff, prior review, and preflight hashes matched the coordinates above.
+The product worktree began clean and upstream-equal on the authorized branch at
+the exact patch base.
 
 ## Validation and attempts
 
-The successful docs-only precheck proved: exact clean/upstream-equal base and
-authorized branch; exactly the three allowed modified paths; clean
-`git diff --check`; 28 paired Markdown fence lines; exactly four future
-implementation paths in design and result; exactly seven pure exports; exactly
-six design traceability rows/result dispositions/pointer dispositions; one
-review-binding marker only in the non-runnable S template; exactly one
-preservation command construction in section 4.4.1; absence of the old
-interactive sudo command; presence of the D1 denial, D2 trust, D3 grammar, D4
-export, D5 securebits, D6 journal, authority, and patch-base anchors.
+The successful docs-only checks proved: exact base/branch/upstream binding;
+exactly the three authorized modified paths; clean `git diff --check`; balanced
+Markdown fences; exactly four future implementation paths and seven pure
+exports; all six frozen F02 finding markers; exactly one preservation
+invocation; exact resolved env/sudo executable literals in every normative
+command; the former aliases only in explicit rejection requirements; no
+generic resolution or fallback; manifest-pinned root ownership, modes,
+metadata, content, retained descriptors, and the env-only exact multi-link
+exception; unchanged original-root no-follow/one-link language; and the
+non-circular S/M/J/E disposition. Final design/result hash linkage and exact
+staged scope were rechecked before commit.
 
-No product lint, typecheck, build, test, privilege, filesystem, helper, sudo,
-installer, root, scratch, live, network, descriptor, process, or tmux check was
-run by this Designer.
+No product lint, typecheck, build, test, privilege, filesystem, helper, env,
+sudo, installer, root, scratch, live, network, descriptor, process, or tmux
+check was run by this Designer.
 
-One `apply_patch` attempt used context beginning at `Installation fsyncs`, but
-the actual paragraph placed those words after the preceding sentence on the
-same line. Patch verification failed and changed nothing. The retry used the
-exact current context and succeeded.
+The first aggregate mandatory-read display exceeded the tool output cap and
+was truncated. The underlying read commands succeeded, but the omitted display
+was not used as evidence; the mandatory role document and both named governance
+records were reread completely in bounded calls. No file read failed.
 
-A second `apply_patch` attempt expected `state-root literal` while the current
-line began `no state-root literal`. Patch verification failed and changed
-nothing. The exact-context retry succeeded.
+The first aggregate docs-only precheck stopped without output because four
+prose-marker assertions omitted Markdown backticks or crossed wrapped lines.
+A read-only diagnostic showed the exact literal counts, scope, diff, and hashes
+were correct and isolated the assertion-pattern defect. The corrected check
+uses shorter bounded markers; the failed assertion wrote nothing and is not
+used as positive evidence.
 
-The first aggregate docs-only precheck used a `sed` start pattern that omitted
-the Markdown backticks around `.mjs`, so its seven-export count was empty and
-the silent assertion stopped the command. Diagnostic counts identified only
-that check-pattern error; it wrote nothing. The corrected exact-heading range
-was used for the retry.
-
-That retry's orchestration string then included the literal Markdown backticks
-inside a JavaScript template string. The wrapper parsed them as template
-syntax and failed before invoking the shell, so no repository command or write
-occurred. The next retry used a backtick-free heading regex.
-
-One later read-only `rg` search placed the hyphen-leading `-I -S -c` pattern
-before the option terminator, so `rg` treated it as a flag and exited without
-reading a target or writing anything. The corrected search placed `--` before
-the pattern.
+The first corrected-check wrapper then treated shell finding-loop text as
+JavaScript template interpolation and failed before invoking the shell; it
+read or wrote no repository path. The first attempt to append this note used
+singular context where the file said `were correct`, so `apply_patch` rejected
+the context and changed nothing. This exact-context retry succeeded; the final
+check uses shell concatenation instead.
 
 ## Remaining bounded unknowns
 

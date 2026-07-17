@@ -1,11 +1,11 @@
 # Agent Office AS1 Phase B R2 Recovery Design Delta
 
-Status: F02 D1-D6 PATCH CANDIDATE — same-Reviewer delta review and an exact Advisor
-implementation handoff are still required.
+Status: F02 FIXED LAUNCHER COMPATIBILITY PATCH CANDIDATE — same-Reviewer delta
+review and an exact Advisor implementation handoff are still required.
 
 Mission: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
 
-Work unit: PHASE_B_R2_RECOVERY_F02_DESIGN_PATCH_D1_D6
+Work unit: PHASE_B_R2_RECOVERY_F02_FIXED_LAUNCHER_COMPATIBILITY_PATCH
 
 Original F02 authority: the committed Designer handoff
 advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/102_PHASE_B_R2_RECOVERY_F02_DESIGNER_HANDOFF.md
@@ -20,11 +20,19 @@ Same-Reviewer NEEDS_PATCH result: governance commit
 7b0bdb43f2fcd00f1aceba6f9c1a23c5a2ea5132, findings F02-D1 through
 F02-D6 only.
 
+Same-Reviewer F02-D1-D6 PASS result: governance commit
+3df77ffba0d95dac96abfdbabe1b0e897d273313.
+
+Fixed-launcher patch authority: committed Designer handoff
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/110_PHASE_B_R2_RECOVERY_F02_LAUNCHER_COMPATIBILITY_DESIGN_PATCH_HANDOFF.md
+at governance commit 9ed0d1d256dd8ea62949a0509cd5e25acd66df13. Governance record 109 at that
+commit records the Worker preflight HOLD on the two symlink aliases.
+
 Accepted R2 design commit:
 a837bbf9d4072638a6dac676fb5ccc8da9bfa1ff.
 
 Current patch base:
-44eb5975eca2de1b8cc9abda2ab749d422d1e7a7.
+e8c8f529e08ea547e1504d425c80fc8a2216b51b.
 
 ## 1. Decision and scope
 
@@ -56,9 +64,10 @@ invocation, manifest, result, and validation surfaces left open by Advisor
 audit 101. It does not redesign F01, Exact Delivery, Slack routing, identity,
 status behavior, or the sequential two-profile architecture.
 
-This bounded patch changes only the contracts necessary to disposition
-same-Reviewer findings F02-D1 through F02-D6. The algorithm-level and scratch-
-sequencing PASS findings in review result 104 remain unchanged.
+This bounded patch changes only the fixed launcher-object literals, their
+role-specific trust proof, and the corresponding synthetic rejection proof.
+The same Reviewer's F02-D1 through F02-D6 PASS and every algorithm-level,
+original-root no-follow, and scratch-sequencing invariant remain unchanged.
 
 This is a design result only. It grants no implementation, activation, secret
 access, Slack connection, state-root mutation, tmux mutation, risk acceptance,
@@ -379,12 +388,60 @@ embedded; the notation is never present in the final command:
 
 ~~~bash
 /usr/bin/setsid --fork --wait -- \
-  /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
-  /usr/bin/sudo -n -- \
-  /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+  /usr/lib/cargo/bin/coreutils/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+  /usr/lib/cargo/bin/sudo -n -- \
+  /usr/lib/cargo/bin/coreutils/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   /usr/bin/python3.14 -I -S -B -c 'F02_BOOTSTRAP_SOURCE_E' \
   </dev/null 2>/dev/null
 ~~~
+
+The fixed launcher compatibility contract has exactly three concerns:
+
+1. **Literal selection.** The preservation and journal-installer constructions
+   use the final regular-file literals `/usr/lib/cargo/bin/coreutils/env` and
+   `/usr/lib/cargo/bin/sudo`. `/usr/bin/setsid`, `/usr/bin/python3.14`,
+   `/usr/bin/git`, and
+   `/home/leo/.nvm/versions/node/v24.18.0/bin/node` remain their existing fixed
+   literals. `/usr/bin/env`, `/usr/bin/sudo`, either intervening symlink,
+   `realpath`, PATH search, alternatives lookup, a caller/environment selector,
+   fallback, or a generic launcher resolver is invalid.
+2. **Role-specific inode trust.** Each manifest launcher path is compiled into
+   the bootstrap/generator/reproducer, walked from a no-follow `/` descriptor,
+   and opened with a no-follow final component that must be a regular inode.
+   Its path, device, inode, UID 0, GID 0, complete mode, link count, byte count,
+   and content SHA-256 are fixed in M; group/other write is forbidden. The
+   non-sudo launchers must have their exact manifest-pinned executable,
+   non-setuid/non-setgid mode. `env` is specifically mode `0755`. `sudo` is
+   specifically mode `4755` and one-link. Every launcher other than the fixed
+   env object remains one-link. The fixed env multicall inode alone may have a
+   manifest-pinned `links` greater than one because every hard link shares the
+   authenticated inode, root ownership and mode, no non-root writer is
+   permitted, and the exact link count and content are re-proved. Any metadata,
+   link-count, identity, size, or content drift is HOLD before root access.
+3. **Retained proof.** Fixed launcher descriptors are retained through
+   manifest authentication and re-proved against their same literal paths
+   immediately before helper/root access. S contains only the resolved-path
+   template; M fixes the resolved objects; J remains only the journal-anchor
+   receipt; E embeds M's digest and pins the final command. Synthetic vectors
+   and command-construction tests reject the two original aliases, any changed
+   resolved path, symlink final component, non-root or writable target, wrong
+   executable/setuid mode, non-env multi-link object, env link-count drift,
+   inode replacement, and size/content/hash drift before any helper or root
+   adapter can be called.
+
+This exception is only for the fixed env launcher's authenticated multicall
+inode. Every original-root evidence file, repository tree file, helper,
+manifest, journal file, and arbitrary regular object retains its existing
+no-follow and one-link rule.
+
+The fixed resolved-path invocation remains a non-circular pre-execution trust
+boundary. The literals select no data; M records the bytes and identities at
+those literals without containing its own hash; E embeds the independently
+reviewed hash of M and pins the command bytes; the bootstrap authenticates M,
+then the already-open objects, before helper/root access. No symlink target,
+resolved pathname, hash, or metadata value is discovered from a caller or fed
+back into M. Any mismatch is HOLD rather than a wrapper, alternate lookup, or
+weaker execution path.
 
 The final E command has no argument after the bootstrap literal, no shell
 substitution, pipeline, wrapper, alias, function, retry, password, askpass, or
@@ -408,8 +465,10 @@ classification and numeric exit, never launcher text.
 The focused synthetic command-construction test builds the complete argv,
 environment, redirections, session policy, and single-quoted literal from an
 explicit fake binding. It requires `setsid --fork --wait`, outer and inner
-`env -i`, `sudo -n`, `/dev/null` stdin, discarded external stderr, zero shell
-expansions, zero retry edge, and exactly one `-I -S -B -c` literal operand.
+resolved-path `env -i`, resolved-path `sudo -n`, `/dev/null` stdin, discarded
+external stderr, zero shell expansions, zero retry edge, and exactly one
+`-I -S -B -c` literal operand. It rejects `/usr/bin/env`, `/usr/bin/sudo`, and
+every resolver, selector, or alternate literal.
 Fake password,
 askpass, stdin, terminal, and retry adapters must remain uncalled. It also
 round-trips shell quoting and proves that adding an argument, environment key,
@@ -425,7 +484,9 @@ file hash or final bootstrap hash, so no hash cycle exists. The same Reviewer's
 E result pins manifest SHA-256, helper SHA-256,
 bootstrap-template SHA-256, final bootstrap SHA-256, final command SHA-256,
 and the device/inode/owner/mode/link/size/SHA-256 tuples of the root-owned
-`setsid`, `env`, `sudo`, and bootstrap-Python objects plus `/dev/null` facts.
+`/usr/bin/setsid`, `/usr/lib/cargo/bin/coreutils/env`,
+`/usr/lib/cargo/bin/sudo`, and `/usr/bin/python3.14` objects plus `/dev/null`
+facts.
 The later operator handoff repeats those values and the fixed journal-anchor
 identity; it supplies none as an argv, environment, stdin, or path input.
 
@@ -438,13 +499,14 @@ Before any worktree byte is executed, the bootstrap:
    controlling terminal;
 2. proves `/proc/self/exe` is the root-owned, one-link `/usr/bin/python3.14`
    object pinned by the same Reviewer, then starts from a no-follow `/`
-   descriptor and retains no-follow descriptors for
-   every fixed worktree ancestor, the fixed manifest, helper, current
-   `/proc/self/exe`, the fixed Node object, and the fixed journal anchor
+   descriptor and retains no-follow final regular descriptors for every fixed
+   launcher object, every fixed worktree ancestor, the fixed manifest, helper,
+   current `/proc/self/exe`, the fixed Node object, and the fixed journal anchor
    described in section 4.4.5;
-3. requires regular one-link launcher/interpreter objects and exact
-   manifest-bound metadata, reads the pinned manifest to EOF under its byte
-   cap, and matches `MANIFEST_BYTES_SHA256` before parsing one byte;
+3. requires the role-specific launcher ownership/mode/link policy above and
+   exact manifest-bound metadata/content, reads the pinned manifest to EOF
+   under its byte cap, and matches `MANIFEST_BYTES_SHA256` before parsing one
+   byte;
 4. parses the exact schema in section 4.4.4, hashes the already-open helper to
    EOF, requires its byte count and hash to equal the authenticated manifest,
    and re-proves every retained pathname-to-descriptor identity; and
@@ -457,8 +519,9 @@ Before any worktree byte is executed, the bootstrap:
    canonicalizing fd 4 back to a mutable worktree pathname.
 
 The helper is therefore loaded from fd 4, never by reopening its worktree
-pathname. It rehashes fds 4 and 5 and rechecks fd 6 before its private direct
-entry proceeds; the bootstrap retains all descriptors until the child exits.
+pathname. It rehashes fds 4 and 5, rechecks fd 6, and re-proves every retained
+launcher descriptor against its fixed literal before its private direct entry
+proceeds; the bootstrap retains all descriptors until the child exits.
 A path replacement, inode drift, truncated read, manifest mismatch, helper
 mismatch, unexpected key, fd-map drift, or child launch through any pathname is
 `HOLD_PROVENANCE` before original-root access. The bootstrap contains neither
@@ -655,10 +718,20 @@ The fixed `FILE` paths in array order are
 `scripts/as1-preserve-original-root.mjs`, `package-lock.json`, `package.json`,
 `tsconfig.build.json`, and
 `config/agent-office.as1-slack-pilot.disabled.json`. The fixed `OBJECT` paths
-in order are `/usr/bin/setsid`, `/usr/bin/env`, `/usr/bin/sudo`,
+in order are `/usr/bin/setsid`, `/usr/lib/cargo/bin/coreutils/env`,
+`/usr/lib/cargo/bin/sudo`,
 `/home/leo/.nvm/versions/node/v24.18.0/bin/node`, and
 `/usr/bin/python3.14`. `nullDevice.path` is `/dev/null`; it must be the
 root-owned character device with the manifest-bound major/minor tuple.
+Each `OBJECT` name/path pair is positional and exact; a parser rejects a
+different name, path, order, or cardinality. Each is a no-follow-opened final
+regular inode with UID/GID `0`/`0`, no group/other write bit, exact executable
+mode, device, inode, mode, links, bytes, and SHA-256 from M. `env` requires mode
+`0755` and may alone record a `links` value greater than `1`; `sudo` requires
+mode `4755` and `links` equal to `1`; every other launcher requires `links`
+equal to `1`, its exact M-pinned executable mode, and no setuid/setgid bit.
+The env exception accepts no link-count range: generation records one exact
+minimal decimal and every reproduction/bootstrap check requires equality.
 `descriptorEnabled` is the string `false` and
 `descriptorReceiveGrantRef` is `null`; the descriptor SHA-256 remains
 `8e3b9985f09b366e046d03392bd60b2157264ec1f2eb4498bfa92e615802f5d7`.
@@ -742,17 +815,21 @@ focused tests use
 synthetic entries to cross-check the production pure encoder, generator
 literal, and independent reproducer against hand-written byte vectors,
 including root, empty directory, one file, ordering, terminator, invalid UTF-8,
-numeric, unknown-key, and final-LF cases.
+numeric, unknown-key, and final-LF cases. Launcher vectors additionally prove
+the exact resolved env/sudo literals, env mode `0755` with an exact multi-link
+value, sudo mode `4755` and one link, and rejection of aliases, wrong owner,
+writable/wrong-mode objects, a multi-link non-env object, unexpected env link
+count, inode replacement, and size/content/hash drift.
 
 Their sole command shapes, run from the fixed worktree, are:
 
 ~~~bash
-/usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+/usr/lib/cargo/bin/coreutils/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   /home/leo/.nvm/versions/node/v24.18.0/bin/node \
   --disable-proto=throw --input-type=module \
   --eval 'F02_MANIFEST_GENERATOR_V1' </dev/null
 
-/usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+/usr/lib/cargo/bin/coreutils/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   /home/leo/.nvm/versions/node/v24.18.0/bin/node \
   --disable-proto=throw --input-type=module \
   --eval 'F02_MANIFEST_REPRODUCER_V1' </dev/null
@@ -768,7 +845,9 @@ The commit/build/evidence sequence is closed:
    manifest, contains the non-runnable one-binding-marker bootstrap template
    and both fixed manifest literals, and is clean;
 2. from clean S, run all focused checks and `npm run build:core`, then run the
-   one fixed generator once to create manifest M whose `sourceCommit` is S;
+   one fixed resolved-env generator once to create manifest M whose
+   `sourceCommit` is S and whose launcher objects contain only the exact final
+   regular paths and role-specific metadata above;
 3. independently reproduce M, compute `sha256(M including LF)`, and change no
    helper, test, source, build output, package, config, or descriptor byte;
 4. under a separate exact no-root journal-install handoff, create and sync the
@@ -778,10 +857,11 @@ The commit/build/evidence sequence is closed:
    binding marker with M's digest and J's facts and adds M plus exact result/
    pointer evidence; E records S/J and its parent relationship, while the
    helper and every manifest-covered blob remain byte-identical to S; and
-6. the same Reviewer rebuilds from S, reproduces M with the independent literal,
-   verifies E's sole binding edit and no marker, and pins generator, reproducer,
-   M, helper, bootstrap, and command byte counts/hashes before any operator
-   handoff.
+6. the same Reviewer rebuilds from S, reproduces M with the independent
+   resolved-env literal, verifies E's sole binding edit and no marker, rejects
+   either original alias or launcher-object drift, and pins generator,
+   reproducer, M, helper, bootstrap, and command byte counts/hashes before any
+   operator handoff.
 
 The final bootstrap verifies manifest bytes before trusting its fields. The
 helper then re-verifies fds 4/5, every tree/file/object/static proof, the exact
@@ -825,9 +905,9 @@ Its sole command shape is:
 
 ~~~bash
 /usr/bin/setsid --fork --wait -- \
-  /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
-  /usr/bin/sudo -n -- \
-  /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+  /usr/lib/cargo/bin/coreutils/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+  /usr/lib/cargo/bin/sudo -n -- \
+  /usr/lib/cargo/bin/coreutils/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   /usr/bin/python3.14 -I -S -B -c 'F02_JOURNAL_ANCHOR_INSTALL_V1' \
   </dev/null 2>/dev/null
 ~~~
@@ -1579,6 +1659,17 @@ The tests must prove:
 - the final command is detached, noninteractive, stdin-closed, askpass-free,
   environment-closed, retry-free, and has the separate sudo-denial contract;
   synthetic password/askpass/stdin/terminal/retry fakes remain uncalled;
+- the preservation command, journal-installer command, generator, and
+  reproducer contain only `/usr/lib/cargo/bin/coreutils/env` and
+  `/usr/lib/cargo/bin/sudo`; `/usr/bin/env`, `/usr/bin/sudo`, symlink/realpath/
+  PATH/alternatives discovery, caller selection, fallback, and generic
+  launcher resolution reject;
+- every fixed launcher is a no-follow-opened final regular root-owned inode
+  with exact M-bound mode/device/inode/link/size/hash and no group/other write;
+  env alone accepts its exact M-pinned multi-link count at mode 0755, sudo is
+  one-link mode 4755, every other launcher is one-link/non-setuid, and all
+  target replacement or metadata/content drift rejects before helper/root
+  access;
 - the inline bootstrap authenticates the exact manifest before parse, derives
   the helper hash only from that authenticated manifest, re-proves the helper
   fd, and executes only retained Node/helper descriptors; path replacement and
@@ -1856,7 +1947,11 @@ Known, bounded unknowns:
 
 Implementation readiness:
 
-DESIGN_STATE: READY_FOR_SAME_REVIEWER_F02_D1_D6_DELTA_REVIEW.
+DESIGN_STATE: READY_FOR_SAME_REVIEWER_F02_FIXED_LAUNCHER_COMPATIBILITY_DELTA_REVIEW.
+
+LAUNCHER_COMPATIBILITY_DISPOSITION: READY_FOR_SAME_REVIEWER. The direct fixed
+regular-file literals preserve the non-circular E -> authenticated M ->
+retained object proof and introduce no runtime path resolution.
 
 Implementation is ready only if the same independent Reviewer accepts this
 delta and the responsible Advisor issues an exact implementation handoff with
@@ -1868,7 +1963,7 @@ preflight each pass their separate authority and review gates.
 This Designer result is not independent review, implementation approval, risk
 acceptance, final closure, or authority to start the next mission.
 
-## 11. F02-D1 through F02-D6 patch traceability
+## 11. F02-D1 through F02-D6 and fixed-launcher traceability
 
 | Finding | Bounded disposition | Normative sections |
 | --- | --- | --- |
@@ -1878,6 +1973,7 @@ acceptance, final closure, or authority to start the next mission.
 | F02-D4 | Seven pure exports, exact direct-entry guard, zero-I/O import, and private non-injectable production adapters. | 4.4.8, 6, 7.2 |
 | F02-D5 | Exact `-I -S -B -c` child, fd/cwd/env/output/exit contract, ordered UID/GID/groups/securebits/capability/no-new-privileges proof. | 4.4.6, 7.2 |
 | F02-D6 | Root-owned immutable/append-only preinstalled anchor, nonblocking exclusive lock, exact hash-chained states, sync/full reread, and no fresh state after loss/tamper/ambiguity. | 4.4.5, 7.2, 8 |
+| F02 launcher compatibility | Final regular env/sudo literals, manifest-pinned role-specific mode/link rules, retained no-follow descriptors, and alias/drift rejection with no generic resolution. | 4.4.1, 4.4.4, 7.2 |
 
 No F01, status, Socket, Exact Delivery, descriptor, private binding,
 sequential-profile, or accepted preservation-algorithm behavior is reopened.
