@@ -10,6 +10,7 @@
 // clean stop / durable incident-kill lifecycle. It selects NO profile from Slack/CLI/env; the immutable receive
 // grant is the only profile selector. It constructs no real Slack/tmux client itself — production wires those in,
 // tests wire synthetic fakes — and it reaches no network of its own.
+import { randomUUID } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -785,6 +786,9 @@ export class As1GatewayComposition {
       // kill (owner stop), so no message is ever received against a corrupt fixed destination.
       if (this.personalLeoOnly) {
         await this.validateFixedAdvisorDestination(this.live, deps);
+        // Mint the FIRST single-use grant before any message, so every root binds a distinct minted grant (restart-safe;
+        // the fixed startup grant is the authority template and is never itself bound to a root).
+        this.swapInFreshReceiveGrant();
       }
       await this.guardedAwait(() => service.recoverPending());
       this.assertIncidentAdmissionOpen(); // F01: NEVER arm live receive after an incident has closed admission (sync op)
@@ -906,13 +910,31 @@ export class As1GatewayComposition {
     this.leoRootSeq += 1;
     const nowIso = this.clock.now();
     const nowMs = Date.parse(nowIso);
-    const idSuffix = hashCanonical({ base: previous.receiveGrantId, seq: this.leoRootSeq }).slice('sha256:'.length, 'sha256:'.length + 24);
+    // The id must be fresh across PROCESS RESTARTS (the in-memory sequence alone resets to 0 on restart and would
+    // collide with a prior process's durable binding). `randomUUID` is the standard primitive for a globally-fresh id
+    // — no schema/key/path change — so every minted grant owns a distinct immutable single-root binding.
     return parseReceiveGrant({
       ...previous,
-      receiveGrantId: `as1-leo-rg-${this.leoRootSeq}-${idSuffix}`,
+      receiveGrantId: `as1-leo-rg-${this.leoRootSeq}-${randomUUID()}`,
       issuedAt: nowIso,
       expiresAt: new Date(nowMs + AS1_INTERNAL_RECEIVE_GRANT_LIFETIME_MS).toISOString(),
     });
+  }
+
+  /** Handoff 116 §5 (PERSONAL_LEO_ONLY): mint a fresh single-use receive grant and swap it into the live service + live
+   *  state, so the NEXT root binds a distinct grant (one grant = one root). Called once before the first message (at
+   *  startup) and after every completed round trip. */
+  private swapInFreshReceiveGrant(): void {
+    const live = this.live;
+    if (live === null) return;
+    const next = this.mintNextReceiveGrant(live.grant);
+    live.service.useReceiveGrant(next);
+    this.live = { ...live, grant: next };
+  }
+
+  /** Handoff 116 (PERSONAL_LEO_ONLY): the active minted receive-grant id, for restart-freshness assertions. */
+  public currentReceiveGrantId(): string | null {
+    return this.live?.grant.receiveGrantId ?? null;
   }
 
   /**
@@ -922,17 +944,13 @@ export class As1GatewayComposition {
    * sequentially. No profile/global latch, no durable barrier — those stay reserved for the corruption classes.
    */
   public resetForNextLeoRoot(): void {
-    const live = this.live;
-    if (live === null) return;
-    const next = this.mintNextReceiveGrant(live.grant);
-    live.service.useReceiveGrant(next);
-    this.live = { ...live, grant: next };
     this.lastIntakeId = null;
     this.internalDeliveryGrant = null;
     this.internalLease = null;
     this.acceptedDeliveryGrant = null;
     this.acceptedLease = null;
     this.personalMessageFailed = false;
+    this.swapInFreshReceiveGrant();
   }
 
   /**
@@ -1077,6 +1095,12 @@ export class As1GatewayComposition {
     if (entryClassification !== 'OPEN') {
       await this.enterFailureBarrier(live, entryClassification);
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure barrier at delivery entry' };
+    }
+    // Handoff 116 §2/§7 (P1): re-validate the fixed agent-office-advisor destination at delivery. A fixed-destination /
+    // identity / profile mismatch is a CORRUPTION class — it engages the durable global kill and fails closed GLOBALLY
+    // (never message-local), BEFORE the internal authority is built or any ordinary per-message failure can be posted.
+    if (this.personalLeoOnly) {
+      await this.validateFixedAdvisorDestination(live, deps);
     }
     // The delivery authority is either observed from the construction-bound Git mission root (default) or, in the
     // personal Leo-only runtime, constructed and trusted in memory (handoff 116 §5). Both feed the SAME exact

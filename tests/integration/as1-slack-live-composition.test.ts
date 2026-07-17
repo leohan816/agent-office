@@ -180,6 +180,8 @@ class FakeTmuxObservationPort implements As1TmuxObservationPort {
 class ControllableTmuxObservationPort implements As1TmuxObservationPort {
   public pasteCalls = 0;
   public enterCalls = 0;
+  /** When set, the NEXT observe returns a profile-mismatching pane once — a fixed-destination/identity corruption that
+   *  must fail GLOBAL (P1), never message-local. */
   public failNextObserve = false;
   public constructor(
     private readonly ok: As1TmuxDestination,
@@ -473,34 +475,48 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     }
   });
 
-  it('handoff 116 §7: a personal Leo-only per-message delivery failure posts FAILED, does NOT latch, and the next root proceeds', async () => {
+  it('handoff 116 §7 (P1): a personal Leo-only fixed-destination/profile mismatch fails GLOBAL, never message-local', async () => {
     const tmuxPort = new ControllableTmuxObservationPort(
       parseTmuxDestination(validDestination(), 'ok'),
       parseTmuxDestination(validDestination({ sessionName: 'not-the-advisor' }), 'bad'),
     );
-    const { composition, socket, stateRoot } = await startAgentOfficeComposition({ personalLeoOnly: true, tmuxPort });
+    const { composition, socket } = await startAgentOfficeComposition({ personalLeoOnly: true, tmuxPort });
     try {
-      const start = await composition.start(); // startup destination validation observes the OK pane and passes
-      expect(start.connected).toBe(true);
-      // Message 1: the next observe returns a profile-mismatching pane, so the built internal lease does not bind the
-      // selected profile and delivery stops before paste (a per-message failure).
+      expect((await composition.start()).connected).toBe(true); // startup observed the OK pane and passed
+      await socket.deliver(slackEnvelope());
+      // At delivery the fixed pane no longer binds the profile — a fixed-destination/identity corruption. It must fail
+      // GLOBAL (durable kill + throw), NOT the message-local reset path.
       tmuxPort.failNextObserve = true;
-      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
-      const failed = await composition.deliverPending();
-      expect(failed.outcome).toBe('STOPPED_BEFORE_PASTE');
-      expect(composition.personalMessageFailurePending()).toBe(true); // DELIVERY_FAILED posted; message-local
-      // §7: no profile latch for a per-message failure (reserved for the corruption classes).
-      const latchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');
-      expect((JSON.parse(latchRaw) as { readonly latched: boolean }).latched).toBe(false);
-      // The owner resets and the NEXT valid Leo root proceeds and delivers.
-      composition.resetForNextLeoRoot();
-      expect(composition.personalMessageFailurePending()).toBe(false);
-      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
-      expect(composition.lastIntake()).not.toBeNull();
-      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
-      expect(tmuxPort.pasteCalls).toBe(1); // only message 2 pasted; message 1 stopped before paste
+      await expect(composition.deliverPending()).rejects.toThrow();
+      expect(composition.personalMessageFailurePending()).toBe(false); // never entered the per-message local path
+      // A global kill is durable: a subsequent start attempt is refused as globally latched.
+      expect((await composition.start()).reason).toBe('GLOBAL_LATCHED');
     } finally {
       await composition.stop();
+    }
+  });
+
+  it('handoff 116 §5 (P2): minted receive grants are fresh across process restarts on the same durable state root', async () => {
+    const stateRoot = await makeStateRoot();
+    const a = await startAgentOfficeComposition({ personalLeoOnly: true, stateRoot });
+    await a.composition.start();
+    await a.socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
+    expect((await a.composition.deliverPending()).outcome).toBe('DELIVERED');
+    const idA = a.composition.currentReceiveGrantId();
+    await a.composition.stop();
+    // "Restart": a fresh composition/owner on the SAME durable state root. The minted id must be fresh, so it does not
+    // collide with the pre-restart durable binding and the next root binds + delivers.
+    const b = await startAgentOfficeComposition({ personalLeoOnly: true, stateRoot });
+    await b.composition.start();
+    const idB = b.composition.currentReceiveGrantId();
+    try {
+      expect(idA).not.toBeNull();
+      expect(idB).not.toBeNull();
+      expect(idB).not.toBe(idA);
+      await b.socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
+      expect((await b.composition.deliverPending()).outcome).toBe('DELIVERED');
+    } finally {
+      await b.composition.stop();
     }
   });
 
