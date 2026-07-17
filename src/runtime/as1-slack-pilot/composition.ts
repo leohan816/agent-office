@@ -123,6 +123,7 @@ export function parseRuntimeDescriptor(value: unknown): As1RuntimeDescriptorV1 {
 
 export type As1ConnectReason =
   | 'GLOBAL_LATCHED'
+  | 'PROFILE_LATCHED'
   | 'DISABLED_DEFAULT_NO_AUTHORITY'
   | 'RECEIVE_GRANT_NOT_READY'
   | 'RECEIVING_ARMED';
@@ -579,6 +580,16 @@ export class As1GatewayComposition {
     const receiveGrantProvenance = deps.buildReceiveGrantProvenance({ receiveGrantRef, accepted: acceptedReceiveGrant, grant });
     await this.guardedAwait(() => receiveGrantProvenance.assertAccepted(grant));
 
+    // handoff 95 F01 (correction 5 / restart): a DURABLE selected-profile latch persisted by a PRIOR run — e.g. its
+    // haltProgression or failure barrier — survives restart. Detect it here, AFTER grant/profile resolution and BEFORE
+    // any socket build or durable transition, and fail closed truthfully as PROFILE_LATCHED (no socket, no arm, no
+    // recovery round trip). This preserves startup ordering, never claims the global kill, and never depends on an
+    // in-memory progression-halt flag surviving a restart. The record is initialized for both profiles at establish, so
+    // a missing record is a STORE_QUARANTINED fail-closed, never a silent "unlatched".
+    if (await this.guardedAwait(() => this.control.isProfileLatched(slug))) {
+      return { connected: false, reason: 'PROFILE_LATCHED', state: this.control.getState() };
+    }
+
     // Step 3 (F02.3): the FIRST durable authority transition is now INSIDE the rollback/kill envelope, so a
     // transition/persistence failure at that boundary reverts/closes to a legal clean state and releases ownership —
     // never a half-started durable record reached by the outer owner close.
@@ -704,6 +715,15 @@ export class As1GatewayComposition {
       // barrier is handled exactly as §5.6.1 (the owner loop then halts); only an OPEN classification replays ACCEPTED
       // and exposes the intake to delivery.
       await this.recoverTerminalStatusAndAccepted(this.live, deps);
+      // handoff 95 F01: a durable failure barrier OR a halted progression raised DURING recovery (e.g., an ACCEPTED
+      // recovery that reached REQUEST_STARTED/manual) MUST NOT arm Socket receive or enter the live loop. Refuse arm and
+      // return NOT connected so the owner releases ownership truthfully instead of running a live round trip. Both
+      // enterFailureBarrier and haltProgression durably latch THIS profile at recovery (the control is already
+      // RECEIVING_ONE_PROFILE), so the truthful reason is PROFILE_LATCHED — NEVER the global kill/latch (correction 5).
+      if (this.hasFailureBarrier()) {
+        this.receiving = false;
+        return { connected: false, reason: 'PROFILE_LATCHED', state: this.control.getState() };
+      }
       this.receiving = true;
       socket.armReceive();
       return { connected: true, reason: 'RECEIVING_ARMED', state: this.control.getState() };
@@ -899,8 +919,16 @@ export class As1GatewayComposition {
       const { deliveryId } = parseContainedPointerRef(deliveryGrant);
       const journalPhase = await this.guardedAwait(() => live.store.readTmuxPhase(deliveryId));
       if (journalPhase === null) {
-        await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_FAILED');
-        await this.enterFailureBarrier(live, 'DELIVERY_FAILED_BARRIER');
+        const failed = await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_FAILED');
+        // handoff 95 F01: enter a DELIVERY_FAILED barrier ONLY if its outbox record actually reached its first durable
+        // phase (RE-classify the durable siblings). A send rejected BEFORE any durable phase is NOT a crash-durable
+        // barrier; halt on the exact non-delivered outcome (profile latch via haltProgression) instead of a false claim.
+        const afterSend = await this.classifyFailureSiblings(live, intakeId);
+        if (afterSend !== 'OPEN') {
+          await this.enterFailureBarrier(live, afterSend);
+        } else {
+          await this.haltProgression(live, `delivery-failed-${failed.outcome}`);
+        }
       }
     }
     return result;
@@ -1041,6 +1069,15 @@ export class As1GatewayComposition {
       }
       const value: unknown = JSON.parse(evidenceObs.bytes.toString('utf8'));
       const ref = { repositoryId: deps.gitSource.getRepositoryId(), sourceCommit: evidenceObs.firstAddCommit ?? '', path: `${authority.evidencePrefix}/${intakeId}/${kind.toLowerCase()}.json`, blobSha256: evidenceObs.blobSha256 ?? '' };
+      // §5.7 (handoff 95 F01): RE-READ the DURABLE classifier AFTER the evidence observation and IMMEDIATELY BEFORE the
+      // durable evidence CHECKPOINT (ingress.ingest) — a barrier that appeared during the observation begins no ingress
+      // checkpoint, status, or business progression.
+      const beforeIngest = await this.classifyFailureSiblings(live, intakeId);
+      if (beforeIngest !== 'OPEN') {
+        await this.enterFailureBarrier(live, beforeIngest);
+        outcomes.push(`FAILURE_ADMISSION_REFUSED:${beforeIngest}`);
+        return outcomes;
+      }
       const ingested = await this.guardedAwait(() => ingress.ingest(kind, value, ref));
       outcomes.push(`${kind}:${ingested.outcome}`);
       // R2 recovery §5.7 DELIVERY_CONFIRMED: the Advisor server ACK acceptance (buildEvidenceAuthority already required
@@ -1182,9 +1219,17 @@ export class As1GatewayComposition {
       await this.enterFailureBarrier(live, classification); // §5.6 rule 5: PROCESSING_FAILED forbidden while DELIVERY_FAILED exists
       return;
     }
-    // OPEN or an existing PROCESSING_FAILED record: (re-)attempt the same PROCESSING_FAILED once, then latch and stop.
-    await this.sendUserStatus(live, deps, intakeId, 'PROCESSING_FAILED');
-    await this.enterFailureBarrier(live, 'PROCESSING_FAILED_BARRIER');
+    // OPEN or an existing PROCESSING_FAILED record: (re-)attempt the same PROCESSING_FAILED once.
+    const failed = await this.sendUserStatus(live, deps, intakeId, 'PROCESSING_FAILED');
+    // handoff 95 F01: enter a PROCESSING_FAILED barrier ONLY if its outbox record actually reached its first durable
+    // phase (RE-classify the durable siblings). A send rejected BEFORE any durable phase is NOT a crash-durable barrier;
+    // halt on the exact non-delivered outcome (profile latch via haltProgression) instead of a false durable claim.
+    const afterSend = await this.classifyFailureSiblings(live, intakeId);
+    if (afterSend !== 'OPEN') {
+      await this.enterFailureBarrier(live, afterSend);
+    } else {
+      await this.haltProgression(live, `processing-failed-${failed.outcome}`);
+    }
   }
 
   /** True once a durable failure barrier has been observed/entered (R2 recovery §5.6). The owner loop halts on it so

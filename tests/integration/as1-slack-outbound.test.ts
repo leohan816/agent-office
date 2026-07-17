@@ -456,4 +456,57 @@ describe('AS1 same-thread status ordering guard (R2 recovery design §5.6)', () 
     expect(result.phase).toBe('REQUEST_STARTED'); // exact outbox state preserved (no RESPONSE_RECORDED)
     expect(await store.readOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED'))).toBe('REQUEST_STARTED');
   });
+
+  it('permits idempotent ACCEPTED terminal replay after a successful DELIVERY_CONFIRMED (no duplicate post, no false halt)', async () => {
+    // handoff 95 F01 (correction 4): a normal restart replays ACCEPTED while ACCEPTED@RESPONSE_RECORDED +
+    // DELIVERY_CONFIRMED@RESPONSE_RECORDED with BOTH failure siblings absent. §5.6 rule 6 / §5.7 make only a FAILURE
+    // record a barrier — a successful DELIVERY_CONFIRMED must NOT block ACCEPTED's own idempotent terminal replay, which
+    // the resume rediscovers with NO second post. Adversarial vs the prior guard, which rejected ACCEPTED as
+    // LATER_STATUS_PRESENT here and (in composition recovery) falsely halted the mission.
+    const { store, web, outbox } = await makeOutbox();
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(store, 'DELIVERY_CONFIRMED', 'RESPONSE_RECORDED');
+    const result = await outbox.sendStatus(INTAKE, 'ACCEPTED');
+    expect(result.outcome).toBe('DELIVERED'); // idempotent terminal replay — no false ordering refusal
+    expect(result.phase).toBe('RESPONSE_RECORDED');
+    expect(web.posted).toHaveLength(0); // NO duplicate ACCEPTED post
+  });
+
+  it('still refuses ACCEPTED behind a FAILURE barrier and a DELIVERY_CONFIRMED without a terminal ACCEPTED (no over-open)', async () => {
+    // correction 4 must not over-open ACCEPTED: a real failure sibling is still a barrier, and a DELIVERY_CONFIRMED with a
+    // nonterminal/absent ACCEPTED is a corrupt ordering (§5.6 rule 2). Neither posts.
+    const behindFailure = await makeOutbox();
+    await seedStatus(behindFailure.store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(behindFailure.store, 'DELIVERY_FAILED', 'PREPARED'); // a FAILURE barrier
+    const failed = await behindFailure.outbox.sendStatus(INTAKE, 'ACCEPTED');
+    expect(failed.outcome).toBe('REJECTED_CONTROL');
+    expect(failed.reason).toContain('FAILURE_BARRIER');
+    expect(behindFailure.web.posted).toHaveLength(0);
+
+    const corrupt = await makeOutbox();
+    await seedStatus(corrupt.store, 'ACCEPTED', 'PREPARED'); // nonterminal ACCEPTED...
+    await seedStatus(corrupt.store, 'DELIVERY_CONFIRMED', 'RESPONSE_RECORDED'); // ...beneath a later status
+    const rejected = await corrupt.outbox.sendStatus(INTAKE, 'ACCEPTED');
+    expect(rejected.outcome).toBe('REJECTED_CONTROL');
+    expect(rejected.reason).toContain('LATER_STATUS_PRESENT');
+    expect(corrupt.web.posted).toHaveLength(0);
+  });
+
+  it('a terminal OWN record does NOT return DELIVERED once a failure sibling appears later (guard runs before the resume return)', async () => {
+    // handoff 95 F01 (correction 2, defect 1): the status-ordering guard runs at TRUE sendStatus entry — BEFORE the
+    // RESPONSE_RECORDED resume return. So DELIVERY_CONFIRMED@RESPONSE_RECORDED does NOT blindly return DELIVERED once a
+    // DELIVERY_FAILED sibling appears later; it is REJECTED_CONTROL, its durable state preserved, with no continuation.
+    // Adversarial vs running the resume return before the guard, which returned DELIVERED behind the barrier.
+    const { store, web, outbox } = await makeOutbox();
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(store, 'DELIVERY_CONFIRMED', 'RESPONSE_RECORDED'); // its OWN terminal record
+    await seedStatus(store, 'DELIVERY_FAILED', 'PREPARED'); // a failure sibling appears LATER
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL'); // NOT DELIVERED via a blind resume
+    expect(result.reason).toContain('FAILURE_BARRIER');
+    expect(web.posted).toHaveLength(0); // no continuation / no post
+    // The exact durable state is preserved (still its terminal RESPONSE_RECORDED — no phantom transition).
+    expect(await store.readOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED'))).toBe('RESPONSE_RECORDED');
+  });
+
 });

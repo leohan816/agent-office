@@ -242,8 +242,9 @@ export class As1Outbox {
    * status after ACCEPTED requires the deterministic ACCEPTED record at RESPONSE_RECORDED; DELIVERY_CONFIRMED begins
    * only while both failure siblings are wholly absent; DELIVERY_FAILED only while DELIVERY_CONFIRMED and
    * PROCESSING_FAILED are absent; PROCESSING_FAILED only while DELIVERY_FAILED is absent (it may follow
-   * DELIVERY_CONFIRMED); and both failure records present is a conflict. It NEVER blocks a status's OWN record (that is
-   * the same-failure recovery path resolved by the resume logic). It throws a redacted GATEWAY_DISABLED code; the
+   * DELIVERY_CONFIRMED); and both failure records present is a conflict. It NEVER blocks a status's OWN record — neither
+   * the same-failure PREPARED recovery nor an idempotent ACCEPTED terminal replay after a successful DELIVERY_CONFIRMED
+   * (both failure siblings absent); only a FAILURE barrier/conflict stops ACCEPTED. It throws a redacted GATEWAY_DISABLED code; the
    * caller preserves the outbox state, latches, and halts — no sibling or business operation runs behind a barrier.
    */
   private async assertStatusOrderable(intakeId: string, statusKind: As1UserStatusKind): Promise<void> {
@@ -262,7 +263,15 @@ export class As1Outbox {
     }
     switch (statusKind) {
       case 'ACCEPTED':
-        if (deliveryConfirmed || deliveryFailed || processingFailed) {
+        // §5.6 rule 6 / §5.7: ACCEPTED's OWN record is never blocked by a later SUCCESSFUL sibling — only a FAILURE
+        // barrier/conflict stops it. An idempotent terminal replay after DELIVERY_CONFIRMED (both failure siblings wholly
+        // absent) MUST proceed so a normal restart's resume rediscovers RESPONSE_RECORDED with NO second post and NO false
+        // halt (§5.7: "only while still OPEN, replay ACCEPTED ... no second Slack post"). A DELIVERY_CONFIRMED without a
+        // terminal ACCEPTED is a corrupt/nonterminal ordering (rule 2) and is rejected.
+        if (deliveryFailed || processingFailed) {
+          throw new DomainError('GATEWAY_DISABLED', 'status-ordering: FAILURE_BARRIER');
+        }
+        if (deliveryConfirmed && acceptedPhase !== 'RESPONSE_RECORDED') {
           throw new DomainError('GATEWAY_DISABLED', 'status-ordering: LATER_STATUS_PRESENT');
         }
         break;
@@ -315,9 +324,19 @@ export class As1Outbox {
   ): Promise<As1OutboxResult> {
     const { profile, secret, store, web, latch, delay } = this.deps;
 
-    // Resume: never touch the network once a terminal or in-flight phase is durable (no blind resend).
     const priorRecord = await store.readOutboxRecord(outboundId);
     const prior = priorRecord?.phase ?? null;
+
+    // R2 recovery §5.6 (handoff 95 correction): the status-ordering guard runs at TRUE ENTRY — BEFORE any resume or
+    // terminal return — so a terminal own-record (RESPONSE_RECORDED) cannot return DELIVERED once a failure sibling has
+    // appeared, and a MANUAL/REQUEST_STARTED resume cannot proceed behind a barrier. It is re-checked before every
+    // durable/Web write below; a violation preserves the exact outbox state and returns REJECTED_CONTROL to the caller.
+    const priorPhase: As1OutboxPhase =
+      prior === 'REQUEST_STARTED' || prior === 'RESPONSE_RECORDED' || prior === 'MANUAL_RECONCILIATION_REQUIRED' ? prior : 'PREPARED';
+    const atEntry = await this.checkStatusOrdering(statusGuard, priorPhase);
+    if (atEntry !== null) return atEntry;
+
+    // Resume: never touch the network once a terminal or in-flight phase is durable (no blind resend).
     if (prior === 'RESPONSE_RECORDED') {
       return { outcome: 'DELIVERED', phase: 'RESPONSE_RECORDED', attempts: 0, reason: 'already delivered' };
     }
@@ -330,11 +349,6 @@ export class As1Outbox {
       await store.recordOutboxPhase(outboundId, 'MANUAL_RECONCILIATION_REQUIRED');
       return { outcome: 'MANUAL_RECONCILIATION_REQUIRED', phase: 'MANUAL_RECONCILIATION_REQUIRED', attempts: 0, reason: 'interrupted after request start' };
     }
-
-    // R2 recovery §5.6: status-ordering guard at ENTRY (before any new side effect). It is re-checked before every
-    // durable/Web write below; a violation preserves the exact outbox state and returns REJECTED_CONTROL to the caller.
-    const atEntry = await this.checkStatusOrdering(statusGuard, 'PREPARED');
-    if (atEntry !== null) return atEntry;
 
     // Resolve the immutable accepted root by intakeId from the profile-local store; the root's intake must match, and
     // the root's rootKeyHash MUST equal the hash recomputed from the profile + bound secret's workspace/app/channel —

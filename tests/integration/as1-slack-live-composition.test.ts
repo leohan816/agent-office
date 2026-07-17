@@ -1143,6 +1143,35 @@ describe('AS1 Patch 3 — F01 incident domination + truthful cleanup (adversaria
     expect(line).not.toContain('DISABLED_CLEAN');
   });
 
+  it('checks the failure barrier BEFORE the grant re-observation: a Socket-callback barrier halts the owner without a forbidden grant observation', async () => {
+    // handoff 95 F01 (correction 3, defect 4): a barrier raised by the live Socket callback (a non-DELIVERED ACCEPTED →
+    // haltProgression) MUST be caught BEFORE observeReceiveGrantOnce — never followed by even one grant observation. Here
+    // the ACCEPTED post fails (the callback raises the barrier) AND the receive grant is diverged. With the barrier
+    // checked FIRST the owner halts DELIVERY_HALTED; if it observed the grant first it would instead report
+    // PROFILE_DIVERGED. Adversarial vs observing the grant before the barrier check.
+    const h = await makeLiveOwnerHarness({
+      buildDepOverrides: ({ world }) => {
+        world.web.setPostError(new Error('ACCEPTED post fails → Socket callback haltProgression')); // AMBIGUOUS → MANUAL → halt
+        return {};
+      },
+    });
+    let acted = false;
+    const result = await runForegroundOwner({
+      ...h.boundary,
+      delay: async () => {
+        if (acted) return;
+        acted = true;
+        const socket = h.socketHolder.current;
+        if (socket === null) throw new Error('socket not built');
+        await socket.deliver(slackEnvelope()); // Socket callback: ACCEPTED post fails → haltProgression raises the barrier
+        h.gitSource.divergePaths.add(RECEIVE_GRANT_REF); // if the owner observes the grant NEXT, it would DIVERGE
+      },
+    });
+    const line = result.lines.join('|');
+    expect(line).toContain('DELIVERY_HALTED'); // the barrier check dominated the next iteration — no grant observation
+    expect(line).not.toContain('PROFILE_DIVERGED'); // the forbidden grant observation never ran
+  });
+
   it('a Socket disconnect failure during a clean stop is reported truthfully — never a synthesized clean state', async () => {
     // The pre-fix cleanup swallows a disconnect failure and hard-codes STATE: DISABLED_CLEAN / STOPPED_CLEAN. The fix
     // records the DISCONNECT ambiguity and refuses to claim a proven clean release.
@@ -1714,13 +1743,54 @@ describe('AS1 R2 recovery — same-thread user status (design §5)', () => {
     }
     const second = await startAgentOfficeComposition({ stateRoot: first.stateRoot });
     try {
-      await second.composition.start();
+      // handoff 95 F01 (defect 3): recovery finds the durable DELIVERY_FAILED barrier BEFORE arm; start() must refuse
+      // arm and return NOT connected instead of arming a live round trip behind the barrier.
+      const result = await second.composition.start();
+      expect(result.connected).toBe(false);
+      expect(result.reason).toBe('PROFILE_LATCHED'); // a failure barrier persisted a PROFILE latch — NOT the global kill
+      expect(second.socket.armed).toBe(false); // no Socket receive arm behind the barrier
       expect(second.composition.hasFailureBarrier()).toBe(true);
       expect(second.composition.lastIntake()).toBeNull(); // withheld from delivery
-      expect((await second.composition.deliverPending()).phase).toBe('AWAITING'); // refused — no authority/tmux
       expect(second.tmuxPort.pasteCalls).toBe(0);
     } finally {
       await second.composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('a prior pre-terminal ACCEPTED that halted progression durably profile-latches: restart refuses Socket arm and reports PROFILE_LATCHED', async () => {
+    // handoff 95 F01 (defect 3 / correction 5): in the first run a non-DELIVERED ACCEPTED calls haltProgression, which
+    // durably profile-latches the slug. On restart, start() must detect that durable PROFILE latch BEFORE any socket
+    // build/recovery and fail closed truthfully as PROFILE_LATCHED (no arm) — NEVER a global-kill claim, and never a
+    // crash in the startup identity verifier. Adversarial vs the pre-fix start(), which (a) armed receive unconditionally
+    // and (b) reported GLOBAL_LATCHED for a mere profile latch.
+    // Seed (test-only Web seam): auth stays proven, but the ACCEPTED Web post FAILS, so the intake materializes while
+    // ACCEPTED stops durably pre-terminal (REQUEST_STARTED/manual) and the profile is durably latched — no product seam.
+    const first = await startAgentOfficeComposition();
+    try {
+      await first.composition.start();
+      first.web.setPostError(new Error('ACCEPTED post failed before RESPONSE_RECORDED'));
+      await first.socket.deliver(slackEnvelope()).catch(() => undefined);
+    } finally {
+      await first.composition.stop().catch(() => undefined);
+    }
+    // The intake materialized; the durable ACCEPTED never reached RESPONSE_RECORDED.
+    const store = await As1ProfileInboundStore.open(first.stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+    const transport = await store.readTransport('Ev0AGENTOFFICE01');
+    expect(transport?.state).toBe('MATERIALIZED');
+    const intakeId = transport?.intakeId ?? null;
+    if (intakeId === null) throw new Error('expected a materialized intake');
+    const acceptedRecord = await store.readOutboxRecord(userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'ACCEPTED'));
+    expect(acceptedRecord?.phase).not.toBe('RESPONSE_RECORDED'); // durably pre-terminal
+
+    const second = await startAgentOfficeComposition({ stateRoot: first.stateRoot });
+    try {
+      const result = await second.composition.start();
+      expect(result.connected).toBe(false); // durable profile latch → NOT connected
+      expect(result.reason).toBe('PROFILE_LATCHED'); // truthful — a PROFILE latch, NOT the global kill
+      expect(second.socket.armed).toBe(false); // preflight returns before any socket build/arm
+      expect(second.composition.lastIntake()).toBeNull(); // NOT exposed to delivery
+    } finally {
+      await second.composition.stop().catch(() => undefined);
     }
   });
 
@@ -1740,6 +1810,39 @@ describe('AS1 R2 recovery — same-thread user status (design §5)', () => {
       expect(second.composition.lastIntake()).not.toBeNull(); // §5.7: the durable ACCEPTED is re-derived, intake recovered
       expect(second.web.posted).toHaveLength(0); // NO duplicate Slack post on the fresh Web port
       expect(second.composition.hasFailureBarrier()).toBe(false);
+    } finally {
+      await second.composition.stop();
+    }
+  });
+
+  it('restart with a durable DELIVERY_CONFIRMED does NOT falsely halt: idempotent ACCEPTED replay, no barrier, no duplicate post', async () => {
+    // handoff 95 F01 (correction 4): after a SUCCESSFUL DELIVERY_CONFIRMED, a normal restart replays ACCEPTED. §5.6 rule 6
+    // makes only a FAILURE record a barrier, so recovery must re-derive the terminal ACCEPTED and ARM — never halt.
+    // Adversarial vs the prior ACCEPTED ordering guard, which rejected the replay behind DELIVERY_CONFIRMED and drove
+    // recoverTerminalStatusAndAccepted into haltProgression (a false global halt on a healthy mission).
+    const first = await startAgentOfficeComposition();
+    try {
+      await first.composition.start();
+      await first.socket.deliver(slackEnvelope());
+      const intakeId = first.composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      // Seed a durable SUCCESSFUL DELIVERY_CONFIRMED@RESPONSE_RECORDED (both failure siblings absent) via legal phases.
+      const store = await As1ProfileInboundStore.open(first.stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+      const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'DELIVERY_CONFIRMED');
+      await store.recordOutboxPhase(confirmedId, 'PREPARED', { requestHash: `sha256:${'5'.repeat(64)}` });
+      await store.recordOutboxPhase(confirmedId, 'REQUEST_STARTED');
+      await store.recordOutboxPhase(confirmedId, 'RESPONSE_RECORDED', { responseHash: `sha256:${'6'.repeat(64)}` });
+    } finally {
+      await first.composition.stop();
+    }
+    const second = await startAgentOfficeComposition({ stateRoot: first.stateRoot });
+    try {
+      const result = await second.composition.start();
+      expect(result.connected).toBe(true); // recovery re-derived the terminal ACCEPTED and ARMED — NO false halt
+      expect(second.socket.armed).toBe(true);
+      expect(second.composition.hasFailureBarrier()).toBe(false); // a SUCCESSFUL DELIVERY_CONFIRMED is NOT a barrier
+      expect(second.composition.lastIntake()).not.toBeNull(); // the intake is recovered and deliverable
+      expect(second.web.posted).toHaveLength(0); // NO duplicate ACCEPTED post
     } finally {
       await second.composition.stop();
     }
@@ -1809,6 +1912,152 @@ describe('AS1 R2 recovery — status ordering & barrier re-reads in composition 
       expect(outcomes.some((o) => o.startsWith('RESULT_OUTBOUND:'))).toBe(false); // no business projection behind the barrier
       expect(web.posted).toHaveLength(postsBefore); // no DELIVERY_CONFIRMED post
       expect(composition.hasFailureBarrier()).toBe(true);
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('re-reads the classifier AFTER the evidence observation and BEFORE the ingress checkpoint: a barrier appearing mid-observation begins NO ingress/status/business work', async () => {
+    // handoff 95 F01 (correction 3, defect 5): §5.7 requires a durable re-read AFTER each evidence observation and
+    // IMMEDIATELY BEFORE ingress.ingest. A DELIVERY_FAILED record that appears DURING the ACK observation (after the
+    // per-checkpoint re-read, before the durable checkpoint) must refuse the ingress checkpoint, DELIVERY_CONFIRMED, and
+    // every business projection. Adversarial vs only the entry/per-checkpoint re-read, which would run ingress.ingest
+    // (a durable evidence checkpoint) behind the mid-observation barrier.
+    const { stateRoot, composition, socket, gitSource, receiveGrant, web } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const advisorProfile = selectProfile('AGENT_OFFICE_ADVISOR');
+      const store = await As1ProfileInboundStore.open(stateRoot, advisorProfile, new FakeClock(CLOCK_ISO));
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), advisorProfile, intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      gitSource.set(`${base}/readiness-lease.json`, lease);
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      const deliveryGrant = parsePointerDeliveryGrant(grant);
+      const { deliveryId } = parseContainedPointerRef(deliveryGrant);
+      const parsedReceiveGrant = parseReceiveGrant(receiveGrant);
+      const receiveGrantState = await store.readReceiveGrantState(parsedReceiveGrant.receiveGrantId);
+      const terminalDelivery = await store.readTmuxDeliveryRecord(deliveryId);
+      const rootCorrelation = await store.findRootByIntakeId(intakeId);
+      const consumption = await store.readDeliveryAuthorityConsumption(deliveryGrant.pointerDeliveryGrantId);
+      if (receiveGrantState === null || terminalDelivery === null || rootCorrelation === null || consumption === null) throw new Error('expected durable records');
+      const authority = buildEvidenceAuthority({ receiveGrant: parsedReceiveGrant, receiveGrantState, pointerDeliveryGrant: deliveryGrant, terminalDelivery, rootCorrelation, consumption });
+      const ackValue = validAdvisorAck({ intakeId: authority.intakeId, sourceEventId: authority.sourceEventId, pointerHash: authority.pointerHash, ...authority.acceptedAck });
+      // The barrier appears DURING the ACK observation: the lazy factory writes DELIVERY_FAILED, THEN returns the ACK
+      // bytes. So the per-checkpoint re-read (before observe) is OPEN, but the AFTER-observation re-read must catch it.
+      const wrote = { done: false };
+      gitSource.setLazy(`${authority.evidencePrefix}/${intakeId}/ack.json`, async () => {
+        if (!wrote.done) {
+          wrote.done = true;
+          await store.recordOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'DELIVERY_FAILED'), 'PREPARED', { requestHash: `sha256:${'7'.repeat(64)}` });
+        }
+        return ackValue;
+      });
+      const postsBefore = web.posted.length;
+      const outcomes = await composition.ingestEvidenceAndProject();
+      expect(outcomes.some((o) => o.startsWith('FAILURE_ADMISSION_REFUSED'))).toBe(true);
+      expect(outcomes.some((o) => o.startsWith('ACK:'))).toBe(false); // the durable ingress CHECKPOINT never ran
+      expect(outcomes.some((o) => o.startsWith('RESULT_OUTBOUND:'))).toBe(false); // no business projection
+      expect(web.posted).toHaveLength(postsBefore); // no DELIVERY_CONFIRMED post
+      expect(composition.hasFailureBarrier()).toBe(true);
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('a DELIVERY_FAILED status REJECTED before its first durable phase halts progression WITHOUT a false durable barrier/record', async () => {
+    // handoff 95 F01 (correction 2, defect 2): a STOPPED_BEFORE_PASTE with a null journal attempts DELIVERY_FAILED; if
+    // that send is REJECTED before its first durable phase, the composition must NOT fabricate a crash-durable
+    // DELIVERY_FAILED barrier/record. It reclassifies the durable siblings — still OPEN → haltProgression on the exact
+    // non-delivered outcome (a truthful PROGRESSION halt), NO failure record. Adversarial vs unconditionally entering
+    // DELIVERY_FAILED_BARRIER (a false durable-barrier claim). Seed: a VALID lease whose destination is NOT the
+    // tmux-observed pane (→ STOPPED_BEFORE_PASTE, null journal, before tmux), and ONLY a DELIVERY_CONFIRMED (no failure
+    // sibling) so the DELIVERY_FAILED send is ordering-rejected pre-durable.
+    const { stateRoot, composition, socket, gitSource, receiveGrant, tmuxPort } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const advisorProfile = selectProfile('AGENT_OFFICE_ADVISOR');
+      const store = await As1ProfileInboundStore.open(stateRoot, advisorProfile, new FakeClock(CLOCK_ISO));
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), advisorProfile, intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      // A VALID lease bound to a DIFFERENT pane than the tmux port observes → the transport stops before paste.
+      gitSource.set(`${base}/readiness-lease.json`, { ...lease, destination: validDestination({ sessionId: '$99', windowId: '@99', paneId: '%99' }) });
+      // Seed a durable DELIVERY_CONFIRMED@RESPONSE_RECORDED (NO failure sibling) so the DELIVERY_FAILED send is
+      // ordering-rejected before any durable phase.
+      const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'DELIVERY_CONFIRMED');
+      await store.recordOutboxPhase(confirmedId, 'PREPARED', { requestHash: `sha256:${'8'.repeat(64)}` });
+      await store.recordOutboxPhase(confirmedId, 'REQUEST_STARTED');
+      await store.recordOutboxPhase(confirmedId, 'RESPONSE_RECORDED', { responseHash: `sha256:${'9'.repeat(64)}` });
+
+      await composition.deliverPending();
+      expect(tmuxPort.pasteCalls).toBe(0); // stopped before paste
+      // NO fabricated DELIVERY_FAILED durable record (the send was rejected pre-durable).
+      expect(await store.readOutboxRecord(userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'DELIVERY_FAILED'))).toBeNull();
+      expect(composition.hasFailureBarrier()).toBe(true);
+      // The barrier is a truthful PROGRESSION halt (haltProgression), NOT a false DELIVERY_FAILED_BARRIER, and no later work.
+      const outcomes = await composition.ingestEvidenceAndProject();
+      expect(outcomes).toContain('FAILURE_ADMISSION_REFUSED:PROGRESSION_HALTED');
+      expect(outcomes.some((o) => o.includes('DELIVERY_FAILED_BARRIER'))).toBe(false);
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('a PROCESSING_FAILED attempted with ACCEPTED absent is REJECTED pre-durable and halts progression WITHOUT a false durable barrier/record', async () => {
+    // handoff 95 F01 (correction 2, defect 2 — PROCESSING_FAILED): a non-benign evidence failure makes
+    // projectAcceptedEvidence throw; the catch attempts PROCESSING_FAILED. When ACCEPTED is absent the ordering guard
+    // rejects it BEFORE its first durable phase; the composition must reclassify (still OPEN) and haltProgression — NOT
+    // fabricate a PROCESSING_FAILED_BARRIER/record. Adversarial vs unconditionally entering PROCESSING_FAILED_BARRIER.
+    // Seed (adversarial test-STATE only): after a successful delivery, remove ONLY ACCEPTED from the durable outbox index
+    // and make the ACK evidence observation throw inside projectAcceptedEvidence.
+    const { stateRoot, composition, socket, gitSource, receiveGrant, web } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const advisorProfile = selectProfile('AGENT_OFFICE_ADVISOR');
+      const store = await As1ProfileInboundStore.open(stateRoot, advisorProfile, new FakeClock(CLOCK_ISO));
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), advisorProfile, intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      gitSource.set(`${base}/readiness-lease.json`, lease);
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      const deliveryGrant = parsePointerDeliveryGrant(grant);
+      const { deliveryId } = parseContainedPointerRef(deliveryGrant);
+      const parsedReceiveGrant = parseReceiveGrant(receiveGrant);
+      const receiveGrantState = await store.readReceiveGrantState(parsedReceiveGrant.receiveGrantId);
+      const terminalDelivery = await store.readTmuxDeliveryRecord(deliveryId);
+      const rootCorrelation = await store.findRootByIntakeId(intakeId);
+      const consumption = await store.readDeliveryAuthorityConsumption(deliveryGrant.pointerDeliveryGrantId);
+      if (receiveGrantState === null || terminalDelivery === null || rootCorrelation === null || consumption === null) throw new Error('expected durable records');
+      const authority = buildEvidenceAuthority({ receiveGrant: parsedReceiveGrant, receiveGrantState, pointerDeliveryGrant: deliveryGrant, terminalDelivery, rootCorrelation, consumption });
+      // The ACK evidence observation throws non-benignly → projectAcceptedEvidence throws → the catch attempts PROCESSING_FAILED.
+      gitSource.setLazy(`${authority.evidencePrefix}/${intakeId}/ack.json`, () => Promise.reject(new DomainError('STORE_QUARANTINED', 'ack observation failed non-benignly')));
+      // Remove ONLY the ACCEPTED record from the durable outbox index (valid JSON array) — adversarial test-state only.
+      const outboxIndex = path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/slack-outbox.json');
+      const acceptedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'ACCEPTED');
+      const records = JSON.parse(await readFile(outboxIndex, 'utf8')) as { outboundId: string }[];
+      await writeFile(outboxIndex, JSON.stringify(records.filter((r) => r.outboundId !== acceptedId)), 'utf8');
+      expect(await store.readOutboxRecord(acceptedId)).toBeNull(); // ACCEPTED now absent
+
+      const postsBefore = web.posted.length;
+      await expect(composition.ingestEvidenceAndProject()).rejects.toThrow(); // the original non-benign error stays terminal
+      // NO fabricated PROCESSING_FAILED durable record (the send was ordering-rejected pre-durable — ACCEPTED absent).
+      expect(await store.readOutboxRecord(userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'PROCESSING_FAILED'))).toBeNull();
+      expect(composition.hasFailureBarrier()).toBe(true); // a truthful progression halt / profile latch
+      expect(web.posted).toHaveLength(postsBefore); // no status / business post
+      // A truthful PROGRESSION halt (haltProgression), NOT a false PROCESSING_FAILED_BARRIER.
+      const outcomes = await composition.ingestEvidenceAndProject();
+      expect(outcomes).toContain('FAILURE_ADMISSION_REFUSED:PROGRESSION_HALTED');
+      expect(outcomes.some((o) => o.includes('PROCESSING_FAILED_BARRIER'))).toBe(false);
     } finally {
       await composition.incidentKill().catch(() => undefined);
     }

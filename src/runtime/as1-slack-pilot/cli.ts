@@ -534,6 +534,12 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         terminal = pending;
         break;
       }
+      // handoff 95 F01: a barrier raised by the live Socket callback (e.g., a non-DELIVERED ACCEPTED) must NOT be
+      // followed by even one grant OBSERVATION — check the barrier BEFORE observeReceiveGrantOnce (and again after).
+      if (composition.hasFailureBarrier()) {
+        terminal = 'DELIVERY_HALTED';
+        break;
+      }
       const tick = await composition.observeReceiveGrantOnce();
       if (incidentPending()) {
         terminal = 'INCIDENT_KILL';
@@ -548,7 +554,7 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         break;
       }
       // R2 recovery §5.6/§5.7: a durable failure barrier (DELIVERY_FAILED / PROCESSING_FAILED / conflict) halts the
-      // owner — no delivery, evidence, status, or business work runs behind it. A startup barrier halts immediately.
+      // owner — no delivery, evidence, status, or business work runs behind it. Re-checked here after the observation.
       if (composition.hasFailureBarrier()) {
         terminal = 'DELIVERY_HALTED';
         break;
