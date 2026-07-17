@@ -1745,3 +1745,72 @@ describe('AS1 R2 recovery — same-thread user status (design §5)', () => {
     }
   });
 });
+
+// R2 recovery §5.6/§5.7: the composition re-reads the durable failure classifier at each named boundary and halts a
+// non-DELIVERED status progression. These prove the defect (a delivery/projection running behind a durable failure
+// record) would occur without the re-reads.
+describe('AS1 R2 recovery — status ordering & barrier re-reads in composition (design §5.6/§5.7)', () => {
+  it('re-reads the classifier at deliverPending ENTRY: a DELIVERY_FAILED seeded after acceptance refuses delivery (no tmux)', async () => {
+    const { stateRoot, composition, socket, gitSource, receiveGrant, tmuxPort } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const store = await As1ProfileInboundStore.open(stateRoot, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock(CLOCK_ISO));
+      // Ready delivery authority so, WITHOUT the barrier re-read, deliverPending would paste through tmux.
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), selectProfile('AGENT_OFFICE_ADVISOR'), intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      gitSource.set(`${base}/readiness-lease.json`, lease);
+      // A durable DELIVERY_FAILED barrier record appears AFTER acceptance.
+      await store.recordOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'DELIVERY_FAILED'), 'PREPARED', { requestHash: `sha256:${'4'.repeat(64)}` });
+      const delivery = await composition.deliverPending();
+      expect(delivery.phase).toBe('AWAITING'); // the entry re-read entered the barrier before any grant/lease/tmux work
+      expect(composition.hasFailureBarrier()).toBe(true);
+      expect(tmuxPort.pasteCalls).toBe(0);
+      expect(tmuxPort.enterCalls).toBe(0);
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+
+  it('a DELIVERY_FAILED record before the ACK SUPPRESSES DELIVERY_CONFIRMED and projects NO INTAKE/RESULT', async () => {
+    const { stateRoot, composition, socket, gitSource, receiveGrant, web } = await startAgentOfficeComposition();
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const advisorProfile = selectProfile('AGENT_OFFICE_ADVISOR');
+      const store = await As1ProfileInboundStore.open(stateRoot, advisorProfile, new FakeClock(CLOCK_ISO));
+      const { grant, lease } = await buildDeliveryAuthority(stateRoot, store, parseReceiveGrant(receiveGrant), advisorProfile, intakeId);
+      const base = `${AUTH_ROOT}/runtime-authority/agent-office-advisor/${intakeId}`;
+      gitSource.set(`${base}/pointer-delivery-grant.json`, grant);
+      gitSource.set(`${base}/readiness-lease.json`, lease);
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      // A valid ACK is available, but a durable DELIVERY_FAILED barrier record now exists.
+      const deliveryGrant = parsePointerDeliveryGrant(grant);
+      const { deliveryId } = parseContainedPointerRef(deliveryGrant);
+      const parsedReceiveGrant = parseReceiveGrant(receiveGrant);
+      const receiveGrantState = await store.readReceiveGrantState(parsedReceiveGrant.receiveGrantId);
+      const terminalDelivery = await store.readTmuxDeliveryRecord(deliveryId);
+      const rootCorrelation = await store.findRootByIntakeId(intakeId);
+      const consumption = await store.readDeliveryAuthorityConsumption(deliveryGrant.pointerDeliveryGrantId);
+      if (receiveGrantState === null || terminalDelivery === null || rootCorrelation === null || consumption === null) throw new Error('expected durable records');
+      const authority = buildEvidenceAuthority({ receiveGrant: parsedReceiveGrant, receiveGrantState, pointerDeliveryGrant: deliveryGrant, terminalDelivery, rootCorrelation, consumption });
+      gitSource.set(`${authority.evidencePrefix}/${intakeId}/ack.json`, validAdvisorAck({ intakeId: authority.intakeId, sourceEventId: authority.sourceEventId, pointerHash: authority.pointerHash, ...authority.acceptedAck }));
+      await store.recordOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', intakeId, 'DELIVERY_FAILED'), 'PREPARED', { requestHash: `sha256:${'5'.repeat(64)}` });
+      const postsBefore = web.posted.length;
+      const outcomes = await composition.ingestEvidenceAndProject();
+      // The durable classifier re-read (at ingest entry / each evidence checkpoint) enters the barrier BEFORE the ACK
+      // triggers DELIVERY_CONFIRMED, or the ACK-time re-require suppresses it — either way the barrier dominates.
+      expect(outcomes.some((o) => o.startsWith('FAILURE_ADMISSION_REFUSED') || o.startsWith('DELIVERY_CONFIRMED:SUPPRESSED_BY_'))).toBe(true);
+      expect(outcomes.some((o) => o.startsWith('RESULT_OUTBOUND:'))).toBe(false); // no business projection behind the barrier
+      expect(web.posted).toHaveLength(postsBefore); // no DELIVERY_CONFIRMED post
+      expect(composition.hasFailureBarrier()).toBe(true);
+    } finally {
+      await composition.incidentKill().catch(() => undefined);
+    }
+  });
+});

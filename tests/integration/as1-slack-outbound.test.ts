@@ -269,7 +269,15 @@ const INTAKE = 'as1-intake-0001';
 describe('AS1 same-thread user status (R2 recovery design §5)', () => {
   it('renders each kind to EXACTLY its constant Korean text on the profile channel and accepted rootTs', async () => {
     for (const kind of ALL_KINDS) {
-      const { web, outbox } = await makeOutbox();
+      const { store, web, outbox } = await makeOutbox();
+      // Every status after ACCEPTED requires the deterministic ACCEPTED record at RESPONSE_RECORDED (§5.6 ordering);
+      // seed it through the legal phase transitions so each kind's rendering can be exercised in isolation.
+      if (kind !== 'ACCEPTED') {
+        const acceptedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'ACCEPTED');
+        await store.recordOutboxPhase(acceptedId, 'PREPARED', { requestHash: `sha256:${'a'.repeat(64)}` });
+        await store.recordOutboxPhase(acceptedId, 'REQUEST_STARTED');
+        await store.recordOutboxPhase(acceptedId, 'RESPONSE_RECORDED', { responseHash: `sha256:${'b'.repeat(64)}` });
+      }
       const result = await outbox.sendStatus(INTAKE, kind);
       expect(result.outcome).toBe('DELIVERED');
       expect(web.posted).toHaveLength(1);
@@ -328,5 +336,124 @@ describe('AS1 same-thread user status (R2 recovery design §5)', () => {
     expect(result.outcome).toBe('MANUAL_RECONCILIATION_REQUIRED');
     expect(latched.length).toBeGreaterThan(0);
     expect(web.posted).toHaveLength(1); // the one ambiguous attempt only — no alternate status is tried
+  });
+});
+
+// R2 recovery design §5.6: the status-specific ordering guard runs at sendStatus entry AND before every durable/Web
+// side effect. These prove the defect (an out-of-order or behind-a-barrier status) would post without the guard.
+/** An assertSendable that permits the request-artifact and PREPARED writes, then refuses immediately before the
+ *  REQUEST_STARTED write (the 3rd gate) — leaving a REAL PREPARED artifact for a same-failure recovery test. */
+const makeThirdCallFails = (): (() => Promise<void>) => {
+  let calls = 0;
+  return () => {
+    calls += 1;
+    return calls >= 3 ? Promise.reject(new DomainError('FORBIDDEN_TARGET', 'interrupted before REQUEST_STARTED')) : Promise.resolve();
+  };
+};
+
+const seedStatus = async (store: As1ProfileInboundStore, kind: As1UserStatusKind, phase: 'PREPARED' | 'RESPONSE_RECORDED'): Promise<void> => {
+  const id = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, kind);
+  await store.recordOutboxPhase(id, 'PREPARED', { requestHash: `sha256:${'a'.repeat(64)}` });
+  if (phase === 'RESPONSE_RECORDED') {
+    await store.recordOutboxPhase(id, 'REQUEST_STARTED');
+    await store.recordOutboxPhase(id, 'RESPONSE_RECORDED', { responseHash: `sha256:${'b'.repeat(64)}` });
+  }
+};
+
+describe('AS1 same-thread status ordering guard (R2 recovery design §5.6)', () => {
+  it('refuses any later status unless ACCEPTED is durably RESPONSE_RECORDED — no post', async () => {
+    const { web, outbox } = await makeOutbox(); // no ACCEPTED record
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL');
+    expect(result.reason).toContain('ACCEPTED_NOT_TERMINAL');
+    expect(web.posted).toHaveLength(0);
+  });
+
+  it('DELIVERY_CONFIRMED refuses to begin while ANY failure sibling exists (both must be wholly absent)', async () => {
+    for (const failure of ['DELIVERY_FAILED', 'PROCESSING_FAILED'] as const) {
+      const { store, web, outbox } = await makeOutbox();
+      await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+      await seedStatus(store, failure, 'PREPARED');
+      const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+      expect(result.outcome).toBe('REJECTED_CONTROL');
+      expect(result.reason).toContain('FAILURE_BARRIER');
+      expect(web.posted).toHaveLength(0);
+    }
+  });
+
+  it('DELIVERY_FAILED refuses behind CONFIRMED/PROCESSING_FAILED; PROCESSING_FAILED refuses behind DELIVERY_FAILED but MAY follow CONFIRMED', async () => {
+    const dfBehindPf = await makeOutbox();
+    await seedStatus(dfBehindPf.store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(dfBehindPf.store, 'PROCESSING_FAILED', 'PREPARED');
+    expect((await dfBehindPf.outbox.sendStatus(INTAKE, 'DELIVERY_FAILED')).outcome).toBe('REJECTED_CONTROL');
+    expect(dfBehindPf.web.posted).toHaveLength(0);
+
+    const pfBehindDf = await makeOutbox();
+    await seedStatus(pfBehindDf.store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(pfBehindDf.store, 'DELIVERY_FAILED', 'PREPARED');
+    expect((await pfBehindDf.outbox.sendStatus(INTAKE, 'PROCESSING_FAILED')).outcome).toBe('REJECTED_CONTROL');
+    expect(pfBehindDf.web.posted).toHaveLength(0);
+
+    const pfAfterConfirmed = await makeOutbox();
+    await seedStatus(pfAfterConfirmed.store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(pfAfterConfirmed.store, 'DELIVERY_CONFIRMED', 'RESPONSE_RECORDED');
+    expect((await pfAfterConfirmed.outbox.sendStatus(INTAKE, 'PROCESSING_FAILED')).outcome).toBe('DELIVERED'); // rule 5
+  });
+
+  it('a failure-status conflict (both failure records) refuses EVERY status', async () => {
+    const { store, web, outbox } = await makeOutbox();
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(store, 'DELIVERY_FAILED', 'PREPARED');
+    await seedStatus(store, 'PROCESSING_FAILED', 'PREPARED');
+    expect((await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED')).reason).toContain('CONFLICT');
+    expect(web.posted).toHaveLength(0);
+  });
+
+  it('does NOT block a failure status behind its OWN record (only a sibling status is a barrier)', async () => {
+    const { store, outbox } = await makeOutbox();
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(store, 'DELIVERY_FAILED', 'PREPARED'); // its OWN PREPARED — the ordering guard must NOT refuse it
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_FAILED');
+    // The ordering guard permits the same-failure recovery path; only the separate PREPARED byte-immutability check
+    // (a re-observed PREPARED must re-derive identical bytes) governs whether it DELIVERS or reconciles — never an
+    // ordering refusal. A DIFFERENT sibling status here WOULD be an ordering barrier (proven above).
+    expect(result.reason).not.toContain('status-ordering');
+  });
+
+  it('recovers its OWN byte-identical PREPARED failure status to DELIVERED across owners with exactly one post', async () => {
+    const owner = await makeOutbox({ assertSendable: makeThirdCallFails() });
+    await seedStatus(owner.store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    // First owner writes the REAL DELIVERY_FAILED PREPARED artifact, then the pre-REQUEST_STARTED gate refuses.
+    const first = await owner.outbox.sendStatus(INTAKE, 'DELIVERY_FAILED');
+    expect(first.outcome).toBe('REJECTED_CONTROL');
+    expect(await owner.store.readOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_FAILED'))).toBe('PREPARED');
+    // A second owner on the SAME store re-derives the identical request bytes and delivers once (no ordering block).
+    const recover = new As1Outbox({
+      profile: selectProfile('AGENT_OFFICE_ADVISOR'),
+      secret: { workspaceId: 'TWORKSPACE001', appId: 'AAGENTOFFICE01', channelId: 'CAGENTOFFICE01', botToken: 'xoxb-agentoffice-placeholder-0001' },
+      store: owner.store,
+      web: owner.web,
+      latch: () => Promise.resolve(),
+      assertSendable: () => Promise.resolve(),
+      delay: () => Promise.resolve(),
+    });
+    const result = await recover.sendStatus(INTAKE, 'DELIVERY_FAILED');
+    expect(result.outcome).toBe('DELIVERED');
+    expect(owner.web.posted).toHaveLength(1);
+  });
+
+  it('rechecks ordering BEFORE the response write: a sibling DELIVERY_FAILED appearing mid-send aborts DELIVERY_CONFIRMED with its state preserved', async () => {
+    const { store, web, outbox } = await makeOutbox();
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    // The Web post writes a DELIVERY_FAILED sibling BEFORE returning success, so the pre-response-write recheck aborts.
+    const originalPost = web.postMessage.bind(web);
+    web.postMessage = async (token, request) => {
+      await seedStatus(store, 'DELIVERY_FAILED', 'PREPARED');
+      return originalPost(token, request);
+    };
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL'); // aborted mid-send by the status-ordering recheck
+    expect(result.phase).toBe('REQUEST_STARTED'); // exact outbox state preserved (no RESPONSE_RECORDED)
+    expect(await store.readOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED'))).toBe('REQUEST_STARTED');
   });
 });

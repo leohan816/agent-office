@@ -242,6 +242,11 @@ export class As1GatewayComposition {
    *  evidence/status/business entry point is refused. The barrier's own durable outbox record recreates this state
    *  (and its deterministic latch) on the next start, so no reset can reinterpret it as delivery/processing authority. */
   private failureAdmission: 'DELIVERY_FAILED_BARRIER' | 'PROCESSING_FAILED_BARRIER' | 'FAILURE_STATUS_CONFLICT' | null = null;
+  /** R2 recovery §5.6/§5.8: a NON-DELIVERED status progression (a refused/reconciled ACCEPTED or DELIVERY_CONFIRMED, or
+   *  an ACCEPTED recovery that reached REQUEST_STARTED/manual) is terminal for the current run — the profile is durably
+   *  latched, the intake/authority is withheld, and no later delivery/evidence/status/business work may begin. Held
+   *  separately from a DELIVERY_FAILED/PROCESSING_FAILED barrier (which is its own crash-durable outbox record). */
+  private progressionHalted: string | null = null;
   /** The truthful cleanup result of a self-cleaning startup revert (F01), so the owner can report it after start()
    *  rethrows without re-opening the closed composition. Consumed exactly once. */
   private lastCleanup: As1OwnerCleanupResult | null = null;
@@ -654,10 +659,19 @@ export class As1GatewayComposition {
           const liveState = this.live;
           if (liveState === null) return;
           const intakeId = result.intakeId;
-          if ((await this.classifyFailureSiblings(liveState, intakeId)) !== 'OPEN') return;
+          const classification = await this.classifyFailureSiblings(liveState, intakeId);
+          if (classification !== 'OPEN') {
+            await this.enterFailureBarrier(liveState, classification);
+            return;
+          }
           const accepted = await this.sendUserStatus(liveState, deps, intakeId, 'ACCEPTED');
-          // Expose the intake to deliverPending ONLY after ACCEPTED is durably RESPONSE_RECORDED.
-          if (accepted.outcome === 'DELIVERED') this.lastIntakeId = intakeId;
+          // Expose the intake to deliverPending ONLY after ACCEPTED is durably RESPONSE_RECORDED. A non-DELIVERED
+          // ACCEPTED is terminal for this run: latch, withhold the intake, and never substitute another status (§5.6/§5.8).
+          if (accepted.outcome === 'DELIVERED') {
+            this.lastIntakeId = intakeId;
+          } else {
+            await this.haltProgression(liveState, `accepted-status-${accepted.outcome}`);
+          }
           return;
         }
         if (result.intakeId !== null) this.lastIntakeId = result.intakeId;
@@ -791,14 +805,21 @@ export class As1GatewayComposition {
   public async deliverPending(): Promise<As1DeliveryResult | { readonly phase: 'AWAITING'; readonly outcome: 'AWAITING_POINTER_DELIVERY_GRANT' | 'AWAITING_READINESS_LEASE'; readonly reason: string }> {
     const live = this.requireLive();
     const deps = this.requireDeps();
-    // R2 recovery §5.6.1/§5.7: a durable failure barrier refuses every delivery entry point — observe no grant/lease,
-    // reuse no authority, and begin no tmux side effect. The owner loop halts on the barrier separately.
-    if (this.failureAdmission !== null) {
+    // R2 recovery §5.6.1/§5.7: a durable failure barrier or a halted status progression refuses every delivery entry
+    // point — observe no grant/lease, reuse no authority, and begin no tmux side effect. The owner loop halts on it.
+    if (this.hasFailureBarrier()) {
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure-only admission — no delivery' };
     }
     const intakeId = this.lastIntakeId;
     if (intakeId === null) {
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'no intake yet' };
+    }
+    // §5.7: RE-READ the durable failure classifier at entry, BEFORE observing any pointer-grant / readiness-lease
+    // authority — a barrier record that appeared since the last tick enters the barrier and begins no observation.
+    const entryClassification = await this.classifyFailureSiblings(live, intakeId);
+    if (entryClassification !== 'OPEN') {
+      await this.enterFailureBarrier(live, entryClassification);
+      return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure barrier at delivery entry' };
     }
     const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
     const deliveryGrantPath = `${base}/pointer-delivery-grant.json`;
@@ -847,10 +868,23 @@ export class As1GatewayComposition {
       { isDeliverable: this.incidentGuardedCallback(() => Promise.resolve(this.control.isLiveDeliveryActionable(live.slug))) },
       this.incidentGuardedCallback((reason: string) => this.control.latchProfile(live.slug, reason)),
     );
+    // §5.7: RE-READ the durable failure classifier IMMEDIATELY BEFORE invoking exact transport — a barrier that appeared
+    // during grant/lease observation must begin no tmux paste. F01: incident admission is re-checked by guardedAwait.
+    const beforeTransport = await this.classifyFailureSiblings(live, intakeId);
+    if (beforeTransport !== 'OPEN') {
+      await this.enterFailureBarrier(live, beforeTransport);
+      return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure barrier before transport' };
+    }
     // F01: NEVER begin the exact tmux paste/delivery once incident admission has closed; guardedAwait re-checks after
     // it too, so a during-delivery incident is not followed by retaining accepted pairs or looping into evidence.
     const result = await this.guardedAwait(() => transport.deliver(deliveryGrant, lease));
     if (result.outcome === 'DELIVERED') {
+      // §5.7: RE-READ the classifier BEFORE retaining the accepted grant/lease pair — a barrier forbids reuse.
+      const beforeRetain = await this.classifyFailureSiblings(live, intakeId);
+      if (beforeRetain !== 'OPEN') {
+        await this.enterFailureBarrier(live, beforeRetain);
+        return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'failure barrier after delivery' };
+      }
       // F03: ONLY a fully-accepted delivery atomically retains the accepted pairs for later evidence re-observation.
       this.acceptedDeliveryGrant = provisionalDeliveryGrant;
       this.acceptedLease = provisionalLease;
@@ -880,13 +914,21 @@ export class As1GatewayComposition {
   public async ingestEvidenceAndProject(): Promise<readonly string[]> {
     const live = this.requireLive();
     const deps = this.requireDeps();
-    // R2 recovery §5.6.1/§5.7: a durable failure barrier refuses evidence/ACK progression, status, and every business
-    // projection — no confirmation, INTAKE/RESULT projection, retry, or alternate status may begin.
-    if (this.failureAdmission !== null) {
-      return [`FAILURE_ADMISSION_REFUSED:${this.failureAdmission}`];
+    // R2 recovery §5.6.1/§5.7: a durable failure barrier OR a halted status progression refuses evidence/ACK
+    // progression, status, and every business projection — no confirmation, INTAKE/RESULT projection, retry, or
+    // alternate status may begin.
+    if (this.hasFailureBarrier()) {
+      return [`FAILURE_ADMISSION_REFUSED:${this.failureAdmission ?? 'PROGRESSION_HALTED'}`];
     }
     const intakeId = this.lastIntakeId;
     if (intakeId === null) throw new DomainError('GATEWAY_DISABLED', 'no intake to ingest evidence for');
+    // §5.6/§5.7 (handoff 95 F01): RE-READ the DURABLE failure classifier at ingestEvidenceAndProject ENTRY — a barrier
+    // record that appeared since the last tick enters the barrier and refuses before any evidence observation.
+    const entryClassification = await this.classifyFailureSiblings(live, intakeId);
+    if (entryClassification !== 'OPEN') {
+      await this.enterFailureBarrier(live, entryClassification);
+      return [`FAILURE_ADMISSION_REFUSED:${entryClassification}`];
+    }
     const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
     // F03: evidence construction REQUIRES an already-proven accepted delivery authority — never a first-observation
     // fallback. The accepted pair is retained only after a fully-accepted delivery, so its absence means no delivery
@@ -983,6 +1025,14 @@ export class As1GatewayComposition {
     const outcomes: string[] = [];
     // The private Phase B round trip exercises only ACK -> INTAKE -> RESULT (no question cycle).
     for (const kind of ['ACK', 'INTAKE', 'RESULT'] as const) {
+      // §5.6/§5.7 (handoff 95 F01): RE-READ the DURABLE failure classifier BEFORE EACH evidence observation/checkpoint —
+      // a barrier record that appeared mid-loop enters the barrier and begins no further evidence/status/business work.
+      const beforeCheckpoint = await this.classifyFailureSiblings(live, intakeId);
+      if (beforeCheckpoint !== 'OPEN') {
+        await this.enterFailureBarrier(live, beforeCheckpoint);
+        outcomes.push(`FAILURE_ADMISSION_REFUSED:${beforeCheckpoint}`);
+        return outcomes;
+      }
       // F01: guard admission around EACH evidence observation, ingress, and outbound send.
       const evidenceObs = await this.guardedAwait(() => deps.gitSource.observe(`${authority.evidencePrefix}/${intakeId}/${kind.toLowerCase()}.json`));
       if (evidenceObs.status !== 'READY' || evidenceObs.bytes === null) {
@@ -1005,6 +1055,12 @@ export class As1GatewayComposition {
         }
         const confirmed = await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
         outcomes.push(`DELIVERY_CONFIRMED:${confirmed.outcome}`);
+        // §5.7: a failed / non-DELIVERED DELIVERY_CONFIRMED is terminal — it must NOT continue to INTAKE or RESULT
+        // projection. Halt (latch, withhold authority); the owner stops on hasFailureBarrier().
+        if (confirmed.outcome !== 'DELIVERED') {
+          await this.haltProgression(live, `delivery-confirmed-${confirmed.outcome}`);
+          return outcomes;
+        }
       }
       if (ingested.outcome === 'ACCEPTED' && ingested.accepted !== null) {
         // R2 recovery §5.1: the INTAKE evidence's legacy fixed English progress ACK projection is SUPPRESSED —
@@ -1012,6 +1068,13 @@ export class As1GatewayComposition {
         if (kind === 'INTAKE') {
           outcomes.push('INTAKE_OUTBOUND:SUPPRESSED_R2');
         } else {
+          // §5.7: RE-READ the durable failure classifier BEFORE the RESULT business projection — a barrier forbids it.
+          const beforeProjection = await this.classifyFailureSiblings(live, intakeId);
+          if (beforeProjection !== 'OPEN') {
+            await this.enterFailureBarrier(live, beforeProjection);
+            outcomes.push(`${kind}_OUTBOUND:SUPPRESSED_BY_${beforeProjection}`);
+            return outcomes;
+          }
           const accepted = ingested.accepted; // NEVER project outbound to Leo's thread after an incident (guarded)
           const sent = await this.guardedAwait(() => outbox.send(accepted));
           outcomes.push(`${kind}_OUTBOUND:${sent.outcome}`);
@@ -1087,6 +1150,23 @@ export class As1GatewayComposition {
   }
 
   /**
+   * Terminate the current status progression on a NON-DELIVERED status (R2 recovery §5.6/§5.8). It preserves the exact
+   * outbox state (no substitute status is attempted), withholds the intake and any retained authority, durably latches
+   * the profile with a stable local reason when no stronger latch already exists, and marks the owner halted so no
+   * later delivery/evidence/status/business work begins. Idempotent: a stronger DELIVERY_FAILED/PROCESSING_FAILED
+   * barrier already latched wins and this only records the halt.
+   */
+  private async haltProgression(live: LiveState, reason: string): Promise<void> {
+    this.progressionHalted ??= reason;
+    this.lastIntakeId = null;
+    this.acceptedDeliveryGrant = null;
+    this.acceptedLease = null;
+    if (this.failureAdmission === null && this.control.isLiveDeliveryActionable(live.slug)) {
+      await this.guardedAwait(() => this.control.latchProfile(live.slug, `status-progression-halted:${reason}`));
+    }
+  }
+
+  /**
    * Attempt PROCESSING_FAILED for a NON-benign post-TRANSPORT_RECORDED evidence/projection failure (R2 recovery
    * §5.5/§5.7). Eligibility is narrow: ONLY while the incident gate is still open (else the incident kill wins), the
    * profile is not already latched/killed (else that latch wins), and no failure barrier exists yet. If a
@@ -1094,8 +1174,8 @@ export class As1GatewayComposition {
    * first durable outbox phase is the crash-durable processing barrier; the caller re-throws the original error.
    */
   private async attemptProcessingFailure(live: LiveState, deps: As1CompositionDependencies, intakeId: string): Promise<void> {
-    if (!this.control.isIncidentGateOpen() || !this.control.isLiveDeliveryActionable(live.slug) || this.failureAdmission !== null) {
-      return; // incident or an existing latch wins; a barrier already dominates — never synthesize a user failure
+    if (!this.control.isIncidentGateOpen() || !this.control.isLiveDeliveryActionable(live.slug) || this.hasFailureBarrier()) {
+      return; // incident or an existing latch/halt wins; a barrier already dominates — never synthesize a user failure
     }
     const classification = await this.classifyFailureSiblings(live, intakeId);
     if (classification === 'DELIVERY_FAILED_BARRIER' || classification === 'FAILURE_STATUS_CONFLICT') {
@@ -1110,7 +1190,7 @@ export class As1GatewayComposition {
   /** True once a durable failure barrier has been observed/entered (R2 recovery §5.6). The owner loop halts on it so
    *  no delivery/evidence/business work runs behind a DELIVERY_FAILED/PROCESSING_FAILED/conflict terminal. */
   public hasFailureBarrier(): boolean {
-    return this.failureAdmission !== null;
+    return this.failureAdmission !== null || this.progressionHalted !== null;
   }
 
   /**
@@ -1153,7 +1233,11 @@ export class As1GatewayComposition {
     const accepted = await this.sendUserStatus(live, deps, recoveredIntake, 'ACCEPTED');
     if (accepted.outcome === 'DELIVERED' && (await this.classifyFailureSiblings(live, recoveredIntake)) === 'OPEN') {
       this.lastIntakeId = recoveredIntake; // expose to delivery ONLY after RESPONSE_RECORDED + final OPEN proof
+      return;
     }
+    // §5.7: a recovered ACCEPTED that reached REQUEST_STARTED/manual (or otherwise did not deliver) must NOT arm receive
+    // or continue benign polling — halt so the owner loop stops on hasFailureBarrier() instead of a live round trip.
+    await this.haltProgression(live, `accepted-recovery-${accepted.outcome}`);
   }
 
   /**

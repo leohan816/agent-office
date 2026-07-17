@@ -325,10 +325,9 @@ separately Advisor-authorized value-only activation commit sets it.
 
 The sole active Phase B state root is the versioned R2 recovery root
 `/home/leo/.local/state/agent-office/as1-slack-pilot-r2` with state-root ID
-`as1-slack-pilot-r2` (R2 recovery design §4). The prior
-`/home/leo/.local/state/agent-office/as1-slack-pilot` root is NOT an active root
-anymore — it is preserved read-only forensic evidence (see §10.6) and is named in
-this document ONLY in that forensic-preservation section. There is no
+`as1-slack-pilot-r2` (R2 recovery design §4). The prior (pre-R2) forensic root is
+NOT an active root anymore; its exact path literal appears in this document ONLY in
+the original-root forensic-preservation section (§10.6). There is no
 environment-selected alternative, old-root fallback, discovery, copy-forward,
 compatibility read, or root search: the original tree is never copied into R2, and
 R2 starts as a NEW root under a separately authorized initialization. The owner
@@ -497,9 +496,31 @@ AS1 owner argv is active and proves through the pinned original-root descriptor 
 `locks/writer.lock` is absent; a process or lock yields `ORIGINAL_ROOT_BUSY` before
 any permission change.
 
-Fixed descriptor-relative algorithm. The helper runs with the exact reviewed
-interpreter and only the privilege needed for the Linux immutable inode flag, and
-performs these ordered steps:
+Production helper status — HOLD (not yet represented; do not claim it exists). The
+complete fixed no-argument reviewed production helper/command required by design
+§4.4 is NOT delivered by this implementation Work Unit. It cannot be represented as
+a self-contained fixed literal here without either weakening the design or making an
+unvalidated claim: the mandatory R2-only build-manifest proof (§4.4.1 — the
+installed executable and every loaded product module hash-match the reviewed build
+manifest) depends on install-time build data that cannot be embedded in a fixed
+literal and must not be reduced to a caller assertion, and a root-privileged
+descriptor-relative forensic tool cannot be validated (mount-id enforcement,
+`/`-fd ancestor pinning, `FS_IMMUTABLE_FL` support, drift/digest proofs) without
+opening, inspecting, or mutating the real original root — which this Work Unit is
+forbidden to do. Therefore the production helper, its real-filesystem/privilege
+support, and its execution remain a later, explicit `HOLD` gate; no weaker
+path-based/mode-bit-only fallback and no unproven "helper exists" claim is
+permitted. The ordered algorithm below is the reviewed SPECIFICATION that the later
+production helper must implement in full, and the TypeScript `preserveOriginalRootTree`
+is its injected-seam ALGORITHM PROOF (control flow, identity pinning, race
+rejection, root-inode-swap rejection, final-digest-equals-initial ordering) exercised
+only over a temporary synthetic tree — it is NOT the production helper and never
+resolves a real state-root literal.
+
+Fixed descriptor-relative algorithm (the reviewed specification the later HELD
+production helper must implement). It runs with the exact reviewed interpreter and
+only the privilege needed for the Linux immutable inode flag, and performs these
+ordered steps:
 
 1. Starting at a no-follow-opened `/` descriptor, `openat` every fixed ancestor,
    the parent, root, and `locks` directory with `O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`;
@@ -550,12 +571,16 @@ descriptor-relative identity/digest/zero-write/immutable proof; any missing flag
 writable inode, identity drift, old-root reference, or digest mismatch is `HOLD`.
 No normal rollback clears the seal — clearing it requires a new, explicit
 forensic-risk decision outside this mission. The original tree is never copied into
-R2. The algorithm (control flow, identity pinning, race rejection, root-inode-swap
-rejection, and final-digest-equals-initial ordering) is proven on a temporary
-synthetic tree with injected filesystem/process seams in the lifecycle test
-(`preserveOriginalRootTree`); those tests never open, inspect, chmod, seal, digest,
-or otherwise resolve either real state-root literal, and the production helper
-remains fixed-root and no-argument.
+R2. The complete fixed no-argument production helper that implements this
+specification is a later `HOLD` gate (see "Production helper status — HOLD" above);
+it is NOT delivered or claimed here. The TypeScript `preserveOriginalRootTree` is
+NOT that helper — it is the ALGORITHM PROOF of the same control flow (identity
+pinning, race rejection, root-inode-swap rejection, and final-digest-equals-initial
+ordering) exercised over a temporary synthetic tree with injected filesystem/process
+seams in the lifecycle test. Those seam tests never open, inspect, chmod, seal,
+digest, or otherwise resolve either real state-root literal; neither real root nor
+its privilege is probed in this implementation Work Unit, and unsupported
+ioctl/privilege remains the later `HOLD` gate with no weaker fallback.
 
 ### 10.7 R2 disabled rollout and rollback
 

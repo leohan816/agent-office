@@ -1001,3 +1001,33 @@ describe('AS1 R2 original-root preservation algorithm (R2 recovery design §4.4)
     expect(preserveOriginalRootTree(makeSeams({ manifestUnproven: true }).seams).kind).toBe('HOLD');
   });
 });
+
+// R2 recovery design §4.4 / handoff-95 F02: the complete fixed no-argument production preservation helper cannot be
+// safely represented as a fixed literal in this Work Unit, so it is explicitly HELD — the setup document must NOT claim
+// a production helper exists, and the original-root STATE-ROOT literal must appear ONLY in the forensic section §10.6.
+describe('AS1 R2 original-root preservation — HOLD + forensic-only original-root literal (setup §10.6)', () => {
+  const setup = readFileSync(path.join(REPO_ROOT, 'docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md'), 'utf8');
+  const section106 = setup.slice(setup.indexOf('### 10.6'));
+
+  it('explicitly HOLDS the production helper (no false "helper exists" claim) and names the TS as the algorithm proof only', () => {
+    // The production helper is a later HOLD gate, NOT delivered/claimed here.
+    expect(section106).toContain('Production helper status — HOLD');
+    expect(section106).toContain('is NOT delivered by this implementation Work Unit');
+    // The §4.4 algorithm remains the reviewed SPECIFICATION the later HELD helper must implement.
+    expect(section106).toContain('reviewed SPECIFICATION');
+    // The TS algorithm is explicitly NOT the production helper — only the injected-seam algorithm proof.
+    expect(section106).toContain('`preserveOriginalRootTree`');
+    expect(section106).toContain('is NOT the production helper');
+    // No unproven fixed-literal helper command is presented (no embedded argv-rejecting script literal claim).
+    expect(section106).not.toContain('if len(sys.argv) > 1');
+    // Unsupported ioctl/privilege remains a HOLD with no weaker fallback.
+    expect(section106).toContain('HOLD');
+    expect(section106).toMatch(/no weaker[\s\S]*fallback/u);
+  });
+
+  it('names the original-root STATE-ROOT literal ONLY inside §10.6 (never in §10.1 or elsewhere before it)', () => {
+    const beforeForensic = setup.slice(0, setup.indexOf('### 10.6'));
+    // The bare original state-root literal (not the R2 root, not the internal namespace, not the cli.js argv path).
+    expect(beforeForensic).not.toMatch(/state\/agent-office\/as1-slack-pilot(?![-/\w])/u);
+  });
+});

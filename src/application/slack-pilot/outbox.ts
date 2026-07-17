@@ -198,6 +198,7 @@ export class As1Outbox {
           threadTs,
           text,
         }),
+        null, // the accepted evidence path has no status-ordering guard
       );
     });
   }
@@ -228,8 +229,59 @@ export class As1Outbox {
           threadTs,
           text,
         }),
+        // R2 recovery §5.6: the status-specific ordering guard is re-checked at entry AND before EVERY durable/Web
+        // side effect, so a sibling failure record appearing mid-send aborts the status with its exact outbox state
+        // preserved. It permits only byte-identical recovery of the SAME failure status from its own PREPARED record.
+        () => this.assertStatusOrderable(intakeId, statusKind),
       ),
     );
+  }
+
+  /**
+   * The status-specific ordering guard (R2 recovery design §5.6). Over ALL durable outbox phases it enforces: every
+   * status after ACCEPTED requires the deterministic ACCEPTED record at RESPONSE_RECORDED; DELIVERY_CONFIRMED begins
+   * only while both failure siblings are wholly absent; DELIVERY_FAILED only while DELIVERY_CONFIRMED and
+   * PROCESSING_FAILED are absent; PROCESSING_FAILED only while DELIVERY_FAILED is absent (it may follow
+   * DELIVERY_CONFIRMED); and both failure records present is a conflict. It NEVER blocks a status's OWN record (that is
+   * the same-failure recovery path resolved by the resume logic). It throws a redacted GATEWAY_DISABLED code; the
+   * caller preserves the outbox state, latches, and halts — no sibling or business operation runs behind a barrier.
+   */
+  private async assertStatusOrderable(intakeId: string, statusKind: As1UserStatusKind): Promise<void> {
+    const profileId = this.deps.profile.profileId;
+    const phaseOf = async (kind: As1UserStatusKind): Promise<string | null> =>
+      (await this.deps.store.readOutboxRecord(userStatusOutboundId(profileId, intakeId, kind)))?.phase ?? null;
+    const acceptedPhase = await phaseOf('ACCEPTED');
+    const deliveryConfirmed = (await phaseOf('DELIVERY_CONFIRMED')) !== null;
+    const deliveryFailed = (await phaseOf('DELIVERY_FAILED')) !== null;
+    const processingFailed = (await phaseOf('PROCESSING_FAILED')) !== null;
+    if (deliveryFailed && processingFailed) {
+      throw new DomainError('GATEWAY_DISABLED', 'status-ordering: FAILURE_STATUS_CONFLICT'); // rule 8
+    }
+    if (statusKind !== 'ACCEPTED' && acceptedPhase !== 'RESPONSE_RECORDED') {
+      throw new DomainError('GATEWAY_DISABLED', 'status-ordering: ACCEPTED_NOT_TERMINAL'); // rules 1-2
+    }
+    switch (statusKind) {
+      case 'ACCEPTED':
+        if (deliveryConfirmed || deliveryFailed || processingFailed) {
+          throw new DomainError('GATEWAY_DISABLED', 'status-ordering: LATER_STATUS_PRESENT');
+        }
+        break;
+      case 'DELIVERY_CONFIRMED':
+        if (deliveryFailed || processingFailed) {
+          throw new DomainError('GATEWAY_DISABLED', 'status-ordering: FAILURE_BARRIER'); // rule 4
+        }
+        break;
+      case 'DELIVERY_FAILED':
+        if (deliveryConfirmed || processingFailed) {
+          throw new DomainError('GATEWAY_DISABLED', 'status-ordering: FAILURE_BARRIER'); // rule 3
+        }
+        break;
+      case 'PROCESSING_FAILED':
+        if (deliveryFailed) {
+          throw new DomainError('GATEWAY_DISABLED', 'status-ordering: FAILURE_BARRIER'); // rule 5 (CONFIRMED may precede)
+        }
+        break;
+    }
   }
 
   /** A durable STORE_QUARANTINED from a journal/root store operation must NOT escape unlatched: durably latch the
@@ -259,6 +311,7 @@ export class As1Outbox {
     intakeId: string,
     renderText: () => string,
     buildRequestPayload: (text: string, root: As1RootCorrelationV1, channel: string, threadTs: string) => Record<string, unknown>,
+    statusGuard: (() => Promise<void>) | null,
   ): Promise<As1OutboxResult> {
     const { profile, secret, store, web, latch, delay } = this.deps;
 
@@ -277,6 +330,11 @@ export class As1Outbox {
       await store.recordOutboxPhase(outboundId, 'MANUAL_RECONCILIATION_REQUIRED');
       return { outcome: 'MANUAL_RECONCILIATION_REQUIRED', phase: 'MANUAL_RECONCILIATION_REQUIRED', attempts: 0, reason: 'interrupted after request start' };
     }
+
+    // R2 recovery §5.6: status-ordering guard at ENTRY (before any new side effect). It is re-checked before every
+    // durable/Web write below; a violation preserves the exact outbox state and returns REJECTED_CONTROL to the caller.
+    const atEntry = await this.checkStatusOrdering(statusGuard, 'PREPARED');
+    if (atEntry !== null) return atEntry;
 
     // Resolve the immutable accepted root by intakeId from the profile-local store; the root's intake must match, and
     // the root's rootKeyHash MUST equal the hash recomputed from the profile + bound secret's workspace/app/channel —
@@ -302,8 +360,9 @@ export class As1Outbox {
     const postRequest: As1PostMessageRequest = { channel, threadTs, text };
     const requestPayload = buildRequestPayload(text, root, channel, threadTs);
 
-    // Control/latch gate immediately before the FIRST durable write. Refuse cleanly BEFORE REQUEST_STARTED.
-    const refusal = await this.gateBeforeStart();
+    // Control/latch gate + status-ordering guard immediately before the FIRST durable write (request artifact). Refuse
+    // cleanly BEFORE REQUEST_STARTED.
+    const refusal = (await this.gateBeforeStart()) ?? (await this.checkStatusOrdering(statusGuard, 'PREPARED'));
     if (refusal !== null) return refusal;
     const requestReceipt = await store.persistOutboundArtifact(outboundId, requestPayload);
 
@@ -313,38 +372,45 @@ export class As1Outbox {
       return await this.reconcile(outboundId, 0, 'outbound id reused with different request bytes');
     }
 
-    // Gate before the PREPARED write and again before REQUEST_STARTED (each durable side effect).
-    const beforePrepared = await this.gateBeforeStart();
+    // Control + status-ordering gate before the PREPARED write and again before REQUEST_STARTED (each durable write).
+    const beforePrepared = (await this.gateBeforeStart()) ?? (await this.checkStatusOrdering(statusGuard, 'PREPARED'));
     if (beforePrepared !== null) return beforePrepared;
     await store.recordOutboxPhase(outboundId, 'PREPARED', { requestHash: requestReceipt.sha256 });
-    const beforeStarted = await this.gateBeforeStart();
+    const beforeStarted = (await this.gateBeforeStart()) ?? (await this.checkStatusOrdering(statusGuard, 'PREPARED'));
     if (beforeStarted !== null) return beforeStarted;
     await store.recordOutboxPhase(outboundId, 'REQUEST_STARTED');
 
     let attempts = 0;
     for (let attempt = 1; attempt <= LIMITS.OUTBOUND_MAX_ATTEMPTS; attempt += 1) {
       attempts = attempt;
-      // Re-check control immediately before every network send — it may have closed during a retry backoff.
+      // Re-check control + status ordering immediately before every network send — either may have changed during a
+      // retry backoff. A status-ordering violation preserves the REQUEST_STARTED state (REJECTED_CONTROL, no resend).
       try {
         await this.deps.assertSendable();
       } catch {
         return await this.reconcile(outboundId, attempts, 'control not sendable before send');
       }
+      const beforeWeb = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
+      if (beforeWeb !== null) return beforeWeb;
       try {
         const response = await web.postMessage(secret.botToken, postRequest);
         if (this.isTrustedSuccess(response, channel)) {
-          // Gate before the response artifact write and before the RESPONSE_RECORDED write.
+          // Gate control + status ordering before the response artifact write and before the RESPONSE_RECORDED write.
           try {
             await this.deps.assertSendable();
           } catch {
             return await this.reconcile(outboundId, attempts, 'control not sendable before response write');
           }
+          const beforeResponse = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
+          if (beforeResponse !== null) return beforeResponse;
           const responseReceipt = await store.persistOutboundArtifact(`${outboundId}.response`, { ok: true, channel: response.channel, ts: response.ts });
           try {
             await this.deps.assertSendable();
           } catch {
             return await this.reconcile(outboundId, attempts, 'control not sendable before response record');
           }
+          const beforeRecord = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
+          if (beforeRecord !== null) return beforeRecord;
           await store.recordOutboxPhase(outboundId, 'RESPONSE_RECORDED', { responseHash: responseReceipt.sha256 });
           return { outcome: 'DELIVERED', phase: 'RESPONSE_RECORDED', attempts, reason: 'ok' };
         }
@@ -378,6 +444,24 @@ export class As1Outbox {
       return null;
     } catch (error) {
       return { outcome: 'REJECTED_CONTROL', phase: 'PREPARED', attempts: 0, reason: error instanceof DomainError ? error.code : 'control not sendable' };
+    }
+  }
+
+  /**
+   * Run the status-ordering guard (if any) before a durable/Web side effect (R2 recovery §5.6). A violation returns a
+   * clean REJECTED_CONTROL result carrying the redacted status-ordering reason — the exact outbox `phase` is preserved
+   * (no resend, no reconcile), and the caller (composition) durably latches / enters the failure barrier. `null` when
+   * there is no guard (the accepted evidence path) or ordering is still permitted.
+   */
+  private async checkStatusOrdering(statusGuard: (() => Promise<void>) | null, phase: As1OutboxPhase): Promise<As1OutboxResult | null> {
+    if (statusGuard === null) return null;
+    try {
+      await statusGuard();
+      return null;
+    } catch (error) {
+      // The status-ordering guard's message is a FIXED redacted `status-ordering: <REASON>` string (no payload), so
+      // the caller can distinguish ACCEPTED_NOT_TERMINAL / FAILURE_BARRIER / FAILURE_STATUS_CONFLICT and act accordingly.
+      return { outcome: 'REJECTED_CONTROL', phase, attempts: 0, reason: error instanceof DomainError ? error.message : 'status not orderable' };
     }
   }
 
