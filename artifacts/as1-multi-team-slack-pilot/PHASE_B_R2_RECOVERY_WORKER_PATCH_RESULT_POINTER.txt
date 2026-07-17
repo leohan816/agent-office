@@ -1,0 +1,35 @@
+WORKER_R2_RECOVERY_VALIDATION_PATCH_RESULT_POINTER
+MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
+PHASE: PHASE_B_R2_RECOVERY_ADVISOR_VALIDATION_PATCH
+ACTOR: Agent Office Worker
+SESSION: agent-office-opus
+MODEL_MODE_EFFORT_SKILL: Opus 4.8 (1M context) / Claude Code Ultracode / Ultracode / /fable-builder
+SKILL_SHA256: 9a5afeefd34775a918b83900aa19859278f4e151a067cf6ab82cb6a25757091b
+RESULT_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_RECOVERY_WORKER_PATCH_RESULT.md
+RESULT_FILE_SHA256: 2b523e9cd3da40d3d15dc4b77cb6f636e14da19e8f3d500113ed4990e5ed2187
+POINTER_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_RECOVERY_WORKER_PATCH_RESULT_POINTER.txt
+FOUNDATION_DOCS_COMMIT: NOT_APPLICABLE
+TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001
+TARGET_BRANCH: feature/as1-phase-b-live-pilot-001
+PATCH_PARENT: 04e8e0170ea4e846480099e105788ef1255651ac
+ORIGINAL_ACCEPTED_R2_DESIGN_COMMIT: a837bbf9d4072638a6dac676fb5ccc8da9bfa1ff
+PRIOR_SOURCE_CANDIDATE: 89c11d21e1e51d44877d81c68f0fe4399094512c
+PRIOR_RESULT_POINTER: 39e24fbe4048d5bf360b2e22a9f699563fb68609 / 04e8e0170ea4e846480099e105788ef1255651ac
+GOVERNANCE_HANDOFF_95_95A: 92d20ffe8fd1b58d617fce9f796f4d8c026fdbf2
+PATCH_COMMIT: 1c28adde13def91d9be75e75abd4040049caf367
+RESULT_COMMIT: 5eccdc870e1338f28d9861f46eb2cde8610b0313
+DIFFSTAT_04e8e017_TO_1c28add: 6 files, 453 insertions, 34 deletions (8-path allowlist; cli.ts + writer-lock.ts unchanged)
+VERDICT: PATCH_PARTIAL — F01 CLOSED, F02 HOLD, F03 CORRECTED
+F01_SUMMARY: CLOSED. outbox.sendStatus runs a status-specific ordering guard (assertStatusOrderable + checkStatusOrdering) at entry AND before EVERY durable/Web side effect (request-artifact/PREPARED/REQUEST_STARTED/Web/response/RESPONSE_RECORDED). §5.6 over ALL durable phases: every status after ACCEPTED requires ACCEPTED@RESPONSE_RECORDED; DELIVERY_CONFIRMED only while both failure siblings wholly absent; DELIVERY_FAILED only while CONFIRMED+PROCESSING_FAILED absent; PROCESSING_FAILED only while DELIVERY_FAILED absent (may follow CONFIRMED); both-present=conflict; a status's OWN record is never blocked (same-failure PREPARED recovery). A violation preserves the exact outbox phase (REJECTED_CONTROL, no resend). composition re-reads the DURABLE classifier at deliverPending entry / pre-transport / pre-retain and at ingestEvidenceAndProject entry / before EVERY evidence checkpoint (was process-local hasFailureBarrier only). A non-DELIVERED ACCEPTED/DELIVERY_CONFIRMED, or an ACCEPTED recovery reaching REQUEST_STARTED/manual, latches + withholds intake/authority + halts (progressionHalted; no arm, no INTAKE/RESULT, no alternate status). Accepted ACK/QUESTION/RESULT path byte-identical; single writer + sequential loop; no parallel sender.
+F02_SUMMARY: HOLD. The complete fixed no-argument reviewed production preservation helper (design §4.4) is NOT delivered and NOT claimed to exist. It cannot be a self-contained fixed literal here without weakening the design / a false claim: (1) the §4.4.1 R2-only build-manifest proof depends on install-time build data that cannot be embedded in a fixed literal nor reduced to a caller assertion; (2) a root-privileged descriptor-relative forensic tool (mount-id, /-fd ancestor pinning, FS_IMMUTABLE_FL support, drift/final zero-write+immutable proofs) cannot be validated without opening/inspecting/mutating the real original root, forbidden by handoff 95. Per ESCALATION_TRIGGER, F02 returns HOLD: setup §10.6 states the HOLD explicitly, removes the false "helper exists" claim and the rejected draft, keeps the §4.4 ordered algorithm as the reviewed SPECIFICATION, and keeps TS preserveOriginalRootTree only as the injected-seam ALGORITHM PROOF. §10.1 no longer names the original-root STATE-ROOT literal (only §10.6 does).
+F03_SUMMARY: the new result corrects the prior Worker result (immutable, not edited): (1) no real production helper existed — only the seam algorithm; (2) status ordering was not rechecked at every design-required boundary; (3) the prior setup ONLY-in-forensic-section statement was false. Every command/failure/retry/limitation recorded.
+GATES: eslint(changed TS, 0) + tsc(0) + build:core(0) + git diff --check clean; vitest 3 files 157/157 (no FileHandle warning); 6-of-8 path scope; old-root + old-stateRootId src scans EMPTY; original-root STATE-ROOT literal only in §10.6; descriptor byte-identity 8e3b9985...802f5d7; redaction/no-real-root scans clean (only the existing xoxb-...placeholder test fixture). All --maxWorkers=1; no skips, no hangs.
+ADVERSARIAL: the F01 ordering tests would post an out-of-order/behind-a-barrier status without the guard; the composition tests would deliver/project behind a durable failure record without the durable re-reads.
+PROHIBITIONS: no secret access, no Slack/network, no owner-state init, no R2 creation, no original-root preservation/inspection/mutation, no real-root privilege probe, no live tmux, no real signal, no descriptor activation, no pilot, no sub-agent/delegation/parallel-context, no self-review, no main/protected write, no force push.
+DESCRIPTOR: config/agent-office.as1-slack-pilot.disabled.json left byte-unchanged (enabled:false, sha256 8e3b9985f09b366e046d03392bd60b2157264ec1f2eb4498bfa92e615802f5d7)
+LIMITATIONS: F02 is a STANDING HOLD (the real production preservation helper + real-filesystem/privilege support are a later explicit HOLD gate, no weaker fallback); all F01 proofs synthetic.
+ROLLBACK: git revert 1c28adde13def91d9be75e75abd4040049caf367 (+ result/pointer) restores 04e8e017; no original-root reference re-enabled; no original-root flag/digest/bytes affected (none touched).
+PUSH_STATUS: NON_FORCE_PUSH to origin/feature/as1-phase-b-live-pilot-001 (this pointer commit is branch HEAD; upstream-equal after push)
+RETURN_TO: agent-office-advisor
+PROPOSED_NEXT_ACTOR: agent-office-advisor — F02 HOLD needs an Advisor/Leo decision (a later dedicated preservation-helper Work Unit with real-filesystem authority, or an accepted design amendment); the same independent SOL Sentinel Reviewer may inspect the full candidate + this patch.
+STOP
