@@ -21,14 +21,22 @@ import { makeStateRoot } from '../helpers/fixtures.js';
 const ACK_RECORD: As1OutboundRecord = { kind: 'ACK', intakeId: 'as1-intake-0001', advisorAckId: 'ack-0001', summary: 'received your mission' };
 const ROOT_TS = '1720000000.000100';
 
-/** Construct a profile-bound outbox with mandatory internal deps; the accepted root is seeded in the store. */
-async function makeOutbox(opts: { assertSendable?: () => Promise<void>; seedRoot?: 'correct' | 'wrong' | 'none' } = {}) {
+/** Construct a profile-bound outbox with mandatory internal deps; the accepted root is seeded in the store.
+ *  Test-only injected seams (deterministic, no product change): `onLatch` fires INSIDE the mandatory latch (after the
+ *  reason is recorded) so a test can introduce a disqualifying sibling exactly at a durable-latch boundary; `decorateStore`
+ *  wraps the profile store so a test can inject a quarantine or a read-count-triggered sibling at an awaited store op. */
+async function makeOutbox(opts: {
+  assertSendable?: () => Promise<void>;
+  seedRoot?: 'correct' | 'wrong' | 'none';
+  onLatch?: (reason: string, latchCount: number) => void | Promise<void>;
+  decorateStore?: (store: As1ProfileInboundStore) => As1ProfileInboundStore;
+} = {}) {
   const root = await makeStateRoot();
-  const store = await As1ProfileInboundStore.open(root, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock('2026-07-14T22:06:00.000Z'));
+  const realStore = await As1ProfileInboundStore.open(root, selectProfile('AGENT_OFFICE_ADVISOR'), new FakeClock('2026-07-14T22:06:00.000Z'));
   const seedRoot = opts.seedRoot ?? 'correct';
   if (seedRoot !== 'none') {
     const correctHash = rootKeyHash('AGENT_OFFICE_ADVISOR', 'TWORKSPACE001', 'AAGENTOFFICE01', 'CAGENTOFFICE01', ROOT_TS);
-    await store.recordRootCorrelation({
+    await realStore.recordRootCorrelation({
       rootTs: ROOT_TS,
       rootKeyHash: seedRoot === 'correct' ? correctHash : `sha256:${'9'.repeat(64)}`,
       sourceEventId: 'Ev0AGENTOFFICE01',
@@ -37,6 +45,9 @@ async function makeOutbox(opts: { assertSendable?: () => Promise<void>; seedRoot
       intakeId: 'as1-intake-0001',
     });
   }
+  // The branded ACK outbound is produced only by a real, successful ingestion (never fabricated by the test).
+  const accepted = await sealAcceptedOutboundVia(realStore, 'INTAKE');
+  const store = opts.decorateStore !== undefined ? opts.decorateStore(realStore) : realStore;
   const web = new FakeWebPort();
   const latched: string[] = [];
   const outbox = new As1Outbox({
@@ -44,16 +55,14 @@ async function makeOutbox(opts: { assertSendable?: () => Promise<void>; seedRoot
     secret: { workspaceId: 'TWORKSPACE001', appId: 'AAGENTOFFICE01', channelId: 'CAGENTOFFICE01', botToken: 'xoxb-agentoffice-placeholder-0001' },
     store,
     web,
-    latch: (reason: string) => {
+    latch: async (reason: string) => {
       latched.push(reason);
-      return Promise.resolve();
+      await opts.onLatch?.(reason, latched.length);
     },
     assertSendable: opts.assertSendable ?? ((): Promise<void> => Promise.resolve()),
     delay: () => Promise.resolve(),
   });
-  // The branded ACK outbound is produced only by a real, successful ingestion (never fabricated by the test).
-  const accepted = await sealAcceptedOutboundVia(store, 'INTAKE');
-  return { root, store, web, outbox, accepted, latched };
+  return { root, store: realStore, web, outbox, accepted, latched };
 }
 
 function grabDomainError(fn: () => unknown): DomainError {
@@ -509,4 +518,162 @@ describe('AS1 same-thread status ordering guard (R2 recovery design §5.6)', () 
     expect(await store.readOutboxPhase(userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED'))).toBe('RESPONSE_RECORDED');
   });
 
+});
+
+const CLOCK_ISO = '2026-07-14T22:06:00.000Z';
+
+/** Seed a status durably at REQUEST_STARTED (PREPARED then REQUEST_STARTED) with a bogus request hash. */
+const seedStatusRequestStarted = async (store: As1ProfileInboundStore, kind: As1UserStatusKind): Promise<void> => {
+  const id = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, kind);
+  await store.recordOutboxPhase(id, 'PREPARED', { requestHash: `sha256:${'a'.repeat(64)}` });
+  await store.recordOutboxPhase(id, 'REQUEST_STARTED');
+};
+
+// handoff 98 / F01-R1: the status-ordering guard and the exact current outbox phase must run through EVERY
+// REQUEST_STARTED resume and shared reconciliation durable side effect (each latch and each MANUAL phase write), and the
+// mandatory B08 quarantine latch must not be bypassed. These prove the defect: without the per-side-effect rechecks the
+// resume/reconcile paths latch and write MANUAL behind a disqualifying sibling, and a guard-read quarantine is masked.
+describe('AS1 status-ordering guard across resume + reconciliation (R2 recovery §5.6; handoff 98 / F01-R1)', () => {
+  it('REQUEST_STARTED recovery refuses BEFORE its latch when a sibling appears at that boundary (no latch, no phase write, no Web)', async () => {
+    // The store seam returns the sibling only from the 2nd DELIVERY_FAILED read (the resume before-latch recheck), so
+    // WITHOUT that recheck the entry check passes and the interrupted-request latch fires. Adversarial: the resume latch
+    // must NOT be called and the exact REQUEST_STARTED phase is preserved with no MANUAL write and no Web call.
+    const failedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_FAILED');
+    const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED');
+    let failedReads = 0;
+    const decorateStore = (real: As1ProfileInboundStore): As1ProfileInboundStore =>
+      new Proxy(real, {
+        get: (target, property, receiver): unknown => {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (typeof value !== 'function') return value;
+          const bound = (value as (...callArgs: readonly unknown[]) => unknown).bind(target);
+          if (property !== 'readOutboxRecord') return bound;
+          return (id: string): unknown => {
+            if (id === failedId) {
+              failedReads += 1;
+              if (failedReads >= 2) return Promise.resolve({ outboundId: failedId, phase: 'PREPARED', requestHash: `sha256:${'d'.repeat(64)}`, responseHash: null, recordedAt: CLOCK_ISO });
+            }
+            return bound(id);
+          };
+        },
+      });
+    const { store, web, outbox, latched } = await makeOutbox({ decorateStore });
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatusRequestStarted(store, 'DELIVERY_CONFIRMED');
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL');
+    expect(result.phase).toBe('REQUEST_STARTED'); // exact prior phase preserved
+    expect(result.reason).toContain('FAILURE_BARRIER');
+    expect(latched).not.toContain('outbound request interrupted after REQUEST_STARTED'); // refused BEFORE the latch
+    expect(await store.readOutboxPhase(confirmedId)).toBe('REQUEST_STARTED'); // NO MANUAL write
+    expect(web.posted).toHaveLength(0); // NO Web call
+  });
+
+  it('a sibling appearing AFTER the recovery latch but before the manual write prevents that write (REQUEST_STARTED preserved)', async () => {
+    // The interrupted-request latch is an awaited boundary; a sibling introduced during it must be caught by the recheck
+    // immediately before the MANUAL write. Adversarial: without that recheck the resume writes MANUAL behind the sibling.
+    const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED');
+    const holder: { store?: As1ProfileInboundStore } = {};
+    const { store, web, outbox, latched } = await makeOutbox({
+      onLatch: async (_reason, count) => {
+        if (count === 1 && holder.store !== undefined) await seedStatus(holder.store, 'DELIVERY_FAILED', 'PREPARED');
+      },
+    });
+    holder.store = store;
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatusRequestStarted(store, 'DELIVERY_CONFIRMED');
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL');
+    expect(result.phase).toBe('REQUEST_STARTED');
+    expect(result.reason).toContain('FAILURE_BARRIER');
+    expect(latched).toContain('outbound request interrupted after REQUEST_STARTED'); // the latch fired...
+    expect(await store.readOutboxPhase(confirmedId)).toBe('REQUEST_STARTED'); // ...but NO MANUAL write behind the sibling
+    expect(web.posted).toHaveLength(0);
+  });
+
+  it('shared reconciliation refuses BEFORE its latch when a sibling appears on the malformed-response path (REQUEST_STARTED preserved)', async () => {
+    // A malformed response routes into the shared reconcile after REQUEST_STARTED; a sibling introduced at the Web
+    // boundary must be caught by reconcile's recheck BEFORE its latch. Adversarial: reconcile previously latched + wrote
+    // MANUAL unconditionally with no guard.
+    const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED');
+    const { store, web, outbox, latched } = await makeOutbox();
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    // sibling appears AT the Web boundary, then a malformed (wrong-channel) response routes into the shared reconcile
+    web.postMessage = () => seedStatus(store, 'DELIVERY_FAILED', 'PREPARED').then(() => ({ ok: true, channel: 'CWRONGCHANNEL', ts: '' }));
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL');
+    expect(result.phase).toBe('REQUEST_STARTED');
+    expect(result.reason).toContain('FAILURE_BARRIER');
+    expect(latched).toHaveLength(0); // refused BEFORE the reconcile latch — no MANUAL reason latched
+    expect(await store.readOutboxPhase(confirmedId)).toBe('REQUEST_STARTED'); // NO MANUAL write
+  });
+
+  it('a sibling appearing AFTER the reconciliation latch but before the manual write prevents that write (REQUEST_STARTED preserved)', async () => {
+    // The reconciliation latch is an awaited boundary; a sibling introduced during it must be caught by reconcile's
+    // recheck immediately before the MANUAL write. Adversarial: without it reconcile writes MANUAL behind the sibling.
+    const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED');
+    const holder: { store?: As1ProfileInboundStore } = {};
+    const { store, web, outbox, latched } = await makeOutbox({
+      onLatch: async (_reason, count) => {
+        if (count === 1 && holder.store !== undefined) await seedStatus(holder.store, 'DELIVERY_FAILED', 'PREPARED');
+      },
+    });
+    holder.store = store;
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    web.setPostScript(['malformed']); // → shared reconcile after REQUEST_STARTED
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL');
+    expect(result.phase).toBe('REQUEST_STARTED');
+    expect(result.reason).toContain('FAILURE_BARRIER');
+    expect(latched).toEqual(['malformed success response']); // the reconcile latch fired...
+    expect(await store.readOutboxPhase(confirmedId)).toBe('REQUEST_STARTED'); // ...but NO MANUAL write behind the sibling
+  });
+
+  it('the pre-start request-hash mismatch reconciliation uses PREPARED truthfully on a status-ordering refusal', async () => {
+    // handoff 98 item 4: the request-hash-mismatch reconcile is PRE-start, so its recheck refusal reports the truthful
+    // PREPARED phase (not REQUEST_STARTED). Adversarial: a wrong call-site phase, or a missing reconcile recheck.
+    const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED');
+    const holder: { store?: As1ProfileInboundStore } = {};
+    const { store, web, outbox } = await makeOutbox({
+      onLatch: async (_reason, count) => {
+        if (count === 1 && holder.store !== undefined) await seedStatus(holder.store, 'DELIVERY_FAILED', 'PREPARED');
+      },
+    });
+    holder.store = store;
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    await seedStatus(store, 'DELIVERY_CONFIRMED', 'PREPARED'); // a PREPARED record whose seeded requestHash (sha256:aaa…) will mismatch the re-derived bytes
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_CONTROL');
+    expect(result.phase).toBe('PREPARED'); // pre-start truthful phase — NOT REQUEST_STARTED
+    expect(result.reason).toContain('FAILURE_BARRIER');
+    expect(await store.readOutboxPhase(confirmedId)).toBe('PREPARED'); // no MANUAL write; still PREPARED
+    expect(web.posted).toHaveLength(0); // a request-hash mismatch never posts
+  });
+
+  it('a STORE_QUARANTINED raised while the guard reads a sibling stays fail closed (B08): no phase write, no Slack, no progression', async () => {
+    // handoff 98 item 5: the mandatory B08 quarantine latch must not be bypassed by the status guard. A STORE_QUARANTINED
+    // raised while assertStatusOrderable reads the sibling records must reach guardQuarantine (REJECTED_STORE + latch),
+    // NOT be masked as an ordering REJECTED_CONTROL, and must write no outbox phase and call no Slack. Adversarial:
+    // checkStatusOrdering previously swallowed every DomainError as REJECTED_CONTROL, dropping the B08 latch.
+    const failedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_FAILED');
+    const confirmedId = userStatusOutboundId('AGENT_OFFICE_ADVISOR', INTAKE, 'DELIVERY_CONFIRMED');
+    const decorateStore = (real: As1ProfileInboundStore): As1ProfileInboundStore =>
+      new Proxy(real, {
+        get: (target, property, receiver): unknown => {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (typeof value !== 'function') return value;
+          const bound = (value as (...callArgs: readonly unknown[]) => unknown).bind(target);
+          if (property !== 'readOutboxRecord') return bound;
+          return (id: string): unknown =>
+            id === failedId ? Promise.reject(new DomainError('STORE_QUARANTINED', 'sibling read quarantined')) : bound(id);
+        },
+      });
+    const { store, web, outbox, latched } = await makeOutbox({ decorateStore });
+    await seedStatus(store, 'ACCEPTED', 'RESPONSE_RECORDED');
+    const result = await outbox.sendStatus(INTAKE, 'DELIVERY_CONFIRMED');
+    expect(result.outcome).toBe('REJECTED_STORE'); // B08 fail-closed, NOT masked as REJECTED_CONTROL
+    expect(latched).toContain('outbox durable store quarantined'); // mandatory B08 latch preserved
+    expect(await store.readOutboxRecord(confirmedId)).toBeNull(); // NO outbox phase written
+    expect(web.posted).toHaveLength(0); // no Slack, no progression
+  });
 });

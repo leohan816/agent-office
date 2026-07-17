@@ -344,8 +344,16 @@ export class As1Outbox {
       return { outcome: 'MANUAL_RECONCILIATION_REQUIRED', phase: 'MANUAL_RECONCILIATION_REQUIRED', attempts: 0, reason: 'terminal' };
     }
     if (prior === 'REQUEST_STARTED') {
-      // Bytes may already be on the wire; resuming must not resend.
+      // Bytes may already be on the wire; resuming must not resend. R2 recovery §5.6 (handoff 98 / F01-R1): recheck
+      // status ordering immediately before EACH durable side effect — the interrupted-request latch AND the manual phase
+      // write. A refusal BEFORE the latch performs no latch and no phase write; a sibling appearing during/after that
+      // latch is caught by the recheck BEFORE the manual write — the mandatory latch has already fired, but the exact
+      // REQUEST_STARTED phase is preserved with NO manual write and no resend. Either way no status durably progresses.
+      const beforeResumeLatch = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
+      if (beforeResumeLatch !== null) return beforeResumeLatch;
       await latch('outbound request interrupted after REQUEST_STARTED');
+      const beforeResumeManual = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
+      if (beforeResumeManual !== null) return beforeResumeManual;
       await store.recordOutboxPhase(outboundId, 'MANUAL_RECONCILIATION_REQUIRED');
       return { outcome: 'MANUAL_RECONCILIATION_REQUIRED', phase: 'MANUAL_RECONCILIATION_REQUIRED', attempts: 0, reason: 'interrupted after request start' };
     }
@@ -383,7 +391,7 @@ export class As1Outbox {
     // PREPARED restart must be exact and immutable: a re-observed PREPARED must re-derive the IDENTICAL request
     // bytes; the same outboundId reused with different record/root/request bytes latches, never silently replaces.
     if (prior === 'PREPARED' && priorRecord?.requestHash != null && priorRecord.requestHash !== requestReceipt.sha256) {
-      return await this.reconcile(outboundId, 0, 'outbound id reused with different request bytes');
+      return await this.reconcile(outboundId, 0, 'outbound id reused with different request bytes', statusGuard, 'PREPARED');
     }
 
     // Control + status-ordering gate before the PREPARED write and again before REQUEST_STARTED (each durable write).
@@ -402,7 +410,7 @@ export class As1Outbox {
       try {
         await this.deps.assertSendable();
       } catch {
-        return await this.reconcile(outboundId, attempts, 'control not sendable before send');
+        return await this.reconcile(outboundId, attempts, 'control not sendable before send', statusGuard, 'REQUEST_STARTED');
       }
       const beforeWeb = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
       if (beforeWeb !== null) return beforeWeb;
@@ -413,7 +421,7 @@ export class As1Outbox {
           try {
             await this.deps.assertSendable();
           } catch {
-            return await this.reconcile(outboundId, attempts, 'control not sendable before response write');
+            return await this.reconcile(outboundId, attempts, 'control not sendable before response write', statusGuard, 'REQUEST_STARTED');
           }
           const beforeResponse = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
           if (beforeResponse !== null) return beforeResponse;
@@ -421,14 +429,14 @@ export class As1Outbox {
           try {
             await this.deps.assertSendable();
           } catch {
-            return await this.reconcile(outboundId, attempts, 'control not sendable before response record');
+            return await this.reconcile(outboundId, attempts, 'control not sendable before response record', statusGuard, 'REQUEST_STARTED');
           }
           const beforeRecord = await this.checkStatusOrdering(statusGuard, 'REQUEST_STARTED');
           if (beforeRecord !== null) return beforeRecord;
           await store.recordOutboxPhase(outboundId, 'RESPONSE_RECORDED', { responseHash: responseReceipt.sha256 });
           return { outcome: 'DELIVERED', phase: 'RESPONSE_RECORDED', attempts, reason: 'ok' };
         }
-        return await this.reconcile(outboundId, attempts, 'malformed success response');
+        return await this.reconcile(outboundId, attempts, 'malformed success response', statusGuard, 'REQUEST_STARTED');
       } catch (error) {
         const classified = error instanceof As1OutboundError ? error : new As1OutboundError('AMBIGUOUS', 'unclassified outbound failure');
         if (classified.outboundClass === 'CONNECTION_BEFORE_SEND' && attempt < LIMITS.OUTBOUND_MAX_ATTEMPTS) {
@@ -440,12 +448,12 @@ export class As1Outbox {
           continue;
         }
         if (classified.outboundClass === 'AMBIGUOUS') {
-          return await this.reconcile(outboundId, attempts, 'ambiguous outbound failure');
+          return await this.reconcile(outboundId, attempts, 'ambiguous outbound failure', statusGuard, 'REQUEST_STARTED');
         }
-        return await this.reconcile(outboundId, attempts, `${classified.outboundClass.toLowerCase()} attempts exhausted`);
+        return await this.reconcile(outboundId, attempts, `${classified.outboundClass.toLowerCase()} attempts exhausted`, statusGuard, 'REQUEST_STARTED');
       }
     }
-    return this.reconcile(outboundId, attempts, 'attempts exhausted');
+    return this.reconcile(outboundId, attempts, 'attempts exhausted', statusGuard, 'REQUEST_STARTED');
   }
 
   /**
@@ -473,9 +481,15 @@ export class As1Outbox {
       await statusGuard();
       return null;
     } catch (error) {
-      // The status-ordering guard's message is a FIXED redacted `status-ordering: <REASON>` string (no payload), so
-      // the caller can distinguish ACCEPTED_NOT_TERMINAL / FAILURE_BARRIER / FAILURE_STATUS_CONFLICT and act accordingly.
-      return { outcome: 'REJECTED_CONTROL', phase, attempts: 0, reason: error instanceof DomainError ? error.message : 'status not orderable' };
+      // ONLY a status-ordering violation is a clean REJECTED_CONTROL: the guard's message is a FIXED redacted
+      // `status-ordering: <REASON>` string (no payload) on a GATEWAY_DISABLED code, so the caller can distinguish
+      // ACCEPTED_NOT_TERMINAL / FAILURE_BARRIER / FAILURE_STATUS_CONFLICT. Any OTHER durable failure — notably a
+      // STORE_QUARANTINED raised while the guard reads the sibling/own records — MUST propagate to the mandatory B08
+      // quarantine latch (`guardQuarantine`) and never be masked as an ordering refusal (handoff 98 / F01-R1 item 5).
+      if (error instanceof DomainError && error.code === 'GATEWAY_DISABLED' && error.message.startsWith('status-ordering:')) {
+        return { outcome: 'REJECTED_CONTROL', phase, attempts: 0, reason: error.message };
+      }
+      throw error;
     }
   }
 
@@ -489,8 +503,27 @@ export class As1Outbox {
     }
   }
 
-  private async reconcile(outboundId: string, attempts: number, reason: string): Promise<As1OutboxResult> {
+  /**
+   * Shared reconciliation to the fixed MANUAL_RECONCILIATION_REQUIRED terminal. R2 recovery §5.6 (handoff 98 / F01-R1):
+   * the status-ordering guard is re-checked immediately before EACH durable side effect — the reconciliation latch AND
+   * the manual phase write — preserving the EXACT current `phase` on refusal (PREPARED for the pre-start request-hash
+   * mismatch; REQUEST_STARTED for every post-REQUEST_STARTED control/response/exhaustion path) and returning the fixed
+   * REJECTED_CONTROL, never a substitute status. A refusal BEFORE the latch performs no latch and no phase write; a
+   * refusal AFTER the latch (before the manual write) leaves the mandatory latch already taken but writes NO manual
+   * phase and progresses no status. The accepted-evidence path (`statusGuard === null`) skips the rechecks entirely.
+   */
+  private async reconcile(
+    outboundId: string,
+    attempts: number,
+    reason: string,
+    statusGuard: (() => Promise<void>) | null,
+    phase: As1OutboxPhase,
+  ): Promise<As1OutboxResult> {
+    const beforeReconcileLatch = await this.checkStatusOrdering(statusGuard, phase);
+    if (beforeReconcileLatch !== null) return beforeReconcileLatch;
     await this.deps.latch(reason);
+    const beforeReconcileManual = await this.checkStatusOrdering(statusGuard, phase);
+    if (beforeReconcileManual !== null) return beforeReconcileManual;
     await this.deps.store.recordOutboxPhase(outboundId, 'MANUAL_RECONCILIATION_REQUIRED');
     return { outcome: 'MANUAL_RECONCILIATION_REQUIRED', phase: 'MANUAL_RECONCILIATION_REQUIRED', attempts, reason };
   }
