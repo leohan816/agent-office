@@ -59,10 +59,14 @@ every status after ACCEPTED requires ACCEPTED at RESPONSE_RECORDED; DELIVERY_CON
 begins only while both failure siblings are wholly absent; DELIVERY_FAILED only while
 DELIVERY_CONFIRMED and PROCESSING_FAILED are absent; PROCESSING_FAILED only while
 DELIVERY_FAILED is absent (may follow CONFIRMED); both failure records present is a
-conflict; and it NEVER blocks a status's OWN record (the same-failure PREPARED
-recovery). A violation preserves the exact outbox phase and returns REJECTED_CONTROL
-(no resend, no reconcile). The branded accepted ACK/QUESTION/RESULT path passes `null`
-and is byte-identical.
+conflict; and a status's own-record recovery (the same-failure PREPARED recovery, and
+ACCEPTED's idempotent RESPONSE_RECORDED replay after a successful DELIVERY_CONFIRMED)
+is permitted ONLY while no disqualifying failure sibling/conflict exists — a terminal
+own-record is refused once such a sibling appears (correction d1), and ACCEPTED's
+terminal replay after DELIVERY_CONFIRMED requires BOTH failure siblings absent
+(correction c4). A violation preserves the exact outbox phase and returns
+REJECTED_CONTROL (no resend, no reconcile). The branded accepted ACK/QUESTION/RESULT
+path passes `null` and is byte-identical.
 
 `composition.ts`: the DURABLE classifier (`classifyFailureSiblings`) is re-read at
 `deliverPending` entry, immediately before exact transport, and before retaining the
