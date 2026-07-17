@@ -1,0 +1,882 @@
+# Agent Office AS1 Phase B R2 Recovery Design Delta
+
+Status: DESIGN CANDIDATE — independent review and an exact Advisor
+implementation handoff are still required.
+
+Mission: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
+
+Pass: PHASE_B_R2_SOCKET_COMPATIBILITY_AND_STATUS_DESIGN_DELTA
+
+Authority: the committed Designer handoff
+advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/88_PHASE_B_R2_RECOVERY_DESIGNER_HANDOFF.md
+at governance commit 0ab13cdf0a6bf31c19cba9af987625f24b169ca0.
+
+Product recovery baseline:
+64d15e34b50ec953fca5dc6c27c2c48703c6513f.
+
+Frozen reviewed implementation source:
+cca0cb5e2485c029b6d1715e37abf9bc55c548bd.
+
+## 1. Decision and scope
+
+HOLD: NO.
+
+The exact recovery fits the existing Phase B architecture without a new
+authority schema, durable-store schema, database, or notification framework.
+The smallest safe delta is:
+
+1. replace only the post-hello Socket structural walk with a Socket-local
+   maximum depth of 10, leaving the general JSON contract at 8;
+2. bind every active owner and observer path to one new fixed R2 state root and
+   root ID, while making the original root operationally read-only forensic
+   evidence; and
+3. add four closed user-status values to the existing profile-local durable
+   outbox, deriving their target from the already-accepted root correlation.
+
+This document is additive and controls the R2 recovery where it differs from
+the accepted Phase B design. Every identity, provenance, one-use delivery,
+incident gate, no-blind-resend, and single-profile rule not changed here
+remains in force.
+
+This is a design result only. It grants no implementation, activation, secret
+access, Slack connection, state-root mutation, tmux mutation, risk acceptance,
+or live-pilot authority.
+
+## 2. Incident facts and non-goals
+
+The accepted evidence establishes:
+
+- the live Socket passed receive-grant, secret, workspace, App, channel, Leo,
+  and hello gates;
+- the first bounded top-level Leo message then latched the profile at
+  2026-07-17T03:40:08.755Z with the redacted reason
+  malformed frame after ready;
+- no receipt, intake, delivery authority, tmux mutation, Advisor ACK, status,
+  or result was created;
+- the raw frame was correctly neither logged nor persisted; and
+- the owner was stopped, the descriptor was restored disabled, the fixed lock
+  is absent, and no AS1 process remains.
+
+The raw frame is intentionally unavailable and must remain unavailable. R2
+does not add capture, debug logging, payload logging, a parser bypass, a
+fallback root, a reset, or a second simultaneous profile.
+
+## 3. Socket rich-text compatibility
+
+### 3.1 Exact entry point
+
+The only changed parser boundary is parseTrustedJson in:
+
+src/adapters/gateways/slack-pilot/socket-frame.ts
+
+The live call path remains:
+
+1. As1RawSocketTransport.dispatchAfterReady receives a post-hello text frame;
+2. parseTrustedJson checks the raw UTF-8 size, parses JSON to unknown, and
+   performs the bounded structural walk;
+3. isDisconnectFrame may recognize a shallow provider control frame;
+4. parseEventsApiValue enforces the exact Events API outer contract; and
+5. As1InboundService performs the unchanged workspace, App, authorization,
+   channel, Leo, surface, replay, timestamp, and bounded event.text checks.
+
+The first-frame hello lexer is unchanged. General JSON parsing remains
+permitted only after App-ID proof. socket-client.ts requires no runtime change;
+its existing malformed-frame latch remains the fail-closed consumer of a
+local-walk rejection.
+
+### 3.2 Exact local limit
+
+Define a Socket-only constant in socket-frame.ts:
+
+    SOCKET_EVENT_JSON_DEPTH_MAX = 10
+
+The local walk uses the same counting convention as the current shared walk:
+the outer value starts at depth 1 and every object property or array element,
+including a primitive leaf, advances depth by one.
+
+For the required ordinary plain rich-text message, the deepest path is:
+
+| Depth | Value |
+| ---: | --- |
+| 1 | Events API outer object |
+| 2 | payload object |
+| 3 | event object |
+| 4 | blocks array |
+| 5 | rich_text block object |
+| 6 | block elements array |
+| 7 | rich_text_section object |
+| 8 | section elements array |
+| 9 | inline text element object |
+| 10 | inline text primitive |
+
+Ten is therefore sufficient for the approved ordinary top-level message and
+is two levels narrower than an unbounded or arbitrary Slack block parser. The
+pilot does not interpret blocks. The authoritative message content remains
+the separately bounded event.text string. Optional deeper block structures,
+including an inline child object with a primitive below it, fail closed. A
+future need for styled elements, nested rich-text lists, or another deeper
+shape requires new evidence and explicit authority; it is not inferred here.
+
+The Socket-local walk preserves all existing bounds:
+
+- raw UTF-8 frame size is at most 32,768 bytes;
+- JSON.stringify of the parsed value is also at most 32,768 UTF-8 bytes;
+- every array has at most 16 entries;
+- known envelope identifiers, retry fields, event identifiers, timestamps,
+  authorization fields, and event.text retain their existing field bounds;
+- all otherwise-unused strings are bounded by the enclosing 32,768-byte frame;
+- malformed JSON, over-depth values, oversized arrays, and oversized frames
+  still reject before field access; and
+- no rejection includes raw bytes, values, IDs, URLs, tokens, or provider
+  error text.
+
+The shared LIMITS.JSON_NESTING_DEPTH_MAX remains exactly 8. The general
+assertBoundedJsonStructure implementation and all unrelated callers remain
+unchanged. Direct code evidence shows socket-frame.ts is its only current
+runtime caller, but a local boundary still avoids silently redefining the
+general contract.
+
+### 3.3 Exact accepted fixture
+
+The focused parser and Socket tests use this exact value, serialized with
+JSON.stringify. Placeholder IDs are test identities, never live values:
+
+~~~json
+{
+  "type": "events_api",
+  "envelope_id": "Env0AGENTOFFICE01",
+  "accepts_response_payload": false,
+  "payload": {
+    "type": "event_callback",
+    "team_id": "TWORKSPACE001",
+    "api_app_id": "AAGENTOFFICE01",
+    "event_id": "Ev0AGENTOFFICE01",
+    "event_time": 1720000000,
+    "authorizations": [
+      {
+        "enterprise_id": null,
+        "team_id": "TWORKSPACE001",
+        "user_id": "UAGENTBOT001",
+        "is_bot": true,
+        "is_enterprise_install": false
+      }
+    ],
+    "event": {
+      "type": "message",
+      "user": "ULEO0000001",
+      "channel": "CAGENTOFFICE01",
+      "channel_type": "group",
+      "ts": "1720000000.000100",
+      "event_ts": "1720000000.000100",
+      "text": "please start a new mission",
+      "blocks": [
+        {
+          "type": "rich_text",
+          "block_id": "b1",
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [
+                {
+                  "type": "text",
+                  "text": "please start a new mission"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+~~~
+
+The maximum-depth assertion is the inline text value at depth 10. The test
+must prove both parseEventsApiFrame acceptance and delivery through an armed
+As1RawSocketTransport without a malformed-frame latch.
+
+The outer-envelope contract remains exact. The only permitted outer key names
+remain:
+
+    type
+    envelope_id
+    accepts_response_payload
+    retry_attempt
+    retry_reason
+    payload
+
+The required type remains events_api; envelope_id remains bounded;
+accepts_response_payload remains absent or false; retry_attempt remains a
+safe integer from 0 through 64; retry_reason remains at most 256 characters;
+and payload remains an object. An unknown outer key still rejects.
+
+### 3.4 Exact one-level-over reject fixture
+
+The rejected fixture is byte-for-byte the accepted fixture except that the
+sole inline text element is:
+
+~~~json
+{
+  "type": "text",
+  "text": "please start a new mission",
+  "unexpected": {
+    "leaf": true
+  }
+}
+~~~
+
+The unexpected object is depth 10 and its leaf is depth 11. The local walk
+must reject it before parseEventsApiValue or the inbound service sees the
+payload. The pure parser test expects INVALID_SCHEMA with stable non-payload
+detail. The armed Socket test expects the existing stable
+REJECTED_MALFORMED_FRAME observation, one durable owning-profile latch, no
+handler call, no Socket ACK, and no raw-frame text in logs or errors.
+
+Existing exact 32,768-byte acceptance/32,769-byte rejection, array-16/17,
+outer-key, disconnect, hello quarantine, and identity tests remain required.
+
+## 4. Versioned fixed R2 state root
+
+### 4.1 Fixed values
+
+The sole active R2 state root is:
+
+    /home/leo/.local/state/agent-office/as1-slack-pilot-r2
+
+The sole active R2 state-root ID is:
+
+    as1-slack-pilot-r2
+
+The preserved original forensic root is:
+
+    /home/leo/.local/state/agent-office/as1-slack-pilot
+
+There is no environment-selected alternative, old-root fallback, discovery,
+copy-forward, compatibility read, repair path, or root search.
+
+### 4.2 Active invariants
+
+The implementation must enforce all of the following:
+
+1. cli.ts exports AS1_OWNER_STATE_ROOT as the exact R2 path.
+2. start and redacted-check require AS1_SLACK_STATE_ROOT to equal that literal.
+3. initializeStateRoot receives stateRootId as1-slack-pilot-r2.
+4. As1SlackControl opens only that initialized root, and its marker, control,
+   profile latch, intake, pointer, delivery, status, outbox, and recovery
+   records are therefore below R2.
+5. stop, incident-kill, status, restart, lock-removal proof, and durable-kill
+   proof resolve only R2. They accept no root operand.
+6. writer-lock.ts exports the exact fixed R2 lock:
+
+       /home/leo/.local/state/agent-office/as1-slack-pilot-r2/locks/writer.lock
+
+7. The sealed pidfd bridge has the same R2 lock literal and requires the lock
+   record stateRootId to equal as1-slack-pilot-r2.
+8. WriterLock.acquire still validates the format marker against the supplied
+   stateRootId; the CLI supplies only the R2 ID.
+9. A new receive grant must bind the new R2 marker-derived
+   profileStateRootHash. An original-root grant or hash cannot be reused.
+10. The build ID remains as1-slack-pilot. The internal durable namespace
+    indexes/as1-slack-pilot, profile slugs, pilot ID, descriptor name, secret
+    file name, and executable argv remain protocol/product namespaces, not
+    state-root selectors, and do not change.
+
+After implementation, the exact old state-root path must have zero occurrence
+in active src code. Historical accepted design evidence may continue to name
+the original root, and the setup document must name it only in the explicit
+forensic-preservation section.
+
+### 4.3 Sealed bridge identity
+
+Only two substitutions are permitted inside PIDFD_BRIDGE_SOURCE:
+
+- LOCK_PATH gains -r2; and
+- the expected lock record stateRootId gains -r2.
+
+No operation, environment, interpreter fact, owner argv, signal, schema,
+deadline, bound, or result changes. With exactly those substitutions against
+the frozen source, the new sealed literal identity is:
+
+    PIDFD_BRIDGE_SOURCE_BYTES = 17989
+    PIDFD_BRIDGE_SOURCE_SHA256 =
+      sha256:d5b831e29dfb19b23f194e928258d74f2a43a2bfb51fa76350ec6595537a8de2
+
+Implementation must recompute the UTF-8 length and SHA-256 from its staged
+literal and prove they equal these values. A different result is design drift,
+not a value to update opportunistically.
+
+### 4.4 Original-root preservation gate
+
+This is an operator step for a later exact implementation/live handoff. It was
+not executed by the Designer.
+
+Prerequisites are a committed disabled descriptor, no AS1 owner process, and
+an absent original writer lock. The following fixed command block rejects
+symlinks, special files, and multiply-linked files, computes a
+path-and-content aggregate before and after, removes write bits only, and
+proves the byte aggregate is unchanged. It performs no deletion, reset,
+repair, rename, copy, or content write:
+
+~~~bash
+set -euo pipefail
+
+readonly OLD_ROOT=/home/leo/.local/state/agent-office/as1-slack-pilot
+readonly OLD_LOCK=/home/leo/.local/state/agent-office/as1-slack-pilot/locks/writer.lock
+readonly OWNER_PATTERN='[a]s1-slack-pilot/cli\.js start'
+
+test -d "$OLD_ROOT"
+test ! -L "$OLD_ROOT"
+test ! -e "$OLD_LOCK"
+test ! -L "$OLD_LOCK"
+if /usr/bin/pgrep -f "$OWNER_PATTERN" >/dev/null; then
+  exit 20
+fi
+if /usr/bin/find "$OLD_ROOT" -xdev ! -type d ! -type f -print -quit |
+  /usr/bin/grep -q .; then
+  exit 21
+fi
+if /usr/bin/find "$OLD_ROOT" -xdev -type f ! -links 1 -print -quit |
+  /usr/bin/grep -q .; then
+  exit 22
+fi
+
+old_tree_digest() {
+  {
+    printf 'PATHS\0'
+    /usr/bin/find "$OLD_ROOT" -xdev -printf '%y %P\0' |
+      LC_ALL=C /usr/bin/sort -z
+    printf 'FILES\0'
+    /usr/bin/find "$OLD_ROOT" -xdev -type f -print0 |
+      LC_ALL=C /usr/bin/sort -z |
+      /usr/bin/xargs -0 -r /usr/bin/sha256sum --zero --
+  } |
+    /usr/bin/sha256sum |
+    /usr/bin/awk '{print $1}'
+}
+
+readonly BEFORE_DIGEST="$(old_tree_digest)"
+/usr/bin/find "$OLD_ROOT" -xdev -type f -exec /usr/bin/chmod a-w -- {} +
+/usr/bin/find "$OLD_ROOT" -xdev -depth -type d -exec /usr/bin/chmod a-w -- {} +
+readonly AFTER_DIGEST="$(old_tree_digest)"
+
+test "$BEFORE_DIGEST" = "$AFTER_DIGEST"
+test -z "$(/usr/bin/find "$OLD_ROOT" -xdev \( -type f -o -type d \) -perm /222 -print -quit)"
+test ! -e "$OLD_LOCK"
+test ! -L "$OLD_LOCK"
+if /usr/bin/pgrep -f "$OWNER_PATTERN" >/dev/null; then
+  exit 23
+fi
+
+printf 'ORIGINAL_ROOT_READ_ONLY=YES\n'
+printf 'ORIGINAL_ROOT_BYTES_UNCHANGED=YES\n'
+printf 'ORIGINAL_ROOT_AGGREGATE_SHA256=%s\n' "$AFTER_DIGEST"
+printf 'ORIGINAL_ROOT_LOCK_ABSENT=YES\n'
+printf 'AS1_OWNER_PROCESS_ABSENT=YES\n'
+~~~
+
+The before and after aggregate must be recorded in the later operator gate.
+Only mode bits change. Evidence bytes and paths do not. The post-check closes
+the process/lock race: if an old owner acquired the namespace during the
+operation, preservation fails rather than claiming success. After the R2 code
+is installed, active code has no path back to the original tree; the removed
+write bits additionally cause an old binary to fail before it can create a
+lock or state.
+
+The original tree is never copied into R2. R2 starts as a new root under a
+separately authorized initialization. No receipt, latch, marker, index,
+pointer, delivery journal, outbox record, or other byte is migrated.
+
+## 5. Minimal same-thread user status contract
+
+### 5.1 Closed vocabulary
+
+Define the following internal, closed TypeScript status kind. It is not a
+durable schema and is not accepted from Slack, CLI, evidence, or an external
+caller:
+
+    ACCEPTED
+    DELIVERY_CONFIRMED
+    DELIVERY_FAILED
+    PROCESSING_FAILED
+
+The renderer is a total constant map:
+
+| Kind | Exact text |
+| --- | --- |
+| ACCEPTED | 요청 접수 완료 · Advisor에게 전달 중 |
+| DELIVERY_CONFIRMED | 메시지 전달 완료 · 답변 대기 중 |
+| DELIVERY_FAILED | 전달 실패 · 요청은 실행되지 않았습니다 |
+| PROCESSING_FAILED | 처리 실패 · 안전하게 중지되었습니다 |
+
+No API accepts free-form status text. The request uses the existing
+chat.postMessage port, whose production adapter fixes mrkdwn false,
+reply_broadcast false, unfurl_links false, and unfurl_media false. The full
+plain Korean sentence is available to visual and screen-reader clients without
+blocks, emoji-only meaning, mentions, or layout assumptions.
+
+Final RESULT evidence remains a business result, not a status. No fifth
+progress/failure status is introduced. For this R2 private composition,
+accepted INTAKE evidence is still validated and durably checkpointed but its
+legacy fixed English ACK projection is not sent; DELIVERY_CONFIRMED replaces
+that progress acknowledgement. Accepted RESULT projection is unchanged.
+Questions and continuation UX remain outside this one-root live recovery.
+
+### 5.2 Existing outbox fit
+
+No new store file or schema is required. Each status uses the existing
+profile-local slack-outbox journal and the existing phases:
+
+    PREPARED
+    REQUEST_STARTED
+    RESPONSE_RECORDED
+    MANUAL_RECONCILIATION_REQUIRED
+
+The existing journal already binds immutable request and response artifact
+hashes, rejects illegal transitions, resumes PREPARED only with identical
+request bytes, never resends REQUEST_STARTED, and treats ambiguity as manual
+reconciliation plus a profile latch. Its capacity of 128 records is sufficient
+for the bounded one-intake pilot.
+
+As1Outbox gains a narrow sendStatus(intakeId, statusKind) entry. It accepts
+neither a target nor text. Internally it shares the exact existing
+root-resolution, request-artifact, phase, retry, response-validation, and
+reconciliation path used by accepted evidence. The existing branded
+As1AcceptedOutbound path remains required for ACK/QUESTION/RESULT evidence and
+is not weakened.
+
+### 5.3 Deterministic identity
+
+For profile P, intake I, and closed status kind K:
+
+    digest = lowercase SHA-256 hex of canonical JSON:
+      {
+        "schemaVersion": "agent-office.as1-user-status-identity.v1",
+        "profileId": P,
+        "intakeId": I,
+        "statusKind": K
+      }
+
+    outboundId = "as1status-" followed by digest
+
+The ID is 74 ASCII bytes, a valid opaque ID and path segment. The same status
+for the same profile/intake can have only one journal identity. A different
+kind has a different identity. No timestamp, retry counter, reason, channel,
+or caller nonce participates.
+
+The immutable request artifact is exactly:
+
+~~~json
+{
+  "kind": "USER_STATUS",
+  "statusKind": "<closed kind>",
+  "profileId": "<selected closed profile>",
+  "intakeId": "<accepted intake>",
+  "rootTs": "<accepted root timestamp>",
+  "rootKeyHash": "<accepted root hash>",
+  "sourceEventId": "<accepted source event>",
+  "channel": "<selected profile channel>",
+  "threadTs": "<same accepted root timestamp>",
+  "text": "<exact constant text>"
+}
+~~~
+
+The token is never persisted. A replay re-derives byte-identical request
+content or moves to manual reconciliation; it never replaces the artifact.
+
+### 5.4 Safe target validation
+
+Before every status durable write or Web call, the outbox must:
+
+1. resolve findRootByIntakeId(intakeId) from the selected profile store below
+   R2;
+2. require the returned root intakeId to equal the requested intake;
+3. recompute rootKeyHash from selected profile ID plus the construction-bound
+   workspace, App, channel, and rootTs;
+4. require exact equality with the durable rootKeyHash;
+5. derive channel only from the selected validated profile secret;
+6. derive threadTs only from the immutable root rootTs; and
+7. pass the current incident/control/profile-latch predicate immediately
+   before each durable or network side effect.
+
+The initial ACCEPTED trigger is additionally limited to a
+NEW_MISSION_ROOT result from As1InboundService. That result occurs only after
+the service has validated workspace, App, the exact single authorization,
+private-channel surface, channel, Leo user, top-level shape, timestamps, and
+bounded event.text, then durably materialized the intake, pointer, and root
+correlation. A rejected, duplicate, continuation, bot, wrong-user,
+wrong-channel, wrong-App, wrong-workspace, mutated, threaded, or malformed
+event sends no status.
+
+No status target comes from the raw blocks tree, Advisor evidence, CLI,
+delivery grant, failure object, or status caller.
+
+### 5.5 Durable lifecycle
+
+The following table is normative. “Recorded” means the status's outbox phase
+is RESPONSE_RECORDED, not merely that a Web call began.
+
+| State/fact | Required proof | Status action | Permitted next state |
+| --- | --- | --- | --- |
+| No accepted intake | Identity/root validation incomplete | None | Durable accepted new root only |
+| Durable accepted new root | MATERIALIZED transport, matching root correlation, valid reply target | Send ACCEPTED; do not expose the intake to delivery until recorded | Delivery pending |
+| Delivery awaiting authority | ACCEPTED recorded; grant or lease not READY | None; 250 ms bounded owner polling continues | Another pending observation or exact delivery attempt |
+| Proven pre-paste stop | Exact transport returns STOPPED_BEFORE_PASTE and a fresh derived-delivery journal read is null | Send DELIVERY_FAILED | Terminal owner halt |
+| Ambiguous/in-flight delivery | PREPARED or any later nonterminal/manual journal exists | None; never claim non-execution | Manual reconciliation and halt |
+| Terminal tmux, ACK absent | Exact journal is TRANSPORT_RECORDED; accepted server Advisor ACK evidence is not READY | None; evidence polling continues | ACK acceptance or post-delivery failure |
+| Advisor ACK accepted | TRANSPORT_RECORDED is re-read and ACK evidence passes the full accepted evidence authority | Send DELIVERY_CONFIRMED before considering INTAKE or RESULT projection | Await/process remaining evidence |
+| Post-delivery processing failure | TRANSPORT_RECORDED is re-read; a non-benign evidence/projection operation fails while incident/control output remains open | Send PROCESSING_FAILED once, then latch/stop | Terminal halt |
+| Security latch or incident already closed | Profile/global latch, divergence latch, incident gate, or unsafe target is active | None; status never bypasses the gate | Existing fail-closed halt |
+| Final result accepted | ACK and INTAKE chain accepted and RESULT authority accepted | Send the existing RESULT business outbound | Manual clean stop/audit |
+
+STOPPED_BEFORE_PASTE is safe for DELIVERY_FAILED only because the exact
+transport returns it before PREPARED and before buffer load, paste, or Enter.
+Composition must derive the delivery ID from the already-parsed grant and
+freshly prove readTmuxPhase(deliveryId) is null before posting. A
+MANUAL_RECONCILIATION_REQUIRED result, any PREPARED-or-later record, an
+exception with unknown commit point, or a missing proof sends no delivery
+failure. Thus “요청은 실행되지 않았습니다” is never asserted after possible
+execution.
+
+Processing-failure eligibility is narrow: it is invoked only by the catch
+around post-TRANSPORT_RECORDED evidence/projection work, not by the global
+owner catch. NOT_READY is benign and never a failure. Planned SIGINT/SIGTERM,
+grant expiry before an exact delivery attempt, operator stop, and incident
+kill do not synthesize a user failure. If the underlying defect has already
+latched or closed incident admission, the status gate refuses and the
+existing latch wins.
+
+### 5.6 Ordering and mutual exclusion
+
+Before starting any status, sendStatus derives all four sibling IDs and reads
+their existing journal records.
+
+The exact rules are:
+
+1. Every later status requires ACCEPTED at RESPONSE_RECORDED.
+2. If a later status record exists while ACCEPTED is absent or nonterminal,
+   treat the set as corrupt/ambiguous, latch, and send nothing.
+3. DELIVERY_FAILED is allowed only when DELIVERY_CONFIRMED and
+   PROCESSING_FAILED have no durable record of any phase.
+4. DELIVERY_CONFIRMED is allowed only when DELIVERY_FAILED has no durable
+   record of any phase.
+5. PROCESSING_FAILED is allowed only after terminal tmux proof and when
+   DELIVERY_FAILED has no durable record of any phase. It may follow
+   DELIVERY_CONFIRMED or, if processing failed before ACK acceptance, follow
+   ACCEPTED directly.
+6. If either failure kind has any durable phase, the other failure kind may
+   never start.
+7. A RESPONSE_RECORDED sibling is replay success with no network. A
+   REQUEST_STARTED or MANUAL_RECONCILIATION_REQUIRED sibling is terminal and
+   never resent. PREPARED may proceed only after identical request-hash proof.
+8. The single foreground writer lock, one in-flight Socket handler, and
+   sequential owner loop remain the concurrency boundary; no parallel status
+   sender is added.
+
+These checks yield exactly one applicable failure status. They also prevent a
+late delivery confirmation after a recorded delivery failure.
+
+### 5.7 Trigger placement and crash recovery
+
+ACCEPTED:
+
+- In the Socket handler, await processEnvelope.
+- Only for classification NEW_MISSION_ROOT with a non-null intakeId, invoke
+  the closed status sender.
+- Require DELIVERY of the status through RESPONSE_RECORDED.
+- Only then assign lastIntakeId, allowing deliverPending to observe it.
+
+A crash after MATERIALIZED but before lastIntakeId assignment is closed on
+startup. After service.recoverPending and before armReceive:
+
+1. read the current receive-grant state;
+2. if it is bound, resolve the matching root by boundRootTs;
+3. require receiveGrantId, sourceEventId, bindingStateHash, and root facts to
+   agree;
+4. require the source transport to be MATERIALIZED with the same intake and
+   pointer; and
+5. replay ACCEPTED through its deterministic outbox ID, assigning
+   lastIntakeId only after RESPONSE_RECORDED.
+
+If the prior process stopped at REQUEST_STARTED, replay moves to manual
+reconciliation and latches without resend or delivery. If RESPONSE_RECORDED
+was durable, no second Slack post occurs.
+
+DELIVERY_CONFIRMED:
+
+- deliverPending retains its accepted grant/lease pair only after the exact
+  transport returns DELIVERED.
+- The owner continues calling ingestEvidenceAndProject on the existing
+  250 ms loop after delivery, rather than calling it only once.
+- ACK NOT_READY is benign.
+- When ACK ingestion returns ACCEPTED, buildEvidenceAuthority has already
+  required and hash-bound TRANSPORT_RECORDED. Post DELIVERY_CONFIRMED before
+  observing/projecting INTAKE and RESULT in that tick.
+- Re-observed identical ACK evidence produces the same status ID and no
+  duplicate post.
+- Stop evidence polling after RESULT_OUTBOUND:DELIVERED; a restart may perform
+  one idempotent replay to rediscover that terminal fact.
+
+DELIVERY_FAILED:
+
+- It is emitted inside the delivery composition while the parsed grant and
+  derived delivery ID are still available, after the null-journal proof and
+  before the owner drains.
+
+PROCESSING_FAILED:
+
+- It is attempted only by the narrow post-delivery evidence/projection catch.
+- It re-reads TRANSPORT_RECORDED and sibling status state.
+- After the attempt, successful or not, the original processing error remains
+  terminal and the owner latches/stops; no dynamic reason is posted.
+
+### 5.8 Failure of a status post
+
+All existing safe-retry rules remain:
+
+- at most three attempts;
+- retry only a proven connection-before-send failure or explicit rate limit;
+- no blind resend after ambiguous request write, timeout/reset, 5xx,
+  malformed success, lost response, or interrupted REQUEST_STARTED; and
+- success only for the exact channel and a valid Slack response timestamp.
+
+Any status outcome other than DELIVERED is a status-projection failure.
+Composition must:
+
+1. preserve the exact outbox phase/artifacts;
+2. durably latch the selected profile with one stable local reason code if a
+   stronger latch is not already active;
+3. stop further delivery, evidence, status, and business outbound work;
+4. never change a tmux delivery result, evidence checkpoint, or status sibling
+   to success;
+5. never attempt a different failure status as a fallback; and
+6. expose no provider reason, stack, token, ID, path, payload, or raw text to
+   Slack or CLI output.
+
+An unsafe or unavailable reply target therefore causes zero network sends.
+An ambiguous status may have reached Slack, so it is never retried and no
+ordering claim is invented.
+
+## 6. Exact implementation allowlist
+
+The proposed implementation handoff should authorize exactly these 12 paths
+and no others:
+
+1. src/adapters/gateways/slack-pilot/socket-frame.ts
+2. src/application/slack-pilot/outbox.ts
+3. src/runtime/as1-slack-pilot/composition.ts
+4. src/runtime/as1-slack-pilot/cli.ts
+5. src/persistence/file-store/writer-lock.ts
+6. docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md
+7. tests/adapters/as1-slack-socket-frame.test.ts
+8. tests/adapters/as1-slack-socket-client.test.ts
+9. tests/integration/as1-slack-outbound.test.ts
+10. tests/integration/as1-slack-live-composition.test.ts
+11. tests/operations/as1-slack-lifecycle.test.ts
+12. tests/recovery/as1-slack-recovery.test.ts
+
+No change is required to contracts.ts, inbound-store.ts,
+evidence-ingress.ts, socket-client.ts, web-client.ts, exact-transport.ts,
+as1-slack-control.ts, a helper, package file, configuration, descriptor,
+secret file, generated dist output, or accepted historical evidence.
+
+Path responsibilities are exact:
+
+- socket-frame.ts owns only the local depth-10 structural walk.
+- outbox.ts owns only the closed status kind/text/identity, sibling ordering,
+  and reuse of the existing send state machine.
+- composition.ts owns safe target construction, initial/recovery projection,
+  delivery/ACK/failure triggers, INTAKE progress suppression, and result
+  preservation.
+- cli.ts owns the R2 root/ID and bounded post-delivery evidence polling.
+- writer-lock.ts owns the R2 fixed lock, sealed literal R2 checks, and frozen
+  17,989-byte literal identity.
+- the setup document owns the disabled rollout, original preservation, R2
+  initialization instructions, proof, and rollback.
+
+## 7. Focused proof contract
+
+### 7.1 Parser tests
+
+The tests must prove:
+
+- the exact fixture in section 3.3 reaches depth 10 and is accepted;
+- the exact depth-11 mutation in section 3.4 rejects;
+- the accepted fixture traverses an armed Socket without latch and reaches the
+  handler once;
+- the rejected fixture produces one durable malformed-frame latch, no
+  handler, no ACK, and no raw value in logs;
+- the general depth constant is still 8;
+- 32,768/32,769-byte, array-16/17, hello, disconnect, and outer-key behavior
+  does not regress.
+
+### 7.2 Root/lifecycle tests
+
+The tests must prove:
+
+- AS1_OWNER_STATE_ROOT and AS1_FIXED_OWNER_LOCK_PATH are exact R2 literals;
+- start rejects the old root and any other value before initialization;
+- initialization receives only stateRootId as1-slack-pilot-r2;
+- zero-operand observer commands resolve only the R2 lock/control root;
+- the bridge literal is exactly 17,989 UTF-8 bytes with SHA-256
+  d5b831e29dfb19b23f194e928258d74f2a43a2bfb51fa76350ec6595537a8de2;
+- its embedded LOCK_PATH and stateRootId are exact R2 values while buildId and
+  all other sealed facts remain unchanged; and
+- active source has no original state-root path or old expected root-ID
+  comparison.
+
+Tests use temporary roots and injected observer seams. They do not inspect or
+mutate either real root.
+
+### 7.3 Status/outbox tests
+
+The tests must prove:
+
+- each kind renders exactly its Korean text and accepts no caller text;
+- all four deterministic IDs are stable and distinct;
+- the same kind replay posts once;
+- every request targets the profile channel and accepted rootTs;
+- a missing/mismatched root produces no network;
+- ACCEPTED is required before later statuses;
+- DELIVERY_FAILED and PROCESSING_FAILED are mutually exclusive across every
+  durable phase, not only successful phases;
+- REQUEST_STARTED/manual replay never resends;
+- PREPARED replay requires the identical request hash;
+- ambiguous status posting latches and no alternate status is attempted; and
+- no status artifact or message includes a token, dynamic error, stack, path,
+  session ID, raw frame, or payload.
+
+### 7.4 Composition/recovery tests
+
+The tests must prove:
+
+- wrong identity/surface and duplicate/continuation messages send no status;
+- an accepted root records ACCEPTED before lastIntake becomes deliverable;
+- restart after materialization recovers the same accepted status and intake;
+- restart after status RESPONSE_RECORDED makes no second Web call;
+- restart after REQUEST_STARTED makes no Web call, latches, and performs no
+  delivery;
+- a benign AWAITING delivery or evidence NOT_READY sends no failure;
+- STOPPED_BEFORE_PASTE plus a null journal sends DELIVERY_FAILED and halts;
+- PREPARED/manual/unknown delivery ambiguity sends no delivery failure;
+- DELIVERY_CONFIRMED occurs only after TRANSPORT_RECORDED and accepted ACK
+  evidence, and before INTAKE/RESULT processing;
+- repeated 250 ms evidence polling produces no duplicate status or result;
+- INTAKE remains accepted but its legacy English progress ACK is suppressed;
+- final RESULT projection remains unchanged;
+- an eligible post-delivery processing exception produces exactly one
+  PROCESSING_FAILED and then halts;
+- a pre-existing latch/incident sends no status; and
+- status failure stops all subsequent tmux/evidence/outbound work.
+
+### 7.5 Exact focused commands for a later Worker
+
+Run from the authorized product worktree:
+
+~~~bash
+npx eslint src/adapters/gateways/slack-pilot/socket-frame.ts src/application/slack-pilot/outbox.ts src/runtime/as1-slack-pilot/composition.ts src/runtime/as1-slack-pilot/cli.ts src/persistence/file-store/writer-lock.ts tests/adapters/as1-slack-socket-frame.test.ts tests/adapters/as1-slack-socket-client.test.ts tests/integration/as1-slack-outbound.test.ts tests/integration/as1-slack-live-composition.test.ts tests/operations/as1-slack-lifecycle.test.ts tests/recovery/as1-slack-recovery.test.ts
+
+npx tsc --noEmit -p tsconfig.json
+
+npx vitest run --maxWorkers=1 tests/adapters/as1-slack-socket-frame.test.ts tests/adapters/as1-slack-socket-client.test.ts tests/integration/as1-slack-outbound.test.ts tests/integration/as1-slack-live-composition.test.ts tests/operations/as1-slack-lifecycle.test.ts tests/recovery/as1-slack-recovery.test.ts
+
+npm run build:core
+
+git diff --check
+
+test -z "$(rg -l -F '/home/leo/.local/state/agent-office/as1-slack-pilot/' src || true)"
+
+test -z "$(rg -l -F 'value["stateRootId"] == "as1-slack-pilot"' src || true)"
+~~~
+
+The implementation handoff may require additional inherited gates, but it
+must not silently expand the file allowlist. The Designer ran no product
+suite.
+
+## 8. Disabled rollout and rollback
+
+### 8.1 Rollout gates
+
+The safe order is:
+
+1. keep the committed descriptor disabled;
+2. independently review and accept this design;
+3. issue an exact implementation handoff;
+4. implement, test, commit, push, and independently review the 12-path patch;
+5. prove no AS1 process and no original lock, then execute and record the
+   original-root preservation gate;
+6. install the reviewed build while still disabled;
+7. under a separate live-owner handoff, initialize only the R2 root with ID
+   as1-slack-pilot-r2;
+8. mint fresh R2-bound grant/lease evidence; never copy or reuse original-root
+   state;
+9. perform redacted preflight with no tmux mutation;
+10. only Leo/GPT may authorize value-only activation and the next single
+    Agent Office message.
+
+No step here authorizes those later actions.
+
+### 8.2 Rollback
+
+Operational rollback is disabled configuration, not restoration of the old
+root binding:
+
+1. stop the foreground owner through the fixed R2 observer path;
+2. prove the R2 writer lock absent and no AS1 process;
+3. restore or retain the committed disabled descriptor;
+4. make no further Socket, Web, evidence, status, or tmux attempt;
+5. retain the original root read-only and byte-preserved;
+6. retain the entire R2 root as recovery evidence; do not reset, delete,
+   repair, merge, or copy either tree; and
+7. return both root states and redacted process/lock proof to the Advisor.
+
+A source revert must never restore an active reference to the original root.
+If parser/status code must later be backed out, a new reviewed patch must keep
+the R2 path/ID and descriptor disabled. Re-enabling the original root is not a
+rollback option.
+
+## 9. Non-expansion confirmation
+
+This delta introduces none of the following:
+
+- database, database access, migration, or durable schema version;
+- Registry or canonical authority-schema change;
+- generic notification/status framework;
+- systemd or other service manager;
+- UI, browser dispatch, responsive-layout surface, or arbitrary terminal
+  execution;
+- new Slack method, channel, workspace, App, user, profile selector, or raw
+  logging;
+- VibeNews or another product/project/repository;
+- secret, credential, token logging, or token persistence;
+- automatic reconnect, reset, fallback, cross-root read, or state migration;
+- simultaneous two-profile operation; or
+- direct browser-to-Worker/Reviewer dispatch.
+
+The fixed private pilot remains one workspace, Leo only, two committed Apps
+with immutable channel/profile mappings, and one manually selected foreground
+profile at a time.
+
+## 10. Residual unknowns and readiness
+
+Known, bounded unknowns:
+
+- The incident frame is unavailable by design. The accepted max-10 fixture is
+  based on the Founder-approved classification and the load-bearing ordinary
+  rich-text shape, not a recovered payload.
+- Slack may emit a legitimate deeper optional rich-text structure. R2 rejects
+  and latches it; no speculative widening or logging is authorized.
+- The sealed R2 bridge identity is calculated from exactly two substitutions
+  against the frozen baseline. Any other literal edit invalidates this design
+  identity.
+- No live Slack post, real status delivery, real R2 initialization, or real
+  tmux delivery has been performed by this Designer.
+
+Implementation readiness:
+
+READY only if an independent Reviewer accepts this design and the responsible
+Advisor issues an exact implementation handoff with the 12-path allowlist.
+Live readiness remains a later Leo/GPT decision after independent
+implementation review and disabled preflight.
+
+This Designer result is not independent review, implementation approval, risk
+acceptance, final closure, or authority to start the next mission.
