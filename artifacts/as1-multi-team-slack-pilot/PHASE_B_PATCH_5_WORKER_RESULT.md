@@ -45,7 +45,7 @@ observed totals.
 - Worktree: `/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001`
 - Branch: `feature/as1-phase-b-live-pilot-001`
 - Starting / prior product HEAD (exact, upstream-equal): `3165e7470e7e69658aaa1b627d7cd47767478043`
-- Patch 4 source candidate (review-79 subject): `0ab4782a79333113511513fb11bc9ef62c197ed08da`
+- Patch 4 source candidate (review-79 subject): `0ab4782a79133111513fb11bc9ef62c197ed08da`
 - Governance HEAD / upstream: `17c1a684b6269e201dd9ef44f7354c8473b1a9c6`
 - Brief: `advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/80_PHASE_B_WORKER_PATCH_5_BRIEF.md`
   (SHA-256 `605a43df8c16acad70bf4d46a55853b6236a2210e89377cfaef9bd5ccbbce32d`)
