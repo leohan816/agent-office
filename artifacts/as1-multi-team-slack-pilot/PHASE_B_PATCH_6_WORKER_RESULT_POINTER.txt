@@ -5,7 +5,7 @@ ACTOR: Agent Office Worker
 SESSION: agent-office-opus
 MODEL_MODE_EFFORT_SKILL: Opus 4.8 (1M context) / Ultracode / current authorized Worker profile / /fable-builder
 RESULT_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_6_WORKER_RESULT.md
-RESULT_FILE_SHA256: 211ce17cbe3cf014087cf3eaf50bebe9dd1d856e19cba0ece16d049f4e954591
+RESULT_FILE_SHA256: 6427f0724bf404586c3a86598b230686d8efc63aa202d21559a08d175ae51c35
 POINTER_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_PATCH_6_WORKER_RESULT_POINTER.txt
 FOUNDATION_DOCS_COMMIT: NOT_APPLICABLE
 TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001
@@ -20,10 +20,10 @@ REVIEW_POINTER_SHA256: cfb4b12ae4343ccd66c88086bb8c1d9b50bac0e3e7510602c5f557fac
 REVIEW_VERDICT: NEEDS_PATCH
 CLOSED: F06-E1 (MEDIUM) - invalid Patch 4 source object in both Patch 5 evidence artifacts; F01-A/F01-B/F02-F05 already CLOSED by review 82
 CORRECTION_COMMIT: 5118150c5c614b3733793878484883dd5a7b4c32
-RESULT_COMMIT: a22bc4cd222412a29e538fcb17d881429cd4388f
+RESULT_COMMIT: eb1009237768fd13c6a2824ec5f5cd055a971b54
 INVALID_OBJECT_BEFORE: 0ab4782a79333113511513fb11bc9ef62c197ed08da (43 hex chars; git cat-file -e -> exit 128, Not a valid object name)
 VERIFIED_OBJECT_AFTER: 0ab4782a79133111513fb11bc9ef62c197ed08da (git cat-file -e resolves; git rev-parse 0ab4782; ancestor of 3165e747 and cca0cb5)
-REPLACED_OCCURRENCES: result line 48 (1), pointer line 14 (1); zero invalid-object occurrences remain in artifacts/
+REPLACED_OCCURRENCES: result line 48 (1), pointer line 14 (1); zero invalid-object occurrences remain in the two corrected Patch 5 artifacts (this Patch 6 result and pointer intentionally quote the pre-correction before-value 1x each for audit, so the invalid string still appears in artifacts/ inside the Patch 6 audit files)
 PATCH_5_RESULT_SHA256_OLD: 9b4e4bc7034d9a7b7c0e447d68a4b23cbeba24e97ebfb3a31e141d2fdcaf7b27
 PATCH_5_RESULT_SHA256_NEW: 64897771de58723a82fe3b78715cc0d69829ea4bc86ef74f93ada98d9b304475
 SHA256_LINKAGE: corrected Patch 5 pointer RESULT_FILE_SHA256 == sha256(corrected Patch 5 result) == 64897771de58723a82fe3b78715cc0d69829ea4bc86ef74f93ada98d9b304475
