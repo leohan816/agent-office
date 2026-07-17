@@ -10,6 +10,9 @@
 // clean stop / durable incident-kill lifecycle. It selects NO profile from Slack/CLI/env; the immutable receive
 // grant is the only profile selector. It constructs no real Slack/tmux client itself — production wires those in,
 // tests wire synthetic fakes — and it reaches no network of its own.
+import { readdir } from 'node:fs/promises';
+import path from 'node:path';
+
 import { DomainError } from '../../contracts/types.js';
 import { assertExactKeys, assertRecord } from '../../contracts/validation.js';
 import {
@@ -86,6 +89,20 @@ export function controlProfileControlPort(control: As1SlackControl, profileSlug:
     latchProfile: (reasonCode: string): Promise<void> => control.latchProfile(profileSlug, reasonCode),
   };
 }
+
+/** Handoff 116: the personal Leo-only runtime uses ONLY this fixed state root; the R2 root and the original root are
+ *  never read, reset, modified, copied, or reused in this mode. */
+export const AS1_PERSONAL_LEO_ONLY_STATE_ROOT = '/home/leo/.local/state/agent-office/as1-slack-pilot-leo-v1';
+/** Handoff 116: the existing canonical mission-local fixed Agent Office Advisor tmux pane. It is a FIXED mission
+ *  binding validated once at startup, never a caller/message/environment-selected target. */
+const AS1_LEO_ADVISOR_PANE_ID = '%26';
+/** The Advisor session/window/workspace the fixed pane must live in (design §9.3 leaseDestinationMatchesProfile). */
+const AS1_LEO_ADVISOR_SESSION_NAME = 'agent-office-advisor';
+/** Handoff 116 §5: the internal per-message grant/lease are created microseconds before their one-use consumption,
+ *  so their bounded lifetimes eliminate every observation gap. Both stay inside the canonical schema ceilings
+ *  (grant <= 5 min, lease <= 30 s) enforced by `parsePointerDeliveryGrant` / `parseReadinessLease`. */
+const AS1_INTERNAL_GRANT_LIFETIME_MS = 4 * 60 * 1000;
+const AS1_INTERNAL_LEASE_LIFETIME_MS = 25 * 1000;
 
 const DESCRIPTOR_SCHEMA_VERSION = 'agent-office.as1-slack-pilot-descriptor.v1' as const;
 const DESCRIPTOR_KEYS = ['schemaVersion', 'enabled', 'receiveGrantRef', 'secretFilePath'] as const;
@@ -251,6 +268,10 @@ export class As1GatewayComposition {
   /** The truthful cleanup result of a self-cleaning startup revert (F01), so the owner can report it after start()
    *  rethrows without re-opening the closed composition. Consumed exactly once. */
   private lastCleanup: As1OwnerCleanupResult | null = null;
+  /** Handoff 116: the auto-created internal per-message delivery authority (grant + lease) retained after a fully
+   *  accepted internal delivery, so the same-message evidence round trip reuses it WITHOUT observing any Git grant. */
+  private internalDeliveryGrant: As1PointerDeliveryGrantV1 | null = null;
+  private internalLease: As1AdvisorReadinessLeaseV1 | null = null;
 
   private constructor(
     private readonly descriptor: As1RuntimeDescriptorV1,
@@ -258,8 +279,18 @@ export class As1GatewayComposition {
     private readonly stateRoot: string,
     private readonly clock: AgentOfficeRuntimeIdentity,
     private readonly deps: As1CompositionDependencies | null,
+    /** Handoff 116: the Founder-approved personal Leo-only runtime mode. Delivery authority is an auto-created, one-use
+     *  INTERNAL lease bound to the accepted intake and the fixed startup-validated `agent-office-advisor` destination
+     *  (no Git pointer-delivery grant / readiness lease is observed); per-message parse/delivery/work failures are
+     *  local to that message and only credential/identity/fixed-destination/durable-state corruption stops the owner. */
+    private readonly personalLeoOnly: boolean,
   ) {
     this.control = control;
+  }
+
+  /** Handoff 116: is this composition the Founder-approved personal Leo-only runtime? */
+  public isPersonalLeoOnly(): boolean {
+    return this.personalLeoOnly;
   }
 
   /**
@@ -276,6 +307,8 @@ export class As1GatewayComposition {
       /** The foreground owner's post-lock-acquire handler-install hook (design §11.1, F01) — fired after the writer
        *  lock is held but before any lock-owned control initialization. */
       readonly onLockAcquired?: () => void;
+      /** Handoff 116: enable the personal Leo-only runtime (internal per-message lease; message-local failures). */
+      readonly personalLeoOnly?: boolean;
     },
   ): Promise<As1GatewayComposition> {
     const foreground = options.deps !== undefined;
@@ -283,7 +316,7 @@ export class As1GatewayComposition {
       retainLockForForeground: foreground,
       ...(options.onLockAcquired !== undefined ? { onLockAcquired: options.onLockAcquired } : {}),
     });
-    return new As1GatewayComposition(descriptor, control, options.stateRoot, options.clock, options.deps ?? null);
+    return new As1GatewayComposition(descriptor, control, options.stateRoot, options.clock, options.deps ?? null, options.personalLeoOnly === true);
   }
 
   /** Is the owned control still open (holding its lock)? Used by the owner to distinguish a reverted start from a
@@ -550,6 +583,13 @@ export class As1GatewayComposition {
     const deps = this.deps;
     const receiveGrantRef = this.descriptor.receiveGrantRef;
 
+    // Handoff 116 §1/§2/§9: the personal Leo-only runtime binds ONLY the fixed leo-v1 state root — never the R2 root or
+    // the original root. A wrong root fails closed before any authority is observed (a durable-state/identity corruption
+    // class that stops the owner, not a per-message failure).
+    if (this.personalLeoOnly && this.stateRoot !== AS1_PERSONAL_LEO_ONLY_STATE_ROOT) {
+      return { connected: false, reason: 'DISABLED_DEFAULT_NO_AUTHORITY', state: this.control.getState() };
+    }
+
     // Step 2: observe the fixed committed receive-grant blob (no fetch, no mutable ref trust) and parse it. F01: every
     // load-bearing await in start() is wrapped by `guardedAwait` (incident-admission guard immediately BEFORE and AFTER
     // it), so a SIGUSR2 that closes admission before or during any step begins NO next side effect.
@@ -708,6 +748,12 @@ export class As1GatewayComposition {
         service,
         socket,
       };
+      // Handoff 116 §2/§7: the personal Leo-only runtime validates the fixed agent-office-advisor tmux destination
+      // ONCE here — before recovery, intake exposure, and arm. A binding mismatch fails closed with a durable global
+      // kill (owner stop), so no message is ever received against a corrupt fixed destination.
+      if (this.personalLeoOnly) {
+        await this.validateFixedAdvisorDestination(this.live, deps);
+      }
       await this.guardedAwait(() => service.recoverPending());
       this.assertIncidentAdmissionOpen(); // F01: NEVER arm live receive after an incident has closed admission (sync op)
       // R2 recovery §5.7: terminal-status inspection is the FIRST post-store recovery decision — before Socket arm,
@@ -818,6 +864,125 @@ export class As1GatewayComposition {
   }
 
   /**
+   * Handoff 116 §2/§7: validate the fixed `agent-office-advisor` tmux destination ONCE at startup. The live `%26`
+   * pane must be observable (a missing/dead/in-mode/input-off pane makes `observe` fail closed → clean startup
+   * revert) AND bind the selected profile's session/workspace/command. A binding mismatch is fixed-destination
+   * corruption: engage the durable global kill (owner stop) and fail closed before any receive — never a per-message
+   * local failure. The pane id is the fixed mission binding, never a caller/message/environment value.
+   */
+  private async validateFixedAdvisorDestination(live: LiveState, deps: As1CompositionDependencies): Promise<void> {
+    const observed = await this.guardedAwait(() => deps.tmuxPort.observe(AS1_LEO_ADVISOR_PANE_ID));
+    if (
+      observed.paneId !== AS1_LEO_ADVISOR_PANE_ID ||
+      observed.sessionName !== AS1_LEO_ADVISOR_SESSION_NAME ||
+      observed.sessionName !== live.profile.sessionName ||
+      observed.workspace !== live.profile.workspace ||
+      observed.currentCommand !== live.profile.currentCommand
+    ) {
+      await this.guardedAwait(() => this.control.engageGlobalKill('fixed agent-office-advisor destination does not bind the selected profile at startup'));
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'fixed advisor tmux destination failed startup validation');
+    }
+  }
+
+  /**
+   * Handoff 116 §5: construct the internal per-message delivery authority — a pointer-delivery grant + one-use
+   * readiness lease built entirely in memory from already-trusted inputs: the startup-validated receive grant
+   * (`live.grant`), the durable accepted intake's materialized pointer, and the startup-validated fixed
+   * `agent-office-advisor` destination observed LIVE at `%26`. It needs no Git grant, Leo approval, or short expiry
+   * race (created microseconds before its one-use consumption) and grants no arbitrary shell authority: the
+   * destination is the fixed observed pane, never a caller/message/environment value. The constructed pair is
+   * validated by the canonical parsers and delivered through the SAME exact transport as the Git path, so every
+   * downstream chain/binding/snapshot/destination/live-actionability invariant still holds unchanged.
+   */
+  private async buildInternalDeliveryAuthority(
+    live: LiveState,
+    deps: As1CompositionDependencies,
+    intakeId: string,
+  ): Promise<{ readonly grant: As1PointerDeliveryGrantV1; readonly lease: As1AdvisorReadinessLeaseV1 }> {
+    const receiveGrant = live.grant;
+    const state = await live.store.readReceiveGrantState(receiveGrant.receiveGrantId);
+    const root = await live.store.findRootByIntakeId(intakeId);
+    if (state === null || root === null) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'internal delivery authority requires the durable receive-grant state and intake root');
+    }
+    const rootCorrelationHash = hashCanonical({
+      rootKeyHash: root.rootKeyHash,
+      bindingStateHash: root.bindingStateHash,
+      sourceEventId: root.sourceEventId,
+      rootTs: root.rootTs,
+      intakeId,
+    });
+    const deliveryId = `as1p-${hashCanonical({ intakeId }).slice('sha256:'.length, 'sha256:'.length + 40)}`;
+    const pointerDir = path.join(this.stateRoot, 'artifacts/as1-slack-pilot', live.profile.profileStateSlug, 'pointers', deliveryId);
+    const [pointerFile] = await readdir(pointerDir);
+    if (pointerFile === undefined) {
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'internal delivery authority requires the materialized accepted pointer');
+    }
+    const pointerArtifactRef = `artifacts/as1-slack-pilot/${live.profile.profileStateSlug}/pointers/${deliveryId}/${pointerFile}`;
+    const pointerHash = `sha256:${pointerFile.replace('.json', '')}`;
+    // Observe the startup-validated fixed destination LIVE at delivery time so all 15 facts the transport re-observes
+    // are the exact live pane — never a caller value. The observed pane must bind the selected profile (below).
+    const destination = await deps.tmuxPort.observe(AS1_LEO_ADVISOR_PANE_ID);
+    const nowIso = this.clock.now();
+    const nowMs = Date.parse(nowIso);
+    const grantExpiresAt = new Date(nowMs + AS1_INTERNAL_GRANT_LIFETIME_MS).toISOString();
+    const leaseExpiresAt = new Date(nowMs + AS1_INTERNAL_LEASE_LIFETIME_MS).toISOString();
+    const idSuffix = hashCanonical({ intakeId }).slice('sha256:'.length, 'sha256:'.length + 24);
+    const grant = parsePointerDeliveryGrant({
+      schemaVersion: 'agent-office.as1-pointer-delivery-grant.v1',
+      pointerDeliveryGrantId: `as1-pdg-leo-${idSuffix}`,
+      receiveGrantId: receiveGrant.receiveGrantId,
+      receiveGrantBindingHash: state.stateHash,
+      pilotId: receiveGrant.pilotId,
+      profileId: receiveGrant.profileId,
+      intakeId,
+      sourceEventId: root.sourceEventId,
+      rootCorrelationHash,
+      pointerArtifactRef,
+      pointerHash,
+      advisorTeam: live.profile.advisorTeam,
+      actorId: live.profile.actorId,
+      roleInstanceId: live.profile.roleInstanceId,
+      evidencePrefix: `${this.missionAuthorityRoot}/runtime-evidence/${live.profile.profileStateSlug}`,
+      governanceSnapshotHash: receiveGrant.governanceSnapshotHash,
+      registrySnapshotHash: receiveGrant.registrySnapshotHash,
+      globalControlSnapshotHash: receiveGrant.globalControlSnapshotHash,
+      profileLatchSnapshotHash: receiveGrant.profileLatchSnapshotHash,
+      authorityRepositoryId: receiveGrant.authorityRepositoryId,
+      authorityRootId: receiveGrant.authorityRootId,
+      authoritySourceCommit: receiveGrant.authoritySourceCommit,
+      issuedAt: nowIso,
+      expiresAt: grantExpiresAt,
+      useLimit: 1,
+    });
+    const lease = parseReadinessLease({
+      schemaVersion: 'agent-office.as1-advisor-readiness-lease.v1',
+      leaseId: `as1-lease-leo-${idSuffix}`,
+      pointerDeliveryGrantId: grant.pointerDeliveryGrantId,
+      receiveGrantId: grant.receiveGrantId,
+      pilotId: grant.pilotId,
+      profileId: grant.profileId,
+      intakeId,
+      sourceEventId: root.sourceEventId,
+      pointerHash,
+      advisorTeam: live.profile.advisorTeam,
+      actorId: live.profile.actorId,
+      roleInstanceId: live.profile.roleInstanceId,
+      destination,
+      readiness: 'IDLE_FOR_ONE_AS1_POINTER',
+      useLimit: 1,
+      observedAt: nowIso,
+      issuedAt: nowIso,
+      expiresAt: leaseExpiresAt,
+      authoritySnapshotHash: grant.governanceSnapshotHash,
+      registrySnapshotHash: grant.registrySnapshotHash,
+      receiveGrantBindingHash: grant.receiveGrantBindingHash,
+      pointerDeliveryGrantSnapshotHash: hashCanonical(grant),
+    });
+    return { grant, lease };
+  }
+
+  /**
    * Post-intake delivery (design §9). After the intake + pointer are durable, poll the construction-bound mission
    * authority root for the pointer-delivery grant and the sibling readiness lease, require the live predicate, and
    * perform exactly one pinned-byte tmux attempt through the reviewed journal. Absence is AWAITING, never approval.
@@ -841,40 +1006,58 @@ export class As1GatewayComposition {
       await this.enterFailureBarrier(live, entryClassification);
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure barrier at delivery entry' };
     }
-    const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
-    const deliveryGrantPath = `${base}/pointer-delivery-grant.json`;
-    // F03: re-observe the pointer-delivery grant with its internally bound accepted pair (once captured) so a
-    // post-acceptance rewrite/deletion/ancestry reuse latches instead of silently re-accepting. F01: `guardedAwait`
-    // guards incident admission BEFORE and AFTER every observation/latch/transport await below.
-    const grantObs = await this.guardedAwait(() => deps.gitSource.observe(deliveryGrantPath, this.acceptedDeliveryGrant ?? undefined));
-    if (grantObs.status === 'DIVERGED') {
-      await this.guardedAwait(() => this.control.latchProfile(live.slug, `pointer-delivery grant diverged post-acceptance: ${grantObs.reason}`));
-      return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'DELIVERY_GRANT_DIVERGED' };
+    // The delivery authority is either observed from the construction-bound Git mission root (default) or, in the
+    // personal Leo-only runtime, constructed and trusted in memory (handoff 116 §5). Both feed the SAME exact
+    // transport below; only the leo-only retain path (§5 one-use) differs.
+    let deliveryGrant: As1PointerDeliveryGrantV1;
+    let lease: As1AdvisorReadinessLeaseV1;
+    let deliveryProvenance: As1DeliveryProvenanceGate;
+    let provisionalDeliveryGrant: As1AcceptedArtifact | null = null;
+    let provisionalLease: As1AcceptedArtifact | null = null;
+    if (this.personalLeoOnly) {
+      // Handoff 116 §5: build the internal per-message grant/lease from already-trusted inputs; the fixed observed
+      // destination and startup-validated receive grant supply the trust the Git provenance gate would otherwise
+      // prove, so `assertAccepted` is satisfied by construction. Every OTHER transport invariant still runs.
+      const authority = await this.guardedAwait(() => this.buildInternalDeliveryAuthority(live, deps, intakeId));
+      deliveryGrant = authority.grant;
+      lease = authority.lease;
+      deliveryProvenance = { assertAccepted: () => Promise.resolve() };
+    } else {
+      const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
+      const deliveryGrantPath = `${base}/pointer-delivery-grant.json`;
+      // F03: re-observe the pointer-delivery grant with its internally bound accepted pair (once captured) so a
+      // post-acceptance rewrite/deletion/ancestry reuse latches instead of silently re-accepting. F01: `guardedAwait`
+      // guards incident admission BEFORE and AFTER every observation/latch/transport await below.
+      const grantObs = await this.guardedAwait(() => deps.gitSource.observe(deliveryGrantPath, this.acceptedDeliveryGrant ?? undefined));
+      if (grantObs.status === 'DIVERGED') {
+        await this.guardedAwait(() => this.control.latchProfile(live.slug, `pointer-delivery grant diverged post-acceptance: ${grantObs.reason}`));
+        return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'DELIVERY_GRANT_DIVERGED' };
+      }
+      if (grantObs.status !== 'READY' || grantObs.bytes === null || grantObs.firstAddCommit === null || grantObs.blobSha256 === null) {
+        return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: grantObs.reason };
+      }
+      deliveryGrant = parsePointerDeliveryGrant(JSON.parse(grantObs.bytes.toString('utf8')));
+      this.assertDeliveryGrantBinding(deliveryGrant, live);
+      // F03: the observed delivery-grant + lease pairs stay PROVISIONAL — retained only AFTER the transport's full
+      // provenance/binding/expiry/live-actionability acceptance below, never merely on observation.
+      provisionalDeliveryGrant = { firstAddCommit: grantObs.firstAddCommit, blobSha256: grantObs.blobSha256 };
+      // F03: the readiness lease is re-observed with its own accepted pair (once retained) so a post-acceptance
+      // rewrite/deletion/dirty lease latches instead of silently re-accepting or classifying as benign NOT_READY.
+      const leaseObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/readiness-lease.json`, this.acceptedLease ?? undefined));
+      if (leaseObs.status === 'DIVERGED') {
+        await this.guardedAwait(() => this.control.latchProfile(live.slug, `readiness lease diverged post-acceptance: ${leaseObs.reason}`));
+        return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'READINESS_LEASE_DIVERGED' };
+      }
+      if (leaseObs.status !== 'READY' || leaseObs.bytes === null || leaseObs.firstAddCommit === null || leaseObs.blobSha256 === null) {
+        return { phase: 'AWAITING', outcome: 'AWAITING_READINESS_LEASE', reason: leaseObs.reason };
+      }
+      provisionalLease = { firstAddCommit: leaseObs.firstAddCommit, blobSha256: leaseObs.blobSha256 };
+      lease = parseReadinessLease(JSON.parse(leaseObs.bytes.toString('utf8')));
+      // Build the one-use exact transport bound to the freshly-constructed delivery provenance gate. The gate proves
+      // full provenance/binding/expiry inside deliver(); the live-actionability predicate follows. Fresh per attempt —
+      // the durable journal, not the instance, enforces no-retry.
+      deliveryProvenance = deps.buildDeliveryProvenance({ deliveryGrantPath, accepted: provisionalDeliveryGrant, grant: deliveryGrant });
     }
-    if (grantObs.status !== 'READY' || grantObs.bytes === null || grantObs.firstAddCommit === null || grantObs.blobSha256 === null) {
-      return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: grantObs.reason };
-    }
-    const deliveryGrant = parsePointerDeliveryGrant(JSON.parse(grantObs.bytes.toString('utf8')));
-    this.assertDeliveryGrantBinding(deliveryGrant, live);
-    // F03: the observed delivery-grant + lease pairs stay PROVISIONAL — retained only AFTER the transport's full
-    // provenance/binding/expiry/live-actionability acceptance below, never merely on observation.
-    const provisionalDeliveryGrant: As1AcceptedArtifact = { firstAddCommit: grantObs.firstAddCommit, blobSha256: grantObs.blobSha256 };
-    // F03: the readiness lease is re-observed with its own accepted pair (once retained) so a post-acceptance
-    // rewrite/deletion/dirty lease latches instead of silently re-accepting or classifying as benign NOT_READY.
-    const leaseObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/readiness-lease.json`, this.acceptedLease ?? undefined));
-    if (leaseObs.status === 'DIVERGED') {
-      await this.guardedAwait(() => this.control.latchProfile(live.slug, `readiness lease diverged post-acceptance: ${leaseObs.reason}`));
-      return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'READINESS_LEASE_DIVERGED' };
-    }
-    if (leaseObs.status !== 'READY' || leaseObs.bytes === null || leaseObs.firstAddCommit === null || leaseObs.blobSha256 === null) {
-      return { phase: 'AWAITING', outcome: 'AWAITING_READINESS_LEASE', reason: leaseObs.reason };
-    }
-    const provisionalLease: As1AcceptedArtifact = { firstAddCommit: leaseObs.firstAddCommit, blobSha256: leaseObs.blobSha256 };
-    const lease = parseReadinessLease(JSON.parse(leaseObs.bytes.toString('utf8')));
-    // Build the one-use exact transport bound to the freshly-constructed delivery provenance gate. The gate proves
-    // full provenance/binding/expiry inside deliver(); the live-actionability predicate follows. Fresh per attempt —
-    // the durable journal, not the instance, enforces no-retry.
-    const deliveryProvenance = deps.buildDeliveryProvenance({ deliveryGrantPath, accepted: provisionalDeliveryGrant, grant: deliveryGrant });
     // F01: EVERY port/callback handed to the exact transport is incident-guarded, so an incident during any internal
     // await inside deliver() (provenance, journal read/write, actionability, or a latch) begins no next tmux paste or
     // durable write. The forbidden `exact-transport.ts` is unmodified.
@@ -905,9 +1088,16 @@ export class As1GatewayComposition {
         await this.enterFailureBarrier(live, beforeRetain);
         return { phase: 'MANUAL_RECONCILIATION_REQUIRED', outcome: 'MANUAL_RECONCILIATION_REQUIRED', reason: 'failure barrier after delivery' };
       }
-      // F03: ONLY a fully-accepted delivery atomically retains the accepted pairs for later evidence re-observation.
-      this.acceptedDeliveryGrant = provisionalDeliveryGrant;
-      this.acceptedLease = provisionalLease;
+      // F03: ONLY a fully-accepted delivery atomically retains the authority for later evidence projection. The Git
+      // path retains the accepted (firstAddCommit, blobSha256) pairs for re-observation; the leo-only path retains
+      // the in-memory internal grant/lease (handoff 116 §5 — the durable journal already made the lease one-use).
+      if (this.personalLeoOnly) {
+        this.internalDeliveryGrant = deliveryGrant;
+        this.internalLease = lease;
+      } else {
+        this.acceptedDeliveryGrant = provisionalDeliveryGrant;
+        this.acceptedLease = provisionalLease;
+      }
       return result;
     }
     // R2 recovery §5.5/§5.7 DELIVERY_FAILED: a proven pre-paste stop is the ONLY safe non-execution. Derive the delivery
@@ -957,47 +1147,63 @@ export class As1GatewayComposition {
       await this.enterFailureBarrier(live, entryClassification);
       return [`FAILURE_ADMISSION_REFUSED:${entryClassification}`];
     }
-    const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
-    // F03: evidence construction REQUIRES an already-proven accepted delivery authority — never a first-observation
-    // fallback. The accepted pair is retained only after a fully-accepted delivery, so its absence means no delivery
-    // was proven and evidence must not be built.
-    if (this.acceptedDeliveryGrant === null) {
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted delivery authority');
-    }
-    const acceptedDeliveryGrant = this.acceptedDeliveryGrant;
-    // Re-observe the pointer-delivery grant with its bound accepted pair — a post-acceptance divergence latches the
-    // profile rather than building evidence authority from a rewritten grant. F01: `guardedAwait` guards incident
-    // admission BEFORE and AFTER every observation/latch/store/ingress/outbound await in this method.
-    const grantObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/pointer-delivery-grant.json`, acceptedDeliveryGrant));
-    if (grantObs.status === 'DIVERGED') {
-      await this.guardedAwait(() => this.control.latchProfile(live.slug, `pointer-delivery grant diverged at evidence: ${grantObs.reason}`));
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer-delivery grant diverged post-acceptance');
-    }
-    if (grantObs.status !== 'READY' || grantObs.bytes === null) {
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'delivery grant is not ready for evidence authority');
-    }
-    const deliveryGrant = parsePointerDeliveryGrant(JSON.parse(grantObs.bytes.toString('utf8')));
-    const { deliveryId } = parseContainedPointerRef(deliveryGrant);
+    // Evidence sources its already-proven delivery authority from Git re-observation (default) or, in the personal
+    // Leo-only runtime, from the in-memory internal grant/lease retained at the one-use delivery (handoff 116 §5).
+    let deliveryGrant: As1PointerDeliveryGrantV1;
+    let evidenceLease: As1AdvisorReadinessLeaseV1;
+    if (this.personalLeoOnly) {
+      // §5: the internal authority is never written to Git, so it is reused from the retained one-use pair. Its
+      // absence means no delivery was proven (evidence must not be built). The lease is still proven bound to the
+      // grant; the durable journal + consumption record (read below) remain the crash-durable one-use proof.
+      if (this.internalDeliveryGrant === null || this.internalLease === null) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-consumed internal delivery authority');
+      }
+      deliveryGrant = this.internalDeliveryGrant;
+      evidenceLease = this.internalLease;
+      this.assertLeaseBoundToDelivery(evidenceLease, deliveryGrant);
+    } else {
+      const base = `${this.missionAuthorityRoot}/runtime-authority/${live.slug}/${intakeId}`;
+      // F03: evidence construction REQUIRES an already-proven accepted delivery authority — never a first-observation
+      // fallback. The accepted pair is retained only after a fully-accepted delivery, so its absence means no delivery
+      // was proven and evidence must not be built.
+      if (this.acceptedDeliveryGrant === null) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted delivery authority');
+      }
+      const acceptedDeliveryGrant = this.acceptedDeliveryGrant;
+      // Re-observe the pointer-delivery grant with its bound accepted pair — a post-acceptance divergence latches the
+      // profile rather than building evidence authority from a rewritten grant. F01: `guardedAwait` guards incident
+      // admission BEFORE and AFTER every observation/latch/store/ingress/outbound await in this method.
+      const grantObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/pointer-delivery-grant.json`, acceptedDeliveryGrant));
+      if (grantObs.status === 'DIVERGED') {
+        await this.guardedAwait(() => this.control.latchProfile(live.slug, `pointer-delivery grant diverged at evidence: ${grantObs.reason}`));
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'pointer-delivery grant diverged post-acceptance');
+      }
+      if (grantObs.status !== 'READY' || grantObs.bytes === null) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'delivery grant is not ready for evidence authority');
+      }
+      deliveryGrant = parsePointerDeliveryGrant(JSON.parse(grantObs.bytes.toString('utf8')));
 
-    // F03 (Patch 2A): evidence ALSO requires the already-accepted readiness lease, re-observed with its retained
-    // (firstAddCommit, blobSha256) pair BEFORE any evidence/outbound. The real owner reaches this method directly
-    // (without a second deliverPending), so the lease must be re-proven here too: a divergent/deleted/dirty/rewritten
-    // lease latches the profile and fails closed, and the re-observed lease is parsed and proven to be the SAME lease
-    // bound to the accepted delivery authority — acceptance is never inferred from the stored pair alone.
-    if (this.acceptedLease === null) {
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted readiness lease');
+      // F03 (Patch 2A): evidence ALSO requires the already-accepted readiness lease, re-observed with its retained
+      // (firstAddCommit, blobSha256) pair BEFORE any evidence/outbound. The real owner reaches this method directly
+      // (without a second deliverPending), so the lease must be re-proven here too: a divergent/deleted/dirty/rewritten
+      // lease latches the profile and fails closed, and the re-observed lease is parsed and proven to be the SAME lease
+      // bound to the accepted delivery authority — acceptance is never inferred from the stored pair alone.
+      if (this.acceptedLease === null) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'evidence requires an already-accepted readiness lease');
+      }
+      const acceptedLease = this.acceptedLease;
+      const leaseObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/readiness-lease.json`, acceptedLease));
+      if (leaseObs.status === 'DIVERGED') {
+        await this.guardedAwait(() => this.control.latchProfile(live.slug, `readiness lease diverged at evidence: ${leaseObs.reason}`));
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease diverged post-acceptance');
+      }
+      if (leaseObs.status !== 'READY' || leaseObs.bytes === null) {
+        throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease is not ready for evidence authority');
+      }
+      evidenceLease = parseReadinessLease(JSON.parse(leaseObs.bytes.toString('utf8')));
+      this.assertLeaseBoundToDelivery(evidenceLease, deliveryGrant);
     }
-    const acceptedLease = this.acceptedLease;
-    const leaseObs = await this.guardedAwait(() => deps.gitSource.observe(`${base}/readiness-lease.json`, acceptedLease));
-    if (leaseObs.status === 'DIVERGED') {
-      await this.guardedAwait(() => this.control.latchProfile(live.slug, `readiness lease diverged at evidence: ${leaseObs.reason}`));
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease diverged post-acceptance');
-    }
-    if (leaseObs.status !== 'READY' || leaseObs.bytes === null) {
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'readiness lease is not ready for evidence authority');
-    }
-    const evidenceLease = parseReadinessLease(JSON.parse(leaseObs.bytes.toString('utf8')));
-    this.assertLeaseBoundToDelivery(evidenceLease, deliveryGrant);
+    const { deliveryId } = parseContainedPointerRef(deliveryGrant);
 
     // F01: guard incident admission between EACH durable evidence-input read (not one guard for the group).
     const receiveGrantState = await this.guardedAwait(() => live.store.readReceiveGrantState(live.grant.receiveGrantId));

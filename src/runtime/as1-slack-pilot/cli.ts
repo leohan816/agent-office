@@ -46,6 +46,7 @@ import { redactError } from '../../application/slack-pilot/contracts.js';
 import { createSystemRuntimeIdentity, type AgentOfficeRuntimeIdentity } from '../identity.js';
 import {
   As1GatewayComposition,
+  AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
   parseRuntimeDescriptor,
   type As1CompositionDependencies,
   type As1CompositionSocketPort,
@@ -442,6 +443,9 @@ export interface As1ForegroundOwnerBoundary {
   /** Handoff 112 §5.1: the fixed trusted-Node preflight, run BEFORE buildDeps/initialize/secret/network/tmux. Optional
    *  so the existing owner-harness tests keep their exact behavior; production supplies `() => preflightTrustedNode()`. */
   readonly trustedNodePreflight?: () => Promise<string | null>;
+  /** Handoff 116: run the personal Leo-only runtime (internal per-message lease; message-local failures). Selected by
+   *  the fixed leo-v1 state root in `main()`; optional so existing owner-harness tests keep their exact behavior. */
+  readonly personalLeoOnly?: boolean;
 }
 
 const OWNER_LOOP_INTERVAL_MS = 250;
@@ -509,6 +513,7 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
     stateRoot: boundary.stateRoot,
     clock: boundary.clock,
     deps,
+    personalLeoOnly: boundary.personalLeoOnly === true,
     onLockAcquired: () => {
       installed = boundary.installSignalHandlers({
         SIGINT: () => request('CLEAN_STOP'),
@@ -751,10 +756,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  // F02: require the EXACT fixed owner state root — never an arbitrary second private root that could obtain its own
-  // writer lock while the zero-operand observer verbs still target only the fixed root.
+  // F02: require an EXACT fixed owner state root — never an arbitrary second private root that could obtain its own
+  // writer lock while the zero-operand observer verbs still target only the fixed root. Handoff 116 §1: the fixed root
+  // instruction ALSO selects the runtime mode — the versioned R2 root runs the default runtime; the fixed leo-v1 root
+  // runs the personal Leo-only runtime. The tmux destination stays the fixed mission binding; the root never selects a
+  // caller-chosen target. No third root is accepted.
   const stateRoot = process.env.AS1_SLACK_STATE_ROOT;
-  if (stateRoot !== AS1_OWNER_STATE_ROOT) {
+  const personalLeoOnly = stateRoot === AS1_PERSONAL_LEO_ONLY_STATE_ROOT;
+  if (stateRoot !== AS1_OWNER_STATE_ROOT && stateRoot !== AS1_PERSONAL_LEO_ONLY_STATE_ROOT) {
     process.stdout.write('AS1_SLACK_PILOT ERROR\nREASON: AS1_SLACK_STATE_ROOT_REQUIRED\n');
     process.exitCode = 2;
     return;
@@ -785,10 +794,14 @@ async function main(): Promise<void> {
     descriptor,
     stateRoot,
     clock,
+    personalLeoOnly,
     buildDeps: () => buildAs1ProductionDependencies(readFrozenAuthoritySnapshotCommits()),
     trustedNodePreflight: () => preflightTrustedNode(),
     initialize: async (root: string): Promise<void> => {
-      await initializeStateRoot(root, { stateRootId: 'as1-slack-pilot-r2', initializedAt: clock.now() });
+      await initializeStateRoot(root, {
+        stateRootId: personalLeoOnly ? 'as1-slack-pilot-leo-v1' : 'as1-slack-pilot-r2',
+        initializedAt: clock.now(),
+      });
     },
     installSignalHandlers: (handlers): readonly As1OwnerSignal[] => {
       const installed: As1OwnerSignal[] = [];

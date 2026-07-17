@@ -254,6 +254,7 @@ async function startAgentOfficeComposition(options: {
   readonly evidenceVerifier?: As1GitProvenanceVerifier;
   readonly decorateInboundStore?: (store: As1ProfileInboundStore) => As1ProfileInboundStore;
   readonly stateRoot?: string;
+  readonly personalLeoOnly?: boolean;
 } = {}) {
   const stateRoot = options.stateRoot ?? (await makeStateRoot());
   const world = fakeWireWorld();
@@ -271,6 +272,7 @@ async function startAgentOfficeComposition(options: {
   const composition = await As1GatewayComposition.open(descriptor, {
     stateRoot,
     clock,
+    personalLeoOnly: options.personalLeoOnly === true,
     deps: {
       gitSource,
       web: world.web,
@@ -360,6 +362,20 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
       await expect(composition.ingestEvidenceAndProject()).rejects.toThrow(/readiness lease diverged/u);
       const latchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');
       expect((JSON.parse(latchRaw) as { readonly latched: boolean }).latched).toBe(true);
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('handoff 116 §1: the personal Leo-only runtime fails closed on any root but the fixed leo-v1 root', async () => {
+    // The personal Leo-only mode binds ONLY the fixed leo-v1 state root. A composition opened in that mode against any
+    // other root (here the temp harness root) never arms receive — it returns DISABLED_DEFAULT_NO_AUTHORITY before any
+    // authority is observed, so no message is accepted and the R2/original roots are never operated on.
+    const { composition } = await startAgentOfficeComposition({ personalLeoOnly: true });
+    try {
+      const start = await composition.start();
+      expect(start.connected).toBe(false);
+      expect(start.reason).toBe('DISABLED_DEFAULT_NO_AUTHORITY');
     } finally {
       await composition.stop();
     }
