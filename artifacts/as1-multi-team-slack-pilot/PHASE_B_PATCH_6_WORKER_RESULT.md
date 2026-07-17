@@ -50,7 +50,10 @@ Patch 1–4 evidence, or governance file changed.
   (`git cat-file -e` resolves; `git rev-parse 0ab4782` → this object; it is a
   direct ancestor of both Patch 5 baseline `3165e747` and candidate `cca0cb5`).
 - Occurrences replaced: exactly one per file (result line 48, pointer line 14);
-  zero occurrences of the invalid object remain in `artifacts/`.
+  zero occurrences of the invalid object remain in the two corrected Patch 5
+  artifacts. (This Patch 6 result and pointer intentionally quote the
+  pre-correction value once each as the historical before-value for audit, so the
+  invalid string still appears in `artifacts/` inside the Patch 6 audit files.)
 - **Result SHA-256 recomputed** in the pointer from
   `9b4e4bc7034d9a7b7c0e447d68a4b23cbeba24e97ebfb3a31e141d2fdcaf7b27` (old) to
   `64897771de58723a82fe3b78715cc0d69829ea4bc86ef74f93ada98d9b304475` (new =
@@ -67,8 +70,8 @@ Patch 1–4 evidence, or governance file changed.
 | `git cat-file -e` real object `0ab4782a791…08da` | RESOLVES |
 | `git cat-file -e` invalid object `0ab4782a793…08da` | exit 128, `Not a valid object name` (non-resolution) |
 | Real object ancestor of `cca0cb5` and `2507cc7` | YES (both) |
-| Invalid-object occurrence count in `artifacts/` after fix | 0 |
-| Corrected-object occurrence count (result + pointer) | 1 + 1 |
+| Invalid-object occurrences in the two corrected Patch 5 artifacts after fix | 0 (the two Patch 6 audit artifacts intentionally quote the before-value 1× each) |
+| Corrected-object occurrence count (Patch 5 result + pointer) | 1 + 1 |
 | SHA-256 linkage: pointer `RESULT_FILE_SHA256` == `sha256(result)` | MATCH (`64897771…304475`) |
 | `git diff --check` | CLEAN |
 | Scope: only the two Patch 5 artifacts modified pre-commit | PASS |
