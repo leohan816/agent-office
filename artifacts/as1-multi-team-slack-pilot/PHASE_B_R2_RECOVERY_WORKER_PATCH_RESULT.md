@@ -6,11 +6,15 @@
 
 Bounded same-Worker validation patch on the accepted R2 implementation (handoff 95,
 governance `92d20ffe`). F01 (exact status ordering + durable failure barriers) is
-closed. **F02 (the fixed no-argument production preservation helper) returns HOLD**
-per the handoff ESCALATION_TRIGGER — it cannot be safely represented here — and the
-inaccurate "helper exists" claim is removed. F03 corrects the prior evidence. No
-design restart; exact 8-path allowlist (6 changed); the prior Worker
-result/pointer is preserved immutable and corrected here, not edited.
+closed, INCLUDING the Advisor's exact F01 boundary corrections (validation
+corrections 2/3/4/5 — defects 1–5) delivered as a **separate corrective source
+commit `cd4b594`** on top of the F01 base `1c28add`. **F02 (the fixed no-argument
+production preservation helper) returns HOLD** per the handoff ESCALATION_TRIGGER —
+it cannot be safely represented here — and the inaccurate "helper exists" claim is
+removed. F03 corrects the prior evidence. No design restart; exact 8-path allowlist
+(F01 base touched 6 paths; the corrective train touched 5 F01 paths — `cli.ts` is
+now used); the prior Worker result/pointer is preserved immutable and corrected here,
+not edited.
 
 ## Session and authority
 
@@ -25,21 +29,24 @@ result/pointer is preserved immutable and corrected here, not edited.
 - Original accepted R2 design commit: `a837bbf9d4072638a6dac676fb5ccc8da9bfa1ff`
 - Prior source candidate / result / pointer: `89c11d21…`, `39e24fbe…`, `04e8e017…`
 - Governance handoff (95 / run prompt 95A): `92d20ffe8fd1b58d617fce9f796f4d8c026fdbf2`
-- **This patch commit: `1c28adde13def91d9be75e75abd4040049caf367`** (direct parent `04e8e017`)
+- **F01 base patch commit: `1c28adde13def91d9be75e75abd4040049caf367`** (direct parent `04e8e017`)
+- **F01 corrective source commit: `cd4b594`** (direct parent `203fdc6`; validation corrections 2/3/4/5 — defects 1–5)
 
 ## Exact changed paths and diff summary
 
-`04e8e017 → 1c28add`: **6 files, 453 insertions, 34 deletions** (within the 8-path
-allowlist; `cli.ts` and `writer-lock.ts` were not needed and are unchanged).
+`04e8e017 → 1c28add` (F01 base): **6 files, 453 insertions, 34 deletions**.
+`203fdc6 → cd4b594` (F01 corrective train): **5 files, 384 insertions, 17 deletions**
+(both within the 8-path allowlist; `writer-lock.ts` never needed).
 
-| Path | Change |
+| Path | Change (base + corrective train) |
 |---|---|
-| `src/application/slack-pilot/outbox.ts` | F01: `assertStatusOrderable` + `checkStatusOrdering`; guard at `sendStatus` entry + before every durable/Web side effect |
-| `src/runtime/as1-slack-pilot/composition.ts` | F01: durable classifier re-reads (deliverPending entry/pre-transport/pre-retain; ingest entry + each checkpoint); `haltProgression` on non-DELIVERED status; ACCEPTED barrier at trigger; DELIVERY_CONFIRMED no-projection; recovery no-arm |
-| `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` | F02 HOLD (§10.6); removed §10.1 original-root literal |
-| `tests/integration/as1-slack-outbound.test.ts` | F01 ordering proofs (all phases, conflict, own-record, cross-owner recovery, mid-send recheck) |
-| `tests/integration/as1-slack-live-composition.test.ts` | F01 composition proofs (entry re-classify refuses delivery; DELIVERY_FAILED-before-ACK barrier) |
-| `tests/operations/as1-slack-lifecycle.test.ts` | F02 HOLD + forensic-only original-root-literal proofs |
+| `src/application/slack-pilot/outbox.ts` | F01 base: `assertStatusOrderable` + `checkStatusOrdering`; guard before every durable/Web side effect. Corrective: guard at TRUE `sendStatus` entry BEFORE all resume/terminal returns (defect 1); ACCEPTED idempotent terminal replay after a successful DELIVERY_CONFIRMED (correction 4) |
+| `src/runtime/as1-slack-pilot/composition.ts` | F01 base: durable classifier re-reads; `haltProgression`; ACCEPTED barrier at trigger. Corrective: reclassify-after-send for DELIVERY_FAILED/PROCESSING_FAILED (defect 2); recovery no-arm (defect 3); `beforeIngest` re-read before `ingress.ingest` (defect 5); durable selected-profile latch preflight + truthful `PROFILE_LATCHED` reason (correction 5) |
+| `src/runtime/as1-slack-pilot/cli.ts` | Corrective: owner loop checks `hasFailureBarrier()` BEFORE `observeReceiveGrantOnce()` (defect 4) |
+| `docs/operations/AGENT_OFFICE_AS1_SLACK_SETUP.md` | F02 HOLD (§10.6); removed §10.1 original-root literal (base; unchanged by the corrective train) |
+| `tests/integration/as1-slack-outbound.test.ts` | F01 ordering proofs + corrective: idempotent-ACCEPTED-after-CONFIRMED, no-over-open, terminal-own-record + new-sibling |
+| `tests/integration/as1-slack-live-composition.test.ts` | F01 composition proofs + corrective: recovery no-arm (PROFILE_LATCHED), pre-terminal-ACCEPTED profile-latch restart, no-false-halt restart, mid-observation barrier, pre-durable DELIVERY_FAILED/PROCESSING_FAILED refusal, owner-loop barrier-before-observe |
+| `tests/operations/as1-slack-lifecycle.test.ts` | F02 HOLD + forensic-only original-root-literal proofs (base; unchanged by the corrective train) |
 
 ## F01 — exact status ordering and durable failure barriers (CLOSED)
 
@@ -68,6 +75,56 @@ durably latch, withhold the intake and any retained authority, and halt via a ne
 INTAKE/RESULT projection, no alternate status. A DELIVERY_FAILED barrier at the
 ACCEPTED trigger enters the barrier instead of sending. Single foreground writer +
 sequential owner loop preserved; no parallel sender.
+
+### F01 boundary corrections (validation corrections 2/3/4/5 — corrective commit `cd4b594`)
+
+Each correction has a focused test PROVEN adversarial (it fails without the fix; the
+fix was temporarily reverted in-source and the named test observed to fail, then
+restored):
+
+1. **Defect 1 — guard at true entry.** `runOutbox` now runs the status-ordering guard
+   at TRUE `sendStatus` entry, BEFORE the RESPONSE_RECORDED / MANUAL / REQUEST_STARTED
+   resume returns (retaining every per-side-effect recheck). A terminal own-record no
+   longer returns DELIVERED once a failure sibling appears later. *Test:* outbound "a
+   terminal OWN record does NOT return DELIVERED once a failure sibling appears later".
+2. **Defect 2 — no false durable barrier on a pre-durable failure send.** `deliverPending`
+   (DELIVERY_FAILED) and `attemptProcessingFailure` (PROCESSING_FAILED) RECLASSIFY the
+   durable siblings after the send; a send rejected before its first durable phase leaves
+   the classifier OPEN → `haltProgression` on the exact non-delivered outcome, never a
+   fabricated DELIVERY_FAILED/PROCESSING_FAILED barrier or record. *Tests:* live-composition
+   "a DELIVERY_FAILED status REJECTED before its first durable phase …" (valid lease bound
+   to a non-observed pane → STOPPED_BEFORE_PASTE, DELIVERY_CONFIRMED-only seed) and "a
+   PROCESSING_FAILED attempted with ACCEPTED absent …" (ACK observation throws; ACCEPTED
+   removed from the durable outbox index) — each asserts `PROGRESSION_HALTED`, not the
+   `*_BARRIER`.
+3. **Defect 3 — recovery no-arm.** `start()` refuses Socket arm / `connected` when
+   `hasFailureBarrier()` after `recoverTerminalStatusAndAccepted`. *Test:* live-composition
+   "a durable DELIVERY_FAILED record is a cross-restart barrier …" (now asserts
+   `connected:false`, `socket.armed:false`, `reason:PROFILE_LATCHED`).
+4. **Defect 4 — owner-loop barrier-before-observe.** `cli.ts` checks `hasFailureBarrier()`
+   BEFORE `observeReceiveGrantOnce()` (after-observe check retained), so a Socket-callback
+   barrier is never followed by a forbidden grant observation. *Test:* live-composition
+   "checks the failure barrier BEFORE the grant re-observation …" (failed ACCEPTED post +
+   diverged grant → DELIVERY_HALTED, not PROFILE_DIVERGED).
+5. **Defect 5 — re-read before the durable evidence checkpoint.** `projectAcceptedEvidence`
+   re-reads the durable classifier AFTER each evidence observation and IMMEDIATELY BEFORE
+   `ingress.ingest`. *Test:* live-composition "re-reads the classifier AFTER the evidence
+   observation and BEFORE the ingress checkpoint …" (lazy ACK observation writes the barrier
+   mid-observe → zero `ACK:` ingress checkpoint).
+6. **Correction 4 — idempotent ACCEPTED replay after DELIVERY_CONFIRMED.** §5.6 rule 6 /
+   §5.7: only a FAILURE record is a barrier. `assertStatusOrderable` permits ACCEPTED's own
+   RESPONSE_RECORDED replay when a successful DELIVERY_CONFIRMED exists and both failure
+   siblings are absent (no duplicate post, no false mission halt); it still refuses ACCEPTED
+   behind a failure barrier or a DELIVERY_CONFIRMED without a terminal ACCEPTED. *Tests:*
+   outbound idempotent-replay + no-over-open; live-composition "restart with a durable
+   DELIVERY_CONFIRMED does NOT falsely halt …".
+7. **Correction 5 — truthful closed reason.** A recovery/restart barrier is a PROFILE latch,
+   not the global kill, so the closed start reason is `PROFILE_LATCHED` (never
+   `GLOBAL_LATCHED`). `start()` adds a durable selected-profile latch preflight
+   (`control.isProfileLatched`) after grant/profile resolution and BEFORE any socket build —
+   a durable prior-run latch surviving restart fails closed as `PROFILE_LATCHED` with no
+   socket (rather than crashing the startup identity verifier). *Test:* live-composition "a
+   prior pre-terminal ACCEPTED that halted progression durably profile-latches …".
 
 ## F02 — production preservation helper: HOLD
 
@@ -116,18 +173,24 @@ edited) is corrected here:
 |---|---|
 | ESLint over the changed TypeScript paths | PASS (exit 0) |
 | `tsc --noEmit -p tsconfig.json` | PASS (exit 0) |
-| `vitest run` the 3 focused files (outbound, live-composition, lifecycle) | `157/157` PASS; no FileHandle-on-GC warning |
+| `vitest run` the 3 focused files (outbound, live-composition, lifecycle) | `166/166` PASS (9 new corrective proofs) |
+| `vitest run` the whole AS1 slack-pilot subsystem (8 files) | `347/347` PASS |
 | `npm run build:core` | PASS (exit 0) |
 | `git diff --check` | CLEAN |
-| Exact path scope | 6 of 8 authorized paths + this result/pointer; no other path |
-| Old-root path / old stateRootId comparison in `src` | EMPTY / EMPTY |
-| Original-root STATE-ROOT literal outside §10.6 | NONE (only §10.6) |
+| Exact path scope | corrective train touched 5 of 8 authorized paths (+ this result/pointer); no other path |
+| Old R1-root literal / old stateRootId newly added in `src` | NONE (the 2 `as1-slack-pilot` diff hits are file-path headers) |
+| Original-root STATE-ROOT literal outside §10.6 | NONE (only §10.6; unchanged by the corrective train) |
 | Descriptor byte identity | `sha256 8e3b9985…802f5d7` UNCHANGED |
-| Secret / redaction / no-real-root-operation scan | PASS (only the existing `xoxb-…placeholder` test fixture; no real secret; no added exec/kill/tmux/Git-mutation; no real-root operation) |
+| Secret / redaction / no-real-root-operation scan | PASS (only the existing `xoxb-…placeholder` test fixture; no real secret; no added real exec/kill/tmux/network/Git-mutation; the corrective tests write only synthetic tmpdir state-root index files) |
 
 F01 focused proofs demonstrate the defect: the ordering tests would post an
 out-of-order / behind-a-barrier status without the guard; the composition tests would
-deliver / project behind a durable failure record without the re-reads.
+deliver / project behind a durable failure record without the re-reads; and every
+corrective proof was independently observed to FAIL with its fix reverted in-source
+(then restored). Pre-existing, unrelated failures in `observation-coordinator` /
+`runtime-composition` / `batch-gates` (git-verified canonical-manifest suites) fail
+identically on the clean `203fdc6` baseline — they are environmental, outside this
+allowlist, and were not touched.
 
 ## Failures / retries / corrections (recorded honestly)
 
@@ -142,6 +205,22 @@ deliver / project behind a durable failure record without the re-reads.
    now requires it), and the DELIVERY_FAILED-before-ACK composition test now accepts
    the earlier loop-top barrier refusal (the durable re-read catches it before the
    ACK trigger). No source behavior was bent to a test.
+3. Corrective train (defect 3): moving the recovery no-arm branch surfaced a real
+   normal-restart regression — a durable prior-run profile latch made the fresh
+   composition CRASH in the startup identity verifier (`AUTHORITY_ARTIFACT_INVALID`).
+   Fixed by the selected-profile latch preflight (correction 5), returning the truthful
+   `PROFILE_LATCHED` with no socket; the reason was corrected from a false `GLOBAL_LATCHED`.
+4. Correction 4 was a genuine regression introduced by defect 1: moving the guard before
+   the resume made a legitimate restart with ACCEPTED@RESPONSE_RECORDED +
+   DELIVERY_CONFIRMED@RESPONSE_RECORDED reject the idempotent ACCEPTED replay and falsely
+   halt the mission. The ACCEPTED ordering case was narrowed so only a FAILURE
+   barrier/conflict (or a later status without a terminal ACCEPTED) refuses it.
+5. A first attempt to seed the defect-3 pre-terminal ACCEPTED via a store decorator did
+   not work because `live.store` (used by the outbox/classifier) is the RAW store, not
+   the `decorateInboundStore`-wrapped store (which reaches only the inbound service). It
+   was replaced with the accepted test-only seams: a failing ACCEPTED Web post; a lease
+   bound to a non-observed pane (STOPPED_BEFORE_PASTE); and a direct `slack-outbox.json`
+   index edit removing ACCEPTED — all synthetic tmpdir state, no product seam added.
 
 ## Attestations
 
@@ -162,17 +241,21 @@ contexts).
 
 ## Rollback
 
-`git revert 1c28adde13def91d9be75e75abd4040049caf367` (plus this result/pointer)
+`git revert cd4b594` removes the F01 corrective train and restores the F01 base
+`1c28add` behavior; `git revert 1c28add` (plus the result/pointer commits) further
 restores `04e8e017`. A source revert restores no active original-root reference and
 never re-enables it; no original-root immutable flag/digest/bytes are affected (none
-were ever touched).
+were ever touched); the descriptor stays byte-unchanged throughout.
 
 ## Git status / push / upstream
 
 Branch was clean and upstream-equal (`0/0`) at `04e8e017` before work. `node_modules`/
-`dist` are gitignored and never staged. The patch commit is `1c28add`; the result and
-pointer follow in separate evidence-only commits; the branch is non-force pushed to
-`origin/feature/as1-phase-b-live-pilot-001` and is upstream-equal after push.
+`dist` are gitignored and never staged; the untracked `.grok`/`grok*` files belong to
+the main worktree and were never staged here. The F01 base is `1c28add`; the F01
+corrective source is `cd4b594` (a separate corrective source commit, per validation
+correction 2); this updated result and the pointer follow in separate evidence-only
+commits; the branch is non-force pushed to `origin/feature/as1-phase-b-live-pilot-001`
+and is upstream-equal after push.
 
 ## Return
 
