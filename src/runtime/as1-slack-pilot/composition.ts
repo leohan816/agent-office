@@ -1162,11 +1162,25 @@ export class As1GatewayComposition {
     // F01: EVERY port/callback handed to the exact transport is incident-guarded, so an incident during any internal
     // await inside deliver() (provenance, journal read/write, actionability, or a latch) begins no next tmux paste or
     // durable write. The forbidden `exact-transport.ts` is unmodified.
+    // Handoff 116 §2/§7 (P1): in PERSONAL_LEO_ONLY the exact transport's OWN re-observations of the fixed pane must run
+    // through the SAME global identity/profile validator — a corrupt transport observation engages the durable global
+    // kill and fails closed GLOBALLY, never downgraded to a message-local STOPPED_BEFORE_PASTE. The other five tmux
+    // operations delegate unchanged to the live port. Default mode passes the original port untouched.
+    const transportTmuxPort: As1TmuxObservationPort = this.personalLeoOnly
+      ? {
+          observe: () => this.validateFixedAdvisorDestination(live, deps),
+          bufferExists: (bufferName) => deps.tmuxPort.bufferExists(bufferName),
+          loadVerifiedBuffer: (bufferName, pinnedBytes) => deps.tmuxPort.loadVerifiedBuffer(bufferName, pinnedBytes),
+          pasteBuffer: (bufferName, paneId) => deps.tmuxPort.pasteBuffer(bufferName, paneId),
+          sendEnter: (paneId) => deps.tmuxPort.sendEnter(paneId),
+          deleteBuffer: (bufferName) => deps.tmuxPort.deleteBuffer(bufferName),
+        }
+      : deps.tmuxPort;
     const transport = new As1ExactTransport(
       () => this.clock.now(),
       this.stateRoot,
       live.profile,
-      this.incidentGuardedPort(deps.tmuxPort),
+      this.incidentGuardedPort(transportTmuxPort),
       this.incidentGuardedPort(live.store),
       this.incidentGuardedPort(deliveryProvenance),
       { isDeliverable: this.incidentGuardedCallback(() => Promise.resolve(this.control.isLiveDeliveryActionable(live.slug))) },

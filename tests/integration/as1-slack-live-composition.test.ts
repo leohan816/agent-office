@@ -526,6 +526,27 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     }
   });
 
+  it('handoff 116 §7 (P1): a corrupt FIRST exact-transport observation fails GLOBAL', async () => {
+    const tmuxPort = new ControllableTmuxObservationPort(
+      parseTmuxDestination(validDestination(), 'ok'),
+      parseTmuxDestination(validDestination({ sessionName: 'not-the-advisor' }), 'bad'),
+    );
+    const { composition, socket } = await startAgentOfficeComposition({ personalLeoOnly: true, tmuxPort });
+    try {
+      expect((await composition.start()).connected).toBe(true); // startup observe #1 (ok)
+      await socket.deliver(slackEnvelope());
+      // Corrupt observe #4 = the exact transport's FIRST re-observation (#2 deliverPending-validate, #3 build-validate
+      // are ok). The transport observes through the same validator, so a mismatch engages the global kill, never the
+      // personal message-local STOPPED_BEFORE_PASTE path.
+      tmuxPort.corruptObserveNumber = 4;
+      await expect(composition.deliverPending()).rejects.toThrow();
+      expect(composition.personalMessageFailurePending()).toBe(false);
+      expect((await composition.start()).reason).toBe('GLOBAL_LATCHED');
+    } finally {
+      await composition.stop();
+    }
+  });
+
   it('handoff 116 §5 (P2): minted receive grants are fresh across process restarts on the same durable state root', async () => {
     const stateRoot = await makeStateRoot();
     const a = await startAgentOfficeComposition({ personalLeoOnly: true, stateRoot });
