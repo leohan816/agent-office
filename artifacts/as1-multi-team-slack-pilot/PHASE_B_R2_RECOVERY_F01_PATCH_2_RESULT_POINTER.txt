@@ -1,0 +1,31 @@
+WORKER_R2_RECOVERY_F01_PATCH_2_RESULT_POINTER
+MISSION_ID: AGENT_OFFICE_AS1_MULTI_TEAM_SLACK_PILOT_001
+PHASE: PHASE_B_R2_RECOVERY_F01_PATCH_2
+ACTOR: Agent Office Worker
+SESSION: agent-office-opus
+MODEL_MODE_EFFORT_SKILL: Opus 4.8 (1M context) / Claude Code Worker / max / /fable-builder
+SKILL_SHA256: 9a5afeefd34775a918b83900aa19859278f4e151a067cf6ab82cb6a25757091b
+RESULT_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_RECOVERY_F01_PATCH_2_RESULT.md
+RESULT_FILE_SHA256: 33f1736a609e69f0747d8610488f931342f9d12325126eff4d3dec4fcb185546
+POINTER_FILE: artifacts/as1-multi-team-slack-pilot/PHASE_B_R2_RECOVERY_F01_PATCH_2_RESULT_POINTER.txt
+TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001
+TARGET_BRANCH: feature/as1-phase-b-live-pilot-001
+PATCH_PARENT: 5911a5bad0b3eb617556929fa9a06040bd533905
+ACCEPTED_R2_DESIGN_COMMIT: a837bbf9d4072638a6dac676fb5ccc8da9bfa1ff
+GOVERNANCE_HANDOFF_98: 98_PHASE_B_R2_RECOVERY_F01_PATCH_2_HANDOFF.md (foundation-docs advisor jobs)
+INDEPENDENT_REVIEW_RESULT_97: d8f3f1ace95b97adfa7e4e0757f03869d9d48b74 (verdict NEEDS_PATCH; finding F01-R1)
+PATCH_COMMIT: 1666cb0 (one source/test patch commit; a comment-only Advisor accuracy correction was amended in while unpushed — prior hash 191abf2)
+RESULT_COMMIT: 77f6e96
+DIFFSTAT_5911a5b_TO_1666cb0: 2 files, 222 insertions, 22 deletions (exactly the two authorized code/test paths)
+VERDICT: F01-R1 CLOSED — F02 HOLD (unchanged, not part of this patch)
+F01R1_SUMMARY: CLOSED. The REQUEST_STARTED resume and the shared reconcile previously ran durable latch + MANUAL_RECONCILIATION_REQUIRED writes with NO fresh status-ordering recheck, and reconcile was never passed the guard, so a disqualifying failure sibling introduced after the entry check could be followed by another durable latch/phase write behind the failure barrier. This patch: (1) rechecks status ordering immediately BEFORE the interrupted-request latch AND before the resume MANUAL write; (2) gives reconcile(statusGuard, phase) rechecks immediately BEFORE its latch AND before its MANUAL write, and every call site passes the TRUTHFUL current phase — PREPARED for the pre-start request-hash mismatch, REQUEST_STARTED for every post-REQUEST_STARTED control/response/exhaustion path; (3) makes checkStatusOrdering return REJECTED_CONTROL ONLY for a status-ordering violation and RE-THROW any other DomainError, so a STORE_QUARANTINED raised while the guard reads sibling/own records reaches the mandatory B08 quarantine latch (REJECTED_STORE + latch, no phase write, no Web, no progression) instead of being masked as an ordering refusal (item 5) — both invariants preserved, no HOLD. On refusal the exact prior phase is preserved and the fixed REJECTED_CONTROL is returned, never a substitute status: a refusal BEFORE a latch performs no latch and no phase write; a refusal AFTER the mandatory latch (before the manual write) leaves the latch already taken but writes NO manual phase and progresses no status. Accepted-evidence path (statusGuard === null) skips every recheck and reconciles unchanged; IDs, retries, no-blind-resend, one-use authority, target derivation, and redaction unchanged. No general refactor.
+ADVERSARIAL: six focused outbound tests, each independently observed to FAIL with its fix reverted in-source then restored — (1) resume refuses before its latch (resume latch not called); (2) sibling after the resume latch, before the manual write (latch fired, no MANUAL); (3) reconcile refuses before its latch on the malformed path (reconcile latch not called); (4) sibling after the reconcile latch, before the manual write (latch fired, no MANUAL); (5) request-hash mismatch reconcile reports PREPARED on refusal; (6) STORE_QUARANTINED during the guard read stays fail-closed REJECTED_STORE with the B08 latch, no phase write, no Slack.
+GATES: vitest tests/integration/as1-slack-outbound.test.ts 42/42 (--maxWorkers=1) + tsc(0) + eslint(outbox.ts + as1-slack-outbound.test.ts, 0) + build:core(0) + git diff --check 5911a5b..HEAD clean. Exact 4-path scope (2 code/test changed + this result/pointer new). Disabled descriptor byte-identity 8e3b9985...802f5d7 UNCHANGED. No old R1-root literal / secret newly added. F02 files (setup doc, lifecycle test) UNCHANGED. Beyond the named gates, a targeted no-regression check ran only the two DIRECT outbox callers (evidence-ingress + live-composition, 95/95) to confirm the accepted-evidence path is preserved; no Living Office / browser / broad-product / full-AS1 sweep.
+F02_STATUS: HOLD — unchanged and explicitly NOT part of this patch; no F02 file edited; activation remains prohibited.
+PROHIBITIONS: no secret access, no Slack/network, neither real state root touched, no descriptor activation (byte-unchanged), no owner started, no live destination observed/mutated, no process signal, no tmux delivery input, no sub-agent/delegation/parallel-context, no self-review, no main/protected write, no force push, no next mission.
+DESCRIPTOR: config/agent-office.as1-slack-pilot.disabled.json left byte-unchanged (enabled:false, sha256 8e3b9985f09b366e046d03392bd60b2157264ec1f2eb4498bfa92e615802f5d7)
+ROLLBACK: git revert 1666cb0 restores 5911a5b behaviour (F01-R1 reopens); + result/pointer commits; no descriptor/state-root/F02 artifact affected (none touched).
+PUSH_STATUS: NON_FORCE_PUSH to origin/feature/as1-phase-b-live-pilot-001 (this pointer commit is branch HEAD; upstream-equal after push). Lineage on 5911a5b: 1666cb0 (source/test patch) -> 77f6e96 (result) -> this pointer commit.
+RETURN_TO: agent-office-advisor
+PROPOSED_NEXT_ACTOR: agent-office-advisor — F01-R1 is closed; the same independent SOL Sentinel Reviewer may re-verify the two-path delta. F02 remains a standing activation-blocking HOLD for an Advisor/Leo decision.
+STOP
