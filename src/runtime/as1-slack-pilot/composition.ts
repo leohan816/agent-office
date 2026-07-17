@@ -40,6 +40,7 @@ import {
   type As1AdvisorReadinessLeaseV1,
   type As1ProfileWireIdentity,
   type As1ReceiveGrantProvenanceGate,
+  type As1TmuxDestination,
 } from '../../adapters/gateways/slack-pilot/exact-authority.js';
 import {
   As1ExactTransport,
@@ -960,7 +961,7 @@ export class As1GatewayComposition {
    * corruption: engage the durable global kill (owner stop) and fail closed before any receive — never a per-message
    * local failure. The pane id is the fixed mission binding, never a caller/message/environment value.
    */
-  private async validateFixedAdvisorDestination(live: LiveState, deps: As1CompositionDependencies): Promise<void> {
+  private async validateFixedAdvisorDestination(live: LiveState, deps: As1CompositionDependencies): Promise<As1TmuxDestination> {
     const observed = await this.guardedAwait(() => deps.tmuxPort.observe(AS1_LEO_ADVISOR_PANE_ID));
     if (
       observed.paneId !== AS1_LEO_ADVISOR_PANE_ID ||
@@ -969,9 +970,12 @@ export class As1GatewayComposition {
       observed.workspace !== live.profile.workspace ||
       observed.currentCommand !== live.profile.currentCommand
     ) {
-      await this.guardedAwait(() => this.control.engageGlobalKill('fixed agent-office-advisor destination does not bind the selected profile at startup'));
-      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'fixed advisor tmux destination failed startup validation');
+      await this.guardedAwait(() => this.control.engageGlobalKill('fixed agent-office-advisor destination does not bind the selected profile'));
+      throw new DomainError('AUTHORITY_ARTIFACT_INVALID', 'fixed advisor tmux destination failed identity/profile validation');
     }
+    // Return the globally-validated observation so every delivery-time use of the fixed destination (the internal
+    // lease build below) reuses THIS validated pane — never a second raw, unvalidated observe.
+    return observed;
   }
 
   /**
@@ -1010,9 +1014,10 @@ export class As1GatewayComposition {
     }
     const pointerArtifactRef = `artifacts/as1-slack-pilot/${live.profile.profileStateSlug}/pointers/${deliveryId}/${pointerFile}`;
     const pointerHash = `sha256:${pointerFile.replace('.json', '')}`;
-    // Observe the startup-validated fixed destination LIVE at delivery time so all 15 facts the transport re-observes
-    // are the exact live pane — never a caller value. The observed pane must bind the selected profile (below).
-    const destination = await deps.tmuxPort.observe(AS1_LEO_ADVISOR_PANE_ID);
+    // Observe the fixed destination LIVE at delivery time through the SAME global identity/profile validator, so a
+    // corrupt second observation engages the global kill and fails closed GLOBALLY (never downgraded to a message-local
+    // STOPPED_BEFORE_PASTE). All 15 facts of this validated pane are what the transport re-observes and compares.
+    const destination = await this.validateFixedAdvisorDestination(live, deps);
     const nowIso = this.clock.now();
     const nowMs = Date.parse(nowIso);
     const grantExpiresAt = new Date(nowMs + AS1_INTERNAL_GRANT_LIFETIME_MS).toISOString();

@@ -183,13 +183,22 @@ class ControllableTmuxObservationPort implements As1TmuxObservationPort {
   /** When set, the NEXT observe returns a profile-mismatching pane once — a fixed-destination/identity corruption that
    *  must fail GLOBAL (P1), never message-local. */
   public failNextObserve = false;
+  /** The 1-based observe number to corrupt with the profile-mismatching pane (0 disables). Lets a test corrupt a
+   *  SPECIFIC delivery-time observation — e.g. the SECOND one, inside buildInternalDeliveryAuthority — rather than the
+   *  next one, to prove that observation is validated GLOBALLY too. */
+  public corruptObserveNumber = 0;
+  private observeCount = 0;
   public constructor(
     private readonly ok: As1TmuxDestination,
     private readonly mismatch: As1TmuxDestination,
   ) {}
   public observe(): Promise<As1TmuxDestination> {
+    this.observeCount += 1;
     if (this.failNextObserve) {
       this.failNextObserve = false;
+      return Promise.resolve(this.mismatch);
+    }
+    if (this.observeCount === this.corruptObserveNumber) {
       return Promise.resolve(this.mismatch);
     }
     return Promise.resolve(this.ok);
@@ -491,6 +500,27 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
       expect(composition.personalMessageFailurePending()).toBe(false); // never entered the per-message local path
       // A global kill is durable: a subsequent start attempt is refused as globally latched.
       expect((await composition.start()).reason).toBe('GLOBAL_LATCHED');
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('handoff 116 §7 (P1): a corrupt SECOND delivery-time observation (inside buildInternalDeliveryAuthority) fails GLOBAL', async () => {
+    const tmuxPort = new ControllableTmuxObservationPort(
+      parseTmuxDestination(validDestination(), 'ok'),
+      parseTmuxDestination(validDestination({ sessionName: 'not-the-advisor' }), 'bad'),
+    );
+    const { composition, socket } = await startAgentOfficeComposition({ personalLeoOnly: true, tmuxPort });
+    try {
+      expect((await composition.start()).connected).toBe(true); // startup observe #1 (ok)
+      await socket.deliver(slackEnvelope());
+      // Corrupt observe #3 = the SECOND delivery-time observation, INSIDE buildInternalDeliveryAuthority (#2 is
+      // deliverPending's own re-validation). It must engage the global kill — the internal-lease build now runs through
+      // the same validator, so this is never downgraded to the personal message-local STOPPED_BEFORE_PASTE path.
+      tmuxPort.corruptObserveNumber = 3;
+      await expect(composition.deliverPending()).rejects.toThrow();
+      expect(composition.personalMessageFailurePending()).toBe(false); // never entered the per-message local path
+      expect((await composition.start()).reason).toBe('GLOBAL_LATCHED'); // durable global kill
     } finally {
       await composition.stop();
     }
