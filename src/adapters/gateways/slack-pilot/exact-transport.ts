@@ -588,7 +588,10 @@ export function nodeTmuxRunner(): As1TmuxRunner {
     new Promise<As1TmuxRunResult>((resolve, reject) => {
       const child = spawn(TMUX_BINARY, [...argv], {
         shell: false,
-        env: { PATH: '/usr/bin:/bin', LC_ALL: 'C' },
+        // LC_ALL must be a UTF-8 locale: under the closed `C` locale the live tmux client transcodes the U+001F field
+        // separators to underscore, so `observe` fails the 15-field split before the network. `C.UTF-8` keeps the same
+        // closed, deterministic environment (still no TMUX) while preserving the exact U+001F separators.
+        env: { PATH: '/usr/bin:/bin', LC_ALL: 'C.UTF-8' },
         stdio: [stdin === null ? 'ignore' : 'pipe', 'pipe', 'ignore'],
       });
       const chunks: Buffer[] = [];
