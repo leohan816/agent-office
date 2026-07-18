@@ -10,6 +10,7 @@
 // probe; a non-success maps to the single redacted code LIFECYCLE_CAPABILITY_UNAVAILABLE and exit 2. `stop` and
 // `incident-kill` signal the running owner ONLY through the sealed pidfd bridge (never a numeric-PID kill). Output
 // never echoes a token, prefix, length, raw ID, file contents, Slack response body, or tmux coordinate.
+import { randomUUID } from 'node:crypto';
 import { lstat, readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -122,7 +123,7 @@ export async function preflightTrustedNode(
   return checkTrustedNode(execPath, facts);
 }
 
-export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check', 'answer', 'answer-agent-office-strategy', 'answer-foundation-strategy'] as const;
+export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check', 'answer', 'answer-agent-office-strategy', 'answer-foundation-strategy', 'status-agent-office-strategy', 'status-foundation-strategy'] as const;
 export type As1Command = (typeof AS1_COMMANDS)[number];
 
 /** The two verbs that cross the owner filesystem/secret boundary and require the exact `--env-file` path. */
@@ -133,6 +134,13 @@ const ENV_FILE_COMMANDS: readonly As1Command[] = ['start', 'redacted-check'];
 const AS1_STRATEGY_ANSWER_ROOTS: Readonly<Record<'answer-agent-office-strategy' | 'answer-foundation-strategy', string>> = {
   'answer-agent-office-strategy': AS1_STRATEGY_STATE_ROOTS.AGENT_OFFICE_STRATEGY,
   'answer-foundation-strategy': AS1_STRATEGY_STATE_ROOTS.FOUNDATION_STRATEGY,
+};
+
+/** Strategy status stream: the two closed Strategy status verbs → their FIXED state roots. A pure fixed map over the
+ *  closed verb literals — never a caller/env/path/root/channel/thread operand or selection. */
+const AS1_STRATEGY_STATUS_ROOTS: Readonly<Record<'status-agent-office-strategy' | 'status-foundation-strategy', string>> = {
+  'status-agent-office-strategy': AS1_STRATEGY_STATE_ROOTS.AGENT_OFFICE_STRATEGY,
+  'status-foundation-strategy': AS1_STRATEGY_STATE_ROOTS.FOUNDATION_STRATEGY,
 };
 
 export interface As1CliInvocation {
@@ -155,7 +163,13 @@ export function parseAs1Cli(argv: readonly string[]): As1CliInvocation {
   }
   const command = first as As1Command;
   const rest = argv.slice(1);
-  if (command === 'answer' || command === 'answer-agent-office-strategy' || command === 'answer-foundation-strategy') {
+  if (
+    command === 'answer' ||
+    command === 'answer-agent-office-strategy' ||
+    command === 'answer-foundation-strategy' ||
+    command === 'status-agent-office-strategy' ||
+    command === 'status-foundation-strategy'
+  ) {
     // Handoff 119 + Strategy migration: the answer-family verbs' ONLY operand is bounded answer text. EVERY remaining
     // token is treated STRICTLY as answer text and NONE as an option — a legitimate bounded answer may contain `--`-like
     // prose. The fixed root (leo-v1 for `answer`; each Strategy verb's own fixed root), channel, thread, and the sole
@@ -223,6 +237,13 @@ export async function runAs1Cli(
       if (invocation.answerText === undefined) throw new DomainError('INVALID_SCHEMA', 'strategy answer requires the bounded answer text');
       const outcome = await runPersonalAnswerAction(invocation.answerText, AS1_STRATEGY_ANSWER_ROOTS[invocation.command]);
       return { command: invocation.command, ok: outcome.includes('PERSONAL_ANSWER:RECORDED'), lines: ['AS1_SLACK_PILOT ANSWER', `REASON: ${outcome.join('|')}`] };
+    }
+    case 'status-agent-office-strategy':
+    case 'status-foundation-strategy': {
+      // Strategy status stream: spool one bounded status entry at this verb's FIXED Strategy root (no caller routing).
+      if (invocation.answerText === undefined) throw new DomainError('INVALID_SCHEMA', 'strategy status requires the bounded status text');
+      const outcome = await runPersonalStatusAction(invocation.answerText, AS1_STRATEGY_STATUS_ROOTS[invocation.command]);
+      return { command: invocation.command, ok: outcome.includes('PERSONAL_STATUS:RECORDED'), lines: ['AS1_SLACK_PILOT STATUS', `REASON: ${outcome.join('|')}`] };
     }
     case 'redacted-check': {
       if (invocation.envFilePath === null) throw new DomainError('INVALID_SCHEMA', 'redacted-check requires --env-file');
@@ -554,6 +575,19 @@ export async function runPersonalAnswerAction(
   return ['PERSONAL_ANSWER:RECORDED'];
 }
 
+/**
+ * Strategy status stream: the ONE fixed cross-process status action per Strategy root. It spools exactly one bounded
+ * status entry (for the foreground owner to post once to the subscribed thread) ONLY while a subscription is active for
+ * that root; an inactive subscription produces no Slack post. Its root is fixed by the calling action; channel/thread
+ * come only from that root's active local subscription. No caller-selected root/channel/thread/profile/path.
+ */
+export async function runPersonalStatusAction(statusText: string, expectedRoot: string): Promise<readonly string[]> {
+  const spool = await As1FilePersonalResultSpool.open(expectedRoot);
+  if ((await spool.readSubscription()) === null) return ['PERSONAL_STATUS:INACTIVE'];
+  await spool.recordStatusEntry(`status-${randomUUID()}`, statusText);
+  return ['PERSONAL_STATUS:RECORDED'];
+}
+
 export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): Promise<As1CliResult> {
   // handoff 112 §5.1: the fixed trusted-Node preflight gates the foreground owner BEFORE the dependency graph is built
   // or the state root initialized — a non-trusted interpreter fails closed with the single redacted reason, having
@@ -769,6 +803,14 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
           }
         }
       }
+      // Fixed Strategy status stream: post any one pending status entry, and the fixed 60 s heartbeat while subscribed.
+      if (composition.isPersonalLeoOnly()) {
+        await composition.consumeStatusStream();
+        if (incidentPending()) {
+          terminal = 'INCIDENT_KILL';
+          break;
+        }
+      }
       // F01: a pending incident must NOT begin another timer await — check immediately BEFORE the delay as well as after.
       if (incidentPending()) {
         terminal = 'INCIDENT_KILL';
@@ -941,6 +983,15 @@ async function main(): Promise<void> {
     const outcome = await runPersonalAnswerAction(invocation.answerText ?? '', AS1_STRATEGY_ANSWER_ROOTS[invocation.command]);
     process.stdout.write(`AS1_SLACK_PILOT ANSWER\nREASON: ${outcome.join('|')}\n`);
     process.exitCode = outcome.includes('PERSONAL_ANSWER:RECORDED') ? 0 : 2;
+    return;
+  }
+
+  if (invocation.command === 'status-agent-office-strategy' || invocation.command === 'status-foundation-strategy') {
+    // Strategy status stream: the fixed cross-process status action at this verb's FIXED Strategy root; it opens no
+    // composition/writer lock, network, tmux, or secret. An inactive subscription produces no Slack post.
+    const outcome = await runPersonalStatusAction(invocation.answerText ?? '', AS1_STRATEGY_STATUS_ROOTS[invocation.command]);
+    process.stdout.write(`AS1_SLACK_PILOT STATUS\nREASON: ${outcome.join('|')}\n`);
+    process.exitCode = outcome.includes('PERSONAL_STATUS:RECORDED') ? 0 : 2;
     return;
   }
 

@@ -191,6 +191,39 @@ const AS1_STRATEGY_COMPAT_SEED_GRANT: As1PilotReceiveGrantV1 = {
 };
 
 /** The fixed legacy Advisor personal-direct answer command — preserved BYTE-FOR-BYTE. */
+// ── Fixed Strategy status stream (all constants fixed / non-user-derived) ────────────────────────────────────────
+/** The fixed non-shell label prepended to EVERY ordinary Slack message before tmux paste, so a leading `!` (or any
+ *  control-looking prose) is ordinary labeled text and can never enter Codex shell mode. */
+const LEO_SLACK_MESSAGE_LABEL = 'LEO_SLACK_MESSAGE:\n';
+/** The four fixed trimmed status controls — never a normal question/correlation/delivery/tmux/shell input. */
+const STRATEGY_STATUS_START_CONTROLS: readonly string[] = ['!상태', '!状态'];
+const STRATEGY_STATUS_STOP_CONTROLS: readonly string[] = ['!상태그만', '!状态停止'];
+const STRATEGY_STATUS_START_ACK = 'LEO 상태 스트림을 시작합니다. 60초마다 생존 신호를 보냅니다.';
+const STRATEGY_STATUS_STOP_ACK = 'LEO 상태 스트림을 종료했습니다.';
+const STRATEGY_STATUS_HEARTBEAT = 'LEO 상태 스트림 유지 중입니다.';
+const STRATEGY_STATUS_CONTROL_PROMPT = `${LEO_SLACK_MESSAGE_LABEL}[상태 스트림 활성] 진행 상황을 상태 액션으로 보고하세요.`;
+const STRATEGY_STATUS_INSTRUCTION = '[상태 스트림 활성] 필요 시 상태 액션으로 중간 상태를 보고하세요.';
+/** The fixed 60-second liveness heartbeat window (never more than one heartbeat per window per fixed root). */
+const STRATEGY_STATUS_HEARTBEAT_WINDOW_MS = 60_000;
+
+/** Classify a personal message's trimmed text as a fixed status control, or null for an ordinary message. */
+export function classifyStatusControl(text: string): 'START' | 'STOP' | null {
+  const trimmed = text.trim();
+  if (STRATEGY_STATUS_START_CONTROLS.includes(trimmed)) return 'START';
+  if (STRATEGY_STATUS_STOP_CONTROLS.includes(trimmed)) return 'STOP';
+  return null;
+}
+
+/**
+ * The fixed ordinary-message tmux paste text: the fixed non-shell `LEO_SLACK_MESSAGE:` label + the bounded Leo bytes +
+ * the fixed answer-command instruction, plus (only while a subscription is active) the fixed status-action instruction.
+ * The label guarantees a leading `!` is ordinary labeled text, never Codex shell input.
+ */
+export function personalOrdinaryPasteText(profile: As1Profile | As1StrategyProfile, text: string, subscribed: boolean): string {
+  const statusInstruction = subscribed ? `\n${STRATEGY_STATUS_INSTRUCTION}` : '';
+  return `${LEO_SLACK_MESSAGE_LABEL}${text}\n\n[AS1] To answer Leo, run:  ${personalAnswerCommandFor(profile)}${statusInstruction}`;
+}
+
 const AS1_LEGACY_PERSONAL_ANSWER_COMMAND =
   'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001 run as1:slack-pilot -- answer "<bounded answer text>"';
 
@@ -1857,13 +1890,21 @@ export class As1GatewayComposition {
       // polling for the next queued message; a STOPPED_BEFORE_PASTE here would be treated as a delivery failure/halt.
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'no queued personal message' };
     }
+    // Fixed Strategy status controls are intercepted BEFORE ordinary delivery/correlation/status processing: a control
+    // never becomes a normal question, pending normal correlation, Advisor delivery, arbitrary tmux text, or shell input.
+    const control = classifyStatusControl(current.text);
+    if (control !== null) {
+      return await this.handleStatusControl(live, deps, current, control);
+    }
     // Fixed observation validation of %26 (a mismatch engages the durable global kill — fixed-destination corruption).
     const dest = await this.validateFixedAdvisorDestination(live, deps);
     const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
-    // One contained fixed buffer carrying the ACTUAL bounded Leo message bytes PLUS the fixed real answer-command
-    // instruction; delete on success AND ordinary failure.
+    // One contained fixed buffer carrying the ACTUAL bounded Leo message bytes PLUS the fixed answer-command instruction;
+    // delete on success AND ordinary failure. Every ordinary message is prepended with the fixed non-shell
+    // LEO_SLACK_MESSAGE label; while a subscription is active, a fixed status-action instruction is appended.
     const bufferName = `as1-${live.profile.profileStateSlug}-personal`;
-    const paste = `${current.text}\n\n[AS1] To answer Leo, run:  ${personalAnswerCommandFor(live.profile)}`;
+    const subscribed = (await spool.readSubscription()) !== null;
+    const paste = personalOrdinaryPasteText(live.profile, current.text, subscribed);
     try {
       try {
         await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(paste, 'utf8'));
@@ -1885,6 +1926,82 @@ export class As1GatewayComposition {
     const secret = this.liveProfileSecret(live);
     await deps.web.postMessage(secret.botToken, { channel: current.channel, threadTs: current.threadTs, text: '메시지 전달 완료 · 답변 대기 중' });
     return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'personal-direct-%26' };
+  }
+
+  /**
+   * Fixed Strategy status-control handling (intercepted from the PERSONAL FIFO BEFORE ordinary delivery). START binds the
+   * subscription to this event's own bound thread, posts one fixed start acknowledgement there (the immediate liveness
+   * event), and sends the fixed constant status-control prompt to the fixed pane. STOP clears this root's subscription +
+   * pending status entries and posts one fixed stop acknowledgement to the bound thread. It never records a normal
+   * correlation or delivers the control text, and returns AWAITING so the owner keeps receiving the next message.
+   */
+  private async handleStatusControl(
+    live: LiveState,
+    deps: As1CompositionDependencies,
+    current: As1PersonalCorrelation,
+    control: 'START' | 'STOP',
+  ): Promise<{ readonly phase: 'AWAITING'; readonly outcome: 'AWAITING_POINTER_DELIVERY_GRANT'; readonly reason: string }> {
+    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
+    const secret = this.liveProfileSecret(live);
+    if (control === 'START') {
+      // A top-level start binds its own event root as the subscription thread; a threaded start retains its thread.
+      await spool.recordSubscription({ channel: current.channel, threadTs: current.threadTs, lastPostAt: this.clock.now() });
+      await deps.web.postMessage(secret.botToken, { channel: current.channel, threadTs: current.threadTs, text: STRATEGY_STATUS_START_ACK });
+      // One fixed constant, non-user-derived status-control prompt to the fixed Strategy pane.
+      const dest = await this.validateFixedAdvisorDestination(live, deps);
+      const bufferName = `as1-${live.profile.profileStateSlug}-status-control`;
+      try {
+        await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(STRATEGY_STATUS_CONTROL_PROMPT, 'utf8'));
+        await deps.tmuxPort.pasteBuffer(bufferName, dest.paneId);
+        await deps.tmuxPort.sendEnter(dest.paneId);
+      } finally {
+        await deps.tmuxPort.deleteBuffer(bufferName).catch(() => undefined);
+      }
+    } else {
+      const sub = await spool.readSubscription();
+      await spool.clearSubscription();
+      const thread = sub?.threadTs ?? current.threadTs;
+      await deps.web.postMessage(secret.botToken, { channel: current.channel, threadTs: thread, text: STRATEGY_STATUS_STOP_ACK });
+    }
+    this.resetForNextLeoRoot(); // the control consumed the current message; the next queued message proceeds
+    return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: `status-control-${control.toLowerCase()}` };
+  }
+
+  /**
+   * Fixed Strategy status-stream owner tick. While a subscription is active it posts at most ONE pending status entry
+   * (consumed once, marked terminal) to the subscribed thread; otherwise, once 60 s have elapsed since the last status or
+   * liveness post, it posts one fixed no-LLM heartbeat — never more than once per 60 s per fixed root. No second LLM
+   * call; no Git/evidence/outbox/db. An ordinary Web failure is message-local and never latches.
+   */
+  public async consumeStatusStream(): Promise<readonly string[]> {
+    const live = this.live;
+    const deps = this.deps;
+    if (!this.personalLeoOnly || live === null || deps === null) return ['STATUS_STREAM:INACTIVE'];
+    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
+    const sub = await spool.readSubscription();
+    if (sub === null) return ['STATUS_STREAM:INACTIVE'];
+    const secret = this.liveProfileSecret(live);
+    const status = await spool.consumeStatusEntry();
+    if (status !== null) {
+      try {
+        await deps.web.postMessage(secret.botToken, { channel: sub.channel, threadTs: sub.threadTs, text: `STATUS: ${status.statusText}` });
+        await spool.markStatusPosted(status.requestId);
+        await spool.recordSubscription({ ...sub, lastPostAt: this.clock.now() });
+        return ['STATUS_STREAM:POSTED'];
+      } catch {
+        return ['STATUS_STREAM:POST_FAILED'];
+      }
+    }
+    if (Date.parse(this.clock.now()) - Date.parse(sub.lastPostAt) >= STRATEGY_STATUS_HEARTBEAT_WINDOW_MS) {
+      try {
+        await deps.web.postMessage(secret.botToken, { channel: sub.channel, threadTs: sub.threadTs, text: STRATEGY_STATUS_HEARTBEAT });
+        await spool.recordSubscription({ ...sub, lastPostAt: this.clock.now() });
+        return ['STATUS_STREAM:HEARTBEAT'];
+      } catch {
+        return ['STATUS_STREAM:HEARTBEAT_FAILED'];
+      }
+    }
+    return ['STATUS_STREAM:IDLE'];
   }
 
   /**

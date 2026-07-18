@@ -18,6 +18,22 @@ const SPOOL_DIRNAME = 'personal-result-spool';
 const CONTAINED_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 const PENDING_SUFFIX = '.pending.json';
 const READY_SUFFIX = '.ready.json';
+// Strategy status stream (fixed): exactly one active subscription per fixed Strategy root + one file per status entry.
+const STATUS_SUFFIX = '.status.json';
+const SUBSCRIPTION_NAME = 'subscription.json';
+
+/** The single active fixed-Strategy status subscription for this root: the bound thread + last status/liveness post. */
+export interface As1PersonalSubscription {
+  readonly channel: string;
+  readonly threadTs: string;
+  readonly lastPostAt: string;
+}
+
+/** One spooled status-action entry: its own contained id + the bounded plain status text. */
+export interface As1PersonalStatusEntry {
+  readonly requestId: string;
+  readonly statusText: string;
+}
 
 /** The delivered message's own self-routing correlation — never a caller value. Recorded by the Gateway on delivery. */
 export interface As1PersonalCorrelation {
@@ -176,5 +192,73 @@ export class As1FilePersonalResultSpool implements As1PersonalResultSpool {
   private async moveOut(requestId: string, terminalSuffix: string): Promise<void> {
     const id = requireContainedId(requestId, 'personal result requestId');
     await rename(path.join(this.dir, `${id}${READY_SUFFIX}`), path.join(this.dir, `${id}${terminalSuffix}`));
+  }
+
+  // ── Strategy status stream (fixed; no Git/evidence/outbox/db — only this spool) ─────────────────────────────────
+  /** Store/replace the SOLE active status subscription for this fixed root (atomic tmp+rename; one per root). */
+  public async recordSubscription(sub: As1PersonalSubscription): Promise<void> {
+    const value: As1PersonalSubscription = {
+      channel: requireContainedId(sub.channel, 'subscription channel'),
+      threadTs: sub.threadTs,
+      lastPostAt: sub.lastPostAt,
+    };
+    const tmp = path.join(this.dir, `${SUBSCRIPTION_NAME}.tmp`);
+    const handle = await open(tmp, 'w', 0o600);
+    try {
+      const bytes = Buffer.concat([canonicalBytes(value), Buffer.from('\n', 'utf8')]);
+      await handle.write(bytes, 0, bytes.byteLength, 0);
+    } finally {
+      await handle.close();
+    }
+    await rename(tmp, path.join(this.dir, SUBSCRIPTION_NAME));
+  }
+
+  /** The single active subscription for this fixed root, or null when inactive. */
+  public async readSubscription(): Promise<As1PersonalSubscription | null> {
+    let handle: import('node:fs/promises').FileHandle | undefined;
+    try {
+      handle = await open(path.join(this.dir, SUBSCRIPTION_NAME), 'r');
+      const record = parseRecord(await handle.readFile(), 'personal subscription');
+      return {
+        channel: requireContainedId(readString(record, 'channel', 'subscription'), 'subscription channel'),
+        threadTs: readString(record, 'threadTs', 'subscription'),
+        lastPostAt: readString(record, 'lastPostAt', 'subscription'),
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    } finally {
+      await handle?.close();
+    }
+  }
+
+  /** Clear this root's subscription AND every pending status entry (stop). */
+  public async clearSubscription(): Promise<void> {
+    await unlink(path.join(this.dir, SUBSCRIPTION_NAME)).catch(() => undefined);
+    for (const name of (await readdir(this.dir)).filter((n) => n.endsWith(STATUS_SUFFIX))) {
+      await unlink(path.join(this.dir, name)).catch(() => undefined);
+    }
+  }
+
+  /** Fixed status action (cross-process): spool one bounded status entry for the owner to post once. */
+  public async recordStatusEntry(requestId: string, statusText: string): Promise<void> {
+    const id = requireContainedId(requestId, 'status requestId');
+    await this.writeExclusive(`${id}${STATUS_SUFFIX}`, { requestId: id, statusText: requireBoundedMessageText(statusText, 'status text') });
+  }
+
+  /** Foreground owner: the oldest pending status entry to post, or null. */
+  public async consumeStatusEntry(): Promise<As1PersonalStatusEntry | null> {
+    const found = await this.readFirst(STATUS_SUFFIX);
+    if (found === null) return null;
+    return {
+      requestId: requireContainedId(readString(found.record, 'requestId', 'status'), 'status requestId'),
+      statusText: requireBoundedMessageText(readString(found.record, 'statusText', 'status'), 'status text'),
+    };
+  }
+
+  /** Foreground owner: mark a posted status entry terminal (posted exactly once). */
+  public async markStatusPosted(requestId: string): Promise<void> {
+    const id = requireContainedId(requestId, 'status requestId');
+    await rename(path.join(this.dir, `${id}${STATUS_SUFFIX}`), path.join(this.dir, `${id}.statusdone.json`));
   }
 }

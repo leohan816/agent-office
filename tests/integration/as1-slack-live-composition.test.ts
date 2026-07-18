@@ -25,11 +25,14 @@ import type { As1WebPort } from '../../src/adapters/gateways/slack-pilot/web-cli
 import {
   As1GatewayComposition,
   AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
+  classifyStatusControl,
   parseRuntimeDescriptor,
   personalAnswerCommandFor,
+  personalOrdinaryPasteText,
   type As1CompositionDependencies,
   type As1CompositionSocketPort,
 } from '../../src/runtime/as1-slack-pilot/composition.js';
+import { As1FilePersonalResultSpool } from '../../src/adapters/gateways/slack-pilot/personal-result-spool.js';
 import {
   buildAs1ProductionDependencies,
   parseAs1Cli,
@@ -62,6 +65,78 @@ const ACCEPTING_RECEIVE_GATE: As1ReceiveGrantProvenanceGate = { assertAccepted: 
 const ACCEPTING_DELIVERY_GATE: As1DeliveryProvenanceGate = { assertAccepted: () => Promise.resolve() };
 /** The exact obsolete advisor latch reason handoff 120 retires (post-acceptance receive-grant Git divergence). */
 const OBSOLETE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
+
+describe('AS1 fixed Strategy status stream', () => {
+  async function spoolAt(): Promise<As1FilePersonalResultSpool> {
+    return As1FilePersonalResultSpool.open(await mkdtemp(path.join(tmpdir(), 'as1-status-')));
+  }
+
+  it('intercepts the four status controls with thread binding and no Advisor delivery', async () => {
+    // The four fixed controls classify as START/STOP → intercepted (never a normal question/correlation/Advisor
+    // delivery/tmux/shell). Ordinary text, incl. a leading-`!` non-control, is null → ordinary labeled delivery.
+    expect(classifyStatusControl(' !상태 ')).toBe('START');
+    expect(classifyStatusControl('!状态')).toBe('START');
+    expect(classifyStatusControl('!상태그만')).toBe('STOP');
+    expect(classifyStatusControl('!状态停止')).toBe('STOP');
+    expect(classifyStatusControl('!hello')).toBeNull();
+    expect(classifyStatusControl('상태 보고')).toBeNull();
+    // A start binds its own event thread; the spool holds EXACTLY one active subscription per root.
+    const spool = await spoolAt();
+    expect(await spool.readSubscription()).toBeNull();
+    await spool.recordSubscription({ channel: 'CSTRAT01', threadTs: '1720000000.000100', lastPostAt: '2026-07-18T00:00:00.000Z' });
+    const sub = await spool.readSubscription();
+    expect(sub?.threadTs).toBe('1720000000.000100');
+    expect(sub?.channel).toBe('CSTRAT01');
+  });
+
+  it('delivers one status and one normal same-thread answer exactly once', async () => {
+    const spool = await spoolAt();
+    await spool.recordSubscription({ channel: 'CSTRAT01', threadTs: '1720000000.000100', lastPostAt: '2026-07-18T00:00:00.000Z' });
+    // One status entry: consumed once, posted once, then terminal — never a second post.
+    await spool.recordStatusEntry('status-e1', 'building');
+    const s = await spool.consumeStatusEntry();
+    expect(s?.statusText).toBe('building');
+    await spool.markStatusPosted(s?.requestId ?? 'status-e1');
+    expect(await spool.consumeStatusEntry()).toBeNull();
+    // One normal answer to the SAME bound thread: recorded, answered, consumed once, then terminal.
+    await spool.recordCorrelation({ requestId: 'r1', sourceEventId: 'Ev1', channel: 'CSTRAT01', threadTs: '1720000000.000100' });
+    await spool.answer('r1', 'final answer');
+    const a = await spool.consumeAnswered();
+    expect(a?.answerText).toBe('final answer');
+    expect(a?.threadTs).toBe('1720000000.000100'); // same thread as the subscription root
+    await spool.markComplete(a?.requestId ?? 'r1');
+    expect(await spool.consumeAnswered()).toBeNull();
+  });
+
+  it('clears status on stop and limits heartbeat to once per 60 seconds', async () => {
+    const spool = await spoolAt();
+    const t0 = '2026-07-18T00:00:00.000Z';
+    await spool.recordSubscription({ channel: 'CSTRAT01', threadTs: '1720000000.000100', lastPostAt: t0 });
+    await spool.recordStatusEntry('status-e1', 'pending');
+    // Stop clears the subscription AND every pending status entry.
+    await spool.clearSubscription();
+    expect(await spool.readSubscription()).toBeNull();
+    expect(await spool.consumeStatusEntry()).toBeNull();
+    // Heartbeat throttle: the owner posts a heartbeat only when >= 60 s have elapsed since the last status/liveness post.
+    const windowMs = 60_000;
+    expect(Date.parse('2026-07-18T00:00:30.000Z') - Date.parse(t0) >= windowMs).toBe(false); // 30 s → no heartbeat
+    expect(Date.parse('2026-07-18T00:01:00.000Z') - Date.parse(t0) >= windowMs).toBe(true); // 60 s → one heartbeat
+  });
+
+  it('labels a leading-bang normal message before tmux paste', () => {
+    // A leading-`!` NON-control message is ordinary; its paste is prefixed with the fixed non-shell LEO_SLACK_MESSAGE
+    // label so the `!` is labeled text and can never enter Codex shell mode.
+    expect(classifyStatusControl('!please build')).toBeNull();
+    const paste = personalOrdinaryPasteText(selectStrategyProfile('AGENT_OFFICE_STRATEGY'), '!please build', false);
+    expect(paste.startsWith('LEO_SLACK_MESSAGE:\n')).toBe(true);
+    expect(paste).toContain('!please build');
+    // While subscribed, the fixed status-action instruction is appended; when not, it is absent.
+    const subscribed = personalOrdinaryPasteText(selectStrategyProfile('AGENT_OFFICE_STRATEGY'), 'ordinary', true);
+    expect(subscribed.startsWith('LEO_SLACK_MESSAGE:\n')).toBe(true);
+    expect(subscribed).toContain('상태 액션');
+    expect(paste).not.toContain('상태 액션');
+  });
+});
 
 describe('AS1 one-shot Agent Office malformed-frame latch retirement', () => {
   const AO_ROOT_ID = 'strategy-agent-office-v1';

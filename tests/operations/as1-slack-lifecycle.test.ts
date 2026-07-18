@@ -17,6 +17,7 @@ import {
   AS1_OWNER_STATE_ROOT,
   checkTrustedNode,
   parseAs1Cli,
+  runPersonalStatusAction,
   preflightTrustedNode,
   runAs1Cli,
   runForegroundOwner,
@@ -100,6 +101,20 @@ describe('AS1 Strategy fixed CLI bindings', () => {
     expect(parseAs1Cli(['answer-foundation-strategy', 'ok']).command).toBe('answer-foundation-strategy');
     expect(() => parseAs1Cli(['answer-agent-office-strategy'])).toThrow();
     expect(() => parseAs1Cli(['answer-strategy', 'x'])).toThrow();
+  });
+
+  it('uses fixed Strategy CLI roots with no caller routing', async () => {
+    // The two closed Strategy STATUS verbs exist and parse ONLY bounded status text (no root/channel/thread/env operand).
+    expect(AS1_COMMANDS).toContain('status-agent-office-strategy');
+    expect(AS1_COMMANDS).toContain('status-foundation-strategy');
+    expect(parseAs1Cli(['status-agent-office-strategy', 'building', 'now']).answerText).toBe('building now');
+    expect(parseAs1Cli(['status-foundation-strategy', 'ok']).command).toBe('status-foundation-strategy');
+    expect(() => parseAs1Cli(['status-agent-office-strategy'])).toThrow(); // requires bounded text
+    expect(() => parseAs1Cli(['status-strategy', 'x'])).toThrow(); // not a closed verb
+    // The action's root is FIXED by the verb; an inactive subscription at that fixed root produces NO Slack post — no
+    // caller-selected root/channel/thread can activate it.
+    const root = await makeStateRoot();
+    expect(await runPersonalStatusAction('hello', root)).toContain('PERSONAL_STATUS:INACTIVE');
   });
 });
 /** Craft a canonical bridge child output (F05 strict-decode / deadline tests). */
