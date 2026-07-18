@@ -1547,45 +1547,38 @@ export class As1GatewayComposition {
     }
     // Fixed observation validation of %26 (a mismatch engages the durable global kill — fixed-destination corruption).
     const dest = await this.validateFixedAdvisorDestination(live, deps);
-    // One contained fixed buffer carrying the ACTUAL bounded Leo message bytes; delete on success AND ordinary failure.
+    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
+    // One contained fixed buffer carrying the ACTUAL bounded Leo message bytes PLUS the fixed real answer-command
+    // instruction; delete on success AND ordinary failure.
     const bufferName = `as1-${live.profile.profileStateSlug}-personal`;
+    const paste = `${current.text}\n\n[AS1] To answer Leo, run:  npm run as1:slack-pilot -- answer "<bounded answer text>"`;
     try {
-      await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(current.text, 'utf8'));
-      await deps.tmuxPort.pasteBuffer(bufferName, dest.paneId);
-      await deps.tmuxPort.sendEnter(dest.paneId);
-    } finally {
-      await deps.tmuxPort.deleteBuffer(bufferName);
+      try {
+        await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(paste, 'utf8'));
+        await deps.tmuxPort.pasteBuffer(bufferName, dest.paneId);
+        await deps.tmuxPort.sendEnter(dest.paneId);
+      } finally {
+        await deps.tmuxPort.deleteBuffer(bufferName).catch(() => undefined);
+      }
+    } catch {
+      // Ordinary pre-delivery tmux failure — MESSAGE-LOCAL: this message recorded NO correlation (record follows success
+      // below), so it discards nothing — a prior/different pending is left untouched and `recordCorrelation` refuses any
+      // conflict. The next queued message proceeds.
+      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'personal tmux delivery failed' };
     }
+    // Record this message's OWN correlation ONLY after successful paste/Enter — so a fixed cross-process answer derives
+    // the sole pending message. Idempotent for the IDENTICAL current message; a conflicting/stale pending is refused.
+    await spool.recordCorrelation(current);
     // Behavior 1 (preserved) via the DIRECT fixed Web binding to the immutable same thread — NO legacy outbox/evidence.
     const secret = live.secret.secretFor(live.profile.profileId);
     await deps.web.postMessage(secret.botToken, { channel: current.channel, threadTs: current.threadTs, text: '메시지 전달 완료 · 답변 대기 중' });
     return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'personal-direct-%26' };
   }
 
-  public spoolAdvisorResult(answerText: string): Promise<readonly string[]> {
-    if (!this.personalLeoOnly) {
-      throw new DomainError('GATEWAY_DISABLED', 'the personal Advisor result action is only available in PERSONAL_LEO_ONLY');
-    }
-    this.requireLive();
-    // §4: derive the sole pending DELIVERED message from the DIRECT in-memory current-message state — never a hashed
-    // intake id or a tmux-phase journal read. Refuse zero / undelivered (no current correlation).
-    const current = this.personalCurrent;
-    if (current === null) return Promise.resolve(['PERSONAL_RESULT:REFUSED_NO_DELIVERED']);
-    return As1FilePersonalResultSpool.open(this.stateRoot)
-      .then((spool) =>
-        spool.write({ requestId: current.requestId, sourceEventId: current.sourceEventId, channel: current.channel, threadTs: current.threadTs, answerText }),
-      )
-      .then(() => ['PERSONAL_RESULT:SPOOLED'] as readonly string[])
-      .catch((error: unknown) => {
-        if (error instanceof DomainError && error.code === 'AUTHORITY_ARTIFACT_INVALID') return ['PERSONAL_RESULT:ALREADY_TERMINAL'];
-        throw error;
-      });
-  }
-
   /**
-   * Handoff 119 §6: the foreground Gateway consumes ONE spooled result exactly once, posts the bounded answer directly
-   * through the fixed Slack Web binding to the immutable same thread, marks it complete (or a message-local failure),
-   * resets for the next Leo message, and continues. Per the §5-§6 correction, the ordinary spool consume/mark and Slack
+   * Handoff 119 §6: the foreground Gateway automatically consumes ONE ANSWERED spool result exactly once, posts the
+   * bounded answer directly through the fixed Slack Web binding to the immutable same thread, marks it complete (or a
+   * message-local failure), resets for the next Leo message, and continues. The ordinary spool consume/mark and Slack
    * post run OUTSIDE `guardedAwait` — an ordinary post failure is LOCAL to that message and NEVER latches the profile.
    */
   public async consumePersonalResult(): Promise<readonly string[]> {
@@ -1593,7 +1586,7 @@ export class As1GatewayComposition {
     const live = this.requireLive();
     const deps = this.requireDeps();
     const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
-    const entry = await spool.consumeOne();
+    const entry = await spool.consumeAnswered();
     if (entry === null) return ['PERSONAL_RESULT:NONE'];
     const secret = live.secret.secretFor(live.profile.profileId);
     const text = `RESULT [COMPLETED]: ${entry.answerText}`;

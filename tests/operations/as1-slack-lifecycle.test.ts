@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs';
 import { chmod, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
 import { As1SlackControl, readDurableKillProof } from '../../src/operations/readiness/as1-slack-control.js';
-import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor } from '../../src/runtime/as1-slack-pilot/composition.js';
+import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor, type As1CompositionDependencies } from '../../src/runtime/as1-slack-pilot/composition.js';
 import {
   AS1_FIXED_TRUSTED_NODE,
   AS1_OWNER_STATE_ROOT,
@@ -19,6 +19,7 @@ import {
   runObserverSignal,
   TRUSTED_NODE_REQUIRED,
   type As1ForegroundOwnerBoundary,
+  type As1OwnerSignal,
 } from '../../src/runtime/as1-slack-pilot/cli.js';
 import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.js';
 import {
@@ -35,7 +36,21 @@ import {
 } from '../../src/persistence/file-store/writer-lock.js';
 import { FakeClock, secretText, validSecretValues, writeSecretFile } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
-import { As1FilePersonalResultSpool } from '../../src/adapters/gateways/slack-pilot/personal-result-spool.js';
+/** A dependency graph with the COMPLETE method shape `assertCompleteDependencies` probes (the owner build gate); the
+ *  composition factory is spied out, so it is never actually invoked. */
+function dummyCompleteDeps(): As1CompositionDependencies {
+  const fn = (): Promise<null> => Promise.resolve(null);
+  return {
+    gitSource: { observe: fn, getRepositoryId: () => 'foundation-docs' },
+    web: { authTest: fn, botsInfo: fn, postMessage: fn },
+    tmuxPort: { observe: fn, bufferExists: fn, loadVerifiedBuffer: fn, pasteBuffer: fn, sendEnter: fn, deleteBuffer: fn },
+    buildSocket: () => ({}),
+    buildReceiveGrantProvenance: () => ({ assertAccepted: fn }),
+    buildDeliveryProvenance: () => ({ assertAccepted: fn }),
+    evidenceVerifier: { verify: fn },
+    missionAuthorityRoot: 'advisor/jobs/x',
+  } as unknown as As1CompositionDependencies;
+}
 
 const BRIDGE_RESULT_SCHEMA = 'agent-office.as1-pidfd-bridge-result.v1';
 /** Craft a canonical bridge child output (F05 strict-decode / deadline tests). */
@@ -1102,26 +1117,65 @@ describe('AS1 fixed trusted-Node preflight (handoff 112 §5.1)', () => {
 
 describe('AS1 PERSONAL_LEO_ONLY direct-result spool (handoff 119)', () => {
   it('isolates one PERSONAL_LEO_ONLY result failure and accepts the next message', async () => {
-    const root = await makeStateRoot();
-    const spool = await As1FilePersonalResultSpool.open(root);
-    // Two sequential Leo messages each spool exactly one bounded, self-routing result.
-    await spool.write({ requestId: 'as1-intake-0001', sourceEventId: 'Ev0AGENTOFFICE01', channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', answerText: 'first answer' });
-    await spool.write({ requestId: 'as1-intake-0002', sourceEventId: 'Ev0AGENTOFFICE02', channel: 'CAGENTOFFICE01', threadTs: '1720000000.000200', answerText: 'second answer' });
-    // A duplicate spool for the same message is refused (already-terminal / O_EXCL).
-    await expect(
-      spool.write({ requestId: 'as1-intake-0001', sourceEventId: 'Ev0AGENTOFFICE01', channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', answerText: 'dup' }),
-    ).rejects.toThrow(/already spooled/u);
-    // Consume message 1's result and record a message-local FAILURE — it is never consumed again and does not block.
-    const first = await spool.consumeOne();
-    expect(first?.requestId).toBe('as1-intake-0001');
-    expect(first?.threadTs).toBe('1720000000.000100');
-    await spool.markFailed(first?.requestId ?? '');
-    // The failure is isolated: the NEXT queued message's result is accepted and consumed exactly once.
-    const second = await spool.consumeOne();
-    expect(second?.requestId).toBe('as1-intake-0002');
-    expect(second?.answerText).toBe('second answer');
-    await spool.markComplete(second?.requestId ?? '');
-    // Both messages resolved exactly once; the spool is drained.
-    expect(await spool.consumeOne()).toBeNull();
+    // Drive the REAL runForegroundOwner loop against a minimal owner-shaped fake (one contained vi.spyOn of the
+    // composition factory) — no full harness. The owner auto-consumes: the FIRST PERSONAL result post FAILS
+    // (message-local), and the loop must NOT halt — it delivers + consumes a SECOND message (POSTED) before a clean stop.
+    let deliverCalls = 0;
+    let consumeCalls = 0;
+    const events: string[] = [];
+    const fakeComposition = {
+      start: () => Promise.resolve({ connected: true, reason: 'RECEIVING_ARMED', state: 'RECEIVING_ONE_PROFILE' }),
+      isPersonalLeoOnly: () => true,
+      hasFailureBarrier: () => false,
+      observeReceiveGrantOnce: () => Promise.resolve('RECEIVING'),
+      deliverPending: () => {
+        deliverCalls += 1;
+        events.push(`deliver:${deliverCalls}`);
+        return Promise.resolve({ phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'personal-direct-%26' });
+      },
+      consumePersonalResult: () => {
+        consumeCalls += 1;
+        const outcome = consumeCalls === 1 ? 'PERSONAL_RESULT:FAILED' : 'PERSONAL_RESULT:POSTED';
+        events.push(outcome);
+        return Promise.resolve([outcome]);
+      },
+      closeIncidentGateNow: () => undefined,
+      stop: () => Promise.resolve({ cleanupProven: true, state: 'DISABLED_CLEAN', detail: 'STOPPED_CLEAN', incidentDominated: false }),
+      incidentKill: () => Promise.resolve({ cleanupProven: true, state: 'DISABLED_LATCHED', detail: 'INCIDENT', incidentDominated: true }),
+      close: () => Promise.resolve(),
+      isOpen: () => true,
+      status: () => ({ state: 'RECEIVING_ONE_PROFILE' }),
+      consumeLastCleanup: () => null,
+    };
+    const open = vi.spyOn(As1GatewayComposition, 'open').mockImplementation((_descriptor, options) => {
+      (options as { onLockAcquired?: () => void }).onLockAcquired?.(); // install the owner signal handlers
+      return Promise.resolve(fakeComposition as unknown as As1GatewayComposition);
+    });
+    try {
+      const signals = new Map<As1OwnerSignal, () => void>();
+      const boundary = {
+        descriptor: parseRuntimeDescriptor(committedDescriptorSync()),
+        stateRoot: AS1_OWNER_STATE_ROOT,
+        clock: { now: () => '2026-07-14T22:05:00.000Z' },
+        personalLeoOnly: true,
+        buildDeps: () => dummyCompleteDeps(),
+        initialize: () => Promise.resolve(),
+        installSignalHandlers: (handlers: Record<As1OwnerSignal, () => void>) => {
+          (['SIGINT', 'SIGTERM', 'SIGUSR2'] as const).forEach((s) => signals.set(s, handlers[s]));
+          return ['SIGINT', 'SIGTERM', 'SIGUSR2'];
+        },
+        // After the FAILED-then-POSTED sequence over two delivered messages, request a clean stop.
+        delay: () => {
+          if (deliverCalls >= 2 && consumeCalls >= 2) signals.get('SIGTERM')?.();
+          return Promise.resolve();
+        },
+      } as unknown as As1ForegroundOwnerBoundary;
+      const result = await runForegroundOwner(boundary);
+      expect(deliverCalls).toBe(2); // TWO delivery attempts — the first result failure did NOT halt the loop
+      expect(events).toEqual(['deliver:1', 'PERSONAL_RESULT:FAILED', 'deliver:2', 'PERSONAL_RESULT:POSTED']);
+      expect(result.ok).toBe(true); // clean stop after the second message
+    } finally {
+      open.mockRestore();
+    }
   });
 });

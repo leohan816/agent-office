@@ -42,8 +42,9 @@ import {
 } from '../../adapters/gateways/slack-pilot/authority-provenance.js';
 import { NodeAs1GitProvenanceVerifier } from '../../adapters/gateways/slack-pilot/git-provenance.js';
 import { readDurableKillProof } from '../../operations/readiness/as1-slack-control.js';
-import { redactError } from '../../application/slack-pilot/contracts.js';
+import { redactError, requireBoundedMessageText } from '../../application/slack-pilot/contracts.js';
 import { createSystemRuntimeIdentity, type AgentOfficeRuntimeIdentity } from '../identity.js';
+import { As1FilePersonalResultSpool } from '../../adapters/gateways/slack-pilot/personal-result-spool.js';
 import {
   As1GatewayComposition,
   AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
@@ -117,7 +118,7 @@ export async function preflightTrustedNode(
   return checkTrustedNode(execPath, facts);
 }
 
-export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check'] as const;
+export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check', 'answer'] as const;
 export type As1Command = (typeof AS1_COMMANDS)[number];
 
 /** The two verbs that cross the owner filesystem/secret boundary and require the exact `--env-file` path. */
@@ -127,6 +128,8 @@ export interface As1CliInvocation {
   readonly command: As1Command;
   /** The exact `--env-file` path for start/redacted-check; null for the zero-operand observer verbs. */
   readonly envFilePath: string | null;
+  /** Handoff 119: the ONLY operand of the fixed `answer` action — the bounded Advisor answer text. Absent otherwise. */
+  readonly answerText?: string;
 }
 
 /**
@@ -141,6 +144,13 @@ export function parseAs1Cli(argv: readonly string[]): As1CliInvocation {
   }
   const command = first as As1Command;
   const rest = argv.slice(1);
+  if (command === 'answer') {
+    // Handoff 119: the fixed answer action's ONLY operand is bounded answer text. EVERY remaining token is treated
+    // STRICTLY as answer text and NONE as an option — a legitimate bounded answer may contain `--`-like prose. The
+    // fixed leo-v1 root, channel, thread, and the sole pending correlation are all internal, never operands.
+    if (rest.length === 0) throw new DomainError('INVALID_SCHEMA', 'as1 cli answer requires bounded answer text');
+    return { command, envFilePath: null, answerText: requireBoundedMessageText(rest.join(' '), 'as1 cli answer text') };
+  }
   if (!ENV_FILE_COMMANDS.includes(command)) {
     // Zero-operand observer verb: no --env-file, PID, signal, profile, path, destination, or reason.
     if (rest.length !== 0) {
@@ -180,8 +190,20 @@ export interface As1CliResult {
  * separate-process observer signal path for stop/incident-kill is `runObserverSignal`; `status` here reports the
  * owned control's redacted projection.
  */
-export async function runAs1Cli(invocation: As1CliInvocation, composition: As1GatewayComposition): Promise<As1CliResult> {
+export async function runAs1Cli(
+  invocation: As1CliInvocation,
+  composition: As1GatewayComposition,
+  // Internal test seam ONLY (defaults unconditionally to the fixed leo-v1 root in production; never exposed to callers).
+  personalAnswerRoot: string = AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
+): Promise<As1CliResult> {
   switch (invocation.command) {
+    case 'answer': {
+      // Handoff 119: the fixed cross-process answer action — no composition/lock; the sole pending correlation and the
+      // fixed leo-v1 root are internal. It attaches the bounded answer for the foreground owner to auto-post.
+      if (invocation.answerText === undefined) throw new DomainError('INVALID_SCHEMA', 'answer requires the bounded answer text');
+      const outcome = await runPersonalAnswerAction(invocation.answerText, personalAnswerRoot);
+      return { command: 'answer', ok: outcome.includes('PERSONAL_ANSWER:RECORDED'), lines: ['AS1_SLACK_PILOT ANSWER', `REASON: ${outcome.join('|')}`] };
+    }
     case 'redacted-check': {
       if (invocation.envFilePath === null) throw new DomainError('INVALID_SCHEMA', 'redacted-check requires --env-file');
       const config = await parseSecretConfigFile(invocation.envFilePath);
@@ -483,13 +505,23 @@ function ownerLine(ok: boolean, outcome: string, state: string): As1CliResult {
  * adds no reconnect, profile rollover, generic scheduler, or framework, and opens no listener/socket/route.
  */
 /**
- * Handoff 119 §3: the ONE fixed PERSONAL_LEO_ONLY bounded-answer Advisor action. Its only value is answer text; it
- * invokes the composition's fixed spool action, which derives the sole delivered message's request/source-event/thread
- * routing internally. No caller-selected intake/path/channel/profile/target/command. The foreground owner
- * (`runForegroundOwner`) then automatically consumes the spooled result and posts it to the immutable same thread.
+ * Handoff 119 §3: the ONE fixed, production-callable PERSONAL_LEO_ONLY bounded-answer action. It is CROSS-PROCESS — the
+ * separate fixed Advisor process invokes it (no access to the foreground's in-memory state). Its only value is bounded
+ * answer text; it derives the SOLE pending message's correlation from the fixed spool at the fixed leo-v1 state root and
+ * attaches the answer. No caller-selected intake/path/channel/profile/target/command. The foreground owner
+ * (`runForegroundOwner`) then automatically consumes the answered result and posts it to the immutable same thread.
  */
-export function submitPersonalAdvisorResult(composition: As1GatewayComposition, answerText: string): Promise<readonly string[]> {
-  return composition.spoolAdvisorResult(answerText);
+export async function runPersonalAnswerAction(
+  answerText: string,
+  // Internal test seam ONLY — defaults UNCONDITIONALLY to the fixed leo-v1 root in production, and is never exposed
+  // through AS1_COMMANDS/argv/env/the pasted command (mirrors the composition's `expectedPersonalRoot`).
+  expectedRoot: string = AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
+): Promise<readonly string[]> {
+  const spool = await As1FilePersonalResultSpool.open(expectedRoot);
+  const pending = await spool.takePending();
+  if (pending === null) return ['PERSONAL_ANSWER:NO_PENDING'];
+  await spool.answer(pending.requestId, answerText);
+  return ['PERSONAL_ANSWER:RECORDED'];
 }
 
 export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): Promise<As1CliResult> {
@@ -524,6 +556,9 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
     clock: boundary.clock,
     deps,
     personalLeoOnly: boundary.personalLeoOnly === true,
+    // Bind the PERSONAL gate to THIS owner's own state root; in production that root IS the fixed leo-v1 literal (main's
+    // AS1_SLACK_STATE_ROOT check), so this equals the default and is production-neutral.
+    expectedPersonalRoot: boundary.stateRoot,
     onLockAcquired: () => {
       installed = boundary.installSignalHandlers({
         SIGINT: () => request('CLEAN_STOP'),
@@ -750,6 +785,15 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
  */
 async function main(): Promise<void> {
   const invocation = parseAs1Cli(process.argv.slice(2));
+
+  if (invocation.command === 'answer') {
+    // Handoff 119: the fixed cross-process answer action derives the fixed leo-v1 root + the sole pending correlation
+    // internally; it opens no composition/writer lock, network, tmux, or secret. Only bounded answer text is accepted.
+    const outcome = await runPersonalAnswerAction(invocation.answerText ?? '');
+    process.stdout.write(`AS1_SLACK_PILOT ANSWER\nREASON: ${outcome.join('|')}\n`);
+    process.exitCode = outcome.includes('PERSONAL_ANSWER:RECORDED') ? 0 : 2;
+    return;
+  }
 
   if (invocation.command === 'stop' || invocation.command === 'incident-kill') {
     const result = await runObserverSignal(invocation.command === 'stop' ? 'CLEAN_STOP' : 'INCIDENT_KILL');

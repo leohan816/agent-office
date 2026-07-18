@@ -30,8 +30,9 @@ import {
 } from '../../src/runtime/as1-slack-pilot/composition.js';
 import {
   buildAs1ProductionDependencies,
+  parseAs1Cli,
+  runAs1Cli,
   runForegroundOwner,
-  submitPersonalAdvisorResult,
   type As1ForegroundOwnerBoundary,
   type As1OwnerSignal,
 } from '../../src/runtime/as1-slack-pilot/cli.js';
@@ -599,40 +600,58 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
   });
 
   it('handles two sequential PERSONAL_LEO_ONLY messages with same-thread replies and dedupe', async () => {
-    const { composition, socket, web } = await startAgentOfficeComposition({ personalLeoOnly: true });
-    try {
-      await composition.start();
-      // Message 1
-      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
-      const intake1 = composition.lastIntake();
-      expect(intake1).not.toBeNull();
-      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
-      // Dedupe: a DUPLICATE Slack event creates NO second intake (immutable root-thread correlation preserved).
-      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
-      expect(composition.lastIntake()).toBe(intake1);
-      // The Advisor answers; the foreground owner posts it to the SAME thread and resets for the next message.
-      expect(await submitPersonalAdvisorResult(composition, 'answer one')).toContain('PERSONAL_RESULT:SPOOLED'); // fixed CLI action
-      const postsBefore = web.posted.length;
-      expect(await composition.consumePersonalResult()).toContain('PERSONAL_RESULT:POSTED');
-      expect(web.posted.length).toBe(postsBefore + 1);
-      const reply1 = web.posted[web.posted.length - 1]?.request;
-      expect(reply1?.threadTs).toBe('1720000000.000100');
-      expect(reply1?.text).toContain('answer one');
-      expect(composition.lastIntake()).toBeNull(); // reset for the next Leo message
-      // Message 2 (a distinct sequential root)
-      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
-      const intake2 = composition.lastIntake();
-      expect(intake2).not.toBeNull();
-      expect(intake2).not.toBe(intake1);
-      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
-      expect(await submitPersonalAdvisorResult(composition, 'answer two')).toContain('PERSONAL_RESULT:SPOOLED'); // fixed CLI action
-      expect(await composition.consumePersonalResult()).toContain('PERSONAL_RESULT:POSTED');
-      const reply2 = web.posted[web.posted.length - 1]?.request;
-      expect(reply2?.threadTs).toBe('1720000000.000200'); // same thread as message 2, not message 1
-      expect(reply2?.text).toContain('answer two');
-    } finally {
-      await composition.stop();
-    }
+    // Drive the REAL runForegroundOwner loop over a real PERSONAL composition + the full owner harness. Each message is
+    // delivered to the fixed %26; the separate Advisor answers via the EXACT parsed production command; and the owner
+    // loop AUTOMATICALLY consumes + posts to the SAME thread, then advances to the next sequential message.
+    const clock = new FakeClock(CLOCK_ISO);
+    const stateRoot = await makeStateRoot();
+    const world = fakeWireWorld();
+    const { filePath } = await writeSecretFile(secretText(validSecretValues()));
+    const gitSource = new FakeGitSource();
+    gitSource.setLazy(RECEIVE_GRANT_REF, async () => validReceiveGrant(await boundGrantHashes(stateRoot, 'agent-office-advisor')));
+    const socket = new FakeCompositionSocket();
+    const signals = new Map<As1OwnerSignal, () => void>();
+    let tick = 0;
+    const boundary: As1ForegroundOwnerBoundary = {
+      descriptor: enabledDescriptor(filePath),
+      stateRoot,
+      clock,
+      personalLeoOnly: true,
+      buildDeps: () => fullFakeDeps(gitSource, world, { buildSocket: () => socket }),
+      initialize: () => Promise.resolve(),
+      installSignalHandlers: (handlers) => {
+        (['SIGINT', 'SIGTERM', 'SIGUSR2'] as const).forEach((s) => signals.set(s, handlers[s]));
+        return ['SIGINT', 'SIGTERM', 'SIGUSR2'];
+      },
+      // The delay hook (end of each loop tick) drives the sequential scenario: deliver msg1 (+ a DUPLICATE event that
+      // must dedupe) → Advisor answers msg1 via the parsed command → deliver msg2 → answer msg2 → clean stop.
+      delay: async () => {
+        tick += 1;
+        if (tick === 1) {
+          await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
+          await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1b', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' })); // DUPLICATE event id → deduped
+        } else if (tick === 2) {
+          // The Advisor answers through the EXACT parsed production dispatch (parse -> runAs1Cli 'answer'), not the bare
+          // helper. The 'answer' verb needs no composition (the fixed leo-v1 root + sole pending correlation are internal).
+          await runAs1Cli(parseAs1Cli(['answer', 'answer', 'one']), {} as unknown as As1GatewayComposition, stateRoot);
+        } else if (tick === 3) {
+          await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
+        } else if (tick === 4) {
+          await runAs1Cli(parseAs1Cli(['answer', 'answer', 'two']), {} as unknown as As1GatewayComposition, stateRoot);
+        } else {
+          signals.get('SIGTERM')?.();
+        }
+      },
+    };
+    const result = await runForegroundOwner(boundary);
+    expect(result.ok).toBe(true); // clean stop after BOTH sequential messages were answered
+    // The owner posted each answer to its OWN thread; the duplicate event produced no third answer.
+    const answers = world.web.posted.filter((p) => p.request.text.startsWith('RESULT [COMPLETED]'));
+    expect(answers.length).toBe(2);
+    expect(answers[0]?.request.text).toContain('answer one');
+    expect(answers[0]?.request.threadTs).toBe('1720000000.000100');
+    expect(answers[1]?.request.text).toContain('answer two');
+    expect(answers[1]?.request.threadTs).toBe('1720000000.000200'); // same thread as message 2, not message 1
   });
 
   it('rejects a second top-level root (one root-to-result round trip per channel)', async () => {
