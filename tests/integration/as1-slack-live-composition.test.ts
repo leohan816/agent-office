@@ -31,6 +31,7 @@ import {
 import {
   buildAs1ProductionDependencies,
   runForegroundOwner,
+  submitPersonalAdvisorResult,
   type As1ForegroundOwnerBoundary,
   type As1OwnerSignal,
 } from '../../src/runtime/as1-slack-pilot/cli.js';
@@ -610,7 +611,7 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
       await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
       expect(composition.lastIntake()).toBe(intake1);
       // The Advisor answers; the foreground owner posts it to the SAME thread and resets for the next message.
-      expect(await composition.spoolAdvisorResult('answer one')).toContain('PERSONAL_RESULT:SPOOLED');
+      expect(await submitPersonalAdvisorResult(composition, 'answer one')).toContain('PERSONAL_RESULT:SPOOLED'); // fixed CLI action
       const postsBefore = web.posted.length;
       expect(await composition.consumePersonalResult()).toContain('PERSONAL_RESULT:POSTED');
       expect(web.posted.length).toBe(postsBefore + 1);
@@ -624,7 +625,7 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
       expect(intake2).not.toBeNull();
       expect(intake2).not.toBe(intake1);
       expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
-      expect(await composition.spoolAdvisorResult('answer two')).toContain('PERSONAL_RESULT:SPOOLED');
+      expect(await submitPersonalAdvisorResult(composition, 'answer two')).toContain('PERSONAL_RESULT:SPOOLED'); // fixed CLI action
       expect(await composition.consumePersonalResult()).toContain('PERSONAL_RESULT:POSTED');
       const reply2 = web.posted[web.posted.length - 1]?.request;
       expect(reply2?.threadTs).toBe('1720000000.000200'); // same thread as message 2, not message 1

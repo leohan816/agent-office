@@ -24,7 +24,7 @@ import {
   type As1PilotReceiveGrantV1,
   type As1PointerDeliveryGrantV1,
 } from '../../application/slack-pilot/contracts.js';
-import { As1InboundService, type As1ProfileControlPort, type As1ProfileRuntimeContext } from '../../application/slack-pilot/service.js';
+import { As1InboundService, type As1PersonalCorrelation, type As1ProfileControlPort, type As1ProfileRuntimeContext } from '../../application/slack-pilot/service.js';
 import { As1ProfileInboundStore } from '../../application/slack-pilot/inbound-store.js';
 import {
   allAs1Profiles,
@@ -283,6 +283,10 @@ export class As1GatewayComposition {
    *  LOCAL to that message — no profile/global latch. The owner loop consumes this to reset and continue to the next
    *  Leo root. Distinct from `failureAdmission`/`progressionHalted`, which stay reserved for the corruption classes. */
   private personalMessageFailed = false;
+  /** Handoff 119 direct-%26 branch: the ONLY delivered-state record for the current PERSONAL_LEO_ONLY message — an
+   *  in-memory correlation carrying the request id, source event id, same-thread ts, and channel. It replaces the
+   *  hashed delivery id + tmux journal + receive-grant/lease/evidence authority for the personal message path. */
+  private personalCurrent: As1PersonalCorrelation | null = null;
   /** Handoff 116 §5 (PERSONAL_LEO_ONLY): monotonic sequence for the per-message minted single-use receive grants, so
    *  each minted grant carries a unique `receiveGrantId` (hence its own immutable binding — no reuse, no key change). */
   private leoRootSeq = 0;
@@ -732,12 +736,20 @@ export class As1GatewayComposition {
       // source are unchanged; this reuses the same construction-bound `incidentGuardedPort`/`incidentGuardedCallback`
       // pattern applied to the startup verifier / transport / evidence / outbox ports.
       const inboundStore = deps.decorateInboundStore !== undefined ? deps.decorateInboundStore(store) : store;
-      const service = new As1InboundService(boundContext, grant, this.incidentGuardedPort(inboundStore), this.incidentGuardedPort(gate));
+      const service = new As1InboundService(boundContext, grant, this.incidentGuardedPort(inboundStore), this.incidentGuardedPort(gate), this.personalLeoOnly);
       socket.onEnvelope(async (envelope) => {
-        const result = await service.processEnvelope({
-          ...envelope,
-          acknowledge: this.incidentGuardedCallback(() => envelope.acknowledge()),
-        });
+        // Handoff 119: PERSONAL acknowledges the safely-parsed Leo event through the RAW envelope callback (never
+        // incident-guarded — an ordinary ACK failure stays message-local, not a global latch). Non-PERSONAL unchanged.
+        const acknowledge = this.isPersonalLeoOnly()
+          ? (): Promise<void> => envelope.acknowledge()
+          : this.incidentGuardedCallback(() => envelope.acknowledge());
+        const result = await service.processEnvelope({ ...envelope, acknowledge });
+        // Handoff 119 PERSONAL_LEO_ONLY intake: a fresh deduped Leo message is queued in-memory (with bounded text). Just
+        // expose it to delivery; a duplicate/foreign/malformed event enqueues nothing (result.personal is undefined).
+        if (this.personalLeoOnly) {
+          if (result.personal !== undefined) this.lastIntakeId = result.personal.requestId;
+          return;
+        }
         // R2 recovery §5.7 ACCEPTED: ONLY a NEW_MISSION_ROOT with a durably materialized intake triggers the first
         // status. While the failure siblings are still OPEN, send ACCEPTED through RESPONSE_RECORDED BEFORE exposing the
         // intake to delivery — a rejected/duplicate/continuation/bot/wrong-user/wrong-channel/malformed event sends none.
@@ -952,7 +964,10 @@ export class As1GatewayComposition {
     this.acceptedDeliveryGrant = null;
     this.acceptedLease = null;
     this.personalMessageFailed = false;
-    this.swapInFreshReceiveGrant();
+    this.personalCurrent = null;
+    // Handoff 119: the PERSONAL direct-%26 path uses NO receive grant/root slot, so advancing to the next message never
+    // swaps or mints a grant. (The swap stays referenced for the untouched legacy personal-grant paths.)
+    if (!this.isPersonalLeoOnly()) this.swapInFreshReceiveGrant();
   }
 
   /**
@@ -1102,11 +1117,12 @@ export class As1GatewayComposition {
       await this.enterFailureBarrier(live, entryClassification);
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure barrier at delivery entry' };
     }
-    // Handoff 116 §2/§7 (P1): re-validate the fixed agent-office-advisor destination at delivery. A fixed-destination /
-    // identity / profile mismatch is a CORRUPTION class — it engages the durable global kill and fails closed GLOBALLY
-    // (never message-local), BEFORE the internal authority is built or any ordinary per-message failure can be posted.
-    if (this.personalLeoOnly) {
-      await this.validateFixedAdvisorDestination(live, deps);
+    // Handoff 119 direct-%26 branch: PERSONAL_LEO_ONLY delivers through a small fixed paste to %26 — NO receive
+    // grant/lease/provenance, NO As1ExactTransport, NO hashed delivery id or tmux journal. Fixed observation
+    // validation (a destination mismatch is fixed-destination corruption → global kill) then direct in-memory
+    // delivered state. The default/legacy grant+transport path below is untouched.
+    if (this.isPersonalLeoOnly()) {
+      return await this.deliverPersonalDirect(live, deps);
     }
     // The delivery authority is either observed from the construction-bound Git mission root (default) or, in the
     // personal Leo-only runtime, constructed and trusted in memory (handoff 116 §5). Both feed the SAME exact
@@ -1516,29 +1532,54 @@ export class As1GatewayComposition {
    * It refuses a latch, zero pending messages, an undelivered message, or an already-terminal one (the spool write is
    * O_EXCL). It only SPOOLS the bounded answer — no Git/evidence/provenance — for the foreground owner to consume.
    */
-  public async spoolAdvisorResult(answerText: string): Promise<readonly string[]> {
+  /**
+   * Handoff 119 direct-%26 delivery for PERSONAL_LEO_ONLY. NO receive grant/lease/provenance, NO As1ExactTransport, NO
+   * hashed delivery id or tmux journal: fixed observation validation of %26 (a mismatch is fixed-destination corruption
+   * → global kill), then ONE contained fixed buffer — load pinned bounded bytes, paste, Enter, delete — and record the
+   * direct in-memory delivered state. Behavior 1 preserved: immediate idempotent same-thread DELIVERY_CONFIRMED.
+   */
+  private async deliverPersonalDirect(live: LiveState, deps: As1CompositionDependencies): Promise<As1DeliveryResult> {
+    // Pull the sole current-message correlation from the in-memory service queue (NO store/root/grant/evidence).
+    this.personalCurrent ??= live.service.takeNextPersonal();
+    const current = this.personalCurrent;
+    if (current === null) {
+      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'no queued personal message' };
+    }
+    // Fixed observation validation of %26 (a mismatch engages the durable global kill — fixed-destination corruption).
+    const dest = await this.validateFixedAdvisorDestination(live, deps);
+    // One contained fixed buffer carrying the ACTUAL bounded Leo message bytes; delete on success AND ordinary failure.
+    const bufferName = `as1-${live.profile.profileStateSlug}-personal`;
+    try {
+      await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(current.text, 'utf8'));
+      await deps.tmuxPort.pasteBuffer(bufferName, dest.paneId);
+      await deps.tmuxPort.sendEnter(dest.paneId);
+    } finally {
+      await deps.tmuxPort.deleteBuffer(bufferName);
+    }
+    // Behavior 1 (preserved) via the DIRECT fixed Web binding to the immutable same thread — NO legacy outbox/evidence.
+    const secret = live.secret.secretFor(live.profile.profileId);
+    await deps.web.postMessage(secret.botToken, { channel: current.channel, threadTs: current.threadTs, text: '메시지 전달 완료 · 답변 대기 중' });
+    return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'personal-direct-%26' };
+  }
+
+  public spoolAdvisorResult(answerText: string): Promise<readonly string[]> {
     if (!this.personalLeoOnly) {
       throw new DomainError('GATEWAY_DISABLED', 'the personal Advisor result action is only available in PERSONAL_LEO_ONLY');
     }
-    const live = this.requireLive();
-    const intakeId = this.lastIntakeId; // sequential processing keeps EXACTLY one pending personal message
-    if (intakeId === null) return ['PERSONAL_RESULT:REFUSED_NO_INTAKE'];
-    // Handoff 119 correction (§5-§6): this per-message result path uses NO global/profile latch — the ordinary spool
-    // and derivation reads run OUTSIDE `guardedAwait` (which couples to the incident-latch machinery), so a failure here
-    // is local to this message and never latches.
-    const deliveryId = `as1p-${hashCanonical({ intakeId }).slice('sha256:'.length, 'sha256:'.length + 40)}`;
-    const phase = await live.store.readTmuxPhase(deliveryId);
-    if (phase !== 'TRANSPORT_RECORDED') return ['PERSONAL_RESULT:REFUSED_UNDELIVERED'];
-    const root = await live.store.findRootByIntakeId(intakeId);
-    if (root === null) return ['PERSONAL_RESULT:REFUSED_NO_ROOT'];
-    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
-    try {
-      await spool.write({ requestId: intakeId, sourceEventId: root.sourceEventId, channel: live.wire.channelId, threadTs: root.rootTs, answerText });
-    } catch (error) {
-      if (error instanceof DomainError && error.code === 'AUTHORITY_ARTIFACT_INVALID') return ['PERSONAL_RESULT:ALREADY_TERMINAL'];
-      throw error;
-    }
-    return ['PERSONAL_RESULT:SPOOLED'];
+    this.requireLive();
+    // §4: derive the sole pending DELIVERED message from the DIRECT in-memory current-message state — never a hashed
+    // intake id or a tmux-phase journal read. Refuse zero / undelivered (no current correlation).
+    const current = this.personalCurrent;
+    if (current === null) return Promise.resolve(['PERSONAL_RESULT:REFUSED_NO_DELIVERED']);
+    return As1FilePersonalResultSpool.open(this.stateRoot)
+      .then((spool) =>
+        spool.write({ requestId: current.requestId, sourceEventId: current.sourceEventId, channel: current.channel, threadTs: current.threadTs, answerText }),
+      )
+      .then(() => ['PERSONAL_RESULT:SPOOLED'] as readonly string[])
+      .catch((error: unknown) => {
+        if (error instanceof DomainError && error.code === 'AUTHORITY_ARTIFACT_INVALID') return ['PERSONAL_RESULT:ALREADY_TERMINAL'];
+        throw error;
+      });
   }
 
   /**

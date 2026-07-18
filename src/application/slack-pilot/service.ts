@@ -54,6 +54,19 @@ export interface ProcessResult {
   readonly classification: string;
   readonly intakeId: string | null;
   readonly latched: boolean;
+  /** Handoff 119: the PERSONAL_LEO_ONLY current-message correlation for a fresh, deduped Leo message (bounded text
+   *  carried), when the runtime is PERSONAL and the envelope is a new Leo message. Absent for the default runtime. */
+  readonly personal?: As1PersonalCorrelation;
+}
+
+/** Handoff 119: the PERSONAL_LEO_ONLY in-memory current-message correlation — NO receive grant, ROOT_BOUND, root slot,
+ *  or evidence record. It carries only the message's own identity + immutable same-thread routing + bounded text. */
+export interface As1PersonalCorrelation {
+  readonly requestId: string;
+  readonly sourceEventId: string;
+  readonly threadTs: string;
+  readonly channel: string;
+  readonly text: string;
 }
 
 /**
@@ -118,13 +131,58 @@ export class As1InboundService {
    *  reference below reads the current message's grant with no other change. */
   private activeGrant: As1PilotReceiveGrantV1;
 
+  /** Handoff 119: PERSONAL_LEO_ONLY event dedupe + sequential in-memory current-message queue (no store/grant/root). */
+  private readonly personalSeen = new Set<string>();
+  private readonly personalQueue: As1PersonalCorrelation[] = [];
+
   public constructor(
     private readonly context: As1ProfileRuntimeContext,
     grant: As1PilotReceiveGrantV1,
     private readonly store: As1ProfileInboundStore,
     private readonly gate: As1ProfileControlPort,
+    private readonly personalLeoOnly = false,
   ) {
     this.activeGrant = grant;
+  }
+
+  /** Handoff 119: pop the oldest queued PERSONAL current-message correlation (sequential; one in flight at a time). */
+  public takeNextPersonal(): As1PersonalCorrelation | null {
+    return this.personalQueue.shift() ?? null;
+  }
+
+  /**
+   * Handoff 119 PERSONAL_LEO_ONLY intake bypass: fixed Leo/workspace/App/channel allowlist + exact source-event-id
+   * dedupe + a sequential in-memory correlation carrying bounded text. NO receive-grant binding, ROOT_BOUND/root slot,
+   * envelope/event hash, or evidence record. A duplicate/foreign/malformed event enqueues nothing and is acked-or-dropped.
+   */
+  private async handlePersonalEnvelope(envelope: As1InboundEnvelope): Promise<ProcessResult> {
+    const extracted = this.tryExtractIdentity(envelope);
+    if (extracted === null) return { acked: false, classification: 'MALFORMED_NO_ENVELOPE_ID', intakeId: null, latched: false };
+    if (
+      extracted.teamId !== this.context.workspaceId ||
+      extracted.apiAppId !== this.context.appId ||
+      extracted.channel !== this.context.channelId ||
+      extracted.user !== this.context.leoUserId
+    ) {
+      return { acked: false, classification: 'REJECTED_FIXED_ALLOWLIST', intakeId: null, latched: false };
+    }
+    // A safely-parsed valid/duplicate Leo event is transport-ACKed through the raw envelope callback. An ordinary ACK
+    // failure is message-local (swallowed) — never a global/profile latch (the caller passes the non-guarded ack).
+    await envelope.acknowledge().catch(() => undefined);
+    if (this.personalSeen.has(extracted.eventId)) {
+      return { acked: true, classification: 'DUPLICATE_EVENT', intakeId: null, latched: false };
+    }
+    this.personalSeen.add(extracted.eventId);
+    const threadTs = extracted.threadTs !== null && extracted.threadTs !== extracted.ts ? extracted.threadTs : extracted.ts;
+    const personal: As1PersonalCorrelation = {
+      requestId: extracted.eventId,
+      sourceEventId: extracted.eventId,
+      threadTs,
+      channel: extracted.channel,
+      text: extracted.text,
+    };
+    this.personalQueue.push(personal);
+    return { acked: true, classification: 'PERSONAL_ROOT', intakeId: personal.requestId, latched: false, personal };
   }
 
   private get grant(): As1PilotReceiveGrantV1 {
@@ -257,6 +315,10 @@ export class As1InboundService {
   }
 
   public async processEnvelope(envelope: As1InboundEnvelope): Promise<ProcessResult> {
+    // Handoff 119: PERSONAL_LEO_ONLY takes the fully bypassed in-memory intake path (fixed allowlist + dedupe +
+    // correlation) BEFORE the legacy global/profile latch gate — startup validated once, no per-message latch traversal.
+    // The default runtime path below (latch gate + receive-grant/ROOT_BOUND/root-slot/evidence intake) is byte-unchanged.
+    if (this.personalLeoOnly) return this.handlePersonalEnvelope(envelope);
     // Graceful entry gate: control open/owned, no global kill, active profile matches, this profile not latched.
     // The gate is re-asserted immediately before every subsequent side effect below (review B05).
     if (this.latched || !(await this.gate.isReceiveActionable())) {

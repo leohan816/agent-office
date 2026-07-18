@@ -482,6 +482,16 @@ function ownerLine(ok: boolean, outcome: string, state: string): As1CliResult {
  * re-observation + exclusive-expiry + delivery + evidence loop until a signal, divergence, or expiry terminal. It
  * adds no reconnect, profile rollover, generic scheduler, or framework, and opens no listener/socket/route.
  */
+/**
+ * Handoff 119 §3: the ONE fixed PERSONAL_LEO_ONLY bounded-answer Advisor action. Its only value is answer text; it
+ * invokes the composition's fixed spool action, which derives the sole delivered message's request/source-event/thread
+ * routing internally. No caller-selected intake/path/channel/profile/target/command. The foreground owner
+ * (`runForegroundOwner`) then automatically consumes the spooled result and posts it to the immutable same thread.
+ */
+export function submitPersonalAdvisorResult(composition: As1GatewayComposition, answerText: string): Promise<readonly string[]> {
+  return composition.spoolAdvisorResult(answerText);
+}
+
 export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): Promise<As1CliResult> {
   // handoff 112 §5.1: the fixed trusted-Node preflight gates the foreground owner BEFORE the dependency graph is built
   // or the state root initialized — a non-trusted interpreter fails closed with the single redacted reason, having
@@ -653,34 +663,34 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         // A benign AWAITING (no grant/lease yet) simply keeps polling.
       }
       if (delivered) {
-        // R2 recovery §5.7: continue projecting evidence on the 250 ms loop AFTER delivery, not once — ACK acceptance
-        // posts DELIVERY_CONFIRMED (Korean), the INTAKE English progress ACK is suppressed, and RESULT is projected —
-        // until RESULT_OUTBOUND:DELIVERED, then stop cleanly. A post-delivery processing failure latches and halts.
-        const outcomes = await composition.ingestEvidenceAndProject();
-        if (incidentPending()) {
-          terminal = 'INCIDENT_KILL';
-          break;
-        }
-        if (composition.hasFailureBarrier()) {
-          terminal = 'DELIVERY_HALTED';
-          break;
-        }
-        if (composition.isPersonalLeoOnly() && (outcomes.includes('RESULT_OUTBOUND:PERSONAL_MESSAGE_FAILED') || composition.personalMessageFailurePending())) {
-          // Handoff 116 §7: per-message processing failure — PROCESSING_FAILED already posted; reset and continue.
-          composition.resetForNextLeoRoot();
-          delivered = false;
-        } else if (outcomes.includes('RESULT_OUTBOUND:DELIVERED')) {
-          if (composition.isPersonalLeoOnly()) {
-            // Handoff 116 §1: the PERSONAL_LEO_ONLY owner remains running after a delivered result and accepts the next
-            // valid Leo root sequentially (a fresh single-use grant is minted for it). Default mode still stops clean.
-            composition.resetForNextLeoRoot();
-            delivered = false;
-          } else {
+        if (composition.isPersonalLeoOnly()) {
+          // Handoff 119: PERSONAL_LEO_ONLY bypasses Git evidence — the foreground owner AUTOMATICALLY consumes the
+          // spooled Advisor answer, posts it directly to the immutable same thread, and resets. It polls on the loop
+          // until an answer is spooled; an ordinary post failure is message-local and the next queued message proceeds.
+          const personal = await composition.consumePersonalResult();
+          if (incidentPending()) {
+            terminal = 'INCIDENT_KILL';
+            break;
+          }
+          if (personal.includes('PERSONAL_RESULT:POSTED') || personal.includes('PERSONAL_RESULT:FAILED')) {
+            delivered = false; // consumePersonalResult already reset; accept the next queued Leo message
+          }
+        } else {
+          // R2 recovery §5.7 (legacy/default, unchanged): project evidence on the loop until RESULT_OUTBOUND:DELIVERED.
+          const outcomes = await composition.ingestEvidenceAndProject();
+          if (incidentPending()) {
+            terminal = 'INCIDENT_KILL';
+            break;
+          }
+          if (composition.hasFailureBarrier()) {
+            terminal = 'DELIVERY_HALTED';
+            break;
+          }
+          if (outcomes.includes('RESULT_OUTBOUND:DELIVERED')) {
             terminal = 'CLEAN_STOP';
             break;
           }
         }
-        // Otherwise (ACK/RESULT evidence not ready yet, DELIVERY_CONFIRMED already posted) keep polling on the loop.
       }
       // F01: a pending incident must NOT begin another timer await — check immediately BEFORE the delay as well as after.
       if (incidentPending()) {
