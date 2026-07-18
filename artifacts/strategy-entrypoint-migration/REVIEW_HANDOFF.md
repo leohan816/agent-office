@@ -188,3 +188,20 @@ existing `REVIEW_RESULT.md`, update `REVIEW_RESULT_POINTER.txt` to this candidat
 leave only those two files uncommitted for Advisor publication, return to
 `agent-office-advisor`, and STOP. Timebox: 5 minutes; return one exact finding or
 blocker sooner.
+
+## Active diagnostic amendment — sanitized pre-latch classification
+
+Status: `ACTIVE`
+
+Review baseline `ff3877c` against exact candidate
+`086fde66b838056aeeef3703b202295c7ccb6a56` read-only. Scope is exactly:
+
+- `src/runtime/as1-slack-pilot/cli.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Reproduce only the named test `reports the sanitized pre-latch classification
+before unchanged cleanup`, ESLint on exactly those two files, and
+`git diff --check ff3877c..086fde66b838056aeeef3703b202295c7ccb6a56`.
+Run no build, broad check, or live/state action. Review only this diagnostic
+delta, write only the existing review result and pointer outputs, return PASS or
+one exact blocker to `agent-office-advisor`, and STOP within two minutes.

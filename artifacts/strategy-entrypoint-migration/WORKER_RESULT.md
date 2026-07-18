@@ -223,5 +223,28 @@ answer-command behavior for the two closed Strategy profiles.
   change; no credential/service/tmux/Foundation input; no activation; no new spool/storage; no live-owner
   interaction. These two evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Sanitized pre-latch classification diagnostic (2026-07-18)
+
+Authority: handoff amendment `ff3877c` (verified; local==upstream at entry). Baseline `37b9661`. Diagnostic-only:
+no lifecycle/behavior change; the Foundation repair is NOT attempted.
+
+- **Exact changed paths (2-file allowlist):**
+  - `src/runtime/as1-slack-pilot/cli.ts` — in `runForegroundOwner()`'s existing outer catch, emit ONLY the
+    already-sanitized `redactError(error).code` (`process.stdout.write("AS1_SLACK_PILOT PRE_LATCH_CLASSIFICATION:
+    <code>")`) immediately BEFORE the UNCHANGED `latchActiveProfileAndStop(code)` call. No raw
+    error/message/stack/path/credential/input/payload. Error code, latch, disconnect, cleanup, `CLEANUP_PROVEN`,
+    return state, and all non-diagnostic behavior are byte-for-byte unchanged.
+  - `tests/integration/as1-slack-live-composition.test.ts` — new focused test
+    `reports the sanitized pre-latch classification before unchanged cleanup` (spies stdout; forces a loop throw via
+    the existing owner harness) proving the sanitized classification carries the SAME closed code and precedes the
+    cleanup detail, the emission is a closed UPPER_SNAKE code only (no raw-message sentinel), and OWNER_HALTED
+    latch/cleanup/result behavior is unchanged.
+- **Gates:** named focused test — PASS (1 passed | 75 skipped); changed-file ESLint on the 2 files — 0 errors;
+  `git diff --check 37b9661..HEAD` — clean.
+- **Git:** candidate `086fde66b838056aeeef3703b202295c7ccb6a56`; pushed non-force `ff3877c..086fde6`; local==upstream.
+  Staged only the 2 allowlisted paths.
+- **Boundaries:** no state/queue/Socket/Slack/routing/profile/descriptor/config/credential change; no build/broad
+  checks; no live/state/actor action. Evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

@@ -5,8 +5,8 @@ RESULT_FILE: artifacts/strategy-entrypoint-migration/WORKER_RESULT.md
 FOUNDATION_DOCS_COMMIT: not-applicable
 TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 TARGET_BRANCH: feature/strategy-entrypoint-migration-001
-TARGET_COMMIT: d806f98acf0c5eef9b3f7153b50a7b26da6b7f15
-PUSH_STATUS: pushed-non-force (0dd25b4..d806f98); local==upstream==d806f98; result artifacts left uncommitted for Advisor publication
+TARGET_COMMIT: 086fde66b838056aeeef3703b202295c7ccb6a56
+PUSH_STATUS: pushed-non-force (ff3877c..086fde6); local==upstream==086fde6; result artifacts left uncommitted for Advisor publication
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
 STOP
