@@ -3,19 +3,15 @@ MISSION_ID: AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 ACTION: RUN_NARROW_FIXED_STRATEGY_ANSWER_ACTIONS_DELTA_REVIEW
 WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 BRANCH: feature/strategy-entrypoint-migration-001
-DELTA_BASELINE: 9dfdbb2
-EXACT_CANDIDATE: 68e94364aeee9105869ef0712f6b3838d9d00ebe
+DELTA_BASELINE: f3e1e46
+EXACT_CANDIDATE: a0cb0a93970d56d689e3d0e9e6daf3556f892c3a
 ACTIVE_SCOPE_SUPERSEDES_ALL_EARLIER_SCOPE: YES
-ACTIVE_SCOPE: Read-only review of only the exact two-file Strategy-only status-stream guard correction.
-EXACT_FILES: src/runtime/as1-slack-pilot/composition.ts; tests/integration/as1-slack-live-composition.test.ts
-NAMED_TEST_1: intercepts the four status controls with thread binding and no Advisor delivery
-NAMED_TEST_2: delivers one status and one normal same-thread answer exactly once
-NAMED_TEST_3: clears status on stop and limits heartbeat to once per 60 seconds
-NAMED_TEST_4: labels a leading-bang normal message before tmux paste
-NAMED_TEST_5: uses fixed Strategy CLI roots with no caller routing
-NAMED_TEST_6: does not intercept or label status-like messages for a legacy Advisor profile
-OTHER_GATES: ESLint only the exact two changed files; git diff --check 9dfdbb2..68e94364aeee9105869ef0712f6b3838d9d00ebe
-FORBIDDEN: build; live action; broad tests; implementation; patch; input to either live Strategy owner
+ACTIVE_SCOPE: Read-only review of only the exact two-file second fixed Foundation latch tuple delta.
+EXACT_FILES: src/operations/readiness/as1-slack-control.ts; tests/integration/as1-slack-live-composition.test.ts
+NAMED_TEST_1: retires the second exact Foundation malformed-frame latch before fixed Strategy direct start
+NAMED_TEST_2: refuses any other Foundation latch reason or timestamp
+OTHER_GATES: ESLint only the exact two files; git diff --check f3e1e46..a0cb0a93970d56d689e3d0e9e6daf3556f892c3a
+FORBIDDEN: build; live action; broad tests; implementation; patch; Foundation retry/state mutation; Agent Office action
 RETURN: write only existing REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt; PASS or one concrete blocker within three minutes; STOP
 HANDOFF: artifacts/strategy-entrypoint-migration/REVIEW_HANDOFF.md
 PROTOCOL: activate and follow fable-sentinel; read required repository Reviewer entry files

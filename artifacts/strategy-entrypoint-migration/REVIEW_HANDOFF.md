@@ -314,3 +314,28 @@ ESLint only the exact two changed files; and `git diff --check
 implementation, patch, live action, or input to either live owner. Write only
 the existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return the
 independent verdict, and STOP.
+## ACTIVE AMENDMENT — second exact Foundation latch tuple
+
+Authority: Advisor publication baseline `f3e1e46`; review candidate
+`a0cb0a93970d56d689e3d0e9e6daf3556f892c3a`. This amendment supersedes every
+earlier review scope. Return PASS or one concrete blocker within three minutes.
+
+Review only:
+
+- `src/operations/readiness/as1-slack-control.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Verify only `retireOneShotFoundationDiagnosticLatch()` now accepts exactly the
+prior fixed Foundation tuple or the second fixed tuple `malformed frame after
+ready` at `2026-07-18T18:55:19.830Z`, with reason/timestamp paired, while the
+fixed root/profile, every existing safety/no-mutation check, persist-before-cache
+ordering, and unchanged `FOUNDATION_STRATEGY` pre-start hook remain intact.
+Every other reason/time or cross-pairing must remain latched.
+
+Reproduce only `retires the second exact Foundation malformed-frame latch before
+fixed Strategy direct start` and `refuses any other Foundation latch reason or
+timestamp`; ESLint only the exact two files; and `git diff --check
+f3e1e46..a0cb0a93970d56d689e3d0e9e6daf3556f892c3a`. No build, broad check,
+implementation, patch, live action, Foundation retry/state mutation, or Agent
+Office action. Write only the existing `REVIEW_RESULT.md` and
+`REVIEW_RESULT_POINTER.txt`, return the independent verdict, and STOP.

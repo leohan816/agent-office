@@ -353,5 +353,28 @@ Authority: corrective handoff `9dfdbb2` (verified; local==upstream at entry). Ba
 - **Boundaries:** only the two allowlisted files; no other source/test/profile/routing change; no build/broad
   checks/live action/refactor/extra feature. Evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Second exact Foundation latch tuple (2026-07-18)
+
+Authority: handoff amendment `f3e1e46` (verified; local==upstream at entry). Baseline `4698350`. Agent Office `%63`
+untouched; Foundation live state not mutated/retried.
+
+- **Exact changed paths (2-file allowlist; +36/−2):**
+  - `src/operations/readiness/as1-slack-control.ts` — extended ONLY `retireOneShotFoundationDiagnosticLatch()`'s
+    fully-fixed matcher to accept EITHER of two Foundation tuples under the unchanged fixed root
+    `strategy-foundation-v1` / profile `foundation-advisor`: tuple-1 (`owner-loop error: AUTHORITY_ARTIFACT_INVALID`
+    @ `2026-07-18T16:15:44.312Z`) or tuple-2 (`malformed frame after ready` @ `2026-07-18T18:55:19.830Z`) — each reason
+    paired with ITS OWN `latchedAt`. All ownership/`DISABLED_CLEAN`/null-active/kill-clear/incident-open/strict-parse/
+    persist-before-cache/failure-no-mutation checks and the `FOUNDATION_STRATEGY` pre-start hook are unchanged; any other
+    reason/timestamp/mismatched pairing stays latched. No generic reset/operand/scan/deletion/fallback.
+  - `tests/integration/as1-slack-live-composition.test.ts` — two named cases:
+    `retires the second exact Foundation malformed-frame latch before fixed Strategy direct start` (tuple-2 → RETIRED +
+    `isProfileLatched` false = continuation) and `refuses any other Foundation latch reason or timestamp` (unrelated
+    reason, and the cross-tuple mismatch tuple-2-reason+tuple-1-time, both → NOT_RETIRED, stays latched).
+- **Gates:** both named tests PASS; changed-file ESLint on the 2 files — 0 errors; `git diff --check 4698350..HEAD` —
+  clean.
+- **Git:** candidate `a0cb0a93970d56d689e3d0e9e6daf3556f892c3a`; pushed non-force `f3e1e46..a0cb0a9`; local==upstream.
+- **Boundaries:** only the two allowlisted files; no composition/CLI/spool/profile/routing change; no build/broad
+  tests/live action/redesign. Evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
