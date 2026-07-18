@@ -249,3 +249,33 @@ The named test at `tests/integration/as1-slack-live-composition.test.ts:74-90` e
 P1 is a patchable in-scope production-path regression. This verdict is independent review evidence, not risk acceptance or final approval.
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Strategy-Only Status-Stream Guard Corrective Review
+
+## Findings
+
+No findings.
+
+## Prior finding closure
+
+- **P1 — CLOSED.** Candidate `src/runtime/as1-slack-pilot/composition.ts:1895-1900` now intercepts status controls only when the bound live profile has role `STRATEGY`. Lines 1910-1913 select the labeled/status-aware paste only for Strategy and restore the legacy Advisor paste expression byte-for-byte. Lines 1982-1987 also make status consumption and heartbeat inactive for every non-Strategy profile.
+- The added production-composition regression at `tests/integration/as1-slack-live-composition.test.ts:128` drives a legacy PERSONAL Advisor `!상태` through the owner loop and proves ordinary answering, no Strategy acknowledgement/subscription prompt, and no `LEO_SLACK_MESSAGE:` label.
+- For both approved Strategy profiles the role predicate is true, so the previously reviewed control interception, subscription instruction, labeling, status consumption, and heartbeat paths remain unchanged.
+
+## Scope and reproduced evidence
+
+- Exact range `9dfdbb2..68e94364aeee9105869ef0712f6b3838d9d00ebe` changes exactly the two authorized files.
+- Six exact named Vitest cases — **PASS**: 6 passed, 155 skipped across the two authorized test files, one worker.
+- ESLint on exactly the two changed files — **PASS**, no output.
+- `git diff --check 9dfdbb2..68e94364aeee9105869ef0712f6b3838d9d00ebe` — **PASS**, clean.
+- No build, broad check, implementation, live action, owner input, candidate modification, or unchanged-surface review was performed.
+
+## Verdict
+
+`PASS`
+
+No blocking residual risk identified within the authorized corrective delta and named gates. This is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
