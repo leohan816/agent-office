@@ -132,3 +132,59 @@ Append the compile-closure verdict and exact reproduced evidence to the existing
 only those two files uncommitted for Advisor publication, return to
 `agent-office-advisor`, and STOP. Timebox: 3 minutes; return one exact finding or
 blocker sooner.
+
+## Leo Delta Amendment: Fixed Strategy Answer Actions Review (2026-07-18)
+
+Status: `ACTIVE`
+
+This amendment supersedes only the delta/range and reproduction gates above.
+Review only the fixed Strategy answer-actions candidate and its committed Worker
+evidence. All independence, read-only, output, routing, activation, credential,
+service, actor-input, and STOP boundaries remain unchanged.
+
+REVIEW_TYPE: `NARROW_FIXED_STRATEGY_ANSWER_ACTIONS_DELTA_REVIEW`
+
+DELTA_BASELINE: `0dd25b4602d223ee577f4917707b3ba1f8fb8464`
+
+EXACT_CANDIDATE: `d806f98acf0c5eef9b3f7153b50a7b26da6b7f15`
+
+The same existing independent Reviewer in pane `%28` must verify its exact
+binding and this committed handoff, then inspect direct evidence for only:
+
+1. `src/runtime/as1-slack-pilot/cli.ts` — exactly two closed Strategy answer
+   verbs, each internally fixed to its already-committed Strategy state root,
+   with bounded answer text and no caller-selected root/profile/path/env.
+2. `src/runtime/as1-slack-pilot/composition.ts` — exhaustive closed-profile
+   selection of the pasted answer command, preserving the legacy Advisor
+   command byte-for-byte and selecting the matching fixed migration-worktree
+   command for each Strategy profile.
+3. `tests/operations/as1-slack-lifecycle.test.ts` and
+   `tests/integration/as1-slack-live-composition.test.ts` — only the focused
+   binding/paste proofs and the named legacy preservation proof.
+4. The committed Worker evidence in `WORKER_RESULT.md` and
+   `WORKER_RESULT_POINTER.txt`, including candidate/push identity and the
+   disclosed duplicate-build process deviation.
+
+Reject any generic router, caller-selected operand, inferred/scanned root,
+new spool/storage, Advisor-to-Slack projection, legacy-answer behavior change,
+profile/config/service/Foundation change, broad refactor, or file outside the
+four-file candidate allowlist.
+
+Do not run `npm run build:core`; the duplicate invocation is a disclosed process
+deviation and Leo prohibited a replacement build. Reproduce only these three
+named focused tests:
+
+1. `binds fixed Strategy commands and roots without caller-selected routing`
+2. `pastes fixed Strategy answer verbs while preserving the legacy Advisor answer command`
+3. `handles two sequential PERSONAL_LEO_ONLY messages with same-thread replies and dedupe`
+
+Also run ESLint only on the four changed files and
+`git diff --check 0dd25b4602d223ee577f4917707b3ba1f8fb8464..d806f98acf0c5eef9b3f7153b50a7b26da6b7f15`.
+Do not run a build, broad test/lint/typecheck, profile/design command, live proof,
+activation, or credential/service/actor probe. Review no prior unchanged surface.
+
+Append the fixed-answer-actions verdict and exact reproduced evidence to the
+existing `REVIEW_RESULT.md`, update `REVIEW_RESULT_POINTER.txt` to this candidate,
+leave only those two files uncommitted for Advisor publication, return to
+`agent-office-advisor`, and STOP. Timebox: 5 minutes; return one exact finding or
+blocker sooner.

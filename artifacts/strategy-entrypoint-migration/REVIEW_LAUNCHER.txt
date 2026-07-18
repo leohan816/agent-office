@@ -1,13 +1,13 @@
 TARGET_ACTOR: Independent Agent Office Reviewer (existing agent-office-reviewer pane %28)
 MISSION_ID: AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
-ACTION: RUN_NARROW_STRATEGY_COMPILE_CLOSURE_DELTA_REVIEW
+ACTION: RUN_NARROW_FIXED_STRATEGY_ANSWER_ACTIONS_DELTA_REVIEW
 WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 BRANCH: feature/strategy-entrypoint-migration-001
-DELTA_BASELINE: 8066e74ed7f1b91f842468f1f528fcbfa5633c1c
-EXACT_CANDIDATE: 269d777a09c3657fee273246403280de33b7b8ef
+DELTA_BASELINE: 0dd25b4602d223ee577f4917707b3ba1f8fb8464
+EXACT_CANDIDATE: d806f98acf0c5eef9b3f7153b50a7b26da6b7f15
 HANDOFF: artifacts/strategy-entrypoint-migration/REVIEW_HANDOFF.md
 PROTOCOL: activate and follow fable-sentinel; read required repository Reviewer entry files
-SCOPE: read-only exact three-file Strategy compile-closure delta and committed Worker build evidence; reproduce only npm run build:core, changed-file ESLint, exact-range diff-check; no tests or activation
+SCOPE: read-only exact four-file fixed Strategy answer-actions delta and committed Worker evidence; reproduce only the three named focused tests, changed-file ESLint, and exact-range diff-check; do not run build:core, broad tests, or activation
 OUTPUTS: artifacts/strategy-entrypoint-migration/REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt only; leave uncommitted for Advisor publication
 RETURN_TO: agent-office-advisor
 STOP
