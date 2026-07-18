@@ -638,24 +638,28 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
         (['SIGINT', 'SIGTERM', 'SIGUSR2'] as const).forEach((s) => signals.set(s, handlers[s]));
         return ['SIGINT', 'SIGTERM', 'SIGUSR2'];
       },
-      // The delay hook (end of each loop tick) drives the sequential scenario: deliver msg1 (+ a DUPLICATE event that
-      // must dedupe) → Advisor answers msg1 via the parsed command → deliver msg2 → answer msg2 → clean stop.
+      // Handoff 122 (FIFO thread routing): ENQUEUE BOTH inputs before answer 1 — msg1 (a new top-level message) + a
+      // DUPLICATE (deduped) + msg2 (a REPLY carrying a DIFFERENT existing thread_ts). msg2 waits in the PERSONAL FIFO
+      // while msg1's answer is pending; after answer 1 completes and resetForNextLeoRoot() clears `lastIntakeId`, the
+      // owner must still deliver the FIFO-queued reply. Answered in FIFO order; each RESULT posts to its own exact thread.
       delay: async () => {
         tick += 1;
         if (tick === 1) {
           await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
           await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1b', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' })); // DUPLICATE event id → deduped
+          // msg2 is enqueued NOW (before answer 1) as a REPLY to a DIFFERENT existing thread (thread_ts != its own ts).
+          await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200', threadTs: '1720000000.000900' }));
         } else if (tick === 2) {
           // The Advisor answers through the EXACT parsed production dispatch (parse -> runAs1Cli 'answer'), not the bare
           // helper. The 'answer' verb needs no composition (the fixed leo-v1 root + sole pending correlation are internal).
           await runAs1Cli(parseAs1Cli(['answer', 'answer', 'one']), {} as unknown as As1GatewayComposition, stateRoot);
-        } else if (tick === 3) {
-          await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
         } else if (tick === 4) {
+          // By now the owner has delivered the FIFO-queued reply (msg2) even though `lastIntakeId` was cleared by answer 1.
           await runAs1Cli(parseAs1Cli(['answer', 'answer', 'two']), {} as unknown as As1GatewayComposition, stateRoot);
-        } else {
+        } else if (tick >= 5) {
           signals.get('SIGTERM')?.();
         }
+        // tick 3: no action — the owner delivers the FIFO-queued reply now that msg1's answer completed and reset.
       },
     };
     const result = await runForegroundOwner(boundary);
@@ -666,7 +670,7 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     expect(answers[0]?.request.text).toContain('answer one');
     expect(answers[0]?.request.threadTs).toBe('1720000000.000100');
     expect(answers[1]?.request.text).toContain('answer two');
-    expect(answers[1]?.request.threadTs).toBe('1720000000.000200'); // same thread as message 2, not message 1
+    expect(answers[1]?.request.threadTs).toBe('1720000000.000900'); // the reply's DIFFERENT existing thread_ts — the FIFO-queued msg2 was delivered and routed to its own thread, not its ts or msg1's
     // Retirement proof: the seeded obsolete advisor latch was cleared to false at startup — otherwise start() would have
     // failed closed as PROFILE_LATCHED and delivered nothing (answers.length would be 0, not 2).
     const advisorLatchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');

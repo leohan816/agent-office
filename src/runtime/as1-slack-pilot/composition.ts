@@ -1116,6 +1116,15 @@ export class As1GatewayComposition {
     if (this.hasFailureBarrier()) {
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure-only admission — no delivery' };
     }
+    // Handoff 122 (was the handoff 119 direct-%26 branch): PERSONAL_LEO_ONLY delivers through deliverPersonalDirect — a
+    // small fixed paste to %26 with NO receive grant/lease/provenance, NO As1ExactTransport, NO hashed delivery id or
+    // tmux journal. It now runs BEFORE the legacy `lastIntakeId` scalar gate below: `resetForNextLeoRoot()` clears
+    // `lastIntakeId` after each answer, so a message queued in the PERSONAL FIFO while the prior answer was pending would
+    // otherwise be stranded behind that scalar even though the PERSONAL queue owns its own routing correlation. An empty
+    // FIFO returns a benign AWAITING (the owner keeps polling), never a delivery stop. The non-PERSONAL path is unchanged.
+    if (this.isPersonalLeoOnly()) {
+      return await this.deliverPersonalDirect(live, deps);
+    }
     const intakeId = this.lastIntakeId;
     if (intakeId === null) {
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'no intake yet' };
@@ -1126,13 +1135,6 @@ export class As1GatewayComposition {
     if (entryClassification !== 'OPEN') {
       await this.enterFailureBarrier(live, entryClassification);
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'failure barrier at delivery entry' };
-    }
-    // Handoff 119 direct-%26 branch: PERSONAL_LEO_ONLY delivers through a small fixed paste to %26 — NO receive
-    // grant/lease/provenance, NO As1ExactTransport, NO hashed delivery id or tmux journal. Fixed observation
-    // validation (a destination mismatch is fixed-destination corruption → global kill) then direct in-memory
-    // delivered state. The default/legacy grant+transport path below is untouched.
-    if (this.isPersonalLeoOnly()) {
-      return await this.deliverPersonalDirect(live, deps);
     }
     // The delivery authority is either observed from the construction-bound Git mission root (default) or, in the
     // personal Leo-only runtime, constructed and trusted in memory (handoff 116 §5). Both feed the SAME exact
@@ -1548,12 +1550,17 @@ export class As1GatewayComposition {
    * → global kill), then ONE contained fixed buffer — load pinned bounded bytes, paste, Enter, delete — and record the
    * direct in-memory delivered state. Behavior 1 preserved: immediate idempotent same-thread DELIVERY_CONFIRMED.
    */
-  private async deliverPersonalDirect(live: LiveState, deps: As1CompositionDependencies): Promise<As1DeliveryResult> {
+  private async deliverPersonalDirect(
+    live: LiveState,
+    deps: As1CompositionDependencies,
+  ): Promise<As1DeliveryResult | { readonly phase: 'AWAITING'; readonly outcome: 'AWAITING_POINTER_DELIVERY_GRANT'; readonly reason: string }> {
     // Pull the sole current-message correlation from the in-memory service queue (NO store/root/grant/evidence).
     this.personalCurrent ??= live.service.takeNextPersonal();
     const current = this.personalCurrent;
     if (current === null) {
-      return { phase: 'PREPARED', outcome: 'STOPPED_BEFORE_PASTE', reason: 'no queued personal message' };
+      // Handoff 122: an empty PERSONAL FIFO is benign — nothing is queued right now. Return AWAITING so the owner keeps
+      // polling for the next queued message; a STOPPED_BEFORE_PASTE here would be treated as a delivery failure/halt.
+      return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'no queued personal message' };
     }
     // Fixed observation validation of %26 (a mismatch engages the durable global kill — fixed-destination corruption).
     const dest = await this.validateFixedAdvisorDestination(live, deps);
