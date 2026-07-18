@@ -429,6 +429,19 @@ export class As1GatewayComposition {
   }
 
   /**
+   * Strategy migration (compile closure): narrow the widened `LiveState.profile` to the Advisor union for the legacy
+   * Advisor-only delivery/evidence/status consumers (`As1ExactTransport`, `As1EvidenceIngress`, `As1Outbox`). The
+   * personal-direct (PERSONAL_LEO_ONLY / Strategy) runtime never reaches those consumers, so a Strategy profile here is
+   * a corruption — this preserves the existing path invariant without widening any consumer contract.
+   */
+  private liveAdvisorProfile(live: LiveState): As1Profile {
+    if (live.profile.role === 'STRATEGY') {
+      throw new DomainError('FORBIDDEN_TARGET', 'a strategy profile never reaches the legacy Advisor delivery/evidence/status path');
+    }
+    return live.profile;
+  }
+
+  /**
    * Strategy migration (Option A): build the CONNECTABLE personal-direct live state for this fixed Strategy route,
    * REUSING the existing PERSONAL direct FIFO/result-spool path. It parses ONLY the fixed Strategy secret data file,
    * binds this route's fixed Strategy profile (whose slug REUSES the responsible Advisor control identity) at this
@@ -1452,7 +1465,7 @@ export class As1GatewayComposition {
     const transport = new As1ExactTransport(
       () => this.clock.now(),
       this.stateRoot,
-      live.profile,
+      this.liveAdvisorProfile(live),
       this.incidentGuardedPort(transportTmuxPort),
       this.incidentGuardedPort(live.store),
       this.incidentGuardedPort(deliveryProvenance),
@@ -1647,7 +1660,7 @@ export class As1GatewayComposition {
     authority: ReturnType<typeof buildEvidenceAuthority>,
   ): Promise<readonly string[]> {
     const ingress = new As1EvidenceIngress(
-      live.profile,
+      this.liveAdvisorProfile(live),
       this.incidentGuardedPort(live.store),
       this.incidentGuardedPort(deps.evidenceVerifier),
       authority,
@@ -1746,7 +1759,7 @@ export class As1GatewayComposition {
   private buildStatusOutbox(live: LiveState, deps: As1CompositionDependencies): As1Outbox {
     const profileSecret = this.liveProfileSecret(live);
     return new As1Outbox({
-      profile: live.profile,
+      profile: this.liveAdvisorProfile(live),
       secret: { workspaceId: live.wire.workspaceId, appId: live.wire.appId, channelId: live.wire.channelId, botToken: profileSecret.botToken },
       store: this.incidentGuardedPort(live.store),
       web: this.incidentGuardedPort(deps.web),

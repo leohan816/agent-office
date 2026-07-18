@@ -748,7 +748,13 @@ export class As1InboundService {
     if (this.latched) {
       throw new DomainError('FORBIDDEN_TARGET', 'a latched profile cannot materialize');
     }
+    // Materialization is the legacy Advisor-only path: the personal-direct (PERSONAL_LEO_ONLY / Strategy) runtime never
+    // materializes an intake/pointer. Narrow the widened profile to the Advisor union here, preserving that invariant
+    // (a Strategy profile reaching materialization is a corruption, never a silent widening of the artifact contracts).
     const { profile } = this.context;
+    if (profile.role === 'STRATEGY') {
+      throw new DomainError('FORBIDDEN_TARGET', 'a strategy profile does not materialize (legacy Advisor-only path)');
+    }
     const { observed } = record;
     const recordedAt = record.ackedAt;
     const intakeId = this.deriveId('as1i', {

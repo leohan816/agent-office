@@ -92,6 +92,7 @@ export const COMMITTED_OFFICE_LAYOUT_CONFIG_V1: CommittedOfficeLayoutConfigV1 = 
     REVIEWER: 'INDEPENDENT_REVIEW',
     CONTROL: 'CONTROL_RECOVERY',
     DESIGNER: 'GENERIC_REGISTERED',
+    STRATEGY: 'GENERIC_REGISTERED',
   },
   defaultRoleCategory: 'GENERIC_REGISTERED',
   projectIdentityByProject: {
