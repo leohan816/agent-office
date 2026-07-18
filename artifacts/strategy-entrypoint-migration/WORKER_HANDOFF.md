@@ -826,3 +826,24 @@ Commit and push the minimal candidate non-force. Update only the two existing
 Worker result files with the exact two-file diff, focused-test results, two-file
 ESLint, diff-check, candidate/push state, boundaries, and return to Advisor;
 leave those result files uncommitted, then STOP.
+## ACTIVE AMENDMENT — subscribed status forwarding instruction
+
+Authority: Leo Strategy decision; baseline `fd57f04`. Supersedes earlier Worker
+scope. Five-minute return: pushed candidate or one exact blocker.
+
+Patch only `src/runtime/as1-slack-pilot/composition.ts` and
+`tests/integration/as1-slack-live-composition.test.ts`. Strengthen only the
+subscribed `STRATEGY_STATUS_INSTRUCTION`: while handling the Slack-origin
+message, every new user-facing progress, finding, or result block Strategy
+prints or selects from captured Advisor/Worker output must be sent exactly once
+as bounded text through that profile's fixed status action. It must never send
+the npm/tool invocation, a `Ran` header, `REASON`/control lines, or duplicate
+content. Terminal-originated direct conversations remain outside Slack;
+unsubscribed behavior remains unchanged.
+
+Add one exact focused test `requires subscribed Strategy progress forwarding and
+omits it when unsubscribed`. Run only it and `delivers one status and one normal
+same-thread answer exactly once`, two-file ESLint, and `git diff --check
+fd57f04..HEAD`. No build, CLI/spool/owner/state/routing change, broad test,
+design, or other file. Commit/push; update only the two existing Worker result
+files uncommitted; return to Advisor and STOP.
