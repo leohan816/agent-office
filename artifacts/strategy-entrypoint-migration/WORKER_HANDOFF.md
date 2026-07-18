@@ -421,3 +421,78 @@ existing `WORKER_RESULT.md`; update `WORKER_RESULT_POINTER.txt`; leave only
 those two evidence edits for Advisor publication. Return to
 `agent-office-advisor` and STOP. The same independent Reviewer alone reviews
 this delta. Timebox: 15 minutes; return one concrete blocker sooner.
+
+## Leo Delta Amendment: Persistent Foundation Strategy Owner (2026-07-18)
+
+Status: `ACTIVE`
+
+This amendment supersedes only the implementation delta, writable paths,
+gates, and timebox above. Baseline is pushed clean tip
+`7a37ff8ba9ff229358181f0f302a21960423b44e`.
+
+### Exact live-proven cause and correction
+
+The fixed Foundation entry receives and answers one PERSONAL event, then halts
+as `OWNER_HALTED:AUTHORITY_ARTIFACT_INVALID:CLEANUP_PROVEN`; one operational
+retry is rejected as `PROFILE_LATCHED`. In `runForegroundOwner()` in
+`src/runtime/as1-slack-pilot/cli.ts`, the existing PERSONAL branch already
+calls `consumePersonalResult()`, clears `delivered`, resets the current message,
+and continues the sequential receive loop. The defect path is its outer catch,
+which unconditionally calls `As1GatewayComposition.latchActiveProfileAndStop()`.
+That method in `src/runtime/as1-slack-pilot/composition.ts` applies the legacy
+owner-error latch/disconnect/`finishCleanup()` path and produces the observed
+`AUTHORITY_ARTIFACT_INVALID:CLEANUP_PROVEN`; the next `startStrategyDirect()`
+then observes the durable profile latch.
+
+Inspect only those exact functions and the existing PERSONAL completion/reset
+neighborhood. Implement only the smallest closed correction that prevents the
+legacy `latchActiveProfileAndStop()` path from halting/latching a PROVEN ordinary
+completed PERSONAL Foundation Strategy result and lets the already-existing
+PERSONAL FIFO/sequential loop continue. Do not add a loop, reconnect, retry,
+daemon, timer, scheduler, or lifecycle framework. Preserve fail-closed latching
+for actual corruption, non-PERSONAL failures, ambiguous completion, explicit
+stop, and incident kill.
+
+The existing fixed Foundation profile/root/descriptor, Socket owner,
+`takeNextPersonal()` FIFO, dedupe, direct tmux delivery, answered-result spool,
+same-thread Web result, `resetForNextLeoRoot()`, and explicit clean-stop path
+must be reused unchanged except for the minimum lifecycle discrimination above.
+Preserve one-answer response discipline: one event produces one substantive
+final Slack answer; no user-facing preamble, internal command/log, or
+post-confirmation; terminal evidence may show the substantive result once only.
+
+The only writable paths are:
+
+- `src/runtime/as1-slack-pilot/cli.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Omit any production path not required by the exact correction. Add or amend
+exactly one focused regression titled:
+
+`keeps the fixed Foundation Strategy entry receiving across two sequential messages without restart`
+
+It must exercise the real fixed Foundation entry with two sequential PERSONAL
+messages in one owner process, prove one same-thread substantive answer per
+message, prove no preamble/log/post-confirmation Slack posts, and prove the owner
+remains receiving after the second result until the existing explicit clean
+stop. Run only that exact test by file/title with one worker, ESLint only on
+actually changed allowlisted paths, and after the candidate commit
+`git diff --check 7a37ff8ba9ff229358181f0f302a21960423b44e..HEAD`.
+Run no build, other test, unfiltered file, suite, broad lint/typecheck, live
+proof, profile/state operation, or activation.
+
+No framework, daemon/systemd, new storage/spool, routing/profile/descriptor/
+config/credential/state-root change, docs, package/lockfile, refactor, broad
+read, or unrelated cleanup is authorized. Do not touch Foundation owner `%62`,
+Agent Office state/latch, rollback `%52`, any Strategy/Foundation actor pane,
+or live input.
+
+Stage only exact allowlisted changed paths, verify the staged diff, commit one
+candidate, and push non-force only to
+`origin/feature/strategy-entrypoint-migration-001`. Then append factual delta,
+focused-gate, candidate, and push evidence to existing `WORKER_RESULT.md` and
+update `WORKER_RESULT_POINTER.txt`; leave only those two evidence edits for
+Advisor publication. Return to `agent-office-advisor` and STOP. Worker timebox:
+9 minutes; return one concrete blocker sooner. The same existing independent
+Reviewer alone reviews this delta in the remaining 3 minutes.
