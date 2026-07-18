@@ -98,6 +98,12 @@ const FOUNDATION_DIAG_LATCH_PROFILE: As1ProfileSlug = 'foundation-advisor';
 const FOUNDATION_DIAG_LATCH_REASON = 'owner-loop error: AUTHORITY_ARTIFACT_INVALID';
 const FOUNDATION_DIAG_LATCH_AT = '2026-07-18T16:15:44.312Z';
 
+/** The EXACT one-shot Agent Office malformed-frame latch identity (all four fields fixed; no caller/root/path operand). */
+const AGENT_OFFICE_MALFORMED_LATCH_ROOT_ID = 'strategy-agent-office-v1';
+const AGENT_OFFICE_MALFORMED_LATCH_PROFILE: As1ProfileSlug = 'agent-office-advisor';
+const AGENT_OFFICE_MALFORMED_LATCH_REASON = 'malformed frame after ready';
+const AGENT_OFFICE_MALFORMED_LATCH_AT = '2026-07-18T15:20:22.170Z';
+
 export interface As1GlobalControlV1 {
   readonly schemaVersion: typeof CONTROL_SCHEMA;
   readonly state: As1GlobalState;
@@ -606,6 +612,50 @@ export class As1SlackControl {
         return 'NOT_RETIRED'; // persistence failed: the in-memory cache is untouched and the latch stays durably true
       }
       this.profileLatchCache.set(FOUNDATION_DIAG_LATCH_PROFILE, false);
+      return 'RETIRED';
+    });
+  }
+
+  /**
+   * One-shot, fully-fixed retirement of the EXACT Agent Office malformed-frame latch (the durable `agent-office-advisor`
+   * profile latch a prior malformed-frame-after-ready halt wrote at the fixed timestamp). Mirrors
+   * `retireOneShotFoundationDiagnosticLatch`'s reviewed safety shape: every identity field — root id
+   * `strategy-agent-office-v1`, slug `agent-office-advisor`, reason, `latchedAt` — and every gating condition is a
+   * constant re-checked here; no caller chooses any. Canonical `latched: false` is persisted atomically BEFORE the
+   * cache. Any root/profile/reason/time/state/ownership/kill/incident, read/parse, or persistence mismatch mutates
+   * nothing and returns `NOT_RETIRED`; a later latch (including the same reason at any other `latchedAt`) is never
+   * retired. Serialized through the SAME mutex as every other durable mutation.
+   */
+  public async retireOneShotAgentOfficeMalformedFrameLatch(): Promise<'RETIRED' | 'NOT_RETIRED'> {
+    return this.mutex.run(async () => {
+      if (this.released || this.lock === null) return 'NOT_RETIRED';
+      if (this.stateRootId !== AGENT_OFFICE_MALFORMED_LATCH_ROOT_ID) return 'NOT_RETIRED';
+      if (this.control.state !== 'DISABLED_CLEAN' || this.control.activeProfileSlug !== null) return 'NOT_RETIRED';
+      if (this.isGloballyLatched() || !this.incidentGateOpen) return 'NOT_RETIRED';
+      const target = await this.profileLatchPath(AGENT_OFFICE_MALFORMED_LATCH_PROFILE);
+      let parsed: ParsedProfileLatch;
+      try {
+        const existing = await readJsonRecord(target);
+        if (existing === null) return 'NOT_RETIRED';
+        parsed = parseProfileLatch(existing, AGENT_OFFICE_MALFORMED_LATCH_PROFILE);
+      } catch {
+        return 'NOT_RETIRED'; // an unreadable/corrupt/quarantined latch is not the exact malformed-frame latch
+      }
+      if (!parsed.latched || parsed.reason !== AGENT_OFFICE_MALFORMED_LATCH_REASON || parsed.latchedAt !== AGENT_OFFICE_MALFORMED_LATCH_AT) {
+        return 'NOT_RETIRED'; // a wrong reason, or the same reason at any other timestamp, stays durably latched
+      }
+      try {
+        await writeAtomicCanonicalJson(target, {
+          schemaVersion: PROFILE_LATCH_SCHEMA,
+          profileSlug: AGENT_OFFICE_MALFORMED_LATCH_PROFILE,
+          latched: false,
+          reason: null,
+          latchedAt: null,
+        });
+      } catch {
+        return 'NOT_RETIRED'; // persistence failed: the in-memory cache is untouched and the latch stays durably true
+      }
+      this.profileLatchCache.set(AGENT_OFFICE_MALFORMED_LATCH_PROFILE, false);
       return 'RETIRED';
     });
   }

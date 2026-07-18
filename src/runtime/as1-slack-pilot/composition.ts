@@ -496,6 +496,12 @@ export class As1GatewayComposition {
     if (profile.profileId === 'FOUNDATION_STRATEGY') {
       await this.guardedAwait(() => this.control.retireOneShotFoundationDiagnosticLatch());
     }
+    // One-shot Agent Office malformed-frame latch retirement (fixed to strategy-agent-office-v1 / agent-office-advisor /
+    // the exact "malformed frame after ready" latch), invoked ONLY on the AGENT_OFFICE_STRATEGY path immediately before
+    // the isProfileLatched check. The FOUNDATION_STRATEGY and legacy Advisor paths are byte-for-byte unchanged.
+    if (profile.profileId === 'AGENT_OFFICE_STRATEGY') {
+      await this.guardedAwait(() => this.control.retireOneShotAgentOfficeMalformedFrameLatch());
+    }
     if (await this.guardedAwait(() => this.control.isProfileLatched(slug))) {
       return { connected: false, reason: 'PROFILE_LATCHED', state: this.control.getState() };
     }

@@ -63,6 +63,60 @@ const ACCEPTING_DELIVERY_GATE: As1DeliveryProvenanceGate = { assertAccepted: () 
 /** The exact obsolete advisor latch reason handoff 120 retires (post-acceptance receive-grant Git divergence). */
 const OBSOLETE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
 
+describe('AS1 one-shot Agent Office malformed-frame latch retirement', () => {
+  const AO_ROOT_ID = 'strategy-agent-office-v1';
+  const AO_LATCH_REASON = 'malformed frame after ready';
+  const AO_LATCH_AT = '2026-07-18T15:20:22.170Z';
+
+  async function agentOfficeRoot(): Promise<string> {
+    const root = await mkdtemp(path.join(tmpdir(), 'as1-strat-ao-'));
+    await initializeStateRoot(root, { stateRootId: AO_ROOT_ID, initializedAt: AO_LATCH_AT });
+    return root;
+  }
+  async function seedAoLatch(root: string, reason: string, at: string): Promise<void> {
+    const seed = await As1SlackControl.open(root, new FakeClock(at));
+    await seed.latchProfile('agent-office-advisor', reason);
+    await seed.shutdown();
+    await seed.close();
+  }
+
+  it('retires only the exact Agent Office malformed-frame latch before fixed Strategy direct start', async () => {
+    const root = await agentOfficeRoot();
+    await seedAoLatch(root, AO_LATCH_REASON, AO_LATCH_AT);
+    const control = await As1SlackControl.open(root, new FakeClock(CLOCK_ISO));
+    // All four fixed identity fields (root id, slug, reason, latchedAt) + the safety shape hold → exact-match retirement.
+    expect(await control.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('RETIRED');
+    // The durable latch is now false, so the fixed AGENT_OFFICE_STRATEGY startStrategyDirect() isProfileLatched check
+    // passes — continuation past the fixed Agent Office Strategy latch check.
+    expect(await control.isProfileLatched('agent-office-advisor')).toBe(false);
+    await control.close();
+    // "Only the exact": the SAME latch under a different state-root identity is not the Agent Office malformed-frame latch.
+    const otherRoot = await makeStateRoot(); // stateRootId 'test-state-root'
+    await seedAoLatch(otherRoot, AO_LATCH_REASON, AO_LATCH_AT);
+    const other = await As1SlackControl.open(otherRoot, new FakeClock(CLOCK_ISO));
+    expect(await other.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('NOT_RETIRED');
+    expect(await other.isProfileLatched('agent-office-advisor')).toBe(true);
+    await other.close();
+  });
+
+  it('refuses wrong or later Agent Office malformed-frame latches', async () => {
+    // Wrong reason: never retired → stays latched → the fixed Strategy start's isProfileLatched check returns PROFILE_LATCHED.
+    const wrongRoot = await agentOfficeRoot();
+    await seedAoLatch(wrongRoot, 'some unrelated latch reason', AO_LATCH_AT);
+    const wrong = await As1SlackControl.open(wrongRoot, new FakeClock(CLOCK_ISO));
+    expect(await wrong.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('NOT_RETIRED');
+    expect(await wrong.isProfileLatched('agent-office-advisor')).toBe(true);
+    await wrong.close();
+    // Correct reason but a DIFFERENT (later) latchedAt: a later latch, including the same reason, is NEVER retired.
+    const laterRoot = await agentOfficeRoot();
+    await seedAoLatch(laterRoot, AO_LATCH_REASON, '2026-07-18T15:20:22.171Z');
+    const later = await As1SlackControl.open(laterRoot, new FakeClock(CLOCK_ISO));
+    expect(await later.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('NOT_RETIRED');
+    expect(await later.isProfileLatched('agent-office-advisor')).toBe(true);
+    await later.close();
+  });
+});
+
 describe('AS1 one-shot Foundation Strategy diagnostic-latch retirement', () => {
   const FOUNDATION_ROOT_ID = 'strategy-foundation-v1';
   const FOUNDATION_DIAG_REASON = 'owner-loop error: AUTHORITY_ARTIFACT_INVALID';
