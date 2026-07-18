@@ -12,6 +12,7 @@ import { assertAs1StrategyProfileId } from '../../src/application/slack-pilot/pr
 import {
   allStrategyEntries,
   resolveStrategyEntry,
+  AS1_COMMANDS,
   AS1_FIXED_TRUSTED_NODE,
   AS1_OWNER_STATE_ROOT,
   checkTrustedNode,
@@ -90,6 +91,15 @@ describe('AS1 Strategy fixed CLI bindings', () => {
     // An arbitrary / Advisor string is not a Strategy literal — fails closed (never a third route).
     expect(() => assertAs1StrategyProfileId('AGENT_OFFICE_ADVISOR')).toThrow();
     expect(() => assertAs1StrategyProfileId('strategy-agent-office-v1')).toThrow();
+
+    // Strategy migration: the two closed Strategy answer verbs exist and parse ONLY bounded answer text (no
+    // root/path/channel/env operand). An empty answer and an unknown verb both fail closed (no caller-selected routing).
+    expect(AS1_COMMANDS).toContain('answer-agent-office-strategy');
+    expect(AS1_COMMANDS).toContain('answer-foundation-strategy');
+    expect(parseAs1Cli(['answer-agent-office-strategy', 'hello', 'leo']).answerText).toBe('hello leo');
+    expect(parseAs1Cli(['answer-foundation-strategy', 'ok']).command).toBe('answer-foundation-strategy');
+    expect(() => parseAs1Cli(['answer-agent-office-strategy'])).toThrow();
+    expect(() => parseAs1Cli(['answer-strategy', 'x'])).toThrow();
   });
 });
 /** Craft a canonical bridge child output (F05 strict-decode / deadline tests). */

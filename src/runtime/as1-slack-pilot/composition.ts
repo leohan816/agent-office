@@ -189,6 +189,32 @@ const AS1_STRATEGY_COMPAT_SEED_GRANT: As1PilotReceiveGrantV1 = {
   issuedAt: '2026-07-14T22:00:00.000Z',
   expiresAt: '2026-07-14T22:10:00.000Z',
 };
+
+/** The fixed legacy Advisor personal-direct answer command — preserved BYTE-FOR-BYTE. */
+const AS1_LEGACY_PERSONAL_ANSWER_COMMAND =
+  'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001 run as1:slack-pilot -- answer "<bounded answer text>"';
+
+/**
+ * Strategy migration: the fixed pasted answer command for the personal-direct path, exhaustive by the CLOSED live
+ * profile literal. Legacy Advisor profiles keep the exact existing command byte-for-byte; each Strategy profile pastes
+ * its own fixed migration-worktree command with its matching closed answer verb. Selection is ONLY by the already-bound
+ * closed profile literal — never a message/caller/env value; a non-literal fails closed.
+ */
+export function personalAnswerCommandFor(profile: As1Profile | As1StrategyProfile): string {
+  if (profile.role !== 'STRATEGY') {
+    return AS1_LEGACY_PERSONAL_ANSWER_COMMAND;
+  }
+  switch (profile.profileId) {
+    case 'AGENT_OFFICE_STRATEGY':
+      return 'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001 run as1:slack-pilot -- answer-agent-office-strategy "<bounded answer text>"';
+    case 'FOUNDATION_STRATEGY':
+      return 'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001 run as1:slack-pilot -- answer-foundation-strategy "<bounded answer text>"';
+    default: {
+      const exhaustive: never = profile;
+      throw new DomainError('FORBIDDEN_TARGET', `strategy answer command is not a reviewed literal: ${String(exhaustive)}`);
+    }
+  }
+}
 /** Handoff 116: the existing canonical mission-local fixed Agent Office Advisor tmux pane. It is a FIXED mission
  *  binding validated once at startup, never a caller/message/environment-selected target. */
 const AS1_LEO_ADVISOR_PANE_ID = '%26';
@@ -1825,7 +1851,7 @@ export class As1GatewayComposition {
     // One contained fixed buffer carrying the ACTUAL bounded Leo message bytes PLUS the fixed real answer-command
     // instruction; delete on success AND ordinary failure.
     const bufferName = `as1-${live.profile.profileStateSlug}-personal`;
-    const paste = `${current.text}\n\n[AS1] To answer Leo, run:  npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001 run as1:slack-pilot -- answer "<bounded answer text>"`;
+    const paste = `${current.text}\n\n[AS1] To answer Leo, run:  ${personalAnswerCommandFor(live.profile)}`;
     try {
       try {
         await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(paste, 'utf8'));

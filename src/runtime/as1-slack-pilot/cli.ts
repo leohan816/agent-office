@@ -48,6 +48,7 @@ import { As1FilePersonalResultSpool } from '../../adapters/gateways/slack-pilot/
 import {
   As1GatewayComposition,
   AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
+  AS1_STRATEGY_STATE_ROOTS,
   parseRuntimeDescriptor,
   strategyDirectBindingFor,
   type As1CompositionDependencies,
@@ -121,11 +122,18 @@ export async function preflightTrustedNode(
   return checkTrustedNode(execPath, facts);
 }
 
-export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check', 'answer'] as const;
+export const AS1_COMMANDS = ['start', 'stop', 'incident-kill', 'status', 'restart', 'redacted-check', 'answer', 'answer-agent-office-strategy', 'answer-foundation-strategy'] as const;
 export type As1Command = (typeof AS1_COMMANDS)[number];
 
 /** The two verbs that cross the owner filesystem/secret boundary and require the exact `--env-file` path. */
 const ENV_FILE_COMMANDS: readonly As1Command[] = ['start', 'redacted-check'];
+
+/** Strategy migration: the two closed Strategy answer verbs → their FIXED already-committed state roots. A pure fixed
+ *  map over the closed verb literals — never a caller/env/path/root operand or selection. */
+const AS1_STRATEGY_ANSWER_ROOTS: Readonly<Record<'answer-agent-office-strategy' | 'answer-foundation-strategy', string>> = {
+  'answer-agent-office-strategy': AS1_STRATEGY_STATE_ROOTS.AGENT_OFFICE_STRATEGY,
+  'answer-foundation-strategy': AS1_STRATEGY_STATE_ROOTS.FOUNDATION_STRATEGY,
+};
 
 export interface As1CliInvocation {
   readonly command: As1Command;
@@ -147,10 +155,11 @@ export function parseAs1Cli(argv: readonly string[]): As1CliInvocation {
   }
   const command = first as As1Command;
   const rest = argv.slice(1);
-  if (command === 'answer') {
-    // Handoff 119: the fixed answer action's ONLY operand is bounded answer text. EVERY remaining token is treated
-    // STRICTLY as answer text and NONE as an option — a legitimate bounded answer may contain `--`-like prose. The
-    // fixed leo-v1 root, channel, thread, and the sole pending correlation are all internal, never operands.
+  if (command === 'answer' || command === 'answer-agent-office-strategy' || command === 'answer-foundation-strategy') {
+    // Handoff 119 + Strategy migration: the answer-family verbs' ONLY operand is bounded answer text. EVERY remaining
+    // token is treated STRICTLY as answer text and NONE as an option — a legitimate bounded answer may contain `--`-like
+    // prose. The fixed root (leo-v1 for `answer`; each Strategy verb's own fixed root), channel, thread, and the sole
+    // pending correlation are all internal, never operands.
     if (rest.length === 0) throw new DomainError('INVALID_SCHEMA', 'as1 cli answer requires bounded answer text');
     return { command, envFilePath: null, answerText: requireBoundedMessageText(rest.join(' '), 'as1 cli answer text') };
   }
@@ -206,6 +215,14 @@ export async function runAs1Cli(
       if (invocation.answerText === undefined) throw new DomainError('INVALID_SCHEMA', 'answer requires the bounded answer text');
       const outcome = await runPersonalAnswerAction(invocation.answerText, personalAnswerRoot);
       return { command: 'answer', ok: outcome.includes('PERSONAL_ANSWER:RECORDED'), lines: ['AS1_SLACK_PILOT ANSWER', `REASON: ${outcome.join('|')}`] };
+    }
+    case 'answer-agent-office-strategy':
+    case 'answer-foundation-strategy': {
+      // Strategy migration: the fixed cross-process Strategy answer action — same bounded answer text + spool as legacy
+      // `answer`, at this verb's FIXED already-committed Strategy root (no caller/env/root selection).
+      if (invocation.answerText === undefined) throw new DomainError('INVALID_SCHEMA', 'strategy answer requires the bounded answer text');
+      const outcome = await runPersonalAnswerAction(invocation.answerText, AS1_STRATEGY_ANSWER_ROOTS[invocation.command]);
+      return { command: invocation.command, ok: outcome.includes('PERSONAL_ANSWER:RECORDED'), lines: ['AS1_SLACK_PILOT ANSWER', `REASON: ${outcome.join('|')}`] };
     }
     case 'redacted-check': {
       if (invocation.envFilePath === null) throw new DomainError('INVALID_SCHEMA', 'redacted-check requires --env-file');
@@ -909,6 +926,15 @@ async function main(): Promise<void> {
     // Handoff 119: the fixed cross-process answer action derives the fixed leo-v1 root + the sole pending correlation
     // internally; it opens no composition/writer lock, network, tmux, or secret. Only bounded answer text is accepted.
     const outcome = await runPersonalAnswerAction(invocation.answerText ?? '');
+    process.stdout.write(`AS1_SLACK_PILOT ANSWER\nREASON: ${outcome.join('|')}\n`);
+    process.exitCode = outcome.includes('PERSONAL_ANSWER:RECORDED') ? 0 : 2;
+    return;
+  }
+
+  if (invocation.command === 'answer-agent-office-strategy' || invocation.command === 'answer-foundation-strategy') {
+    // Strategy migration: the fixed cross-process Strategy answer action at this verb's FIXED Strategy root; it opens no
+    // composition/writer lock, network, tmux, or secret. Only bounded answer text is accepted.
+    const outcome = await runPersonalAnswerAction(invocation.answerText ?? '', AS1_STRATEGY_ANSWER_ROOTS[invocation.command]);
     process.stdout.write(`AS1_SLACK_PILOT ANSWER\nREASON: ${outcome.join('|')}\n`);
     process.exitCode = outcome.includes('PERSONAL_ANSWER:RECORDED') ? 0 : 2;
     return;

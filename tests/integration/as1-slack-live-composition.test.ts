@@ -26,6 +26,7 @@ import {
   As1GatewayComposition,
   AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
   parseRuntimeDescriptor,
+  personalAnswerCommandFor,
   type As1CompositionDependencies,
   type As1CompositionSocketPort,
 } from '../../src/runtime/as1-slack-pilot/composition.js';
@@ -61,6 +62,25 @@ const ACCEPTING_RECEIVE_GATE: As1ReceiveGrantProvenanceGate = { assertAccepted: 
 const ACCEPTING_DELIVERY_GATE: As1DeliveryProvenanceGate = { assertAccepted: () => Promise.resolve() };
 /** The exact obsolete advisor latch reason handoff 120 retires (post-acceptance receive-grant Git divergence). */
 const OBSOLETE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
+
+describe('AS1 Strategy answer paste commands', () => {
+  const LEGACY = 'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001 run as1:slack-pilot -- answer "<bounded answer text>"';
+  const AO_STRATEGY = 'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001 run as1:slack-pilot -- answer-agent-office-strategy "<bounded answer text>"';
+  const FDN_STRATEGY = 'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001 run as1:slack-pilot -- answer-foundation-strategy "<bounded answer text>"';
+
+  it('pastes fixed Strategy answer verbs while preserving the legacy Advisor answer command', () => {
+    // Legacy Advisor profiles keep the EXACT existing pasted answer command, byte-for-byte.
+    expect(personalAnswerCommandFor(selectProfile('AGENT_OFFICE_ADVISOR'))).toBe(LEGACY);
+    expect(personalAnswerCommandFor(selectProfile('FOUNDATION_ADVISOR'))).toBe(LEGACY);
+    // Each Strategy profile pastes its OWN fixed migration-worktree command with its matching closed answer verb.
+    expect(personalAnswerCommandFor(selectStrategyProfile('AGENT_OFFICE_STRATEGY'))).toBe(AO_STRATEGY);
+    expect(personalAnswerCommandFor(selectStrategyProfile('FOUNDATION_STRATEGY'))).toBe(FDN_STRATEGY);
+    // No cross-contamination: the two Strategy commands are distinct, and neither is the legacy command.
+    expect(AO_STRATEGY).not.toBe(FDN_STRATEGY);
+    expect(AO_STRATEGY).not.toBe(LEGACY);
+    expect(FDN_STRATEGY).not.toBe(LEGACY);
+  });
+});
 
 describe('AS1 Strategy isolated FIFO routes (personal-direct reuse)', () => {
   // Two Strategy runtime contexts with DISTINCT fixed Slack identities (App/channel/bot). The PERSONAL direct intake
