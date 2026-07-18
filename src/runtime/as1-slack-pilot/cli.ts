@@ -651,18 +651,23 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         terminal = 'DELIVERY_HALTED';
         break;
       }
-      const tick = await composition.observeReceiveGrantOnce();
-      if (incidentPending()) {
-        terminal = 'INCIDENT_KILL';
-        break;
-      }
-      if (tick === 'DIVERGED') {
-        terminal = 'PROFILE_DIVERGED';
-        break;
-      }
-      if (tick === 'EXPIRED') {
-        terminal = 'GRANT_EXPIRED';
-        break;
+      // Handoff 119: PERSONAL_LEO_ONLY delivers through the direct %26 path with NO receive grant / Git observation, so
+      // it BYPASSES the legacy grant re-observation and its divergence/expiry terminals ENTIRELY — a legacy Git/grant
+      // expiry must never terminate the direct owner. The non-PERSONAL path below is byte-for-byte unchanged.
+      if (!composition.isPersonalLeoOnly()) {
+        const tick = await composition.observeReceiveGrantOnce();
+        if (incidentPending()) {
+          terminal = 'INCIDENT_KILL';
+          break;
+        }
+        if (tick === 'DIVERGED') {
+          terminal = 'PROFILE_DIVERGED';
+          break;
+        }
+        if (tick === 'EXPIRED') {
+          terminal = 'GRANT_EXPIRED';
+          break;
+        }
       }
       // R2 recovery §5.6/§5.7: a durable failure barrier (DELIVERY_FAILED / PROCESSING_FAILED / conflict) halts the
       // owner — no delivery, evidence, status, or business work runs behind it. Re-checked here after the observation.

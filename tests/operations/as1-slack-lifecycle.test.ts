@@ -1122,12 +1122,18 @@ describe('AS1 PERSONAL_LEO_ONLY direct-result spool (handoff 119)', () => {
     // (message-local), and the loop must NOT halt — it delivers + consumes a SECOND message (POSTED) before a clean stop.
     let deliverCalls = 0;
     let consumeCalls = 0;
+    let observeCalls = 0;
     const events: string[] = [];
     const fakeComposition = {
       start: () => Promise.resolve({ connected: true, reason: 'RECEIVING_ARMED', state: 'RECEIVING_ONE_PROFILE' }),
       isPersonalLeoOnly: () => true,
       hasFailureBarrier: () => false,
-      observeReceiveGrantOnce: () => Promise.resolve('RECEIVING'),
+      // Legacy grant re-observation MUST NOT be called in PERSONAL — record any call so the assertion below fails if the
+      // owner ever consults the receive-grant/Git expiry for the direct %26 path.
+      observeReceiveGrantOnce: () => {
+        observeCalls += 1;
+        return Promise.resolve('RECEIVING');
+      },
       deliverPending: () => {
         deliverCalls += 1;
         events.push(`deliver:${deliverCalls}`);
@@ -1171,6 +1177,7 @@ describe('AS1 PERSONAL_LEO_ONLY direct-result spool (handoff 119)', () => {
         },
       } as unknown as As1ForegroundOwnerBoundary;
       const result = await runForegroundOwner(boundary);
+      expect(observeCalls).toBe(0); // PERSONAL bypasses the legacy grant re-observation ENTIRELY (no Git/grant-expiry terminal)
       expect(deliverCalls).toBe(2); // TWO delivery attempts — the first result failure did NOT halt the loop
       expect(events).toEqual(['deliver:1', 'PERSONAL_RESULT:FAILED', 'deliver:2', 'PERSONAL_RESULT:POSTED']);
       expect(result.ok).toBe(true); // clean stop after the second message
