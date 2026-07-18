@@ -3,16 +3,19 @@ MISSION_ID: AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 ACTION: RUN_NARROW_FIXED_STRATEGY_ANSWER_ACTIONS_DELTA_REVIEW
 WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 BRANCH: feature/strategy-entrypoint-migration-001
-DELTA_BASELINE: 2a2ed98
-EXACT_CANDIDATE: 4c8d6dbd672e485977eb85e011ba883d5e644903
+DELTA_BASELINE: d38dc2e
+EXACT_CANDIDATE: 2267318dfd8d7d096d55e5536685ef59d2fec0b5
 ACTIVE_SCOPE_SUPERSEDES_ALL_EARLIER_SCOPE: YES
-ACTIVE_SCOPE: Read-only review of only the exact three-file one-shot Agent Office malformed-frame latch retirement.
-EXACT_FILES: src/operations/readiness/as1-slack-control.ts; src/runtime/as1-slack-pilot/composition.ts; tests/integration/as1-slack-live-composition.test.ts
-NAMED_TEST_1: retires only the exact Agent Office malformed-frame latch before fixed Strategy direct start
-NAMED_TEST_2: refuses wrong or later Agent Office malformed-frame latches
-OTHER_GATES: ESLint only the exact three files; git diff --check 2a2ed98..4c8d6dbd672e485977eb85e011ba883d5e644903
-FORBIDDEN: build; live action; Foundation action; broad tests; implementation; patch
-RETURN: write only existing REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt; PASS or one concrete blocker within three minutes; STOP
+ACTIVE_SCOPE: Read-only review of only the exact five-file fixed Strategy status-stream delta.
+EXACT_FILES: src/adapters/gateways/slack-pilot/personal-result-spool.ts; src/runtime/as1-slack-pilot/composition.ts; src/runtime/as1-slack-pilot/cli.ts; tests/integration/as1-slack-live-composition.test.ts; tests/operations/as1-slack-lifecycle.test.ts
+NAMED_TEST_1: intercepts the four status controls with thread binding and no Advisor delivery
+NAMED_TEST_2: delivers one status and one normal same-thread answer exactly once
+NAMED_TEST_3: clears status on stop and limits heartbeat to once per 60 seconds
+NAMED_TEST_4: labels a leading-bang normal message before tmux paste
+NAMED_TEST_5: uses fixed Strategy CLI roots with no caller routing
+OTHER_GATES: ESLint only the exact five files; git diff --check d38dc2e..2267318dfd8d7d096d55e5536685ef59d2fec0b5
+FORBIDDEN: build; live action; broad tests; implementation; patch; input to either live Strategy owner
+RETURN: write only existing REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt; PASS or one concrete blocker within four minutes; STOP
 HANDOFF: artifacts/strategy-entrypoint-migration/REVIEW_HANDOFF.md
 PROTOCOL: activate and follow fable-sentinel; read required repository Reviewer entry files
 SCOPE: read-only exact three-file one-shot Foundation diagnostic-latch retirement delta and committed Worker evidence; reproduce only the two named focused tests, three-file ESLint, and exact-range diff-check; no build, broad checks, live action, or activation

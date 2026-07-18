@@ -258,3 +258,33 @@ and `git diff --check 2a2ed98..4c8d6dbd672e485977eb85e011ba883d5e644903`.
 No build, broad test, live action, Foundation action, implementation, or patch.
 Write only the existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, then
 return PASS or one concrete blocker within three minutes and stop.
+## ACTIVE AMENDMENT — fixed Strategy status stream
+
+Authority: Advisor publication baseline `d38dc2e`; review candidate
+`2267318dfd8d7d096d55e5536685ef59d2fec0b5`. This amendment supersedes every
+earlier review scope. Return PASS or one concrete blocker within four minutes.
+
+Review only this exact five-file delta:
+
+- `src/adapters/gateways/slack-pilot/personal-result-spool.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `src/runtime/as1-slack-pilot/cli.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+- `tests/operations/as1-slack-lifecycle.test.ts`
+
+Verify only the closed behavior in handoff `d38dc2e`: exact trimmed four-control
+interception after existing validation and before ordinary Strategy handling;
+top-level/threaded binding and one acknowledgement; one subscription per fixed
+root in the existing spool; two fixed-root CLI status actions with no caller
+routing; consume/post/terminal exactly once without a second LLM or new storage;
+the fixed `LEO_SLACK_MESSAGE:\n` ordinary-message label; unchanged FIFO and one
+normal final answer; mandatory no-LLM heartbeat after 60 seconds since the last
+status/liveness post and never more frequently; and stop cancellation, clear,
+acknowledgement, and silence of later status actions.
+
+Reproduce only the five exact named tests from the Worker handoff, ESLint only
+the exact five files, and `git diff --check
+d38dc2e..2267318dfd8d7d096d55e5536685ef59d2fec0b5`. No build, broad check,
+implementation, patch, live action, or input to `%63`/PID `2819189` or
+`%62`/PID `2782662`. Write only the existing `REVIEW_RESULT.md` and
+`REVIEW_RESULT_POINTER.txt`, return the independent verdict, and STOP.

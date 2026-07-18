@@ -303,5 +303,34 @@ to the Foundation diagnostic-latch retirement).
 - **Boundaries:** no socket/parser/state/queue/Socket/Slack/routing/profile/descriptor/config/credential change; no
   build/broad checks; no live-state action; no Foundation action. Evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Fixed Strategy status stream (2026-07-18)
+
+Authority: handoff amendment `d38dc2e` (verified; local==upstream at entry). Baseline `9e1efdf`. Live owners `%63`/PID
+2819189 and `%62`/PID 2782662 untouched — no pane input, no live-state mutation.
+
+- **Exact changed paths (5-file allowlist; +347/−5):**
+  - `personal-result-spool.ts` — added subscription storage (`recordSubscription`/`readSubscription`/
+    `clearSubscription`, exactly one active subscription per fixed root) + status entries (`recordStatusEntry`/
+    `consumeStatusEntry`/`markStatusPosted`). No new spool/storage system — only this existing adapter.
+  - `composition.ts` — `classifyStatusControl` (four fixed controls: `!상태`/`!状态` start, `!상태그만`/`!状态停止`
+    stop) intercepted in `deliverPersonalDirect` BEFORE ordinary delivery/correlation (never a normal question/Advisor
+    delivery/tmux/shell); `handleStatusControl` (thread-bound start ack + fixed pane prompt; stop clears subscription +
+    pending status + stop ack); `consumeStatusStream` (post one status entry once per tick to the bound thread; fixed
+    no-LLM heartbeat at most once per 60 s per root); `personalOrdinaryPasteText` prepends the fixed non-shell
+    `LEO_SLACK_MESSAGE:\n` label + appends a fixed status-action instruction while subscribed.
+  - `cli.ts` — two fixed status verbs `status-agent-office-strategy` / `status-foundation-strategy` (parallel to the
+    answer verbs) → `runPersonalStatusAction` at each verb's FIXED root; inactive subscription → no post; the owner loop
+    calls `consumeStatusStream` each tick.
+  - two test files — the five named focused tests.
+- **Behavior invariants:** one event → one substantive final answer (unchanged FIFO/correlation); status/heartbeat make
+  no second LLM call and add no Git/evidence/outbox/db; after stop, later status actions do not post; the other fixed
+  root is undisturbed.
+- **Gates:** all five named focused tests — PASS (1 passed each); changed-file ESLint on the 5 files — 0 errors;
+  `git diff --check 9e1efdf..HEAD` — clean.
+- **Git:** candidate `2267318dfd8d7d096d55e5536685ef59d2fec0b5`; pushed non-force `d38dc2e..2267318`; local==upstream.
+- **Coverage note (disclosed):** tests 1–4 prove the status-stream logic at the spool + `classifyStatusControl` +
+  `personalOrdinaryPasteText` + heartbeat-window layers (deterministic, no live owner); test 5 at the CLI layer. No
+  build/broad checks/live actions were run, per scope. Evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
