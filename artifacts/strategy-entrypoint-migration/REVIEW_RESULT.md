@@ -60,6 +60,63 @@ RETURN_TO: `agent-office-advisor`
 
 ---
 
+# Fixed Strategy Answer Actions Delta Review
+
+## Findings
+
+No findings.
+
+## Review identity and authority
+
+- Mission: `AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001`
+- Review type: `NARROW_FIXED_STRATEGY_ANSWER_ACTIONS_DELTA_REVIEW`
+- Review pass: `IMPLEMENTATION_REVIEW`
+- Reviewer: same existing independent Agent Office Reviewer, `agent-office-reviewer`, pane `%28`
+- Live runtime: `gpt-5.6-sol`, effort `xhigh`; all repository commands were explicitly rooted at the authorized mission worktree
+- Committed launcher/handoff: `f8af069ca269cc017840b4e2f27cb27e24ceefd6`, local and upstream-equal on `feature/strategy-entrypoint-migration-001`
+- Baseline: `0dd25b4602d223ee577f4917707b3ba1f8fb8464`
+- Exact candidate: `d806f98acf0c5eef9b3f7153b50a7b26da6b7f15`
+- Committed Worker evidence reviewed at launcher tip: `artifacts/strategy-entrypoint-migration/WORKER_RESULT.md` and `WORKER_RESULT_POINTER.txt`
+
+## Direct delta evidence and criterion coverage
+
+1. **Closed Strategy answer actions — CLOSED.** `src/runtime/as1-slack-pilot/cli.ts` candidate lines 125 and 133-135 define exactly the two new verbs and a private verb-to-root map using the already-committed fixed Strategy roots. Candidate lines 158, 219-224, and 934-937 accept only bounded answer text and route each verb to its fixed root. There is no caller-selected root, profile, path, channel, thread, command, or environment operand.
+2. **Fixed pasted commands — CLOSED.** `src/runtime/as1-slack-pilot/composition.ts` candidate lines 194-213 preserve the legacy Advisor command as an exact literal and exhaustively select the two fixed migration-worktree Strategy commands by the already-bound closed profile. Candidate line 1854 uses that selection in the existing paste construction. No generic router, inferred/scanned root, new spool/storage, or projection path was added.
+3. **Legacy behavior preservation — CLOSED.** The legacy command literal is byte-identical to the baseline command, and the focused legacy sequential PERSONAL test passes. The changed production flow outside command selection is unchanged.
+4. **Scope — CLOSED.** The exact range changes only the four authorized files (`+88/-6`): `cli.ts`, `composition.ts`, and the two focused test files. No profile/config/service/Foundation, manifest/lockfile, or other tracked path changed.
+5. **Focused proofs — CLOSED.** The lifecycle binding proof is at `tests/operations/as1-slack-lifecycle.test.ts:62`; the fixed Strategy/legacy paste proof is at `tests/integration/as1-slack-live-composition.test.ts:71`; the unchanged legacy sequential proof is at line 697.
+
+## Worker evidence verification
+
+- **Reported:** committed Worker evidence records candidate `d806f98acf0c5eef9b3f7153b50a7b26da6b7f15`, non-force push from `0dd25b4`, local/upstream equality at publication time, all three focused tests passing, and four-file ESLint clean.
+- **Process deviation:** the Worker disclosed an accidental duplicate `build:core` invocation, its detection of the invalid exhaustive default, the canonical correction to `const exhaustive: never = profile`, and the absence of a replacement build under Leo's final gate correction.
+- **Actual:** candidate line 213 contains the corrected canonical exhaustive form; the exact candidate is an ancestor of the current local/upstream launcher tip; the direct four-file delta and every authorized reproduction gate match the committed evidence.
+- No post-candidate source drift exists: `d806f98..f8af069` changes only the committed handoff, launcher, Worker result, and Worker pointer artifacts.
+
+## Reproduced gates
+
+- `npx vitest run --maxWorkers=1 tests/operations/as1-slack-lifecycle.test.ts -t "binds fixed Strategy commands and roots without caller-selected routing"` — **PASS**: 1 passed, 74 skipped.
+- `npx vitest run --maxWorkers=1 tests/integration/as1-slack-live-composition.test.ts -t "pastes fixed Strategy answer verbs while preserving the legacy Advisor answer command"` — **PASS**: 1 passed, 74 skipped.
+- `npx vitest run --maxWorkers=1 tests/integration/as1-slack-live-composition.test.ts -t "handles two sequential PERSONAL_LEO_ONLY messages with same-thread replies and dedupe"` — **PASS**: 1 passed, 74 skipped.
+- `npx eslint src/runtime/as1-slack-pilot/cli.ts src/runtime/as1-slack-pilot/composition.ts tests/operations/as1-slack-lifecycle.test.ts tests/integration/as1-slack-live-composition.test.ts` — **PASS**, no output.
+- `git diff --check 0dd25b4602d223ee577f4917707b3ba1f8fb8464..d806f98acf0c5eef9b3f7153b50a7b26da6b7f15` — **PASS**, clean.
+
+## Excluded scope
+
+Per the active amendment, no build was run or substituted. No other test, broad lint/typecheck, profile/design command, live proof, activation, credential/service/actor probe, rollback worktree/service, Foundation session, or prior unchanged surface was inspected or exercised. No service was started and no candidate source was modified.
+
+## Residual risk
+
+No concrete defect or blocking residual risk was identified within the authorized delta and gates. The disclosed duplicate-build/non-rerun process fact remains recorded; this review does not reinterpret it as a build result or risk acceptance. This verdict is independent review evidence only, not final approval, activation, or next-mission authority.
+
+## Verdict
+
+`PASS`
+
+RETURN_TO: `agent-office-advisor`
+
+---
+
 # Compile-Closure Delta Review
 
 ## Findings
