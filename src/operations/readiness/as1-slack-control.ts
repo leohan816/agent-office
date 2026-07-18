@@ -97,6 +97,9 @@ const FOUNDATION_DIAG_LATCH_ROOT_ID = 'strategy-foundation-v1';
 const FOUNDATION_DIAG_LATCH_PROFILE: As1ProfileSlug = 'foundation-advisor';
 const FOUNDATION_DIAG_LATCH_REASON = 'owner-loop error: AUTHORITY_ARTIFACT_INVALID';
 const FOUNDATION_DIAG_LATCH_AT = '2026-07-18T16:15:44.312Z';
+/** The second exact reviewed Foundation tuple (same fixed root/profile) — a distinct (reason, latchedAt) pair. */
+const FOUNDATION_DIAG_LATCH_REASON_2 = 'malformed frame after ready';
+const FOUNDATION_DIAG_LATCH_AT_2 = '2026-07-18T18:55:19.830Z';
 
 /** The EXACT one-shot Agent Office malformed-frame latch identity (all four fields fixed; no caller/root/path operand). */
 const AGENT_OFFICE_MALFORMED_LATCH_ROOT_ID = 'strategy-agent-office-v1';
@@ -597,8 +600,12 @@ export class As1SlackControl {
       } catch {
         return 'NOT_RETIRED'; // an unreadable/corrupt/quarantined latch is not the exact diagnostic latch: mutate nothing
       }
-      if (!parsed.latched || parsed.reason !== FOUNDATION_DIAG_LATCH_REASON || parsed.latchedAt !== FOUNDATION_DIAG_LATCH_AT) {
-        return 'NOT_RETIRED'; // a wrong reason, or the same reason at any other timestamp, stays durably latched
+      // Accept EITHER of the two exact reviewed Foundation tuples (each reason paired with ITS OWN latchedAt); any other
+      // reason, timestamp, or mismatched pairing stays durably latched.
+      const matchesTuple1 = parsed.reason === FOUNDATION_DIAG_LATCH_REASON && parsed.latchedAt === FOUNDATION_DIAG_LATCH_AT;
+      const matchesTuple2 = parsed.reason === FOUNDATION_DIAG_LATCH_REASON_2 && parsed.latchedAt === FOUNDATION_DIAG_LATCH_AT_2;
+      if (!parsed.latched || (!matchesTuple1 && !matchesTuple2)) {
+        return 'NOT_RETIRED';
       }
       try {
         await writeAtomicCanonicalJson(target, {

@@ -293,6 +293,33 @@ describe('AS1 one-shot Foundation Strategy diagnostic-latch retirement', () => {
     expect(await future.isProfileLatched('foundation-advisor')).toBe(true);
     await future.close();
   });
+
+  it('retires the second exact Foundation malformed-frame latch before fixed Strategy direct start', async () => {
+    const root = await foundationRoot();
+    await seedLatch(root, 'malformed frame after ready', '2026-07-18T18:55:19.830Z');
+    const control = await As1SlackControl.open(root, new FakeClock(CLOCK_ISO));
+    // The second exact reviewed tuple (reason + its own latchedAt) under the fixed root/profile → exact-match retirement.
+    expect(await control.retireOneShotFoundationDiagnosticLatch()).toBe('RETIRED');
+    expect(await control.isProfileLatched('foundation-advisor')).toBe(false);
+    await control.close();
+  });
+
+  it('refuses any other Foundation latch reason or timestamp', async () => {
+    // An unrelated reason at a valid timestamp stays latched.
+    const wrongRoot = await foundationRoot();
+    await seedLatch(wrongRoot, 'some unrelated latch reason', '2026-07-18T18:55:19.830Z');
+    const wrong = await As1SlackControl.open(wrongRoot, new FakeClock(CLOCK_ISO));
+    expect(await wrong.retireOneShotFoundationDiagnosticLatch()).toBe('NOT_RETIRED');
+    expect(await wrong.isProfileLatched('foundation-advisor')).toBe(true);
+    await wrong.close();
+    // Cross-tuple mismatch: tuple-2's reason paired with tuple-1's timestamp (each reason must match ITS OWN latchedAt).
+    const mixedRoot = await foundationRoot();
+    await seedLatch(mixedRoot, 'malformed frame after ready', '2026-07-18T16:15:44.312Z');
+    const mixed = await As1SlackControl.open(mixedRoot, new FakeClock(CLOCK_ISO));
+    expect(await mixed.retireOneShotFoundationDiagnosticLatch()).toBe('NOT_RETIRED');
+    expect(await mixed.isProfileLatched('foundation-advisor')).toBe(true);
+    await mixed.close();
+  });
 });
 
 describe('AS1 Strategy answer paste commands', () => {
