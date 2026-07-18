@@ -339,3 +339,23 @@ f3e1e46..a0cb0a93970d56d689e3d0e9e6daf3556f892c3a`. No build, broad check,
 implementation, patch, live action, Foundation retry/state mutation, or Agent
 Office action. Write only the existing `REVIEW_RESULT.md` and
 `REVIEW_RESULT_POINTER.txt`, return the independent verdict, and STOP.
+## ACTIVE AMENDMENT — subscribed status-forwarding instruction
+
+Authority: Advisor publication baseline `df4a81f`; review candidate
+`8d4d2394a294034ad1b1bd5b7938d541edfc9bfc`. Supersedes earlier review scope;
+return PASS or one blocker within three minutes.
+
+Review only `src/runtime/as1-slack-pilot/composition.ts` and
+`tests/integration/as1-slack-live-composition.test.ts`. Verify only the
+subscribed `STRATEGY_STATUS_INSTRUCTION` now mandates exactly-once bounded
+forwarding of every new user-facing progress/finding/result block from the
+Slack-origin turn or selected Advisor/Worker output, while excluding npm/tool
+invocations, `Ran` headers, `REASON`/control lines, and duplicates. Verify
+terminal-originated conversations and unsubscribed behavior remain unchanged.
+
+Reproduce only `requires subscribed Strategy progress forwarding and omits it
+when unsubscribed` and `delivers one status and one normal same-thread answer
+exactly once`; two-file ESLint; and `git diff --check
+df4a81f..8d4d2394a294034ad1b1bd5b7938d541edfc9bfc`. No build, broad test,
+implementation, live action, or other file. Write only existing
+`REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.

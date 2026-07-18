@@ -376,5 +376,25 @@ untouched; Foundation live state not mutated/retried.
 - **Boundaries:** only the two allowlisted files; no composition/CLI/spool/profile/routing change; no build/broad
   tests/live action/redesign. Evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Subscribed status-forwarding instruction (2026-07-18)
+
+Authority: handoff amendment `df4a81f` (verified; local==upstream at entry). Baseline `fd57f04`.
+
+- **Exact changed paths (2-file allowlist; +22/−1):**
+  - `src/runtime/as1-slack-pilot/composition.ts` — strengthened ONLY the fixed subscribed
+    `STRATEGY_STATUS_INSTRUCTION` constant: while handling the Slack-origin message, every new user-facing
+    progress/finding/result block Strategy prints or selects from captured Advisor/Worker output must be sent EXACTLY
+    ONCE as bounded text via that profile's fixed status action; it must never send the npm/tool invocation, a `Ran`
+    header, `REASON`/control lines, or duplicate content; terminal-originated direct conversations stay outside Slack.
+    Unsubscribed behavior is unchanged (no instruction appended). No CLI/spool/owner/state/routing change.
+  - `tests/integration/as1-slack-live-composition.test.ts` — one focused test
+    `requires subscribed Strategy progress forwarding and omits it when unsubscribed` (subscribed paste requires the
+    exactly-once bounded status-forwarding directive + forbids npm/`Ran`/`REASON`/duplicate; unsubscribed omits it).
+- **Gates:** the new test + the existing `delivers one status and one normal same-thread answer exactly once` — both
+  PASS; changed-file ESLint on the 2 files — 0 errors; `git diff --check fd57f04..HEAD` — clean.
+- **Git:** candidate `8d4d2394a294034ad1b1bd5b7938d541edfc9bfc`; pushed non-force `df4a81f..8d4d239`; local==upstream.
+- **Boundaries:** only the two allowlisted files; no CLI/spool/owner/state/routing change; no build/broad test/design/
+  live action/other file. Evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
