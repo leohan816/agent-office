@@ -1561,7 +1561,7 @@ export class As1GatewayComposition {
     // One contained fixed buffer carrying the ACTUAL bounded Leo message bytes PLUS the fixed real answer-command
     // instruction; delete on success AND ordinary failure.
     const bufferName = `as1-${live.profile.profileStateSlug}-personal`;
-    const paste = `${current.text}\n\n[AS1] To answer Leo, run:  npm run as1:slack-pilot -- answer "<bounded answer text>"`;
+    const paste = `${current.text}\n\n[AS1] To answer Leo, run:  npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001 run as1:slack-pilot -- answer "<bounded answer text>"`;
     try {
       try {
         await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(paste, 'utf8'));

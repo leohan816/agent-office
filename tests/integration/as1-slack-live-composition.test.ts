@@ -155,6 +155,7 @@ class FakeCompositionSocket implements As1CompositionSocketPort {
 class FakeTmuxObservationPort implements As1TmuxObservationPort {
   public pasteCalls = 0;
   public enterCalls = 0;
+  public readonly loadedBuffers: Buffer[] = [];
   public constructor(private readonly destination: As1TmuxDestination) {}
   public observe(): Promise<As1TmuxDestination> {
     return Promise.resolve(this.destination);
@@ -162,7 +163,8 @@ class FakeTmuxObservationPort implements As1TmuxObservationPort {
   public bufferExists(): Promise<boolean> {
     return Promise.resolve(false);
   }
-  public loadVerifiedBuffer(): Promise<void> {
+  public loadVerifiedBuffer(_name: string, pinnedBytes: Buffer): Promise<void> {
+    this.loadedBuffers.push(Buffer.from(pinnedBytes));
     return Promise.resolve();
   }
   public pasteBuffer(): Promise<void> {
@@ -622,6 +624,7 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     await seed.shutdown(); // DISABLED_DEFAULT -> DISABLED_CLEAN
     await seed.close();
     const socket = new FakeCompositionSocket();
+    const tmuxPort = new FakeTmuxObservationPort(parseTmuxDestination(validDestination(), 'd'));
     const signals = new Map<As1OwnerSignal, () => void>();
     let tick = 0;
     const boundary: As1ForegroundOwnerBoundary = {
@@ -629,7 +632,7 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
       stateRoot,
       clock,
       personalLeoOnly: true,
-      buildDeps: () => fullFakeDeps(gitSource, world, { buildSocket: () => socket }),
+      buildDeps: () => fullFakeDeps(gitSource, world, { buildSocket: () => socket, tmuxPort }),
       initialize: () => Promise.resolve(),
       installSignalHandlers: (handlers) => {
         (['SIGINT', 'SIGTERM', 'SIGUSR2'] as const).forEach((s) => signals.set(s, handlers[s]));
@@ -668,6 +671,12 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     // failed closed as PROFILE_LATCHED and delivered nothing (answers.length would be 0, not 2).
     const advisorLatchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');
     expect((JSON.parse(advisorLatchRaw) as { readonly latched: boolean }).latched).toBe(false);
+    // Handoff 121: the pasted Advisor answer instruction uses the fixed worktree-prefix npm command (pane %26 runs from
+    // /home/leo/Project/agent-office, which does not expose the script), never the old bare `npm run` form.
+    expect(tmuxPort.loadedBuffers.length).toBeGreaterThan(0);
+    const firstPaste = (tmuxPort.loadedBuffers[0] ?? Buffer.alloc(0)).toString('utf8');
+    expect(firstPaste).toContain('npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001 run as1:slack-pilot -- answer "<bounded answer text>"');
+    expect(firstPaste).not.toContain('npm run as1:slack-pilot');
   });
 
   it('rejects a second top-level root (one root-to-result round trip per channel)', async () => {
