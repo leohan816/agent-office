@@ -663,3 +663,82 @@ candidate, and push evidence to existing `WORKER_RESULT.md`; update
 Advisor publication. Return to `agent-office-advisor` and STOP within 10
 minutes. The same existing independent Reviewer gets a three-minute exact-delta
 review after Advisor publication.
+## ACTIVE AMENDMENT — fixed Strategy status stream
+
+Authority: Leo Strategy decision; Advisor baseline
+`9e1efdfc2fa8b714ed3f4b6e167058094a1e8493`. This amendment supersedes every
+earlier Worker scope. Return a pushed candidate within 15 minutes or one exact
+blocker. Preserve the live Agent Office owner `%63`/PID `2819189` and Foundation
+owner `%62`/PID `2782662`; do not send either pane input or mutate live state.
+
+### Exact source/test allowlist
+
+- `src/adapters/gateways/slack-pilot/personal-result-spool.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `src/runtime/as1-slack-pilot/cli.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+- `tests/operations/as1-slack-lifecycle.test.ts`
+
+Existing handoff/result artifacts are control evidence only. Touch no other
+source, test, doc, design, config, profile, route, app, or runtime file.
+
+### Closed behavior
+
+After the existing Leo/workspace/channel/dedupe validation, but before ordinary
+Strategy delivery, correlation, or status processing, recognize only the exact
+trimmed controls `!상태`, `!状态`, `!상태그만`, and `!状态停止`. The first two are
+start; the latter two are stop. They never become a normal question, pending
+normal correlation, Advisor delivery, arbitrary tmux text, or shell input.
+
+A top-level start binds its own event root as the subscription thread; a
+threaded start retains that existing thread. Post exactly one fixed start
+acknowledgement there, and treat it as the immediate liveness event. Store
+exactly one active subscription per fixed Strategy root using only the existing
+personal-result-spool adapter. Send exactly one fixed, constant,
+non-user-derived status-control prompt to the matching fixed Strategy pane. No
+caller-selected pane/root/profile/path/channel/thread or env selection.
+
+Add only two closed fixed CLI status actions, one internally fixed to Agent
+Office Strategy and one internally fixed to Foundation Strategy, parallel to
+the already-closed fixed Strategy answer actions. Each accepts only the existing
+bounded plain status-text operand. Its root is fixed by the action; channel and
+thread come only from that root's active local subscription. No routing operand.
+An inactive subscription produces no Slack post.
+
+Write each accepted status action through the existing personal-result spool.
+The owner consumes every status entry once, posts it once to the subscribed
+thread, then marks it terminal. Do not make a second LLM call and do not add
+Git/evidence/outbox/database storage. While a subscription is active, append a
+fixed status-action instruction to normal Strategy prompts; preserve the
+existing normal FIFO/correlation and exactly-one final answer. Prepend the fixed
+non-shell label `LEO_SLACK_MESSAGE:\n` to every ordinary Slack message before
+tmux paste, so every other leading `!` is ordinary labeled text and cannot enter
+Codex shell mode.
+
+While the subscription remains active, the owner must post the fixed safe
+no-LLM liveness heartbeat whenever 60 seconds have elapsed since the last
+status or liveness post, and never more than once per 60 seconds per fixed root.
+Stop cancels the heartbeat, clears that root's subscription and pending status
+entries, and posts exactly one fixed stop acknowledgement to the bound thread.
+After stop, later fixed status actions do not post. Do not disturb ordinary
+answers or the other fixed root.
+
+### Focused regression only
+
+Add and run only these exact named tests in the two allowlisted existing files:
+
+1. `intercepts the four status controls with thread binding and no Advisor delivery`
+2. `delivers one status and one normal same-thread answer exactly once`
+3. `clears status on stop and limits heartbeat to once per 60 seconds`
+4. `labels a leading-bang normal message before tmux paste`
+5. `uses fixed Strategy CLI roots with no caller routing`
+
+Run each by exact `-t` filter against only its containing allowlisted test file.
+Run ESLint only on the five allowlisted files and `git diff --check
+9e1efdfc2fa8b714ed3f4b6e167058094a1e8493..HEAD`. Do not build, run broad
+tests, inspect credentials, touch app configuration, or perform live actions.
+
+Commit and push the candidate non-force. Update only the two existing Worker
+result files with exact changed paths, five focused-test results, five-file
+ESLint, diff-check, candidate, push state, boundaries, and return to Advisor;
+leave those evidence files uncommitted for Advisor publication, then STOP.
