@@ -543,3 +543,63 @@ gate, candidate, and push evidence to existing `WORKER_RESULT.md`; update
 `WORKER_RESULT_POINTER.txt`; leave only those two evidence edits for Advisor
 publication. Return to `agent-office-advisor` and STOP. Worker timebox: 4
 minutes. The same existing independent Reviewer gets a 2-minute narrow review.
+
+## Leo Delta Amendment: One-Shot Foundation Diagnostic-Latch Retirement (2026-07-18)
+
+Status: `ACTIVE`
+
+This amendment supersedes every earlier Worker amendment. Baseline is clean,
+pushed tip `b1d91e9b0a1864849806adcfa60d823d1b14bf98`. Implement only a one-shot,
+closed Foundation diagnostic-latch retirement. It must be fixed internally to:
+
+- state root `strategy-foundation-v1` (the already-committed fixed Foundation
+  Strategy state root; no caller/root/path operand);
+- profile slug `foundation-advisor`;
+- reason `owner-loop error: AUTHORITY_ARTIFACT_INVALID`;
+- `latchedAt` `2026-07-18T16:15:44.312Z`.
+
+Reuse the existing retirement safety shape: current process owns the control
+lock; global state is exactly `DISABLED_CLEAN`; active profile is null; global
+kill is clear; incident admission is open; the strictly parsed latch matches all
+four fixed identity fields above; persist canonical `latched: false` before
+updating the cache. Any root/profile/reason/time/state/ownership/kill/incident,
+read, parse, or persistence mismatch must mutate nothing and return
+`NOT_RETIRED`. A later latch, including the same reason at any other timestamp,
+must never be retired.
+
+Invoke this operation only from the fixed `FOUNDATION_STRATEGY`
+`startStrategyDirect()` path, immediately before its existing
+`isProfileLatched(slug)` check. The Agent Office Strategy and legacy Advisor
+paths remain byte-for-byte behaviorally unchanged. Do not add a generic
+retirement API, caller-selectable input, command, fallback, scan, or reset.
+
+The only writable implementation/test paths are:
+
+- `src/operations/readiness/as1-slack-control.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Add only the minimum focused coverage in that existing test file, with titles:
+
+- `retires only the exact Foundation diagnostic latch before fixed Strategy direct start`
+- `refuses wrong or future Foundation diagnostic latches`
+
+Prove exact-match retirement and successful continuation to the existing fixed
+Foundation Strategy start boundary; prove wrong reason and same-reason later
+`latchedAt` both remain latched and return `PROFILE_LATCHED`, with no Socket arm
+or unrelated mutation. Do not touch live state.
+
+Run only those two named tests, ESLint on exactly the three changed files, and
+`git diff --check b1d91e9b0a1864849806adcfa60d823d1b14bf98..HEAD` after the candidate
+commit. Run no build, broad test, suite, broad lint/typecheck, live action,
+credential/config probe, service, Foundation input, refactor, docs/design, or
+unrelated cleanup.
+
+Stage only the three allowlisted paths, verify the staged diff, commit one
+candidate, and push non-force to
+`origin/feature/strategy-entrypoint-migration-001`. Append factual delta, gate,
+candidate, and push evidence to existing `WORKER_RESULT.md`; update
+`WORKER_RESULT_POINTER.txt`; leave only those two evidence edits uncommitted for
+Advisor publication. Return to `agent-office-advisor` and STOP within 12
+minutes. The same existing independent Reviewer gets a three-minute exact-delta
+review after Advisor publication.
