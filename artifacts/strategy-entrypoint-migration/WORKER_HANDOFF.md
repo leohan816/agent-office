@@ -258,3 +258,76 @@ edit no handoff, documentation, test, other source, configuration, descriptor,
 service, worktree, or binding. Return the candidate commit and evidence pointer
 to `agent-office-advisor`, then STOP. This is Worker evidence, not review or
 approval; independent delta review remains a separate Advisor dispatch.
+
+## Leo Delta Amendment: Strategy Compile Closure (2026-07-18)
+
+Status: `ACTIVE`
+
+Advisor instruction gate: `PROCEED_WITH_LIMITS`. This amendment supersedes only
+the prior prohibition on the core build and the source allowlist needed to
+close the Strategy-addition TypeScript errors emitted by the Advisor's exact
+`npm run build:core` attempt. Every other safety, actor, credential, routing,
+activation, and rollback boundary above remains in force. The exact clean,
+pushed starting tip is
+`2e9e73eab13e8f9450ab1952b13542a9845dd26b`.
+
+Dispatch only the existing Agent Office Worker, `agent-office-opus` pane `%16`.
+Before acting, the Worker must re-verify its role/runtime binding and read the
+required repository/Worker protocol files plus this complete committed
+handoff. Fail closed to `agent-office-advisor` on any mismatch.
+
+### Exact compiler closure
+
+The complete authorized compiler set is the seven diagnostics already emitted
+at the starting tip, reduced to these three files and enclosing symbols:
+
+1. `src/application/organization/office-layout-config.ts` —
+   `COMMITTED_OFFICE_LAYOUT_CONFIG_V1.roleCategoryByRole` lacks the exhaustive
+   `STRATEGY` member required by the widened role union. Add only the smallest
+   semantically neutral category entry needed for exhaustiveness.
+2. `src/application/slack-pilot/service.ts` —
+   `As1SlackPilotService.materializeFromTransport()` passes the widened
+   Advisor-or-Strategy `profileId` to the Advisor-only
+   `buildNewMissionIntake`, `buildContinuationIntake`, and
+   `buildAdvisorPointer` contracts. Apply only the smallest local,
+   discriminant-based narrowing that preserves the existing legacy-only
+   materialization invariant. Do not widen those three artifact contracts.
+3. `src/runtime/as1-slack-pilot/composition.ts` — the widened
+   `LiveState.profile` reaches three Advisor-only legacy consumers:
+   `As1ExactTransport` construction in the pointer-delivery path,
+   `As1EvidenceIngress` construction in `projectAcceptedEvidence()`, and the
+   `As1Outbox` profile in `buildStatusOutbox()`. Apply only the smallest shared
+   or local discriminant-based narrowing that preserves the existing path
+   invariant. Do not widen those consumer contracts.
+
+No other compiler diagnostic, file, symbol, cleanup, or inferred follow-on is
+authorized. No redesign, refactor, framework, type-contract widening, cast that
+hides an unproved invariant, profile/configuration change, descriptor change,
+credential access, service operation, tmux actor input, Foundation input,
+documentation change, test edit, or live activation is authorized. Preserve
+the approved readiness-seal delta exactly.
+
+### Exact execution and evidence
+
+Run only `npm run build:core`. If a narrowing changes executable runtime
+control flow rather than compile-time typing alone, additionally run only the
+same two focused commands from the prior amendment, by exact file and exact
+`-t` title, with one worker. Run ESLint only on source files actually changed
+within the three-file allowlist. Then run
+`git diff --check 2e9e73eab13e8f9450ab1952b13542a9845dd26b..HEAD`
+after the candidate commit. Do not run a broad suite, complete test file,
+broad lint, separate typecheck, dashboard/full build, profile/design command,
+or live proof.
+
+Stage only changed source paths from the three-file allowlist, verify the staged
+diff, commit one coherent compile-closure candidate, and push non-force only to
+`origin/feature/strategy-entrypoint-migration-001`. Then append factual
+changed-path, diagnostic-closure, command/result, candidate, push-state,
+behavior-impact, and rollback evidence to the existing
+`artifacts/strategy-entrypoint-migration/WORKER_RESULT.md`; update
+`WORKER_RESULT_POINTER.txt` to the exact candidate; and leave only those two
+evidence edits for Advisor publication. Return the candidate and evidence to
+`agent-office-advisor`, then STOP. The same independent Reviewer alone will
+review this compile-closure delta and build evidence. Timebox: 6 minutes; return
+one exact remaining compiler blocker sooner if this frozen scope cannot close
+the build.
