@@ -1,0 +1,6 @@
+MISSION=AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
+HANDOFF=artifacts/strategy-entrypoint-migration/WORKER_HANDOFF.md
+BASE=ceb778a1ec7807ef0cb87a310486965811140234
+BRANCH=feature/strategy-entrypoint-migration-001
+WORKTREE=/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
+RETURN_TO=agent-office-advisor
