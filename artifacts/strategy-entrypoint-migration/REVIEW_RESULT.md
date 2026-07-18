@@ -221,3 +221,31 @@ No build, broad check, live/state action, activation, candidate modification, or
 No blocking residual risk identified within the authorized three-file delta and named gates. This is independent review evidence, not risk acceptance or final approval.
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Fixed Strategy Status-Stream Delta Review
+
+## Findings
+
+### P1 — Strategy-only behavior is reachable from the legacy PERSONAL Advisor path
+
+`NEEDS_PATCH` — [scope regression] Candidate `src/runtime/as1-slack-pilot/composition.ts:1895-1898` classifies and dispatches all four status controls unconditionally inside the shared `deliverPersonalDirect()` path, without requiring `live.profile.role === 'STRATEGY'`. The same unconditional path at lines 1906-1907 also applies the new labeled/status-aware paste to ordinary legacy PERSONAL messages. Consequently, a legacy PERSONAL Advisor `!상태` reaches `handleStatusControl()` at lines 1944-1959, records a subscription, posts the Strategy acknowledgement, validates the legacy fixed destination, and pastes the Strategy status prompt into the Advisor pane. This violates the fixed-Strategy-only scope and the explicit no-Advisor-delivery behavior.
+
+The named test at `tests/integration/as1-slack-live-composition.test.ts:74-90` exercises only the pure classifier and spool. It never constructs the production composition with an Advisor profile, so its passing title does not close this production-path regression.
+
+## Scope and reproduced evidence
+
+- Exact range `d38dc2e..2267318dfd8d7d096d55e5536685ef59d2fec0b5` changes exactly the five authorized files.
+- Five exact named Vitest cases — **PASS**: 5 passed, 155 skipped across the two authorized files, one worker.
+- ESLint on exactly the five changed files — **PASS**, no output.
+- `git diff --check d38dc2e..2267318dfd8d7d096d55e5536685ef59d2fec0b5` — **PASS**, clean.
+- No build, broad check, implementation, live action, owner input, candidate modification, or unchanged-surface review was performed.
+
+## Verdict
+
+`NEEDS_PATCH`
+
+P1 is a patchable in-scope production-path regression. This verdict is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
