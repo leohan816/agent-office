@@ -782,3 +782,47 @@ Commit and push the minimal candidate non-force. Update only the two existing
 Worker result files with the exact two-file diff, six focused-test results,
 two-file ESLint, diff-check, candidate/push state, boundaries, and return to
 Advisor; leave those result files uncommitted, then STOP.
+## ACTIVE AMENDMENT — second exact Foundation latch tuple
+
+Authority: Leo Strategy correction; Advisor baseline
+`46983506d7b46c541a82670e367fe77e6c293b46`. This amendment supersedes every
+earlier Worker scope. Return one pushed candidate within five minutes or one
+exact code blocker. Do not touch Agent Office `%63`; do not mutate or retry
+Foundation live state before independent PASS.
+
+Patch only:
+
+- `src/operations/readiness/as1-slack-control.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Extend only `retireOneShotFoundationDiagnosticLatch()` so its existing fully
+fixed matcher accepts either of exactly two Foundation tuples under its already
+fixed root `strategy-foundation-v1` and profile `foundation-advisor`:
+
+1. the existing reviewed tuple: reason
+   `owner-loop error: AUTHORITY_ARTIFACT_INVALID`, latchedAt
+   `2026-07-18T16:15:44.312Z`;
+2. the new observed tuple: reason `malformed frame after ready`, latchedAt
+   `2026-07-18T18:55:19.830Z`.
+
+Keep the existing ownership, `DISABLED_CLEAN`, null-active, kill-clear,
+incident-open, strict parse, persist-before-cache, and failure-no-mutation checks
+unchanged. Keep the existing `FOUNDATION_STRATEGY` pre-start invocation and
+every other source file unchanged. Any other reason, timestamp, root, profile,
+or failed safety condition remains latched; do not add a generic reset, caller
+operand, scan, deletion, or fallback.
+
+Add or adjust only these exact focused tests in the existing integration file:
+
+1. `retires the second exact Foundation malformed-frame latch before fixed Strategy direct start`
+2. `refuses any other Foundation latch reason or timestamp`
+
+Run only those exact `-t` cases, ESLint only the two changed files, and
+`git diff --check 4698350..HEAD`. Do not build, run broad tests, edit any other
+source/test file, touch composition/CLI/spool/profile/routing, redesign, or
+perform live action.
+
+Commit and push the minimal candidate non-force. Update only the two existing
+Worker result files with the exact two-file diff, focused-test results, two-file
+ESLint, diff-check, candidate/push state, boundaries, and return to Advisor;
+leave those result files uncommitted, then STOP.
