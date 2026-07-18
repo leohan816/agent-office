@@ -184,6 +184,26 @@ describe('AS1 fixed Strategy status stream', () => {
     expect(pastes.some((t) => t.includes('!상태'))).toBe(true);
     expect(pastes.some((t) => t.includes('LEO_SLACK_MESSAGE:'))).toBe(false);
   });
+
+  it('requires subscribed Strategy progress forwarding and omits it when unsubscribed', () => {
+    const profile = selectStrategyProfile('AGENT_OFFICE_STRATEGY');
+    const subscribed = personalOrdinaryPasteText(profile, 'do the work', true);
+    const unsubscribed = personalOrdinaryPasteText(profile, 'do the work', false);
+    // Subscribed: the strengthened forwarding instruction REQUIRES exactly-once bounded status forwarding of each new
+    // user-facing progress/finding/result block, via the fixed status action.
+    expect(subscribed).toContain('상태 스트림 활성');
+    expect(subscribed).toContain('정확히 한 번');
+    expect(subscribed).toContain('status');
+    expect(subscribed).toContain('bounded');
+    // ...and it forbids sending the npm/tool invocation, a `Ran` header, REASON/control lines, or duplicate content.
+    expect(subscribed).toContain('npm');
+    expect(subscribed).toContain('Ran');
+    expect(subscribed).toContain('REASON');
+    expect(subscribed).toContain('중복');
+    // Unsubscribed: NO status-forwarding instruction is appended (unchanged behavior).
+    expect(unsubscribed).not.toContain('상태 스트림 활성');
+    expect(unsubscribed).not.toContain('status');
+  });
 });
 
 describe('AS1 one-shot Agent Office malformed-frame latch retirement', () => {

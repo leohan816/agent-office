@@ -202,7 +202,8 @@ const STRATEGY_STATUS_START_ACK = 'LEO 상태 스트림을 시작합니다. 60�
 const STRATEGY_STATUS_STOP_ACK = 'LEO 상태 스트림을 종료했습니다.';
 const STRATEGY_STATUS_HEARTBEAT = 'LEO 상태 스트림 유지 중입니다.';
 const STRATEGY_STATUS_CONTROL_PROMPT = `${LEO_SLACK_MESSAGE_LABEL}[상태 스트림 활성] 진행 상황을 상태 액션으로 보고하세요.`;
-const STRATEGY_STATUS_INSTRUCTION = '[상태 스트림 활성] 필요 시 상태 액션으로 중간 상태를 보고하세요.';
+const STRATEGY_STATUS_INSTRUCTION =
+  '[상태 스트림 활성] 이 Slack 메시지를 처리하는 동안, 새로 만들거나 캡처된 Advisor/Worker 출력에서 고른 사용자용 진행·발견·결과 블록마다 정확히 한 번씩 이 프로필의 고정 status 액션(상태 액션)으로 bounded 텍스트만 전달하세요. npm/도구 호출, "Ran" 헤더, REASON/제어 줄, 중복 내용은 절대 보내지 마세요. 터미널 직접 대화는 Slack 밖에 둡니다.';
 /** The fixed 60-second liveness heartbeat window (never more than one heartbeat per window per fixed root). */
 const STRATEGY_STATUS_HEARTBEAT_WINDOW_MS = 60_000;
 
