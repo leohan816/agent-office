@@ -201,3 +201,60 @@ commands/results, failures, commit, upstream state, known limits, and rollback
 attestation to the two allowed Worker result paths. Return to
 `agent-office-advisor` and stop. Timebox: 40–55 minutes; return one concrete
 blocker sooner if the frozen allowlist cannot safely support the two routes.
+
+## Leo Delta Amendment: Strategy Connect Readiness Seal (2026-07-18)
+
+Status: `ACTIVE`
+
+Advisor instruction gate: `PROCEED_WITH_LIMITS`. This amendment supersedes only
+the blocked tests 4/5 disposition and the `startStrategyDirect()` Socket-connect
+readiness seal. Every other boundary above remains in force. The exact starting
+tip is pushed commit `f8815357040fcdd755e156ada0ca96d8c115876a`.
+
+Dispatch only the existing Agent Office Worker, `agent-office-opus` pane `%16`.
+Before acting, the Worker must re-verify its role/runtime binding and read the
+required repository/Worker protocol files plus this complete committed handoff.
+Fail closed to `agent-office-advisor` on any mismatch.
+
+### Exact delta
+
+1. In `src/runtime/as1-slack-pilot/composition.ts`, change only the
+   `startStrategyDirect()` `socket.connect(...)` input's `readinessSeal` from
+   `() => this.control.isReceiveReady(slug)` to
+   `() => this.control.isConnectReady(slug)`. Slack `hello` is proved during
+   connect before the later `RECEIVING_ONE_PROFILE` transition. Do not change
+   the separate receive-actionable control callback, later receive-ready check,
+   transition order, tests, comments, profiles, CLI, service, or any other
+   source.
+2. From the exact mission worktree, restore the existing declared runtime
+   dependency with exactly `npm install ws@8.21.1 --no-save`. `ws` must resolve
+   as exactly `8.21.1`; `package.json`, every lockfile, and the untracked
+   `node_modules` symlink must remain unstaged and unmodified as repository
+   artifacts. If npm changes a manifest or lockfile, stop and return that one
+   concrete blocker; do not commit it.
+3. Run only focused test 4 and focused test 5, each by its exact file and exact
+   `-t` title with one worker:
+   - `tests/integration/as1-slack-live-composition.test.ts` —
+     `runs isolated Strategy FIFO routes with exact same-thread results and message-local failure`
+   - `tests/operations/as1-slack-lifecycle.test.ts` —
+     `binds fixed Strategy commands and roots without caller-selected routing`
+4. Run ESLint only on
+   `src/runtime/as1-slack-pilot/composition.ts`, then run
+   `git diff --check f8815357040fcdd755e156ada0ca96d8c115876a..HEAD`
+   after the candidate commit. Do not run any other test, complete test file,
+   broad lint, typecheck, build, profile, design, live proof, or activation.
+5. Stage only the exact source delta, verify the staged diff, commit it, and
+   push non-force only to
+   `origin/feature/strategy-entrypoint-migration-001`. Never stage
+   `node_modules`, a package manifest, or a lockfile.
+
+The only implementation path writable in the candidate is
+`src/runtime/as1-slack-pilot/composition.ts`. After the candidate is committed
+and pushed, append factual delta evidence to the existing
+`artifacts/strategy-entrypoint-migration/WORKER_RESULT.md` and update the
+existing `WORKER_RESULT_POINTER.txt` with the exact candidate and push state;
+leave those two evidence edits for Advisor publication. Create no new file and
+edit no handoff, documentation, test, other source, configuration, descriptor,
+service, worktree, or binding. Return the candidate commit and evidence pointer
+to `agent-office-advisor`, then STOP. This is Worker evidence, not review or
+approval; independent delta review remains a separate Advisor dispatch.
