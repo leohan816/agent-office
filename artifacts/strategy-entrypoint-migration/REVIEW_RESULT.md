@@ -60,6 +60,37 @@ RETURN_TO: `agent-office-advisor`
 
 ---
 
+# One-Shot Foundation Diagnostic-Latch Retirement Review
+
+## Findings
+
+No findings.
+
+## Scope and direct evidence
+
+- Review: `7ca7508..ecde0f211dffee5bb52f2b3c41e94c8b02bd439c`; exactly `src/operations/readiness/as1-slack-control.ts`, `src/runtime/as1-slack-pilot/composition.ts`, and `tests/integration/as1-slack-live-composition.test.ts` changed.
+- `as1-slack-control.ts:579-609` serializes the operation through the existing mutex; requires retained ownership, exact root `strategy-foundation-v1`, `DISABLED_CLEAN`, null active profile, kill clear, and incident admission open; strictly parses the fixed `foundation-advisor` latch; requires exact reason `owner-loop error: AUTHORITY_ARTIFACT_INVALID` and `latchedAt` `2026-07-18T16:15:44.312Z`; then atomically persists canonical false before updating the cache. Every mismatch, parse/read failure, or write failure returns `NOT_RETIRED` without a cache mutation.
+- `composition.ts:496-500` invokes retirement only for `FOUNDATION_STRATEGY`, immediately before the existing profile-latch check. A wrong or later latch therefore remains latched and returns `PROFILE_LATCHED` through the unchanged check.
+- The two focused tests cover exact retirement plus root mismatch, wrong reason, and later timestamp refusal.
+
+## Reproduced gates
+
+- Exact two named Vitest cases — **PASS**: 2 passed, 76 skipped, one worker. Initial managed-sandbox attempts were blocked before test collection by Vite's denied temporary-config write; the same two titles were retried without changing scope and passed.
+- ESLint on exactly the three changed files — **PASS**, no output.
+- `git diff --check 7ca7508..ecde0f211dffee5bb52f2b3c41e94c8b02bd439c` — **PASS**, clean.
+
+No build, broad check, live/state action, activation, candidate modification, or unchanged-surface review was performed.
+
+## Verdict
+
+`PASS`
+
+No blocking residual risk identified within the authorized three-file delta and named gates. This is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
+
+---
+
 # Fixed Strategy Answer Actions Delta Review
 
 ## Findings
