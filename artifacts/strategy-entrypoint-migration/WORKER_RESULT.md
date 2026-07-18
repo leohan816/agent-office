@@ -181,5 +181,47 @@ core-build prohibition + the source allowlist needed to close the Strategy-addit
 - **Rollback:** no descriptor/config/profile/service/test/doc/worktree/binding change; no activation; no new
   file; no manifest/lockfile staged. These two evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Fixed Strategy answer actions (2026-07-18)
+
+Authority: handoff amendment commit `0dd25b4602d223ee577f4917707b3ba1f8fb8464` (verified; local==upstream at
+entry). Clean starting tip `ec42c61e78c97916cbce97831f34d3eb906bb3b8`. Supersedes only the PERSONAL direct
+answer-command behavior for the two closed Strategy profiles.
+
+- **Exact changed paths (4-file allowlist; +88/−6):**
+  - `src/runtime/as1-slack-pilot/cli.ts` — added two closed verbs `answer-agent-office-strategy` /
+    `answer-foundation-strategy` to `AS1_COMMANDS`; a fixed verb→root map `AS1_STRATEGY_ANSWER_ROOTS`
+    (`strategy-agent-office-v1` / `strategy-foundation-v1`); extended `parseAs1Cli` bounded-text handling and
+    added `runAs1Cli` + `main()` branches that reuse the EXISTING `runPersonalAnswerAction`/spool at each
+    verb's FIXED root. No spool/storage added; no root/profile/path/channel/thread/command/env operand or
+    selection. The legacy `answer` verb/parsing/root/output/behavior is byte-for-byte unchanged.
+  - `src/runtime/as1-slack-pilot/composition.ts` — added exported `personalAnswerCommandFor(profile)` and
+    made `deliverPersonalDirect()`'s pasted answer instruction exhaustive by the CLOSED live profile: legacy
+    Advisor profiles keep the exact existing command (incl. the `AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001`
+    prefix + legacy `answer` verb); `AGENT_OFFICE_STRATEGY` / `FOUNDATION_STRATEGY` paste the fixed
+    migration-worktree command with their matching closed verbs. Message bytes, destination validation, buffer
+    lifecycle, correlation recording, FIFO/result consumption, and Slack projection are unchanged.
+  - `tests/operations/as1-slack-lifecycle.test.ts` — extended the fixed-bindings test to prove the two closed
+    verbs parse only bounded text and reject an unknown verb / empty answer.
+  - `tests/integration/as1-slack-live-composition.test.ts` — new focused test
+    `pastes fixed Strategy answer verbs while preserving the legacy Advisor answer command`.
+- **Behavior preservation:** the legacy proof `handles two sequential PERSONAL_LEO_ONLY messages with
+  same-thread replies and dedupe` PASSES, confirming the legacy Advisor paste command + personal flow are
+  byte-for-byte unchanged. Strategy invokes only its matching fixed command; no Advisor-to-Slack projection.
+- **Commands/results:** three named focused tests — **all PASS** (lifecycle bindings; paste commands; legacy
+  proof); changed-file ESLint on the 4 files — **0 errors**.
+- **Process deviations (disclosed):**
+  1. The initial combined gate command double-invoked `npm run build:core` (violating "exactly one") and, in
+     the same pipe, revealed a real bug in the new helper's exhaustive `default` (`composition.ts:213` used
+     `profile.profileId` where `profile` is already narrowed to `never`) — 2 `tsc` errors + 1 ESLint error.
+  2. Fixed to `const exhaustive: never = profile;` (the canonical exhaustiveness form). Per the FINAL GATE
+     CORRECTION, `npm run build:core` was NOT re-run and `git diff --check` was omitted; the type-aware
+     changed-file ESLint on the 4 files is clean (0 errors), which covers the same TS root cause. Final
+     `build:core` reconfirmation is deferred to the Advisor/Reviewer.
+- **Git:** candidate `d806f98acf0c5eef9b3f7153b50a7b26da6b7f15`; pushed non-force `0dd25b4..d806f98`;
+  local == upstream. Staged only the 4 allowlisted paths.
+- **Rollback/boundaries:** no other source/test/doc/config/descriptor/profile/package/lockfile/state-root
+  change; no credential/service/tmux/Foundation input; no activation; no new spool/storage; no live-owner
+  interaction. These two evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
