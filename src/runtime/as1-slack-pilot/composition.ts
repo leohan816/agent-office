@@ -492,7 +492,7 @@ export class As1GatewayComposition {
       }
       const botUserId = auth.userId;
       const connectResult = await this.guardedAwait(() =>
-        socket.connect({ profileId: profile.profileId, appToken: wire.appToken, expectedAppId: wire.appId, readinessSeal: () => this.control.isReceiveReady(slug) }),
+        socket.connect({ profileId: profile.profileId, appToken: wire.appToken, expectedAppId: wire.appId, readinessSeal: () => this.control.isConnectReady(slug) }),
       );
       if (!connectResult.ok) {
         throw new DomainError('GATEWAY_DISABLED', 'strategy socket connect did not succeed');
