@@ -232,3 +232,29 @@ Foundation diagnostic latches`, ESLint on exactly the three files, and
 Run no build, broad check, or live/state action. Write only the existing review
 result and pointer outputs, return PASS or one exact blocker to
 `agent-office-advisor`, and STOP within three minutes.
+## ACTIVE AMENDMENT — Agent Office malformed-frame latch retirement
+
+Authority: Advisor publication baseline `2a2ed98`; review candidate
+`4c8d6dbd672e485977eb85e011ba883d5e644903`. This amendment supersedes every
+earlier review scope.
+
+Review only this exact three-file delta:
+
+- `src/operations/readiness/as1-slack-control.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Verify the one-shot retirement is internally fixed to `strategy-agent-office-v1`,
+`agent-office-advisor`, reason `malformed frame after ready`, and latchedAt
+`2026-07-18T15:20:22.170Z`; preserves the reviewed ownership,
+`DISABLED_CLEAN`, null-active, kill-clear, incident-open, and
+persist-before-cache checks; runs only for `AGENT_OFFICE_STRATEGY` immediately
+before its existing latch check; and refuses every mismatched or later latch.
+
+Reproduce only the two named focused tests `retires only the exact Agent Office
+malformed-frame latch before fixed Strategy direct start` and `refuses wrong or
+later Agent Office malformed-frame latches`; ESLint only the exact three files;
+and `git diff --check 2a2ed98..4c8d6dbd672e485977eb85e011ba883d5e644903`.
+No build, broad test, live action, Foundation action, implementation, or patch.
+Write only the existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, then
+return PASS or one concrete blocker within three minutes and stop.

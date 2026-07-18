@@ -274,5 +274,34 @@ earlier Worker amendment; implements only the one-shot closed Foundation diagnos
 - **Boundaries:** no state/queue/Socket/Slack/routing/profile/descriptor/config/credential change; no build/broad
   checks; no live-state action; no docs/package/lockfile. Evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — One-shot Agent Office malformed-frame latch retirement (2026-07-18)
+
+Authority: handoff amendment `2a2ed98` (verified; local==upstream at entry). Baseline `a571ce8`. Supersedes every
+earlier Worker amendment; implements only the one-shot closed Agent Office malformed-frame latch retirement (parallel
+to the Foundation diagnostic-latch retirement).
+
+- **Exact changed paths (3-file allowlist; +110):**
+  - `src/operations/readiness/as1-slack-control.ts` — new `retireOneShotAgentOfficeMalformedFrameLatch()` mirroring
+    `retireOneShotFoundationDiagnosticLatch`'s reviewed safety shape, fixed to all four identity fields: root id
+    `strategy-agent-office-v1` (via `this.stateRootId`), slug `agent-office-advisor`, reason
+    `malformed frame after ready`, `latchedAt` `2026-07-18T15:20:22.170Z`. Same mutex; requires lock-owned + EXACTLY
+    `DISABLED_CLEAN` + null active + kill clear + incident gate open + strict parse match; persists `latched:false`
+    atomically BEFORE the cache. Any field/state/ownership/read/parse/persistence mismatch mutates nothing and returns
+    `NOT_RETIRED`; a later latch (same reason, any other `latchedAt`) is never retired.
+  - `src/runtime/as1-slack-pilot/composition.ts` — invoke it in `startStrategyDirect()` ONLY on the
+    `AGENT_OFFICE_STRATEGY` path, immediately BEFORE the existing `isProfileLatched(slug)` check. FOUNDATION_STRATEGY
+    and the legacy Advisor paths are byte-for-byte unchanged. No socket/parser change, generic API, caller input,
+    command, fallback, scan, or reset.
+  - `tests/integration/as1-slack-live-composition.test.ts` — two named tests:
+    `retires only the exact Agent Office malformed-frame latch before fixed Strategy direct start` (exact match →
+    `RETIRED` + `isProfileLatched(agent-office-advisor)` now false = continuation; the same latch under a different
+    state-root id → `NOT_RETIRED`) and `refuses wrong or later Agent Office malformed-frame latches` (wrong reason and
+    same-reason-later-`latchedAt` both → `NOT_RETIRED`, latch stays true → the fixed start returns `PROFILE_LATCHED`).
+- **Gates:** both named tests — PASS (1 passed | 79 skipped each); changed-file ESLint on the 3 files — 0 errors;
+  `git diff --check a571ce8..HEAD` — clean.
+- **Git:** candidate `4c8d6dbd672e485977eb85e011ba883d5e644903`; pushed non-force `2a2ed98..4c8d6db`; local==upstream.
+- **Boundaries:** no socket/parser/state/queue/Socket/Slack/routing/profile/descriptor/config/credential change; no
+  build/broad checks; no live-state action; no Foundation action. Evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
