@@ -603,3 +603,63 @@ candidate, and push evidence to existing `WORKER_RESULT.md`; update
 Advisor publication. Return to `agent-office-advisor` and STOP within 12
 minutes. The same existing independent Reviewer gets a three-minute exact-delta
 review after Advisor publication.
+
+## Leo Delta Amendment: One-Shot Agent Office Malformed-Frame Latch Retirement (2026-07-18)
+
+Status: `ACTIVE`
+
+This amendment supersedes every earlier Worker amendment. Baseline is clean,
+pushed tip `a571ce8c346be5e6b86bd8026e0a7b9b7028c2cb`. Implement only a one-shot,
+closed Agent Office malformed-frame latch retirement fixed internally to:
+
+- state root `strategy-agent-office-v1` (the already-committed fixed Agent
+  Office Strategy state root; no caller/root/path operand);
+- profile slug `agent-office-advisor`;
+- reason `malformed frame after ready`;
+- `latchedAt` `2026-07-18T15:20:22.170Z`.
+
+Reuse the reviewed one-shot safety shape: current process owns the control lock;
+global state is exactly `DISABLED_CLEAN`; active profile is null; global kill is
+clear; incident admission is open; the strictly parsed latch matches every
+fixed identity field above; persist canonical `latched: false` atomically before
+updating the cache. Any root/profile/reason/time/state/ownership/kill/incident,
+read, parse, or persistence mismatch must mutate nothing and return
+`NOT_RETIRED`. A later latch, including the same reason at another timestamp,
+must never be retired.
+
+Invoke this operation only from the fixed `AGENT_OFFICE_STRATEGY`
+`startStrategyDirect()` path, immediately before its existing
+`isProfileLatched(slug)` check. The Foundation Strategy and legacy Advisor paths
+remain behaviorally unchanged. Do not add a socket/parser change, generic
+retirement API, caller-selectable input, command, fallback, scan, or reset.
+
+The only writable implementation/test paths are:
+
+- `src/operations/readiness/as1-slack-control.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Add only these two focused tests in the existing test file:
+
+- `retires only the exact Agent Office malformed-frame latch before fixed Strategy direct start`
+- `refuses wrong or later Agent Office malformed-frame latches`
+
+Prove exact-match retirement and continuation past the existing fixed Agent
+Office Strategy latch check; prove wrong reason and same-reason later
+`latchedAt` both remain latched and return `PROFILE_LATCHED`, with no Socket arm
+or unrelated mutation. Do not touch live state.
+
+Run only those two named tests, ESLint on exactly the three changed files, and
+`git diff --check a571ce8c346be5e6b86bd8026e0a7b9b7028c2cb..HEAD` after the candidate
+commit. Run no build before review, broad test, suite, broad lint/typecheck,
+socket/parser investigation, live action, credential/config probe, service,
+Foundation action/input, refactor, docs/design, or unrelated cleanup.
+
+Stage only the three allowlisted paths, verify the staged diff, commit one
+candidate, and push non-force to
+`origin/feature/strategy-entrypoint-migration-001`. Append factual delta, gate,
+candidate, and push evidence to existing `WORKER_RESULT.md`; update
+`WORKER_RESULT_POINTER.txt`; leave only those two evidence edits uncommitted for
+Advisor publication. Return to `agent-office-advisor` and STOP within 10
+minutes. The same existing independent Reviewer gets a three-minute exact-delta
+review after Advisor publication.
