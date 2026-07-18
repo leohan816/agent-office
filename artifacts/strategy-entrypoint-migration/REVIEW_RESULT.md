@@ -279,3 +279,33 @@ No findings.
 No blocking residual risk identified within the authorized corrective delta and named gates. This is independent review evidence, not risk acceptance or final approval.
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Second Fixed Foundation Latch-Tuple Delta Review
+
+## Findings
+
+No findings.
+
+## Scope and direct evidence
+
+- Exact range `f3e1e46..a0cb0a93970d56d689e3d0e9e6daf3556f892c3a` changes exactly `src/operations/readiness/as1-slack-control.ts` and `tests/integration/as1-slack-live-composition.test.ts`.
+- Candidate `as1-slack-control.ts:97-99` adds only the second fixed Foundation tuple: reason `malformed frame after ready` paired with `2026-07-18T18:55:19.830Z`; the fixed root `strategy-foundation-v1` and profile `foundation-advisor` remain unchanged.
+- Lines 595-608 accept only the prior exact pair or the second exact pair. Other reasons, timestamps, and cross-pairings return `NOT_RETIRED`; lines 610-622 retain atomic persistence before cache update. The existing ownership, clean/null-active, kill-clear, incident-open, strict-parse, and mutex gates are unchanged around this predicate.
+- `composition.ts` is absent from the exact delta, so the existing fixed `FOUNDATION_STRATEGY` pre-start hook is untouched. No Agent Office retirement code changed.
+
+## Reproduced gates
+
+- Two exact named Vitest cases — **PASS**: 2 passed, 85 skipped, one worker.
+- ESLint on exactly the two changed files — **PASS**, no output.
+- `git diff --check f3e1e46..a0cb0a93970d56d689e3d0e9e6daf3556f892c3a` — **PASS**, clean.
+- No build, broad check, implementation, live action, Foundation retry/state mutation, Agent Office action, candidate modification, or unchanged-surface review was performed.
+
+## Verdict
+
+`PASS`
+
+No blocking residual risk identified within the authorized tuple-only delta and named gates. This is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
