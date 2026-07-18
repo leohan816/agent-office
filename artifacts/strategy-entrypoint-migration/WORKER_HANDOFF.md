@@ -742,3 +742,43 @@ Commit and push the candidate non-force. Update only the two existing Worker
 result files with exact changed paths, five focused-test results, five-file
 ESLint, diff-check, candidate, push state, boundaries, and return to Advisor;
 leave those evidence files uncommitted for Advisor publication, then STOP.
+## ACTIVE AMENDMENT — Strategy-only status-stream guard correction
+
+Authority: Leo Strategy correction; Advisor baseline
+`e9967a1cafe1fd6092eff042560cd4a50d114d0c`. This amendment supersedes every
+earlier Worker scope. Return one pushed minimal candidate within five minutes or
+one exact code blocker. Preserve live Agent Office `%63`/PID `2819189` and
+Foundation `%62`/PID `2782662`; no pane input or live-state action.
+
+Patch only:
+
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+In `composition.ts`, gate every behavior introduced by candidate `2267318` to
+only the two already-fixed Strategy profiles, `AGENT_OFFICE_STRATEGY` and
+`FOUNDATION_STRATEGY`: four-control classification/interception, subscription
+instruction, status consumption/heartbeat, and the `LEO_SLACK_MESSAGE:\n`
+ordinary-message label. The shared legacy PERSONAL Advisor path must retain its
+pre-candidate behavior: it does not intercept any of the four controls, does not
+create/consume a status subscription or heartbeat, does not append a status
+instruction, and pastes the original ordinary message without the new label.
+Do not alter the approved Strategy behavior or edit any other source file.
+
+Add or adjust exactly one focused regression in the existing integration test:
+`does not intercept or label status-like messages for a legacy Advisor profile`.
+It must exercise the production composition with a legacy Advisor profile and
+prove a status-like message remains ordinary Advisor delivery with its original
+paste text, no Strategy acknowledgement/subscription/status prompt, and no
+`LEO_SLACK_MESSAGE:` label.
+
+Keep and run the already-passing five exact named tests from handoff `d38dc2e`,
+plus only this one new exact regression, each with an exact `-t` filter against
+its existing containing file. Run ESLint only on the two changed files and
+`git diff --check e9967a1..HEAD`. Do not build, run broad tests, touch other
+files, refactor, change profiles/routing, add features, or perform live action.
+
+Commit and push the minimal candidate non-force. Update only the two existing
+Worker result files with the exact two-file diff, six focused-test results,
+two-file ESLint, diff-check, candidate/push state, boundaries, and return to
+Advisor; leave those result files uncommitted, then STOP.
