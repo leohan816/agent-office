@@ -1,6 +1,6 @@
 {
   "schemaVersion": "agent-office.as1-slack-pilot-descriptor.v1",
   "enabled": true,
-  "receiveGrantRef": "advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/runtime-authority/agent-office-advisor/receive-grant-20260718-04.json",
+  "receiveGrantRef": "advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot_001/runtime-authority/agent-office-advisor/receive-grant-20260718-05.json",
   "secretFilePath": "/home/leo/.config/agent-office/as1-slack-pilot.env"
 }
