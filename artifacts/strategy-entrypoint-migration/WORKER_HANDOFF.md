@@ -178,6 +178,22 @@ unchanged. No new file, descriptor, grant system, schema, generic lifecycle or
 router, legacy refactor, broad test, Foundation input, or design cycle is
 authorized. Timebox: 20 minutes for implementation and remaining named tests.
 
+### A1 Compatibility Authority
+
+Within the already allowlisted `composition.ts`, widen `LiveState` only to the
+closed Advisor-or-Strategy profile/secret union and add one behavior-preserving
+`liveProfileSecret` narrowing helper for the three existing PERSONAL result-post
+sites. Legacy Advisor values and outputs must remain unchanged.
+
+One fixed, in-memory, construction-only Strategy startup grant-shaped
+compatibility seed is authorized solely to satisfy the reused PERSONAL
+service/`LiveState` contract. It is not persisted, Git-observed, caller/manual
+authority, a per-message grant, a root-slot limit, or a new grant lifecycle.
+Ordinary Strategy messages remain direct FIFO/spool with no grant/Git procedure.
+No Worker live activation is authorized. Timebox: 15 minutes for
+`startStrategyDirect`, the three remaining named tests, changed-file gates,
+commit, and non-force push.
+
 ## Result
 
 Commit and non-force push one coherent candidate. Write the exact changed paths,
