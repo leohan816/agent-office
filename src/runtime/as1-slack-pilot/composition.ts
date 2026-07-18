@@ -490,6 +490,12 @@ export class As1GatewayComposition {
     }
     validateStrategyProfileLineage(profile);
     const slug = profile.profileStateSlug;
+    // One-shot Foundation diagnostic-latch retirement (fixed to strategy-foundation-v1 / foundation-advisor / the exact
+    // owner-loop AUTHORITY_ARTIFACT_INVALID diagnostic latch), invoked ONLY on the FOUNDATION_STRATEGY path immediately
+    // before the isProfileLatched check. AGENT_OFFICE_STRATEGY and the legacy Advisor paths are byte-for-byte unchanged.
+    if (profile.profileId === 'FOUNDATION_STRATEGY') {
+      await this.guardedAwait(() => this.control.retireOneShotFoundationDiagnosticLatch());
+    }
     if (await this.guardedAwait(() => this.control.isProfileLatched(slug))) {
       return { connected: false, reason: 'PROFILE_LATCHED', state: this.control.getState() };
     }

@@ -92,6 +92,12 @@ const LATCH_REASON_MAX = 512;
 const RETIRABLE_ADVISOR_PROFILE: As1ProfileSlug = 'agent-office-advisor';
 const RETIRABLE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
 
+/** The EXACT one-shot Foundation Strategy diagnostic-latch identity (all four fields fixed; no caller/root/path operand). */
+const FOUNDATION_DIAG_LATCH_ROOT_ID = 'strategy-foundation-v1';
+const FOUNDATION_DIAG_LATCH_PROFILE: As1ProfileSlug = 'foundation-advisor';
+const FOUNDATION_DIAG_LATCH_REASON = 'owner-loop error: AUTHORITY_ARTIFACT_INVALID';
+const FOUNDATION_DIAG_LATCH_AT = '2026-07-18T16:15:44.312Z';
+
 export interface As1GlobalControlV1 {
   readonly schemaVersion: typeof CONTROL_SCHEMA;
   readonly state: As1GlobalState;
@@ -555,6 +561,51 @@ export class As1SlackControl {
         return 'NOT_RETIRED'; // persistence failed: the in-memory cache is untouched and the latch stays durably true
       }
       this.profileLatchCache.set(RETIRABLE_ADVISOR_PROFILE, false);
+      return 'RETIRED';
+    });
+  }
+
+  /**
+   * One-shot, fully-fixed retirement of the EXACT Foundation Strategy diagnostic latch (the durable `foundation-advisor`
+   * profile latch a prior owner-loop `AUTHORITY_ARTIFACT_INVALID` diagnostic wrote at the fixed timestamp). Every
+   * identity field — root id `strategy-foundation-v1`, slug `foundation-advisor`, reason, `latchedAt` — and every gating
+   * condition is a constant re-checked here; no caller chooses any. It mirrors `retireObsoleteAdvisorLatch`'s safety
+   * shape: this control still owns its lock; global state is EXACTLY `DISABLED_CLEAN` with a null active profile; the
+   * global kill is clear and the incident gate is open; the strictly parsed latch is EXACTLY `true` with EXACTLY the
+   * four fixed fields. Canonical `latched: false` is persisted atomically BEFORE the cache. Any root/profile/reason/time/
+   * state/ownership/kill/incident, read/parse, or persistence mismatch mutates nothing and returns `NOT_RETIRED`; a
+   * later latch (including the same reason at any other `latchedAt`) is never retired. Serialized through the SAME mutex.
+   */
+  public async retireOneShotFoundationDiagnosticLatch(): Promise<'RETIRED' | 'NOT_RETIRED'> {
+    return this.mutex.run(async () => {
+      if (this.released || this.lock === null) return 'NOT_RETIRED';
+      if (this.stateRootId !== FOUNDATION_DIAG_LATCH_ROOT_ID) return 'NOT_RETIRED';
+      if (this.control.state !== 'DISABLED_CLEAN' || this.control.activeProfileSlug !== null) return 'NOT_RETIRED';
+      if (this.isGloballyLatched() || !this.incidentGateOpen) return 'NOT_RETIRED';
+      const target = await this.profileLatchPath(FOUNDATION_DIAG_LATCH_PROFILE);
+      let parsed: ParsedProfileLatch;
+      try {
+        const existing = await readJsonRecord(target);
+        if (existing === null) return 'NOT_RETIRED';
+        parsed = parseProfileLatch(existing, FOUNDATION_DIAG_LATCH_PROFILE);
+      } catch {
+        return 'NOT_RETIRED'; // an unreadable/corrupt/quarantined latch is not the exact diagnostic latch: mutate nothing
+      }
+      if (!parsed.latched || parsed.reason !== FOUNDATION_DIAG_LATCH_REASON || parsed.latchedAt !== FOUNDATION_DIAG_LATCH_AT) {
+        return 'NOT_RETIRED'; // a wrong reason, or the same reason at any other timestamp, stays durably latched
+      }
+      try {
+        await writeAtomicCanonicalJson(target, {
+          schemaVersion: PROFILE_LATCH_SCHEMA,
+          profileSlug: FOUNDATION_DIAG_LATCH_PROFILE,
+          latched: false,
+          reason: null,
+          latchedAt: null,
+        });
+      } catch {
+        return 'NOT_RETIRED'; // persistence failed: the in-memory cache is untouched and the latch stays durably true
+      }
+      this.profileLatchCache.set(FOUNDATION_DIAG_LATCH_PROFILE, false);
       return 'RETIRED';
     });
   }

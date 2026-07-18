@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DomainError } from '../../src/contracts/types.js';
 import { hashCanonical, sha256Bytes } from '../../src/persistence/file-store/hashing.js';
 import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.js';
-import { readStateRootFormat } from '../../src/persistence/file-store/path-safety.js';
+import { initializeStateRoot, readStateRootFormat } from '../../src/persistence/file-store/path-safety.js';
 import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
 import { As1InboundService, type As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
 import { selectProfile, selectStrategyProfile, type As1Profile } from '../../src/application/slack-pilot/profiles.js';
@@ -62,6 +62,61 @@ const ACCEPTING_RECEIVE_GATE: As1ReceiveGrantProvenanceGate = { assertAccepted: 
 const ACCEPTING_DELIVERY_GATE: As1DeliveryProvenanceGate = { assertAccepted: () => Promise.resolve() };
 /** The exact obsolete advisor latch reason handoff 120 retires (post-acceptance receive-grant Git divergence). */
 const OBSOLETE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
+
+describe('AS1 one-shot Foundation Strategy diagnostic-latch retirement', () => {
+  const FOUNDATION_ROOT_ID = 'strategy-foundation-v1';
+  const FOUNDATION_DIAG_REASON = 'owner-loop error: AUTHORITY_ARTIFACT_INVALID';
+  const FOUNDATION_DIAG_AT = '2026-07-18T16:15:44.312Z';
+
+  async function foundationRoot(): Promise<string> {
+    const root = await mkdtemp(path.join(tmpdir(), 'as1-strat-fdn-'));
+    await initializeStateRoot(root, { stateRootId: FOUNDATION_ROOT_ID, initializedAt: FOUNDATION_DIAG_AT });
+    return root;
+  }
+  // Seed a durable foundation-advisor profile latch, then drain to DISABLED_CLEAN (the quiescent retirement precondition).
+  async function seedLatch(root: string, reason: string, at: string): Promise<void> {
+    const seed = await As1SlackControl.open(root, new FakeClock(at));
+    await seed.latchProfile('foundation-advisor', reason);
+    await seed.shutdown();
+    await seed.close();
+  }
+
+  it('retires only the exact Foundation diagnostic latch before fixed Strategy direct start', async () => {
+    const root = await foundationRoot();
+    await seedLatch(root, FOUNDATION_DIAG_REASON, FOUNDATION_DIAG_AT);
+    const control = await As1SlackControl.open(root, new FakeClock(CLOCK_ISO));
+    // All four fixed identity fields (root id, slug, reason, latchedAt) + the safety shape hold → exact-match retirement.
+    expect(await control.retireOneShotFoundationDiagnosticLatch()).toBe('RETIRED');
+    // The durable latch is now false, so the fixed FOUNDATION_STRATEGY startStrategyDirect() isProfileLatched check
+    // passes — continuation to the existing fixed Foundation Strategy start boundary.
+    expect(await control.isProfileLatched('foundation-advisor')).toBe(false);
+    await control.close();
+    // "Only the exact": the SAME latch under a different state-root identity is not the Foundation diagnostic latch.
+    const otherRoot = await makeStateRoot(); // stateRootId 'test-state-root'
+    await seedLatch(otherRoot, FOUNDATION_DIAG_REASON, FOUNDATION_DIAG_AT);
+    const other = await As1SlackControl.open(otherRoot, new FakeClock(CLOCK_ISO));
+    expect(await other.retireOneShotFoundationDiagnosticLatch()).toBe('NOT_RETIRED');
+    expect(await other.isProfileLatched('foundation-advisor')).toBe(true);
+    await other.close();
+  });
+
+  it('refuses wrong or future Foundation diagnostic latches', async () => {
+    // Wrong reason: never retired → stays latched → the fixed Strategy start's isProfileLatched check returns PROFILE_LATCHED.
+    const wrongRoot = await foundationRoot();
+    await seedLatch(wrongRoot, 'some unrelated latch reason', FOUNDATION_DIAG_AT);
+    const wrong = await As1SlackControl.open(wrongRoot, new FakeClock(CLOCK_ISO));
+    expect(await wrong.retireOneShotFoundationDiagnosticLatch()).toBe('NOT_RETIRED');
+    expect(await wrong.isProfileLatched('foundation-advisor')).toBe(true);
+    await wrong.close();
+    // Correct reason but a DIFFERENT (later) latchedAt: a later latch, including the same reason, is NEVER retired.
+    const futureRoot = await foundationRoot();
+    await seedLatch(futureRoot, FOUNDATION_DIAG_REASON, '2026-07-18T16:15:44.313Z');
+    const future = await As1SlackControl.open(futureRoot, new FakeClock(CLOCK_ISO));
+    expect(await future.retireOneShotFoundationDiagnosticLatch()).toBe('NOT_RETIRED');
+    expect(await future.isProfileLatched('foundation-advisor')).toBe(true);
+    await future.close();
+  });
+});
 
 describe('AS1 Strategy answer paste commands', () => {
   const LEGACY = 'npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001 run as1:slack-pilot -- answer "<bounded answer text>"';
