@@ -35,6 +35,7 @@ import {
 } from '../../src/persistence/file-store/writer-lock.js';
 import { FakeClock, secretText, validSecretValues, writeSecretFile } from '../helpers/as1-slack-fakes.js';
 import { makeStateRoot } from '../helpers/fixtures.js';
+import { As1FilePersonalResultSpool } from '../../src/adapters/gateways/slack-pilot/personal-result-spool.js';
 
 const BRIDGE_RESULT_SCHEMA = 'agent-office.as1-pidfd-bridge-result.v1';
 /** Craft a canonical bridge child output (F05 strict-decode / deadline tests). */
@@ -1096,5 +1097,31 @@ describe('AS1 fixed trusted-Node preflight (handoff 112 §5.1)', () => {
     expect(result.lines.join('|')).not.toContain('.nvm'); // no path/metadata leak
     expect(calls.buildDeps).toBe(false); // no dependency graph (Web/tmux/network) built
     expect(calls.initialize).toBe(false); // no state-root mutation
+  });
+});
+
+describe('AS1 PERSONAL_LEO_ONLY direct-result spool (handoff 119)', () => {
+  it('isolates one PERSONAL_LEO_ONLY result failure and accepts the next message', async () => {
+    const root = await makeStateRoot();
+    const spool = await As1FilePersonalResultSpool.open(root);
+    // Two sequential Leo messages each spool exactly one bounded, self-routing result.
+    await spool.write({ requestId: 'as1-intake-0001', sourceEventId: 'Ev0AGENTOFFICE01', channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', answerText: 'first answer' });
+    await spool.write({ requestId: 'as1-intake-0002', sourceEventId: 'Ev0AGENTOFFICE02', channel: 'CAGENTOFFICE01', threadTs: '1720000000.000200', answerText: 'second answer' });
+    // A duplicate spool for the same message is refused (already-terminal / O_EXCL).
+    await expect(
+      spool.write({ requestId: 'as1-intake-0001', sourceEventId: 'Ev0AGENTOFFICE01', channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', answerText: 'dup' }),
+    ).rejects.toThrow(/already spooled/u);
+    // Consume message 1's result and record a message-local FAILURE — it is never consumed again and does not block.
+    const first = await spool.consumeOne();
+    expect(first?.requestId).toBe('as1-intake-0001');
+    expect(first?.threadTs).toBe('1720000000.000100');
+    await spool.markFailed(first?.requestId ?? '');
+    // The failure is isolated: the NEXT queued message's result is accepted and consumed exactly once.
+    const second = await spool.consumeOne();
+    expect(second?.requestId).toBe('as1-intake-0002');
+    expect(second?.answerText).toBe('second answer');
+    await spool.markComplete(second?.requestId ?? '');
+    // Both messages resolved exactly once; the spool is drained.
+    expect(await spool.consumeOne()).toBeNull();
   });
 });

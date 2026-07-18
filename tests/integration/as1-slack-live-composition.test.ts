@@ -571,6 +571,69 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     }
   });
 
+  it('posts DELIVERY_CONFIRMED immediately and idempotently after durable transport', async () => {
+    const { stateRoot, composition, socket, web } = await startAgentOfficeComposition({ personalLeoOnly: true });
+    try {
+      await composition.start();
+      await socket.deliver(slackEnvelope());
+      const intakeId = composition.lastIntake();
+      if (intakeId === null) throw new Error('expected an intake');
+      const postsAfterAccept = web.posted.length; // ACCEPTED only, before delivery
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      // Immediate: DELIVERY_CONFIRMED is posted right after the durable transport — WITHOUT waiting for the Advisor ACK.
+      const profile = selectProfile('AGENT_OFFICE_ADVISOR');
+      const store = await As1ProfileInboundStore.open(stateRoot, profile, new FakeClock(CLOCK_ISO));
+      expect(await store.readOutboxRecord(userStatusOutboundId(profile.profileId, intakeId, 'DELIVERY_CONFIRMED'))).not.toBeNull();
+      const postsAfterConfirm = web.posted.length;
+      expect(postsAfterConfirm).toBe(postsAfterAccept + 1); // exactly one new post = DELIVERY_CONFIRMED
+      // Idempotent: a re-entry (the transport journal is terminal TRANSPORT_RECORDED) posts NO duplicate, and a later
+      // accepted ACK (evidence ingest) also does not — it observes the durable record and skips.
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      const evidence = await composition.ingestEvidenceAndProject();
+      expect(web.posted.length).toBe(postsAfterConfirm); // still exactly one DELIVERY_CONFIRMED post
+      expect(evidence).toContain('ACK:NOT_READY');
+    } finally {
+      await composition.stop();
+    }
+  });
+
+  it('handles two sequential PERSONAL_LEO_ONLY messages with same-thread replies and dedupe', async () => {
+    const { composition, socket, web } = await startAgentOfficeComposition({ personalLeoOnly: true });
+    try {
+      await composition.start();
+      // Message 1
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
+      const intake1 = composition.lastIntake();
+      expect(intake1).not.toBeNull();
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      // Dedupe: a DUPLICATE Slack event creates NO second intake (immutable root-thread correlation preserved).
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100' }));
+      expect(composition.lastIntake()).toBe(intake1);
+      // The Advisor answers; the foreground owner posts it to the SAME thread and resets for the next message.
+      expect(await composition.spoolAdvisorResult('answer one')).toContain('PERSONAL_RESULT:SPOOLED');
+      const postsBefore = web.posted.length;
+      expect(await composition.consumePersonalResult()).toContain('PERSONAL_RESULT:POSTED');
+      expect(web.posted.length).toBe(postsBefore + 1);
+      const reply1 = web.posted[web.posted.length - 1]?.request;
+      expect(reply1?.threadTs).toBe('1720000000.000100');
+      expect(reply1?.text).toContain('answer one');
+      expect(composition.lastIntake()).toBeNull(); // reset for the next Leo message
+      // Message 2 (a distinct sequential root)
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE2', eventId: 'Ev0AGENTOFFICE02', ts: '1720000000.000200' }));
+      const intake2 = composition.lastIntake();
+      expect(intake2).not.toBeNull();
+      expect(intake2).not.toBe(intake1);
+      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
+      expect(await composition.spoolAdvisorResult('answer two')).toContain('PERSONAL_RESULT:SPOOLED');
+      expect(await composition.consumePersonalResult()).toContain('PERSONAL_RESULT:POSTED');
+      const reply2 = web.posted[web.posted.length - 1]?.request;
+      expect(reply2?.threadTs).toBe('1720000000.000200'); // same thread as message 2, not message 1
+      expect(reply2?.text).toContain('answer two');
+    } finally {
+      await composition.stop();
+    }
+  });
+
   it('rejects a second top-level root (one root-to-result round trip per channel)', async () => {
     const { composition, socket } = await startAgentOfficeComposition();
     try {

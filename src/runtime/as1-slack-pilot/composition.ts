@@ -48,6 +48,7 @@ import {
   type As1DeliveryResult,
   type As1TmuxObservationPort,
 } from '../../adapters/gateways/slack-pilot/exact-transport.js';
+import { As1FilePersonalResultSpool } from '../../adapters/gateways/slack-pilot/personal-result-spool.js';
 import type { As1SocketPort } from '../../adapters/gateways/slack-pilot/socket-client.js';
 import type { As1WebPort } from '../../adapters/gateways/slack-pilot/web-client.js';
 import {
@@ -1209,6 +1210,10 @@ export class As1GatewayComposition {
       if (this.personalLeoOnly) {
         this.internalDeliveryGrant = deliveryGrant;
         this.internalLease = lease;
+        // Handoff 117 behavior 1: post the same-thread DELIVERY_CONFIRMED status IMMEDIATELY after the durable
+        // TRANSPORT_RECORDED — no waiting for the Advisor ACK. Idempotent: a re-entry or the later accepted ACK finds
+        // the durable outbox record and does not post a duplicate.
+        await this.sendDeliveryConfirmedOnce(live, deps, intakeId);
       } else {
         this.acceptedDeliveryGrant = provisionalDeliveryGrant;
         this.acceptedLease = provisionalLease;
@@ -1417,13 +1422,25 @@ export class As1GatewayComposition {
           outcomes.push(`DELIVERY_CONFIRMED:SUPPRESSED_BY_${classification}`);
           return outcomes;
         }
-        const confirmed = await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
-        outcomes.push(`DELIVERY_CONFIRMED:${confirmed.outcome}`);
-        // §5.7: a failed / non-DELIVERED DELIVERY_CONFIRMED is terminal — it must NOT continue to INTAKE or RESULT
-        // projection. Halt (latch, withhold authority); the owner stops on hasFailureBarrier().
-        if (confirmed.outcome !== 'DELIVERED') {
-          await this.haltProgression(live, `delivery-confirmed-${confirmed.outcome}`);
-          return outcomes;
+        // Handoff 117 behavior 1: in PERSONAL_LEO_ONLY the DELIVERY_CONFIRMED was already posted immediately after the
+        // durable transport, so the accepted ACK must NOT post a duplicate — it observes the durable record and skips.
+        // Default mode is unchanged (the ACK is still the confirmation trigger).
+        const priorConfirmed = this.personalLeoOnly
+          ? await this.guardedAwait(() =>
+              live.store.readOutboxRecord(userStatusOutboundId(live.profile.profileId, intakeId, 'DELIVERY_CONFIRMED')),
+            )
+          : null;
+        if (priorConfirmed !== null) {
+          outcomes.push('DELIVERY_CONFIRMED:ALREADY_SENT');
+        } else {
+          const confirmed = await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
+          outcomes.push(`DELIVERY_CONFIRMED:${confirmed.outcome}`);
+          // §5.7: a failed / non-DELIVERED DELIVERY_CONFIRMED is terminal — it must NOT continue to INTAKE or RESULT
+          // projection. Halt (latch, withhold authority); the owner stops on hasFailureBarrier().
+          if (confirmed.outcome !== 'DELIVERED') {
+            await this.haltProgression(live, `delivery-confirmed-${confirmed.outcome}`);
+            return outcomes;
+          }
         }
       }
       if (ingested.outcome === 'ACCEPTED' && ingested.accepted !== null) {
@@ -1477,6 +1494,84 @@ export class As1GatewayComposition {
   private sendUserStatus(live: LiveState, deps: As1CompositionDependencies, intakeId: string, kind: As1UserStatusKind): Promise<As1OutboxResult> {
     const outbox = this.buildStatusOutbox(live, deps);
     return this.guardedAwait(() => outbox.sendStatus(intakeId, kind));
+  }
+
+  /**
+   * Handoff 117 behavior 1 (PERSONAL_LEO_ONLY): post DELIVERY_CONFIRMED at most once for the intake. The deterministic
+   * `as1status-` outbox identity already dedupes a replay; this ALSO short-circuits on the durable outbox record so the
+   * immediate post-transport call and the later accepted-ACK path never post a duplicate. Returns null when skipped.
+   */
+  private async sendDeliveryConfirmedOnce(live: LiveState, deps: As1CompositionDependencies, intakeId: string): Promise<As1OutboxResult | null> {
+    const existing = await this.guardedAwait(() =>
+      live.store.readOutboxRecord(userStatusOutboundId(live.profile.profileId, intakeId, 'DELIVERY_CONFIRMED')),
+    );
+    if (existing !== null) return null;
+    return this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
+  }
+
+  /**
+   * Handoff 119 §3-§5: the ONE fixed Advisor result action (PERSONAL_LEO_ONLY only). The only caller value is bounded
+   * answer text; the sole pending DELIVERED message's request id, source event id, channel, and immutable same thread
+   * are derived internally from the fixed leo-v1 durable state (no caller-selected intake/path/channel/target/authority).
+   * It refuses a latch, zero pending messages, an undelivered message, or an already-terminal one (the spool write is
+   * O_EXCL). It only SPOOLS the bounded answer — no Git/evidence/provenance — for the foreground owner to consume.
+   */
+  public async spoolAdvisorResult(answerText: string): Promise<readonly string[]> {
+    if (!this.personalLeoOnly) {
+      throw new DomainError('GATEWAY_DISABLED', 'the personal Advisor result action is only available in PERSONAL_LEO_ONLY');
+    }
+    const live = this.requireLive();
+    const intakeId = this.lastIntakeId; // sequential processing keeps EXACTLY one pending personal message
+    if (intakeId === null) return ['PERSONAL_RESULT:REFUSED_NO_INTAKE'];
+    // Handoff 119 correction (§5-§6): this per-message result path uses NO global/profile latch — the ordinary spool
+    // and derivation reads run OUTSIDE `guardedAwait` (which couples to the incident-latch machinery), so a failure here
+    // is local to this message and never latches.
+    const deliveryId = `as1p-${hashCanonical({ intakeId }).slice('sha256:'.length, 'sha256:'.length + 40)}`;
+    const phase = await live.store.readTmuxPhase(deliveryId);
+    if (phase !== 'TRANSPORT_RECORDED') return ['PERSONAL_RESULT:REFUSED_UNDELIVERED'];
+    const root = await live.store.findRootByIntakeId(intakeId);
+    if (root === null) return ['PERSONAL_RESULT:REFUSED_NO_ROOT'];
+    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
+    try {
+      await spool.write({ requestId: intakeId, sourceEventId: root.sourceEventId, channel: live.wire.channelId, threadTs: root.rootTs, answerText });
+    } catch (error) {
+      if (error instanceof DomainError && error.code === 'AUTHORITY_ARTIFACT_INVALID') return ['PERSONAL_RESULT:ALREADY_TERMINAL'];
+      throw error;
+    }
+    return ['PERSONAL_RESULT:SPOOLED'];
+  }
+
+  /**
+   * Handoff 119 §6: the foreground Gateway consumes ONE spooled result exactly once, posts the bounded answer directly
+   * through the fixed Slack Web binding to the immutable same thread, marks it complete (or a message-local failure),
+   * resets for the next Leo message, and continues. Per the §5-§6 correction, the ordinary spool consume/mark and Slack
+   * post run OUTSIDE `guardedAwait` — an ordinary post failure is LOCAL to that message and NEVER latches the profile.
+   */
+  public async consumePersonalResult(): Promise<readonly string[]> {
+    if (!this.personalLeoOnly) return ['PERSONAL_RESULT:NOT_PERSONAL'];
+    const live = this.requireLive();
+    const deps = this.requireDeps();
+    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
+    const entry = await spool.consumeOne();
+    if (entry === null) return ['PERSONAL_RESULT:NONE'];
+    const secret = live.secret.secretFor(live.profile.profileId);
+    const text = `RESULT [COMPLETED]: ${entry.answerText}`;
+    try {
+      const result = await deps.web.postMessage(secret.botToken, { channel: entry.channel, threadTs: entry.threadTs, text });
+      if (!result.ok) {
+        await spool.markFailed(entry.requestId);
+        this.resetForNextLeoRoot();
+        return ['PERSONAL_RESULT:FAILED'];
+      }
+      await spool.markComplete(entry.requestId);
+      this.resetForNextLeoRoot();
+      return ['PERSONAL_RESULT:POSTED'];
+    } catch {
+      // An ordinary projection failure (Web reject) is message-local — mark failed, reset, continue. No latch.
+      await spool.markFailed(entry.requestId).catch(() => undefined);
+      this.resetForNextLeoRoot();
+      return ['PERSONAL_RESULT:FAILED'];
+    }
   }
 
   /**
