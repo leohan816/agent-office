@@ -496,3 +496,50 @@ update `WORKER_RESULT_POINTER.txt`; leave only those two evidence edits for
 Advisor publication. Return to `agent-office-advisor` and STOP. Worker timebox:
 9 minutes; return one concrete blocker sooner. The same existing independent
 Reviewer alone reviews this delta in the remaining 3 minutes.
+
+## Leo Delta Amendment: Sanitized Pre-Latch Classification Diagnostic (2026-07-18)
+
+Status: `ACTIVE`
+
+This amendment supersedes the persistent-owner implementation amendment above.
+Baseline is pushed clean tip
+`37b9661fc20ac691c66235c92e72a6582c0c3be6`. This is diagnostic-only: do not
+change lifecycle behavior or attempt the Foundation repair.
+
+In `runForegroundOwner()`'s existing outer catch in
+`src/runtime/as1-slack-pilot/cli.ts`, preserve and emit only the already-sanitized
+pre-latch error classification before the unchanged call to
+`latchActiveProfileAndStop()`. Use only the existing `redactError(error)` result;
+never read or emit the raw error/message, stack, path, credential, input, payload,
+or arbitrary text. Preserve the existing error code, latch, disconnect, cleanup,
+`CLEANUP_PROVEN`, return state, and all non-diagnostic behavior byte-for-byte.
+
+The only writable paths are:
+
+- `src/runtime/as1-slack-pilot/cli.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Add or amend one focused test titled exactly:
+
+`reports the sanitized pre-latch classification before unchanged cleanup`
+
+It must prove the closed sanitized classification is present before the existing
+cleanup detail, the raw-message sentinel is absent, and latch/cleanup/result
+behavior is unchanged. Run only that exact test by file/title with one worker,
+ESLint only on the two changed files, and after the candidate commit
+`git diff --check 37b9661fc20ac691c66235c92e72a6582c0c3be6..HEAD`.
+Run no build, other test, unfiltered file, suite, broad lint/typecheck, live
+proof, profile/state action, or activation.
+
+No state/queue/Socket/Slack/routing/profile/descriptor/config/credential change,
+new diagnostic framework, docs, package/lockfile, refactor, broad read, or
+cleanup is authorized. Do not touch Foundation `%62`, Agent Office state/latch,
+rollback `%52`, any actor pane, or live input.
+
+Stage only the two allowlisted paths, verify the staged diff, commit one
+candidate, and push non-force to
+`origin/feature/strategy-entrypoint-migration-001`. Append factual delta, focused
+gate, candidate, and push evidence to existing `WORKER_RESULT.md`; update
+`WORKER_RESULT_POINTER.txt`; leave only those two evidence edits for Advisor
+publication. Return to `agent-office-advisor` and STOP. Worker timebox: 4
+minutes. The same existing independent Reviewer gets a 2-minute narrow review.
