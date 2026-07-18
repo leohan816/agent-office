@@ -246,5 +246,33 @@ no lifecycle/behavior change; the Foundation repair is NOT attempted.
 - **Boundaries:** no state/queue/Socket/Slack/routing/profile/descriptor/config/credential change; no build/broad
   checks; no live/state/actor action. Evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — One-shot Foundation diagnostic-latch retirement (2026-07-18)
+
+Authority: handoff amendment `7ca7508` (verified; local==upstream at entry). Baseline `b1d91e9`. Supersedes every
+earlier Worker amendment; implements only the one-shot closed Foundation diagnostic-latch retirement.
+
+- **Exact changed paths (3-file allowlist; +113/−1):**
+  - `src/operations/readiness/as1-slack-control.ts` — new `retireOneShotFoundationDiagnosticLatch()` mirroring
+    `retireObsoleteAdvisorLatch`'s safety shape, fixed to all four identity fields: root id `strategy-foundation-v1`
+    (via `this.stateRootId`), slug `foundation-advisor`, reason `owner-loop error: AUTHORITY_ARTIFACT_INVALID`,
+    `latchedAt` `2026-07-18T16:15:44.312Z`. Serialized through the same mutex; requires lock-owned +
+    EXACTLY `DISABLED_CLEAN` + null active + kill clear + incident gate open + strict parse match; persists canonical
+    `latched:false` atomically BEFORE the cache. Any field/state/ownership/read/parse/persistence mismatch mutates
+    nothing and returns `NOT_RETIRED`; a later latch (same reason, any other `latchedAt`) is never retired.
+  - `src/runtime/as1-slack-pilot/composition.ts` — invoke it in `startStrategyDirect()` ONLY on the
+    `FOUNDATION_STRATEGY` path, immediately BEFORE the existing `isProfileLatched(slug)` check. AGENT_OFFICE_STRATEGY
+    and the legacy Advisor paths are byte-for-byte unchanged. No generic API/caller input/command/fallback/scan/reset.
+  - `tests/integration/as1-slack-live-composition.test.ts` — two named tests (control-level, deterministic):
+    `retires only the exact Foundation diagnostic latch before fixed Strategy direct start` (exact match → `RETIRED` +
+    `isProfileLatched(foundation-advisor)` now false = continuation past the fixed-start latch check; the same latch
+    under a different state-root id → `NOT_RETIRED`) and `refuses wrong or future Foundation diagnostic latches`
+    (wrong reason and same-reason-later-`latchedAt` both → `NOT_RETIRED`, latch stays true → the fixed start returns
+    `PROFILE_LATCHED`). No Socket arm / unrelated mutation.
+- **Gates:** both named tests — PASS (1 passed | 77 skipped each); changed-file ESLint on the 3 files — 0 errors;
+  `git diff --check b1d91e9..HEAD` — clean.
+- **Git:** candidate `ecde0f211dffee5bb52f2b3c41e94c8b02bd439c`; pushed non-force `7ca7508..ecde0f2`; local==upstream.
+- **Boundaries:** no state/queue/Socket/Slack/routing/profile/descriptor/config/credential change; no build/broad
+  checks; no live-state action; no docs/package/lockfile. Evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

@@ -3,11 +3,11 @@ MISSION_ID: AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 ACTION: RUN_NARROW_FIXED_STRATEGY_ANSWER_ACTIONS_DELTA_REVIEW
 WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 BRANCH: feature/strategy-entrypoint-migration-001
-DELTA_BASELINE: ff3877c
-EXACT_CANDIDATE: 086fde66b838056aeeef3703b202295c7ccb6a56
+DELTA_BASELINE: 7ca7508
+EXACT_CANDIDATE: ecde0f211dffee5bb52f2b3c41e94c8b02bd439c
 HANDOFF: artifacts/strategy-entrypoint-migration/REVIEW_HANDOFF.md
 PROTOCOL: activate and follow fable-sentinel; read required repository Reviewer entry files
-SCOPE: read-only exact two-file sanitized pre-latch classification diagnostic delta and committed Worker evidence; reproduce only the exact named focused test, two-file ESLint, and exact-range diff-check; no build, broad checks, live action, or activation
+SCOPE: read-only exact three-file one-shot Foundation diagnostic-latch retirement delta and committed Worker evidence; reproduce only the two named focused tests, three-file ESLint, and exact-range diff-check; no build, broad checks, live action, or activation
 OUTPUTS: artifacts/strategy-entrypoint-migration/REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt only; leave uncommitted for Advisor publication
 RETURN_TO: agent-office-advisor
 STOP

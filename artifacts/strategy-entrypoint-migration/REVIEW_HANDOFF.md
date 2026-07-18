@@ -205,3 +205,30 @@ before unchanged cleanup`, ESLint on exactly those two files, and
 Run no build, broad check, or live/state action. Review only this diagnostic
 delta, write only the existing review result and pointer outputs, return PASS or
 one exact blocker to `agent-office-advisor`, and STOP within two minutes.
+
+## Active one-shot Foundation diagnostic-latch retirement review
+
+Status: `ACTIVE`
+
+Review baseline `7ca7508` against exact candidate
+`ecde0f211dffee5bb52f2b3c41e94c8b02bd439c` read-only. Scope is exactly:
+
+- `src/operations/readiness/as1-slack-control.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Confirm the retirement is closed to state root `strategy-foundation-v1`, slug
+`foundation-advisor`, reason `owner-loop error: AUTHORITY_ARTIFACT_INVALID`, and
+`latchedAt` `2026-07-18T16:15:44.312Z`; retains the existing ownership,
+`DISABLED_CLEAN`, null-active, kill-clear, incident-open, strict-parse, mutex,
+and persist-before-cache checks; and runs only in the fixed
+`FOUNDATION_STRATEGY` `startStrategyDirect()` path immediately before the
+existing latch check. A wrong or later latch must remain latched.
+
+Reproduce only the named tests `retires only the exact Foundation diagnostic
+latch before fixed Strategy direct start` and `refuses wrong or future
+Foundation diagnostic latches`, ESLint on exactly the three files, and
+`git diff --check 7ca7508..ecde0f211dffee5bb52f2b3c41e94c8b02bd439c`.
+Run no build, broad check, or live/state action. Write only the existing review
+result and pointer outputs, return PASS or one exact blocker to
+`agent-office-advisor`, and STOP within three minutes.
