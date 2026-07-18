@@ -309,3 +309,33 @@ No findings.
 No blocking residual risk identified within the authorized tuple-only delta and named gates. This is independent review evidence, not risk acceptance or final approval.
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Subscribed Strategy Status-Forwarding Instruction Delta Review
+
+## Findings
+
+No findings.
+
+## Scope and direct evidence
+
+- Exact range `df4a81f..8d4d2394a294034ad1b1bd5b7938d541edfc9bfc` changes exactly `src/runtime/as1-slack-pilot/composition.ts` and `tests/integration/as1-slack-live-composition.test.ts`.
+- Candidate `composition.ts:205-206` requires each selected new user-facing progress, finding, or result block produced or captured while processing the Slack message to be forwarded exactly once as bounded text through the profile's fixed status action.
+- The same fixed instruction excludes npm/tool invocations, `Ran` headers, `REASON`/control lines, and duplicate content, and explicitly keeps terminal-direct conversations outside Slack.
+- Lines 223-225 append the instruction only when `subscribed` is true. The runtime change is one fixed instruction-literal replacement; terminal-originated and unsubscribed behavior remain unchanged.
+
+## Reproduced gates
+
+- Two exact named Vitest cases — **PASS**: 2 passed, 86 skipped, one worker.
+- ESLint on exactly the two changed files — **PASS**, no output.
+- `git diff --check df4a81f..8d4d2394a294034ad1b1bd5b7938d541edfc9bfc` — **PASS**, clean.
+- No build, broad test, implementation, live action, other-file review, or candidate modification was performed.
+
+## Verdict
+
+`PASS`
+
+No blocking residual risk identified within the authorized instruction-only delta and named gates. This is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
