@@ -331,3 +331,93 @@ evidence edits for Advisor publication. Return the candidate and evidence to
 review this compile-closure delta and build evidence. Timebox: 6 minutes; return
 one exact remaining compiler blocker sooner if this frozen scope cannot close
 the build.
+
+## Leo Delta Amendment: Fixed Strategy Answer Actions (2026-07-18)
+
+Status: `ACTIVE`
+
+Advisor instruction gate: `PROCEED_WITH_LIMITS`. This amendment supersedes only
+the PERSONAL direct answer-command behavior for the two closed Strategy
+profiles. Every legacy Advisor behavior and every other boundary above remains
+in force. Exact clean, pushed starting tip:
+`ec42c61e78c97916cbce97831f34d3eb906bb3b8`.
+
+Dispatch only the existing Agent Office Worker, `agent-office-opus` pane `%16`.
+Re-verify the Worker runtime binding, required Worker entry/protocol files,
+branch/worktree/upstream equality, and this complete committed handoff before
+acting. Fail closed to `agent-office-advisor` on any mismatch.
+
+### Exact behavior delta
+
+1. In `src/runtime/as1-slack-pilot/cli.ts`, keep the existing legacy `answer`
+   verb/action, parsing, fixed `AS1_PERSONAL_LEO_ONLY_STATE_ROOT`, output, and
+   behavior byte-for-byte. Add exactly two closed verbs/actions:
+   `answer-agent-office-strategy` and `answer-foundation-strategy`.
+2. Each new action accepts only bounded answer text under the same closed text
+   validation as legacy `answer`. It internally selects exactly one already
+   committed fixed root:
+   - `answer-agent-office-strategy` ->
+     `/home/leo/.local/state/agent-office/strategy-agent-office-v1`
+   - `answer-foundation-strategy` ->
+     `/home/leo/.local/state/agent-office/strategy-foundation-v1`
+   No root, profile, path, channel, thread, command, or environment operand;
+   no env-based selection; no inferred/scanned root; no generic lookup/router.
+   Reuse the existing bounded answer action/spool only; add no spool or storage.
+3. In `src/runtime/as1-slack-pilot/composition.ts`, make only the fixed pasted
+   answer instruction in `deliverPersonalDirect()` exhaustive by the closed
+   live profile:
+   - legacy Advisor profiles retain the current pasted command byte-for-byte,
+     including the existing
+     `AGENT_OFFICE_AS1_PHASE_B_LIVE_PILOT_001` prefix and legacy `answer` verb;
+   - `AGENT_OFFICE_STRATEGY` pastes
+     `npm --prefix /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001 run as1:slack-pilot -- answer-agent-office-strategy "<bounded answer text>"`;
+   - `FOUNDATION_STRATEGY` pastes the identical fixed migration-worktree prefix
+     with `answer-foundation-strategy`.
+   Selection is only by the already-bound closed profile literal, never by a
+   message/caller/env value. Preserve message bytes, destination validation,
+   buffer lifecycle, correlation recording, FIFO/result consumption, and Slack
+   projection behavior unchanged.
+4. Strategy itself receives the normal Leo message and invokes its matching
+   fixed command only after deciding its final response. Advisor remains an
+   internal actor. Add no Advisor-to-Slack projection and no path that treats a
+   raw Advisor answer as the Strategy response.
+
+### Frozen files and gates
+
+The only writable implementation/test paths are:
+
+- `src/runtime/as1-slack-pilot/cli.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/operations/as1-slack-lifecycle.test.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Tests may change only as needed to prove the two new closed verbs/fixed roots,
+the two exact Strategy paste commands, rejection of caller-selected routing,
+and byte-for-byte preservation of the legacy pasted command. Run only these
+focused tests by exact file and exact `-t` title, with one worker:
+
+1. Existing lifecycle test: `binds fixed Strategy commands and roots without caller-selected routing`.
+2. A single focused live-composition test titled exactly:
+   `pastes fixed Strategy answer verbs while preserving the legacy Advisor answer command`.
+3. Existing legacy proof: `handles two sequential PERSONAL_LEO_ONLY messages with same-thread replies and dedupe`.
+
+Run changed-file ESLint only on paths actually changed within the four-file
+allowlist, exactly one `npm run build:core`, and after the candidate commit
+`git diff --check ec42c61e78c97916cbce97831f34d3eb906bb3b8..HEAD`.
+Run no other test, unfiltered file, suite, broad lint/typecheck/build, profile,
+design, live proof, or activation.
+
+No other source/test/doc/config/descriptor/profile/package/lockfile/state root,
+credential, service, tmux actor, Foundation input/launch, architecture,
+database, Git-evidence path, refactor, framework, or cleanup is authorized.
+Do not stop/restart or interact with the live owner or any Strategy/Foundation
+actor pane.
+
+Stage only the exact allowlisted changed paths, verify the staged diff, commit
+one coherent candidate, and push non-force only to
+`origin/feature/strategy-entrypoint-migration-001`. Then append factual delta,
+focused-gate, behavior-preservation, candidate, and push evidence to the
+existing `WORKER_RESULT.md`; update `WORKER_RESULT_POINTER.txt`; leave only
+those two evidence edits for Advisor publication. Return to
+`agent-office-advisor` and STOP. The same independent Reviewer alone reviews
+this delta. Timebox: 15 minutes; return one concrete blocker sooner.
