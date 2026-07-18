@@ -803,6 +803,10 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
       return ownerLine(false, `OWNER_HALTED:${code}:${reverted.detail}`, reverted.state);
     }
     if (composition.isOpen()) {
+      // Sanitized pre-latch classification diagnostic (diagnostic-only): emit ONLY the already-sanitized `redactError`
+      // code BEFORE the UNCHANGED latch/cleanup call below — never the raw error/message/stack/path/credential/input/
+      // payload. Latch/disconnect/cleanup/CLEANUP_PROVEN/return state and all non-diagnostic behavior are unchanged.
+      process.stdout.write(`AS1_SLACK_PILOT PRE_LATCH_CLASSIFICATION: ${code}\n`);
       const result = await composition.latchActiveProfileAndStop(code).catch(() => null);
       if (result !== null) {
         // The latch/cleanup result is truthful: an incident discovered during the drain is reported as the kill.

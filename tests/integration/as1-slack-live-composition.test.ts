@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
 import { hashCanonical, sha256Bytes } from '../../src/persistence/file-store/hashing.js';
@@ -1166,6 +1166,33 @@ describe('AS1 F01 — foreground production owner', () => {
     const result = await runForegroundOwner({ ...boundary, delay: () => Promise.resolve() });
     expect(result.ok).toBe(false);
     expect(result.lines.join('|')).toContain('OWNER_HALTED');
+  });
+
+  it('reports the sanitized pre-latch classification before unchanged cleanup', async () => {
+    const clock = new FakeClock(CLOCK_ISO);
+    const { boundary, gitSource } = await makeOwnerBoundary(clock);
+    // Force a loop throw so the outer catch runs the pre-latch diagnostic + the UNCHANGED latch/cleanup.
+    gitSource.throwOnReObservePaths.add(RECEIVE_GRANT_REF);
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk): boolean => {
+      writes.push(String(chunk));
+      return true;
+    });
+    const result = await runForegroundOwner({ ...boundary, delay: () => Promise.resolve() }).finally(() => {
+      spy.mockRestore();
+    });
+    // Latch/cleanup/result behavior is UNCHANGED: still a fail-closed OWNER_HALTED carrying the redacted code + cleanup.
+    expect(result.ok).toBe(false);
+    const halted = result.lines.join('|');
+    expect(halted).toContain('OWNER_HALTED');
+    const code = /OWNER_HALTED:([A-Z_]+):/.exec(halted)?.[1];
+    expect(code).toBeTruthy();
+    // The sanitized pre-latch classification was emitted with the SAME closed code, BEFORE the cleanup detail.
+    const classification = writes.find((w) => w.includes('PRE_LATCH_CLASSIFICATION:'));
+    expect(classification).toBeDefined();
+    expect(classification).toContain(`PRE_LATCH_CLASSIFICATION: ${code}`);
+    // Only the closed UPPER_SNAKE code is emitted — no raw message/stack/path/credential/input/payload sentinel.
+    expect(classification?.trim()).toMatch(/^AS1_SLACK_PILOT PRE_LATCH_CLASSIFICATION: [A-Z_]+$/);
   });
 });
 
