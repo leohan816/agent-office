@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
-import { parseSecretConfigFile } from '../../src/adapters/gateways/slack-pilot/secret-config.js';
+import { parseSecretConfigFile, parseStrategySecretConfigFile } from '../../src/adapters/gateways/slack-pilot/secret-config.js';
 import {
   makeNestedSecret,
   secretText,
@@ -20,6 +20,45 @@ async function grabDomainError(fn: () => Promise<unknown>): Promise<DomainError>
   }
   throw new Error('expected a DomainError but none was thrown');
 }
+
+function strategySecretText(): string {
+  const b = validSecretValues();
+  return secretText({
+    SLACK_WORKSPACE_ID: b.SLACK_WORKSPACE_ID,
+    SLACK_LEO_USER_ID: b.SLACK_LEO_USER_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_APP_ID: b.SLACK_AGENT_OFFICE_APP_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_CHANNEL_ID: b.SLACK_AGENT_OFFICE_CHANNEL_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_BOT_TOKEN: b.SLACK_AGENT_OFFICE_BOT_TOKEN,
+    SLACK_AGENT_OFFICE_STRATEGY_APP_TOKEN: b.SLACK_AGENT_OFFICE_APP_TOKEN,
+    SLACK_FOUNDATION_STRATEGY_APP_ID: b.SLACK_FOUNDATION_APP_ID,
+    SLACK_FOUNDATION_STRATEGY_CHANNEL_ID: b.SLACK_FOUNDATION_CHANNEL_ID,
+    SLACK_FOUNDATION_STRATEGY_BOT_TOKEN: b.SLACK_FOUNDATION_BOT_TOKEN,
+    SLACK_FOUNDATION_STRATEGY_APP_TOKEN: b.SLACK_FOUNDATION_APP_TOKEN,
+  });
+}
+
+describe('AS1 Strategy secret-config parser', () => {
+  it('parses only the fixed Strategy secret key set without exposing values', async () => {
+    const { filePath } = await writeSecretFile(strategySecretText(), { fileName: 'strategy-slack-apps.env' });
+    const config = await parseStrategySecretConfigFile(filePath);
+    expect(config.getWorkspaceId()).toBe('TWORKSPACE001');
+    expect(config.getLeoUserId()).toBe('U0BD3523C1F');
+    // The projection is LOCAL SYNTAX only and exposes NO token/raw ID/prefix/length/hash.
+    const rendered = config.renderRedactedCheck();
+    expect(rendered).toContain('AS1_STRATEGY_SLACK_REDACTED_CHECK');
+    expect(rendered).toContain('SCOPE: LOCAL_SYNTAX_ONLY');
+    expect(rendered).toContain('RESULT: LOCAL_SYNTAX_PASS');
+    expect(rendered).toContain('LIVE_IDENTITY_PROOF: NOT_PERFORMED');
+    expect(rendered).toContain('TOKENS: PRESENT_AND_REDACTED');
+    expect(rendered).not.toContain('xoxb');
+    expect(rendered).not.toContain('xapp');
+    expect(rendered).not.toContain('TWORKSPACE001');
+    // The key set is EXACTLY the Strategy ten: a legacy (non-Strategy) key is an unknown key.
+    const withLegacyKey = strategySecretText().replace('SLACK_AGENT_OFFICE_STRATEGY_APP_ID', 'SLACK_AGENT_OFFICE_APP_ID');
+    const { filePath: badPath } = await writeSecretFile(withLegacyKey, { fileName: 'bad-strategy.env' });
+    expect((await grabDomainError(() => parseStrategySecretConfigFile(badPath))).code).toBe('UNKNOWN_FIELD');
+  });
+});
 
 describe('AS1 secret-config parser — positive', () => {
   it('parses an owner-only exact-ten-key file and exposes only a redacted projection', async () => {

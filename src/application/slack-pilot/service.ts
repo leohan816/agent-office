@@ -34,12 +34,17 @@ import {
   type As1TransportState,
   type CommitPreAckInput,
 } from './inbound-store.js';
-import type { As1Profile } from './profiles.js';
+import type { As1Profile, As1StrategyProfile } from './profiles.js';
 import type { As1InboundEnvelope } from '../../adapters/gateways/slack-pilot/socket-client.js';
 
-/** Committed profile identity resolved at startup (from the secret record + pair proof). */
+/**
+ * Committed profile identity resolved at startup (from the secret record + pair proof). The profile is an Advisor
+ * profile on the default/legacy path, or a Strategy profile on the reused personal-direct path (Strategy migration):
+ * the PERSONAL path reads only the context identity fields (workspace/App/channel/Leo), never `profile.profileId`, so
+ * either profile shape is safe here; the default path is reached only by Advisor profiles.
+ */
 export interface As1ProfileRuntimeContext {
-  readonly profile: As1Profile;
+  readonly profile: As1Profile | As1StrategyProfile;
   readonly workspaceId: string;
   readonly appId: string;
   readonly channelId: string;

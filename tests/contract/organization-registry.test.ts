@@ -92,6 +92,33 @@ function project(input: {
   });
 }
 
+describe('Strategy actor registration', () => {
+  it('registers the two optional Strategy actors without changing existing Advisor bindings', () => {
+    const frame = project({ registry: ORGANIZATION_REGISTRY, evidence: ORGANIZATION_EVIDENCE });
+    // The two optional Strategy actors resolve as valid rows with STRATEGY role + their responsible-Advisor binding.
+    const ao = actorById(frame.actors, 'agent-office-strategy-sol');
+    expect(ao.role.value).toBe('STRATEGY');
+    expect(ao.project.value).toBe('AGENT_OFFICE');
+    expect(ao.advisorTeam.value).toBe('AGENT_OFFICE_ADVISOR_TEAM');
+    expect(ao.reportsToAdvisor.value).toBe('agent-office-advisor');
+    expect(ao.canReceiveWork).toBe(true);
+    const fdn = actorById(frame.actors, 'foundation-strategy-sol');
+    expect(fdn.role.value).toBe('STRATEGY');
+    expect(fdn.project.value).toBe('FOUNDATION');
+    expect(fdn.advisorTeam.value).toBe('FOUNDATION_ADVISOR_TEAM');
+    expect(fdn.reportsToAdvisor.value).toBe('foundation-advisor');
+    // Existing Advisor bindings are UNCHANGED: the continuing Agent Office Advisor keeps its identity/display.
+    const advisor = actorById(frame.actors, 'foundation-advisor');
+    expect(advisor.role.value).toBe('ADVISOR');
+    expect(advisor.stableDisplayName.value).toBe('Agent Office Advisor');
+    // Adding the two rows introduces NO registry-integrity diagnostics (no invalid/duplicate id/actor).
+    expect(frame.diagnostics.filter((d) => d.code === 'INVALID_REGISTRY_ROLE_INSTANCE_ID')).toHaveLength(0);
+    expect(frame.diagnostics.filter((d) => d.code === 'DUPLICATE_REGISTRY_ROLE_INSTANCE_ID')).toHaveLength(0);
+    expect(frame.diagnostics.filter((d) => d.code === 'INVALID_REGISTRY_ACTOR_ID')).toHaveLength(0);
+    expect(frame.diagnostics.filter((d) => d.code === 'DUPLICATE_REGISTRY_ACTOR_ID')).toHaveLength(0);
+  });
+});
+
 describe('WU-02 committed organization fixture', () => {
   const frame = project({ registry: ORGANIZATION_REGISTRY, evidence: ORGANIZATION_EVIDENCE });
 

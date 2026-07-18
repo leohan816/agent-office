@@ -14,7 +14,7 @@ import { lstat, readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { DomainError } from '../../contracts/types.js';
-import { parseSecretConfigFile } from '../../adapters/gateways/slack-pilot/secret-config.js';
+import { DEFAULT_STRATEGY_SECRET_FILE_PATH, parseSecretConfigFile } from '../../adapters/gateways/slack-pilot/secret-config.js';
 import { initializeStateRoot, isNodeError } from '../../persistence/file-store/path-safety.js';
 import {
   AS1_FIXED_OWNER_LOCK_PATH,
@@ -49,12 +49,15 @@ import {
   As1GatewayComposition,
   AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
   parseRuntimeDescriptor,
+  strategyDirectBindingFor,
   type As1CompositionDependencies,
   type As1CompositionSocketPort,
   type As1OwnerCleanupResult,
   type As1RuntimeDescriptorV1,
   type As1SocketBindings,
+  type As1StrategyDirectBinding,
 } from './composition.js';
+import { AS1_STRATEGY_PROFILE_IDS, selectStrategyProfile, type As1StrategyProfile, type As1StrategyProfileId } from '../../application/slack-pilot/profiles.js';
 
 /**
  * The exact fixed owner state root (design §5.1; R2 recovery design §4). The sole active root is the versioned R2
@@ -468,6 +471,16 @@ export interface As1ForegroundOwnerBoundary {
   /** Handoff 116: run the personal Leo-only runtime (internal per-message lease; message-local failures). Selected by
    *  the fixed leo-v1 state root in `main()`; optional so existing owner-harness tests keep their exact behavior. */
   readonly personalLeoOnly?: boolean;
+  /** Strategy migration: the fixed direct-delivery destination (pane + session). Omitted for the legacy owner (keeps
+   *  the exact fixed agent-office-advisor `%26` destination); a fixed Strategy CLI entry supplies its own fixed pane
+   *  (`%48`/`%31`) + session. Never a caller/env/message value. */
+  readonly directDestination?: { readonly paneId: string; readonly sessionName: string };
+  /** Strategy migration (Option A): the closed Strategy profile + fixed Strategy secret path this owner serves, and the
+   *  flag that routes startup through `startStrategyDirect()` (the connectable personal-direct branch) while the owner
+   *  stays in the SAME foreground loop until clean stop. Omitted on the legacy path. Never a caller/env/message value. */
+  readonly strategyProfile?: As1StrategyProfile;
+  readonly strategySecretFilePath?: string;
+  readonly strategyDirectStart?: boolean;
 }
 
 const OWNER_LOOP_INTERVAL_MS = 250;
@@ -559,6 +572,11 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
     // Bind the PERSONAL gate to THIS owner's own state root; in production that root IS the fixed leo-v1 literal (main's
     // AS1_SLACK_STATE_ROOT check), so this equals the default and is production-neutral.
     expectedPersonalRoot: boundary.stateRoot,
+    // Strategy migration: a fixed Strategy entry supplies its own fixed destination (%48/%31); the legacy owner omits it
+    // and keeps the exact fixed agent-office-advisor %26 destination (production-neutral default).
+    ...(boundary.directDestination !== undefined ? { directDestination: boundary.directDestination } : {}),
+    ...(boundary.strategyProfile !== undefined ? { strategyProfile: boundary.strategyProfile } : {}),
+    ...(boundary.strategySecretFilePath !== undefined ? { strategySecretFilePath: boundary.strategySecretFilePath } : {}),
     onLockAcquired: () => {
       installed = boundary.installSignalHandlers({
         SIGINT: () => request('CLEAN_STOP'),
@@ -623,7 +641,9 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
 
   try {
     if (incidentPending()) return await runIncidentKill(); // dominate BEFORE startup
-    const started = await composition.start();
+    // Strategy migration (Option A): a fixed Strategy owner starts through the connectable personal-direct branch, then
+    // stays in THIS SAME foreground loop (below) until a clean stop — never an immediate return or a second activation.
+    const started = boundary.strategyDirectStart === true ? await composition.startStrategyDirect() : await composition.start();
     if (incidentPending()) return await runIncidentKill(); // dominate AFTER the startup await
     if (!started.connected) {
       // Default-disabled / not-ready / latched: release ownership truthfully and exit — never a live loop.
@@ -780,6 +800,100 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
     const released = await closeReported();
     return ownerLine(false, `OWNER_HALTED:${code}:${released ? 'CLEANUP_UNPROVEN' : 'RELEASE_UNPROVEN'}`, state);
   }
+}
+
+// ── Strategy CLI entry bindings (Strategy migration) ─────────────────────────
+// Two FIXED profile-specific entry resolutions, ADDED ALONGSIDE the unchanged legacy operator entry below. Each maps a
+// closed Strategy profile literal to its FIXED state root, FIXED Strategy secret path, and FIXED direct-destination
+// binding — no profile/root/path/pane/session is caller-selected. This reuses the existing personal-direct runtime +
+// result spool at a separate fixed root per profile; it adds the bindings only and never starts a live pilot (this
+// migration does not authorize live activation/cutover), so `main()` and the closed lifecycle parser stay unchanged.
+
+/** One fixed Strategy CLI entry: closed profile literal -> fixed root + fixed secret path + fixed direct binding. */
+export interface As1StrategyEntry {
+  readonly profileId: As1StrategyProfileId;
+  readonly stateRoot: string;
+  readonly secretFilePath: string;
+  readonly binding: As1StrategyDirectBinding;
+}
+
+/**
+ * Resolve the FIXED Strategy entry for one closed Strategy profile literal. The state root, secret path, and
+ * direct-destination binding are all fixed by the reviewed profile — never a caller/env/message value, and never a
+ * caller-selected profile/root/path/pane/session.
+ */
+export function resolveStrategyEntry(profileId: As1StrategyProfileId): As1StrategyEntry {
+  const binding = strategyDirectBindingFor(profileId);
+  return {
+    profileId,
+    stateRoot: binding.stateRoot,
+    secretFilePath: DEFAULT_STRATEGY_SECRET_FILE_PATH,
+    binding,
+  };
+}
+
+/** The two — and only two — fixed Strategy entries, in closed order. */
+export function allStrategyEntries(): readonly As1StrategyEntry[] {
+  return AS1_STRATEGY_PROFILE_IDS.map(resolveStrategyEntry);
+}
+
+/**
+ * Run ONE fixed Strategy entrypoint as a foreground owner, REUSING the PERSONAL direct runtime + result spool, bound to
+ * this Strategy profile's OWN fixed state root and fixed direct destination (pane `%48`/`%31`, session `…-strategy-sol`).
+ * It runs the same trusted-Node preflight + mutation-free capability gate as `main()`, initializes ONLY this Strategy
+ * root, and drives the reused personal-direct foreground owner. It NEVER activates a live service: the committed
+ * descriptor stays default-disabled, so `start()` returns before any secret/network/tmux side effect. The Strategy
+ * profile literal is the sole selector (a closed exhaustive switch) — nothing is caller/env/argv-selected.
+ */
+async function runStrategyForegroundOwner(profileId: As1StrategyProfileId): Promise<As1CliResult> {
+  const entry = resolveStrategyEntry(profileId);
+  // handoff 112 §5.1: the fixed trusted-Node preflight FIRST — before any dependency graph or state-root mutation.
+  if ((await preflightTrustedNode()) !== null) return ownerLine(false, TRUSTED_NODE_REQUIRED, 'DISABLED_DEFAULT');
+  // Mutation-free capability gate BEFORE any state-root mutation (design §11.1.3).
+  const capability = await probeCapability();
+  if (!capability.ok) return ownerLine(false, 'LIFECYCLE_CAPABILITY_UNAVAILABLE', 'DISABLED_DEFAULT');
+  const descriptor = parseRuntimeDescriptor(JSON.parse(await readFile(AS1_INSTALLED_DESCRIPTOR_PATH, 'utf8')));
+  const clock = createSystemRuntimeIdentity();
+  const stateRootId = entry.stateRoot.slice(entry.stateRoot.lastIndexOf('/') + 1);
+  // Reuse the SAME foreground owner loop as the legacy personal runtime: startup routes through startStrategyDirect
+  // (the connectable personal-direct branch — fixed tmux pane/session/workspace/codex validation, Slack identity proof,
+  // Socket connect, onEnvelope, receive arm, receiving-ready), then the owner stays in the PERSONAL delivery/result loop
+  // until a clean stop. No immediate return and no second activation step. Bound to this route's OWN fixed root +
+  // destination + closed Strategy profile + fixed Strategy secret path; nothing is caller/env/argv-selected.
+  return runForegroundOwner({
+    descriptor,
+    stateRoot: entry.stateRoot,
+    clock,
+    personalLeoOnly: true,
+    strategyDirectStart: true,
+    strategyProfile: selectStrategyProfile(profileId),
+    strategySecretFilePath: entry.secretFilePath,
+    directDestination: { paneId: entry.binding.destinationPaneId, sessionName: entry.binding.sessionName },
+    buildDeps: () => buildAs1ProductionDependencies(readFrozenAuthoritySnapshotCommits()),
+    trustedNodePreflight: () => preflightTrustedNode(),
+    initialize: async (root: string): Promise<void> => {
+      await initializeStateRoot(root, { stateRootId, initializedAt: clock.now() });
+    },
+    installSignalHandlers: (handlers): readonly As1OwnerSignal[] => {
+      const installed: As1OwnerSignal[] = [];
+      for (const signal of REQUIRED_OWNER_SIGNALS) {
+        process.on(signal, handlers[signal]);
+        installed.push(signal);
+      }
+      return installed;
+    },
+    delay: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+  });
+}
+
+/** The FIXED, non-parameterized Agent Office Strategy entrypoint (reuses PERSONAL direct runtime; not live-activated). */
+export function runAgentOfficeStrategyPilot(): Promise<As1CliResult> {
+  return runStrategyForegroundOwner('AGENT_OFFICE_STRATEGY');
+}
+
+/** The FIXED, non-parameterized Foundation Strategy entrypoint (reuses PERSONAL direct runtime; not live-activated). */
+export function runFoundationStrategyPilot(): Promise<As1CliResult> {
+  return runStrategyForegroundOwner('FOUNDATION_STRATEGY');
 }
 
 /**

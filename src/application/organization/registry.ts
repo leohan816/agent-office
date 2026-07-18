@@ -223,6 +223,21 @@ export const ORGANIZATION_REGISTRY: readonly OrganizationRegistryRow[] = [
     returnsResultTo: 'agent-office-advisor',
     sessionName: 'agent-office-designer',
   }),
+  // Optional Leo-facing Strategy entrypoint for the Agent Office Team (Strategy migration). It dispatches only to
+  // its responsible Advisor (agent-office-advisor) and returns the Advisor result to Leo; it reuses the Advisor's
+  // control identity and is isolated only by its own fixed Strategy state root. No historical evidence.
+  committedRegistryRow({
+    roleInstanceId: 'agent-office-strategy-sol',
+    actorId: 'agent-office-strategy-sol',
+    role: 'STRATEGY',
+    project: 'AGENT_OFFICE',
+    stableDisplayName: 'Agent Office Strategy',
+    advisorTeam: 'AGENT_OFFICE_ADVISOR_TEAM',
+    reportsToAdvisor: 'agent-office-advisor',
+    assignedBy: 'leo-gpt',
+    returnsResultTo: 'leo-gpt',
+    sessionName: 'agent-office-strategy-sol',
+  }),
   committedRegistryRow({
     roleInstanceId: 'cosmile-worker',
     actorId: 'cosmile-worker',
@@ -259,6 +274,21 @@ export const ORGANIZATION_REGISTRY: readonly OrganizationRegistryRow[] = [
     assignedBy: 'foundation-advisor',
     returnsResultTo: 'foundation-advisor',
     sessionName: 'foundation-designer',
+  }),
+  // Optional Leo-facing Strategy entrypoint for the Foundation Team (Strategy migration). It dispatches only to its
+  // responsible Advisor (foundation-advisor) and returns the Advisor result to Leo; it reuses the Advisor's control
+  // identity and is isolated only by its own fixed Strategy state root. No historical evidence.
+  committedRegistryRow({
+    roleInstanceId: 'foundation-strategy-sol',
+    actorId: 'foundation-strategy-sol',
+    role: 'STRATEGY',
+    project: 'FOUNDATION',
+    stableDisplayName: 'Foundation Strategy',
+    advisorTeam: 'FOUNDATION_ADVISOR_TEAM',
+    reportsToAdvisor: 'foundation-advisor',
+    assignedBy: 'leo-gpt',
+    returnsResultTo: 'leo-gpt',
+    sessionName: 'foundation-strategy-sol',
   }),
   // Foundation Worker (session `foundation`); routes through the Foundation Advisor.
   committedRegistryRow({

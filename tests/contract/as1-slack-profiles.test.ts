@@ -8,12 +8,19 @@ import {
 } from '../../src/application/slack-pilot/contracts.js';
 import {
   AS1_PROFILE_IDS,
+  AS1_STRATEGY_PROFILE_IDS,
   allAs1Profiles,
+  allStrategyProfiles,
   assertAs1ProfileId,
+  assertAs1StrategyProfileId,
   isAs1ProfileId,
+  isAs1StrategyProfileId,
   selectProfile,
+  selectStrategyProfile,
   validateProfileLineage,
+  validateStrategyProfileLineage,
   type As1Profile,
+  type As1StrategyProfile,
 } from '../../src/application/slack-pilot/profiles.js';
 import { validPointerDeliveryGrant, validReceiveGrant } from '../helpers/as1-slack-fakes.js';
 
@@ -182,5 +189,61 @@ describe('AS1 post-intake pointer-delivery grant parser', () => {
         parsePointerDeliveryGrant(validPointerDeliveryGrant({ roleInstanceId: 'foundation-advisor-20260714-01' })),
       ).code,
     ).toBe('UNAUTHORIZED_ACTOR');
+  });
+});
+
+describe('AS1 closed Strategy profile union', () => {
+  it('exposes only the two fixed Strategy Slack profiles', () => {
+    // Exactly two closed Strategy literals — never a third string, and never an Advisor literal.
+    expect(AS1_STRATEGY_PROFILE_IDS).toStrictEqual(['AGENT_OFFICE_STRATEGY', 'FOUNDATION_STRATEGY']);
+    expect(allStrategyProfiles()).toHaveLength(2);
+    expect(isAs1StrategyProfileId('AGENT_OFFICE_STRATEGY')).toBe(true);
+    expect(isAs1StrategyProfileId('FOUNDATION_STRATEGY')).toBe(true);
+    // Bidirectional oracle: reject a third string, an Advisor literal, and a raw actor id.
+    expect(isAs1StrategyProfileId('FOUNDATION')).toBe(false);
+    expect(isAs1StrategyProfileId('AGENT_OFFICE_ADVISOR')).toBe(false);
+    expect(isAs1StrategyProfileId('agent-office-strategy-sol')).toBe(false);
+    expect(grabDomainError(() => assertAs1StrategyProfileId('AGENT_OFFICE_ADVISOR')).code).toBe('FORBIDDEN_TARGET');
+    expect(grabDomainError(() => assertAs1StrategyProfileId(null)).code).toBe('FORBIDDEN_TARGET');
+    // No cross-contamination: the Advisor union never accepts a Strategy literal.
+    expect(isAs1ProfileId('AGENT_OFFICE_STRATEGY')).toBe(false);
+    expect(isAs1ProfileId('FOUNDATION_STRATEGY')).toBe(false);
+
+    const ao = selectStrategyProfile('AGENT_OFFICE_STRATEGY');
+    expect(ao.role).toBe('STRATEGY');
+    expect(ao.actorId).toBe('agent-office-strategy-sol');
+    expect(ao.roleInstanceId).toBe('agent-office-strategy-sol');
+    expect(ao.advisorTeam).toBe('AGENT_OFFICE_ADVISOR_TEAM');
+    // Reused responsible-Advisor control identity (NOT a new control slug).
+    expect(ao.profileStateSlug).toBe('agent-office-advisor');
+    expect(ao.workspace).toBe('/home/leo/Project/agent-office');
+    expect(ao.currentCommand).toBe('codex');
+    expect(ao.destinationPaneId).toBe('%48');
+    expect(ao.stateRoot).toBe('/home/leo/.local/state/agent-office/strategy-agent-office-v1');
+    expect(ao.env).toStrictEqual({
+      appIdKey: 'SLACK_AGENT_OFFICE_STRATEGY_APP_ID',
+      channelIdKey: 'SLACK_AGENT_OFFICE_STRATEGY_CHANNEL_ID',
+      botTokenKey: 'SLACK_AGENT_OFFICE_STRATEGY_BOT_TOKEN',
+      appTokenKey: 'SLACK_AGENT_OFFICE_STRATEGY_APP_TOKEN',
+    });
+
+    const fdn = selectStrategyProfile('FOUNDATION_STRATEGY');
+    expect(fdn.role).toBe('STRATEGY');
+    expect(fdn.actorId).toBe('foundation-strategy-sol');
+    expect(fdn.advisorTeam).toBe('FOUNDATION_ADVISOR_TEAM');
+    expect(fdn.profileStateSlug).toBe('foundation-advisor');
+    expect(fdn.workspace).toBe('/home/leo/Project/FOUNDATION');
+    expect(fdn.destinationPaneId).toBe('%31');
+    expect(fdn.stateRoot).toBe('/home/leo/.local/state/agent-office/strategy-foundation-v1');
+
+    // Isolation invariant: the two Strategy routes have DISTINCT fixed state roots + panes (the sole isolation source).
+    expect(ao.stateRoot).not.toBe(fdn.stateRoot);
+    expect(ao.destinationPaneId).not.toBe(fdn.destinationPaneId);
+
+    // Lineage binds each Strategy profile to its committed registry row; a forged actorId fails closed.
+    expect(() => validateStrategyProfileLineage(ao)).not.toThrow();
+    expect(() => validateStrategyProfileLineage(fdn)).not.toThrow();
+    const forged: As1StrategyProfile = { ...ao, actorId: 'agent-office-advisor' };
+    expect(grabDomainError(() => validateStrategyProfileLineage(forged)).code).toBe('UNAUTHORIZED_ACTOR');
   });
 });

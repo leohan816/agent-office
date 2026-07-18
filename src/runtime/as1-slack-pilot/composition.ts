@@ -27,12 +27,23 @@ import {
 import { As1InboundService, type As1PersonalCorrelation, type As1ProfileControlPort, type As1ProfileRuntimeContext } from '../../application/slack-pilot/service.js';
 import { As1ProfileInboundStore } from '../../application/slack-pilot/inbound-store.js';
 import {
+  AS1_STRATEGY_PROFILE_IDS,
   allAs1Profiles,
   selectProfile,
+  selectStrategyProfile,
   validateProfileLineage,
+  validateStrategyProfileLineage,
   type As1Profile,
+  type As1StrategyProfile,
+  type As1StrategyProfileId,
 } from '../../application/slack-pilot/profiles.js';
-import { parseSecretConfigFile, type As1SecretConfig } from '../../adapters/gateways/slack-pilot/secret-config.js';
+import {
+  parseSecretConfigFile,
+  parseStrategySecretConfigFile,
+  type As1ProfileSecret,
+  type As1SecretConfig,
+  type As1StrategySecretConfig,
+} from '../../adapters/gateways/slack-pilot/secret-config.js';
 import {
   As1StartupIdentityVerifier,
   assertPointerGrantSnapshot,
@@ -96,6 +107,88 @@ export function controlProfileControlPort(control: As1SlackControl, profileSlug:
 /** Handoff 116: the personal Leo-only runtime uses ONLY this fixed state root; the R2 root and the original root are
  *  never read, reset, modified, copied, or reused in this mode. */
 export const AS1_PERSONAL_LEO_ONLY_STATE_ROOT = '/home/leo/.local/state/agent-office/as1-slack-pilot-leo-v1';
+
+// ── Strategy runtime bindings (Strategy migration) ───────────────────────────
+// The two fixed Strategy state roots + the pure fixed direct-destination binding per Strategy profile, ADDED
+// ALONGSIDE the unchanged personal/advisor runtime above. These fixed state roots are the SOLE source of isolation
+// between the two Strategy routes and from the legacy path: each Strategy route reuses the existing personal-direct
+// behavior + result spool at its OWN fixed state root, reusing its responsible Advisor's control identity
+// (`profileStateSlug`). No profile/root/path/pane/session is caller-selected — every field is a pure function of the
+// closed Strategy profile literal. This adds the bindings only; it does NOT start a live pilot (this migration does
+// not authorize live activation/cutover), so the legacy `start()`/owner-loop/personal-direct code paths are untouched.
+
+/** The two fixed Strategy state roots, keyed by closed Strategy profile literal. Isolation is via these roots alone. */
+export const AS1_STRATEGY_STATE_ROOTS: Readonly<Record<As1StrategyProfileId, string>> = {
+  AGENT_OFFICE_STRATEGY: selectStrategyProfile('AGENT_OFFICE_STRATEGY').stateRoot,
+  FOUNDATION_STRATEGY: selectStrategyProfile('FOUNDATION_STRATEGY').stateRoot,
+};
+
+/** The fixed direct-destination binding a Strategy route reuses the personal-direct path against. Pure + fixed. */
+export interface As1StrategyDirectBinding {
+  readonly profileId: As1StrategyProfileId;
+  readonly stateRoot: string;
+  readonly destinationPaneId: string;
+  readonly sessionName: string;
+  readonly workspace: string;
+  readonly currentCommand: 'codex';
+}
+
+/**
+ * Resolve the fixed Strategy runtime binding for one closed Strategy profile literal. Every field is fixed by the
+ * reviewed profile (validated against the committed registry row); nothing is caller/env/message-selected. This is
+ * the seam a live personal-direct composition would validate at startup (fixed tmux pane/session/workspace/command).
+ */
+export function strategyDirectBindingFor(profileId: As1StrategyProfileId): As1StrategyDirectBinding {
+  const profile = selectStrategyProfile(profileId);
+  validateStrategyProfileLineage(profile);
+  return {
+    profileId: profile.profileId,
+    stateRoot: profile.stateRoot,
+    destinationPaneId: profile.destinationPaneId,
+    sessionName: profile.sessionName,
+    workspace: profile.workspace,
+    currentCommand: profile.currentCommand,
+  };
+}
+
+/** The two — and only two — fixed Strategy direct bindings, in closed order. Never a lookup-by-arbitrary-string map. */
+export function allStrategyDirectBindings(): readonly As1StrategyDirectBinding[] {
+  return AS1_STRATEGY_PROFILE_IDS.map(strategyDirectBindingFor);
+}
+
+const AS1_STRATEGY_COMPAT_SEED_HASH = `sha256:${'0'.repeat(64)}`;
+/**
+ * Strategy migration (Option A): a FIXED in-memory, construction-only compatibility grant seed. It exists ONLY to
+ * satisfy the `As1InboundService` constructor + `LiveState.grant` shape when the reused personal-direct FIFO/spool path
+ * is assembled for a Strategy route — the PERSONAL_LEO_ONLY path NEVER reads it (no per-message grant, no persistence,
+ * no Git observation, no mint). It is not authority: it is never observed, validated against a secret, persisted, or
+ * used to authorize any receive/delivery. Its `profileId` is a reviewed Advisor literal purely for schema shape.
+ */
+const AS1_STRATEGY_COMPAT_SEED_GRANT: As1PilotReceiveGrantV1 = {
+  schemaVersion: 'agent-office.as1-pilot-receive-grant.v1',
+  receiveGrantId: 'as1-strategy-compat-seed',
+  pilotId: 'as1-strategy-compat',
+  profileId: 'AGENT_OFFICE_ADVISOR',
+  workspaceId: 'TWORKSPACE000',
+  appId: 'ASTRATEGYSEED0',
+  channelId: 'CSTRATEGYSEED0',
+  leoUserId: 'U0BD3523C1F',
+  profileStateRootRef: 'indexes/as1-slack-pilot/profiles/agent-office-advisor',
+  profileStateRootHash: AS1_STRATEGY_COMPAT_SEED_HASH,
+  rootLimit: 1,
+  conversationLimit: 1,
+  governanceSnapshotHash: AS1_STRATEGY_COMPAT_SEED_HASH,
+  registrySnapshotHash: AS1_STRATEGY_COMPAT_SEED_HASH,
+  ownerSetupGateHash: AS1_STRATEGY_COMPAT_SEED_HASH,
+  implementationReviewGateHash: AS1_STRATEGY_COMPAT_SEED_HASH,
+  globalControlSnapshotHash: AS1_STRATEGY_COMPAT_SEED_HASH,
+  profileLatchSnapshotHash: AS1_STRATEGY_COMPAT_SEED_HASH,
+  authorityRepositoryId: 'agent-office',
+  authorityRootId: 'strategy-compat',
+  authoritySourceCommit: '0'.repeat(40),
+  issuedAt: '2026-07-14T22:00:00.000Z',
+  expiresAt: '2026-07-14T22:10:00.000Z',
+};
 /** Handoff 116: the existing canonical mission-local fixed Agent Office Advisor tmux pane. It is a FIXED mission
  *  binding validated once at startup, never a caller/message/environment-selected target. */
 const AS1_LEO_ADVISOR_PANE_ID = '%26';
@@ -237,13 +330,15 @@ export interface As1CompositionDependencies {
 }
 
 interface LiveState {
-  readonly profile: As1Profile;
+  // Strategy migration (Option A): the live state carries an Advisor profile on the default/legacy path, or a Strategy
+  // profile on the reused personal-direct path. Both share the fields the personal-direct path reads.
+  readonly profile: As1Profile | As1StrategyProfile;
   readonly slug: As1ProfileSlug;
   readonly grant: As1PilotReceiveGrantV1;
   /** The exact committed receive-grant ref (design §4.3) — re-observed with `acceptedReceiveGrant` on every poll (F03). */
   readonly receiveGrantRef: string;
   readonly acceptedReceiveGrant: As1AcceptedArtifact;
-  readonly secret: As1SecretConfig;
+  readonly secret: As1SecretConfig | As1StrategySecretConfig;
   readonly wire: As1ProfileWireIdentity;
   readonly store: As1ProfileInboundStore;
   readonly service: As1InboundService;
@@ -306,8 +401,144 @@ export class As1GatewayComposition {
      *  literal (`AS1_PERSONAL_LEO_ONLY_STATE_ROOT`); a focused test may inject a temporary root through the composition
      *  boundary so the positive paths run WITHOUT touching the live fixed root. Never a caller/env/message value. */
     private readonly expectedPersonalRoot: string,
+    /** Strategy migration: the fixed direct-delivery destination pane the personal-direct path validates. Defaults to
+     *  the legacy fixed agent-office-advisor `%26` pane so the legacy personal path is byte-unchanged; a fixed Strategy
+     *  CLI entry supplies its own fixed pane (`%48`/`%31`). Never a caller/env/message value. */
+    private readonly directPaneId: string,
+    /** Strategy migration: the fixed direct-delivery destination session name (default legacy `agent-office-advisor`). */
+    private readonly directSessionName: string,
+    /** Strategy migration (Option A): the closed Strategy profile this composition serves, or null on the legacy path.
+     *  When set, `startStrategyDirect()` builds the connectable personal-direct live state for this Strategy route. */
+    private readonly strategyProfile: As1StrategyProfile | null,
+    /** Strategy migration (Option A): the fixed Strategy secret path (`strategy-slack-apps.env`), or null on the legacy path. */
+    private readonly strategySecretFilePath: string | null,
   ) {
     this.control = control;
+  }
+
+  /**
+   * Strategy migration (Option A): resolve the live profile's bot/App secret across the closed
+   * `As1SecretConfig | As1StrategySecretConfig` union. The live profile and secret are always set together (both Advisor
+   * or both Strategy), so the role discriminant selects the matching secret map. Behavior-preserving for the Advisor path.
+   */
+  private liveProfileSecret(live: LiveState): As1ProfileSecret {
+    if (live.profile.role === 'STRATEGY') {
+      return (live.secret as As1StrategySecretConfig).secretFor(live.profile.profileId);
+    }
+    return (live.secret as As1SecretConfig).secretFor(live.profile.profileId);
+  }
+
+  /**
+   * Strategy migration (Option A): build the CONNECTABLE personal-direct live state for this fixed Strategy route,
+   * REUSING the existing PERSONAL direct FIFO/result-spool path. It parses ONLY the fixed Strategy secret data file,
+   * binds this route's fixed Strategy profile (whose slug REUSES the responsible Advisor control identity) at this
+   * route's OWN fixed state root (the sole isolation source), builds the personal service + socket + in-memory intake
+   * handler, and binds `this.live` with the fixed construction-only compatibility grant seed (never read by the
+   * PERSONAL path). It performs NO Git observation, per-message grant mint, durable control-lifecycle transition, or
+   * live network connect/arm — the responsible Advisor performs the separate live connect/proof. Fails closed on a
+   * missing Strategy binding. The legacy Advisor `start()` path is untouched.
+   */
+  public async startStrategyDirect(): Promise<As1StartResult> {
+    this.assertOpen();
+    const profile = this.strategyProfile;
+    const secretPath = this.strategySecretFilePath;
+    const deps = this.deps;
+    if (profile === null || secretPath === null || deps === null) {
+      return { connected: false, reason: 'DISABLED_DEFAULT_NO_AUTHORITY', state: this.control.getState() };
+    }
+    if (this.control.isGloballyLatched()) {
+      return { connected: false, reason: 'GLOBAL_LATCHED', state: this.control.getState() };
+    }
+    validateStrategyProfileLineage(profile);
+    const slug = profile.profileStateSlug;
+    if (await this.guardedAwait(() => this.control.isProfileLatched(slug))) {
+      return { connected: false, reason: 'PROFILE_LATCHED', state: this.control.getState() };
+    }
+    // The store/spool namespace by the REUSED Advisor control identity (`profileStateSlug`) under this Strategy route's
+    // OWN fixed state root. The store is opened with the matching reviewed Advisor profile literal (the slug owner).
+    const advisorProfile = slug === 'agent-office-advisor' ? selectProfile('AGENT_OFFICE_ADVISOR') : selectProfile('FOUNDATION_ADVISOR');
+    let startedSocket: As1CompositionSocketPort | null = null;
+    try {
+      // Durable transitions to RECEIVE_GRANTED for the reused slug (grant-free — the direct path carries no grant).
+      if (this.control.getState() === 'DISABLED_CLEAN') {
+        await this.guardedAwait(() => this.control.transition('DISABLED_CLEAN', 'DISABLED_DEFAULT'));
+      }
+      await this.guardedAwait(() => this.control.transition('DISABLED_DEFAULT', 'RECEIVE_GRANTED_ONE_PROFILE', slug));
+      // Parse ONLY the fixed Strategy secret data file (owner-only, exact-key; never sourced/eval'd) and retain this
+      // route's wire identity.
+      const secret = await this.guardedAwait(() => parseStrategySecretConfigFile(secretPath));
+      const profileSecret = secret.secretFor(profile.profileId);
+      const wire: As1ProfileWireIdentity = {
+        workspaceId: secret.getWorkspaceId(),
+        appId: profileSecret.appId,
+        channelId: profileSecret.channelId,
+        leoUserId: secret.getLeoUserId(),
+        botToken: profileSecret.botToken,
+        appToken: profileSecret.appToken,
+      };
+      const store = await this.guardedAwait(() => As1ProfileInboundStore.open(this.stateRoot, advisorProfile, this.clock));
+      const gate = controlProfileControlPort(this.control, slug);
+      const socket = deps.buildSocket({
+        latch: (reason: string) => this.control.latchProfile(slug, reason),
+        control: () => Promise.resolve(this.control.isReceiveReady(slug)),
+      });
+      startedSocket = socket;
+      await this.guardedAwait(() => this.control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE'));
+      // Strategy Slack identity proof (auth.test + bots.info) then Socket connect — reusing the collaborator ports.
+      const auth = await this.guardedAwait(() => deps.web.authTest(wire.botToken));
+      const bots = await this.guardedAwait(() => deps.web.botsInfo(wire.botToken, auth.botId));
+      if (!auth.ok || !bots.ok || bots.deleted || auth.teamId !== wire.workspaceId || bots.appId !== wire.appId) {
+        throw new DomainError('UNAUTHORIZED_ACTOR', 'strategy Slack identity proof failed');
+      }
+      const botUserId = auth.userId;
+      const connectResult = await this.guardedAwait(() =>
+        socket.connect({ profileId: profile.profileId, appToken: wire.appToken, expectedAppId: wire.appId, readinessSeal: () => this.control.isReceiveReady(slug) }),
+      );
+      if (!connectResult.ok) {
+        throw new DomainError('GATEWAY_DISABLED', 'strategy socket connect did not succeed');
+      }
+      const context: As1ProfileRuntimeContext = {
+        profile,
+        workspaceId: wire.workspaceId,
+        appId: wire.appId,
+        channelId: wire.channelId,
+        leoUserId: wire.leoUserId,
+        botUserId,
+        now: () => this.clock.now(),
+      };
+      const service = new As1InboundService(context, AS1_STRATEGY_COMPAT_SEED_GRANT, this.incidentGuardedPort(store), this.incidentGuardedPort(gate), true);
+      socket.onEnvelope(async (envelope) => {
+        // Reuse the PERSONAL intake: a fresh deduped Leo message is queued in-memory; expose it to delivery. A
+        // duplicate/foreign/malformed event enqueues nothing (result.personal is undefined).
+        const result = await service.processEnvelope(envelope);
+        if (result.personal !== undefined) this.lastIntakeId = result.personal.requestId;
+      });
+      await this.guardedAwait(() => this.control.transition('AUTHENTICATING_ONE_PROFILE', 'RECEIVING_ONE_PROFILE'));
+      this.live = {
+        profile,
+        slug,
+        grant: AS1_STRATEGY_COMPAT_SEED_GRANT,
+        receiveGrantRef: '',
+        acceptedReceiveGrant: { firstAddCommit: '', blobSha256: '' },
+        secret,
+        wire,
+        store,
+        service,
+        socket,
+      };
+      // Exact fixed Strategy tmux destination validation (%48/%31 + session/workspace/codex) via the fixed seam.
+      await this.validateFixedAdvisorDestination(this.live, deps);
+      if (!this.control.isReceiveReady(slug)) {
+        throw new DomainError('GATEWAY_DISABLED', 'strategy control is not receive-ready immediately before arm');
+      }
+      this.assertIncidentAdmissionOpen();
+      this.receiving = true;
+      socket.armReceive();
+      return { connected: true, reason: 'RECEIVING_ARMED', state: this.control.getState() };
+    } catch (error) {
+      await this.revertStartupFailure(startedSocket);
+      throw error;
+    }
   }
 
   /** Handoff 116: is this composition the Founder-approved personal Leo-only runtime? */
@@ -340,6 +571,15 @@ export class As1GatewayComposition {
        *  fixed leo-v1 literal, so the production gate is unchanged); a focused test may inject a temporary root so the
        *  positive paths run through the composition boundary WITHOUT touching the live fixed root. */
       readonly expectedPersonalRoot?: string;
+      /** Strategy migration: the fixed direct-delivery destination (pane + session). Omitted in production so the legacy
+       *  personal-direct path keeps its exact fixed agent-office-advisor `%26` destination; a fixed Strategy CLI entry
+       *  supplies its own fixed pane (`%48`/`%31`) + session. Never a caller/env/message value. */
+      readonly directDestination?: { readonly paneId: string; readonly sessionName: string };
+      /** Strategy migration (Option A): the closed Strategy profile + fixed Strategy secret path this composition serves.
+       *  Omitted on the legacy path; supplied by a fixed Strategy CLI entry so `startStrategyDirect()` can build the
+       *  connectable personal-direct live state. Never a caller/env/message value. */
+      readonly strategyProfile?: As1StrategyProfile;
+      readonly strategySecretFilePath?: string;
     },
   ): Promise<As1GatewayComposition> {
     const foreground = options.deps !== undefined;
@@ -355,6 +595,10 @@ export class As1GatewayComposition {
       options.deps ?? null,
       options.personalLeoOnly === true,
       options.expectedPersonalRoot ?? AS1_PERSONAL_LEO_ONLY_STATE_ROOT,
+      options.directDestination?.paneId ?? AS1_LEO_ADVISOR_PANE_ID,
+      options.directDestination?.sessionName ?? AS1_LEO_ADVISOR_SESSION_NAME,
+      options.strategyProfile ?? null,
+      options.strategySecretFilePath ?? null,
     );
   }
 
@@ -988,10 +1232,10 @@ export class As1GatewayComposition {
    * local failure. The pane id is the fixed mission binding, never a caller/message/environment value.
    */
   private async validateFixedAdvisorDestination(live: LiveState, deps: As1CompositionDependencies): Promise<As1TmuxDestination> {
-    const observed = await this.guardedAwait(() => deps.tmuxPort.observe(AS1_LEO_ADVISOR_PANE_ID));
+    const observed = await this.guardedAwait(() => deps.tmuxPort.observe(this.directPaneId));
     if (
-      observed.paneId !== AS1_LEO_ADVISOR_PANE_ID ||
-      observed.sessionName !== AS1_LEO_ADVISOR_SESSION_NAME ||
+      observed.paneId !== this.directPaneId ||
+      observed.sessionName !== this.directSessionName ||
       observed.sessionName !== live.profile.sessionName ||
       observed.workspace !== live.profile.workspace ||
       observed.currentCommand !== live.profile.currentCommand
@@ -1500,7 +1744,7 @@ export class As1GatewayComposition {
    * re-evaluated before each durable/network side effect. This is the SAME As1Outbox the accepted RESULT path uses.
    */
   private buildStatusOutbox(live: LiveState, deps: As1CompositionDependencies): As1Outbox {
-    const profileSecret = live.secret.secretFor(live.profile.profileId);
+    const profileSecret = this.liveProfileSecret(live);
     return new As1Outbox({
       profile: live.profile,
       secret: { workspaceId: live.wire.workspaceId, appId: live.wire.appId, channelId: live.wire.channelId, botToken: profileSecret.botToken },
@@ -1587,7 +1831,7 @@ export class As1GatewayComposition {
     // the sole pending message. Idempotent for the IDENTICAL current message; a conflicting/stale pending is refused.
     await spool.recordCorrelation(current);
     // Behavior 1 (preserved) via the DIRECT fixed Web binding to the immutable same thread — NO legacy outbox/evidence.
-    const secret = live.secret.secretFor(live.profile.profileId);
+    const secret = this.liveProfileSecret(live);
     await deps.web.postMessage(secret.botToken, { channel: current.channel, threadTs: current.threadTs, text: '메시지 전달 완료 · 답변 대기 중' });
     return { phase: 'TRANSPORT_RECORDED', outcome: 'DELIVERED', reason: 'personal-direct-%26' };
   }
@@ -1605,7 +1849,7 @@ export class As1GatewayComposition {
     const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
     const entry = await spool.consumeAnswered();
     if (entry === null) return ['PERSONAL_RESULT:NONE'];
-    const secret = live.secret.secretFor(live.profile.profileId);
+    const secret = this.liveProfileSecret(live);
     const text = `RESULT [COMPLETED]: ${entry.answerText}`;
     try {
       const result = await deps.web.postMessage(secret.botToken, { channel: entry.channel, threadTs: entry.threadTs, text });

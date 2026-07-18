@@ -14,6 +14,7 @@ roots.
 | Worker | [worker.md](worker.md) | Implements only the exact committed handoff; returns evidence; no self-review. |
 | Reviewer | [reviewer.md](reviewer.md) | Independent read-only verdict; no patch, no commit, no approval. |
 | Control | [control.md](control.md) | Internal architecture/contract design; anti-expansion; no implementation. |
+| Strategy | [strategy.md](strategy.md) | Optional Leo-facing one-to-one entrypoint; dispatches only to its responsible Advisor; never implements, reviews, or leads. |
 
 Common invariants for all roles:
 

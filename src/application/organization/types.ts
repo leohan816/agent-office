@@ -28,7 +28,10 @@ export interface OrganizationFact<TValue extends string = string> {
 }
 
 // ── Identity attributes (contract §2.1) ──────────────────────────────────────
-export const ORGANIZATION_ROLES = ['ADVISOR', 'WORKER', 'REVIEWER', 'CONTROL', 'DESIGNER'] as const;
+// STRATEGY is the optional Leo-facing one-to-one entrypoint role (Strategy migration): it may dispatch only to
+// its responsible Advisor and return the Advisor result to Leo; it never implements, reviews, accepts risk, or
+// becomes a Team leader. Added to the existing vocabulary only — no Registry/schema redesign.
+export const ORGANIZATION_ROLES = ['ADVISOR', 'WORKER', 'REVIEWER', 'CONTROL', 'DESIGNER', 'STRATEGY'] as const;
 export type OrganizationRole = (typeof ORGANIZATION_ROLES)[number];
 
 // ── Organizational bindings (contract §2.2) ──────────────────────────────────

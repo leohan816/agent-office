@@ -11,7 +11,8 @@ import { hashCanonical, sha256Bytes } from '../../src/persistence/file-store/has
 import { canonicalBytes } from '../../src/persistence/file-store/canonical-json.js';
 import { readStateRootFormat } from '../../src/persistence/file-store/path-safety.js';
 import { As1ProfileInboundStore } from '../../src/application/slack-pilot/inbound-store.js';
-import { selectProfile, type As1Profile } from '../../src/application/slack-pilot/profiles.js';
+import { As1InboundService, type As1ProfileRuntimeContext } from '../../src/application/slack-pilot/service.js';
+import { selectProfile, selectStrategyProfile, type As1Profile } from '../../src/application/slack-pilot/profiles.js';
 import { parseContainedPointerRef, parsePointerDeliveryGrant, parseReceiveGrant, type As1PilotReceiveGrantV1 } from '../../src/application/slack-pilot/contracts.js';
 import { buildEvidenceAuthority, type As1GitProvenanceVerifier } from '../../src/application/slack-pilot/evidence-ingress.js';
 import { userStatusOutboundId } from '../../src/application/slack-pilot/outbox.js';
@@ -38,8 +39,10 @@ import {
 } from '../../src/runtime/as1-slack-pilot/cli.js';
 import { As1SlackControl } from '../../src/operations/readiness/as1-slack-control.js';
 import {
+  APPROVED_LEO_USER_ID,
   FakeClock,
   FakeGitVerifier,
+  FakeProfileControlPort,
   fakeWireWorld,
   secretText,
   slackEnvelope,
@@ -58,6 +61,73 @@ const ACCEPTING_RECEIVE_GATE: As1ReceiveGrantProvenanceGate = { assertAccepted: 
 const ACCEPTING_DELIVERY_GATE: As1DeliveryProvenanceGate = { assertAccepted: () => Promise.resolve() };
 /** The exact obsolete advisor latch reason handoff 120 retires (post-acceptance receive-grant Git divergence). */
 const OBSOLETE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
+
+describe('AS1 Strategy isolated FIFO routes (personal-direct reuse)', () => {
+  // Two Strategy runtime contexts with DISTINCT fixed Slack identities (App/channel/bot). The PERSONAL direct intake
+  // path reads ONLY the context identity + envelope (never the store/grant/gate), so a never-used store is safe here.
+  function strategyContext(profileId: 'AGENT_OFFICE_STRATEGY' | 'FOUNDATION_STRATEGY'): As1ProfileRuntimeContext {
+    const isAo = profileId === 'AGENT_OFFICE_STRATEGY';
+    return {
+      profile: selectStrategyProfile(profileId),
+      workspaceId: 'TWORKSPACE001',
+      appId: isAo ? 'AAOSTRATEGY001' : 'AFDNSTRATEGY01',
+      channelId: isAo ? 'CAOSTRATEGY001' : 'CFDNSTRATEGY01',
+      leoUserId: APPROVED_LEO_USER_ID,
+      botUserId: isAo ? 'UAOSTRATEGYBOT' : 'UFDNSTRATEGYBT',
+      now: () => CLOCK_ISO,
+    };
+  }
+  function strategyService(profileId: 'AGENT_OFFICE_STRATEGY' | 'FOUNDATION_STRATEGY'): As1InboundService {
+    const unusedStore = {} as unknown as As1ProfileInboundStore;
+    return new As1InboundService(strategyContext(profileId), parseReceiveGrant(validReceiveGrant()), unusedStore, new FakeProfileControlPort(), true);
+  }
+  function aoEnvelope(over: { eventId: string; envelopeId: string; ts?: string; onAck?: () => Promise<void> }) {
+    return slackEnvelope({
+      teamId: 'TWORKSPACE001',
+      apiAppId: 'AAOSTRATEGY001',
+      channel: 'CAOSTRATEGY001',
+      user: APPROVED_LEO_USER_ID,
+      ...over,
+    });
+  }
+
+  it('runs isolated Strategy FIFO routes with exact same-thread results and message-local failure', async () => {
+    const ao = strategyService('AGENT_OFFICE_STRATEGY');
+    const fdn = strategyService('FOUNDATION_STRATEGY');
+
+    // (1) A valid Leo root on the AO Strategy identity enqueues exactly one item with a SAME-THREAD correlation
+    // (the result routes back to this exact thread ts).
+    const root = await ao.processEnvelope(aoEnvelope({ eventId: 'Ev0AOSTRAT0001', envelopeId: 'EnvAOSTRAT0001', ts: '1720000000.000100' }));
+    expect(root.acked).toBe(true);
+    expect(root.classification).toBe('PERSONAL_ROOT');
+    expect(root.personal?.threadTs).toBe('1720000000.000100');
+    expect(root.personal?.channel).toBe('CAOSTRATEGY001');
+
+    // (2) The FDN Strategy route is ISOLATED: the AO-addressed event is foreign to it and enqueues NOTHING.
+    const foreign = await fdn.processEnvelope(aoEnvelope({ eventId: 'Ev0AOSTRAT0001', envelopeId: 'EnvAOSTRAT0002' }));
+    expect(foreign.classification).toBe('REJECTED_FIXED_ALLOWLIST');
+    expect(fdn.takeNextPersonal()).toBeNull();
+
+    // (3) The AO FIFO holds exactly the one item; taking it drains it. A DUPLICATE event id creates no second item.
+    expect(ao.takeNextPersonal()?.requestId).toBe('Ev0AOSTRAT0001');
+    const dup = await ao.processEnvelope(aoEnvelope({ eventId: 'Ev0AOSTRAT0001', envelopeId: 'EnvAOSTRAT0003' }));
+    expect(dup.classification).toBe('DUPLICATE_EVENT');
+    expect(ao.takeNextPersonal()).toBeNull();
+
+    // (4) MESSAGE-LOCAL failure: a per-message ACK failure is swallowed (no latch); the NEXT valid message still
+    // enqueues and processes, in FIFO order.
+    let acks = 0;
+    const failing = await ao.processEnvelope(
+      aoEnvelope({ eventId: 'Ev0AOSTRAT0002', envelopeId: 'EnvAOSTRAT0004', ts: '1720000000.000200', onAck: () => { acks += 1; return Promise.reject(new Error('ack failed')); } }),
+    );
+    expect(acks).toBe(1);
+    expect(failing.classification).toBe('PERSONAL_ROOT');
+    const next = await ao.processEnvelope(aoEnvelope({ eventId: 'Ev0AOSTRAT0003', envelopeId: 'EnvAOSTRAT0005', ts: '1720000000.000300' }));
+    expect(next.classification).toBe('PERSONAL_ROOT');
+    expect(ao.takeNextPersonal()?.requestId).toBe('Ev0AOSTRAT0002');
+    expect(ao.takeNextPersonal()?.requestId).toBe('Ev0AOSTRAT0003');
+  });
+});
 
 /**
  * The exact domain-separated profile-state-root binding hash (design §5.2) a correctly-minted receive grant carries

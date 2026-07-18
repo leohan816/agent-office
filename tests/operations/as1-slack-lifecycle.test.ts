@@ -7,8 +7,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DomainError } from '../../src/contracts/types.js';
 import { As1SlackControl, readDurableKillProof } from '../../src/operations/readiness/as1-slack-control.js';
-import { As1GatewayComposition, controlProfileControlPort, parseRuntimeDescriptor, type As1CompositionDependencies } from '../../src/runtime/as1-slack-pilot/composition.js';
+import { As1GatewayComposition, AS1_STRATEGY_STATE_ROOTS, controlProfileControlPort, parseRuntimeDescriptor, strategyDirectBindingFor, type As1CompositionDependencies } from '../../src/runtime/as1-slack-pilot/composition.js';
+import { assertAs1StrategyProfileId } from '../../src/application/slack-pilot/profiles.js';
 import {
+  allStrategyEntries,
+  resolveStrategyEntry,
   AS1_FIXED_TRUSTED_NODE,
   AS1_OWNER_STATE_ROOT,
   checkTrustedNode,
@@ -53,6 +56,42 @@ function dummyCompleteDeps(): As1CompositionDependencies {
 }
 
 const BRIDGE_RESULT_SCHEMA = 'agent-office.as1-pidfd-bridge-result.v1';
+
+describe('AS1 Strategy fixed CLI bindings', () => {
+  it('binds fixed Strategy commands and roots without caller-selected routing', () => {
+    // Exactly two fixed entries, in closed order — never a lookup by arbitrary string.
+    const entries = allStrategyEntries();
+    expect(entries).toHaveLength(2);
+    expect(entries.map((e) => e.profileId)).toStrictEqual(['AGENT_OFFICE_STRATEGY', 'FOUNDATION_STRATEGY']);
+
+    const ao = resolveStrategyEntry('AGENT_OFFICE_STRATEGY');
+    expect(ao.stateRoot).toBe('/home/leo/.local/state/agent-office/strategy-agent-office-v1');
+    expect(ao.secretFilePath).toBe('/home/leo/.config/agent-office/strategy-slack-apps.env');
+    expect(ao.binding.destinationPaneId).toBe('%48');
+    expect(ao.binding.sessionName).toBe('agent-office-strategy-sol');
+    expect(ao.binding.workspace).toBe('/home/leo/Project/agent-office');
+    expect(ao.binding.currentCommand).toBe('codex');
+
+    const fdn = resolveStrategyEntry('FOUNDATION_STRATEGY');
+    expect(fdn.stateRoot).toBe('/home/leo/.local/state/agent-office/strategy-foundation-v1');
+    expect(fdn.secretFilePath).toBe('/home/leo/.config/agent-office/strategy-slack-apps.env');
+    expect(fdn.binding.destinationPaneId).toBe('%31');
+    expect(fdn.binding.sessionName).toBe('foundation-strategy-sol');
+    expect(fdn.binding.workspace).toBe('/home/leo/Project/FOUNDATION');
+
+    // The fixed roots are DISTINCT and match the composition's fixed root map (the sole isolation source).
+    expect(AS1_STRATEGY_STATE_ROOTS.AGENT_OFFICE_STRATEGY).toBe(ao.stateRoot);
+    expect(AS1_STRATEGY_STATE_ROOTS.FOUNDATION_STRATEGY).toBe(fdn.stateRoot);
+    expect(ao.stateRoot).not.toBe(fdn.stateRoot);
+
+    // No caller-selected routing: bindings are a pure function of the closed literal; both resolve, secret path shared.
+    expect(strategyDirectBindingFor('AGENT_OFFICE_STRATEGY').destinationPaneId).toBe('%48');
+    expect(ao.secretFilePath).toBe(fdn.secretFilePath);
+    // An arbitrary / Advisor string is not a Strategy literal — fails closed (never a third route).
+    expect(() => assertAs1StrategyProfileId('AGENT_OFFICE_ADVISOR')).toThrow();
+    expect(() => assertAs1StrategyProfileId('strategy-agent-office-v1')).toThrow();
+  });
+});
 /** Craft a canonical bridge child output (F05 strict-decode / deadline tests). */
 function craftBridgeOutput(record: Record<string, unknown>, code: number): As1BridgeChildOutput {
   return {

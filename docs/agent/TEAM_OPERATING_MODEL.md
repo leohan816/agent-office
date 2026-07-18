@@ -74,7 +74,8 @@ These five things are separate and must not be conflated:
   `agent-office-advisor`, `agent-office-opus` Worker, `foundation-control`). It
   is who does the work.
 - **Role** — the authority profile the actor operates under (Advisor, Designer,
-  Worker, Reviewer, Control). It is what the actor is allowed to do.
+  Worker, Reviewer, Control, and the optional Leo-facing Strategy entrypoint —
+  see `roles/strategy.md`). It is what the actor is allowed to do.
 - **tmux runtime** — the live session an actor runs in. A session name is a
   label only; the actual model, effort, workspace, and readiness must be
   verified live before dispatch and never inferred from the name.
