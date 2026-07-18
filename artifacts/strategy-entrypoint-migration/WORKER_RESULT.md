@@ -332,5 +332,26 @@ Authority: handoff amendment `d38dc2e` (verified; local==upstream at entry). Bas
   `personalOrdinaryPasteText` + heartbeat-window layers (deterministic, no live owner); test 5 at the CLI layer. No
   build/broad checks/live actions were run, per scope. Evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Strategy-only status-stream guard correction (2026-07-18)
+
+Authority: corrective handoff `9dfdbb2` (verified; local==upstream at entry). Baseline `e9967a1`. Live owners `%63`/PID
+2819189 and `%62`/PID 2782662 untouched — no pane input, no live-state action.
+
+- **Exact changed paths (2-file allowlist; +64/−8):**
+  - `src/runtime/as1-slack-pilot/composition.ts` — gated EVERY candidate-2267318 behavior to
+    `live.profile.role === 'STRATEGY'`: (a) `deliverPersonalDirect` four-control interception only for Strategy;
+    (b) the paste is `personalOrdinaryPasteText` (LEO_SLACK_MESSAGE label + status instruction) for Strategy, but the
+    ORIGINAL unlabeled `${text}\n\n[AS1] To answer Leo, run: <answer cmd>` for the legacy Advisor path; (c)
+    `consumeStatusStream` returns INACTIVE unless the live profile is Strategy. Approved Strategy behavior unchanged.
+  - `tests/integration/as1-slack-live-composition.test.ts` — one focused regression
+    `does not intercept or label status-like messages for a legacy Advisor profile`, driving the REAL personal
+    composition on the legacy Advisor profile with `!상태`: it proves ordinary Advisor delivery (one answer), no
+    Strategy ack/subscription/prompt, and an unlabeled paste (raw `!상태`, no `LEO_SLACK_MESSAGE:`).
+- **Gates:** all SIX focused tests PASS (the five from `d38dc2e` + the new Advisor regression); changed-file ESLint on
+  the 2 files — 0 errors; `git diff --check e9967a1..HEAD` — clean.
+- **Git:** candidate `68e94364aeee9105869ef0712f6b3838d9d00ebe`; pushed non-force `9dfdbb2..68e9436`; local==upstream.
+- **Boundaries:** only the two allowlisted files; no other source/test/profile/routing change; no build/broad
+  checks/live action/refactor/extra feature. Evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

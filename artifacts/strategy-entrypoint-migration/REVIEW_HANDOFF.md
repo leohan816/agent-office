@@ -288,3 +288,29 @@ d38dc2e..2267318dfd8d7d096d55e5536685ef59d2fec0b5`. No build, broad check,
 implementation, patch, live action, or input to `%63`/PID `2819189` or
 `%62`/PID `2782662`. Write only the existing `REVIEW_RESULT.md` and
 `REVIEW_RESULT_POINTER.txt`, return the independent verdict, and STOP.
+## ACTIVE AMENDMENT — Strategy-only status-stream guard correction
+
+Authority: Advisor publication baseline `9dfdbb2`; review candidate
+`68e94364aeee9105869ef0712f6b3838d9d00ebe`. This amendment supersedes every
+earlier review scope. Return PASS or one concrete blocker within three minutes.
+
+Review only:
+
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Verify every status-stream behavior introduced by `2267318` is reachable only
+for the two fixed Strategy profiles: control interception, subscription
+instruction, status consumption/heartbeat, and `LEO_SLACK_MESSAGE:\n` labeling.
+Verify the legacy PERSONAL Advisor production composition preserves its original
+ordinary delivery and paste behavior, including a status-like message: no
+interception, acknowledgement, subscription, status prompt, heartbeat, or new
+label. Confirm the approved two-Strategy-profile behavior is unchanged.
+
+Reproduce only the five existing exact named tests from handoff `d38dc2e` plus
+`does not intercept or label status-like messages for a legacy Advisor profile`;
+ESLint only the exact two changed files; and `git diff --check
+9dfdbb2..68e94364aeee9105869ef0712f6b3838d9d00ebe`. No build, broad check,
+implementation, patch, live action, or input to either live owner. Write only
+the existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return the
+independent verdict, and STOP.
