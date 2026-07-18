@@ -117,5 +117,38 @@ This is Worker evidence for independent review — NOT a review, risk acceptance
 blocked named tests (4, 5) are a real execution gap disclosed for the responsible Advisor and the
 independent Reviewer to resolve in a complete environment.
 
+## Leo Delta Amendment execution — Strategy connect readiness seal (2026-07-18)
+
+Authority: handoff amendment commit `677fd72ff8ed3b0a81bf2609fdb6f86607be2f84` (blob
+`179c98f4b2a66fbb34cd0debdd63ba687a0d88aa`, content SHA-256
+`578066044909961f41838745f003a4c922bfa940ea0006d90a70e32a39fbfd68`) — all verified; local==upstream at
+entry. Starting tip `f8815357040fcdd755e156ada0ca96d8c115876a`. This supersedes only the blocked 4/5
+disposition and the `startStrategyDirect()` connect readiness seal.
+
+- **Exact source delta (source-only):** `src/runtime/as1-slack-pilot/composition.ts` — in
+  `startStrategyDirect()` the `socket.connect(...)` `readinessSeal` changed from
+  `() => this.control.isReceiveReady(slug)` to `() => this.control.isConnectReady(slug)` (1 line,
+  1 insertion / 1 deletion). The separate `buildSocket` receive-actionable callback and the pre-arm
+  `isReceiveReady` check are UNCHANGED; transition order, comments, tests, profiles, CLI, service, and
+  all other source are UNCHANGED.
+- **Dependency restore:** `npm install ws@8.21.1 --no-save` — `ws` resolves to exactly `8.21.1`;
+  `package.json` and `package-lock.json` are byte-unchanged (sha256 identical; git status empty), so the
+  manifest/lockfile STOP condition was not triggered. Disclosed: npm reified a real worktree
+  `node_modules` (replacing the prior untracked symlink) to resolve the dep; `node_modules` remained
+  untracked and was NEVER staged.
+- **Focused tests (now PASS):** test 4 `runs isolated Strategy FIFO routes with exact same-thread
+  results and message-local failure` — PASS (1 passed | 73 skipped); test 5 `binds fixed Strategy
+  commands and roots without caller-selected routing` — PASS (1 passed | 74 skipped). With tests 1–3
+  (previously PASS), all five named tests are green. The DEV-3 `ws` block is RESOLVED.
+- **Checks:** ESLint on `src/runtime/as1-slack-pilot/composition.ts` — 0 errors;
+  `git diff --check f881535..HEAD` — clean.
+- **Git:** candidate commit `f869df08e6318befa84a6a0608ea3a9f65770ea7`; pushed non-force
+  `677fd72..f869df0` to `origin/feature/strategy-entrypoint-migration-001`; local == upstream. The
+  candidate commit contains ONLY the one-line `composition.ts` source delta.
+- **Boundaries honored:** no docs/tests/other source/profiles/service/config/descriptor/worktree/binding
+  touched; no build/broad checks/typecheck; no activation; no new file; no Foundation input; no manifest
+  or lockfile staged/committed. These two evidence files are updated but LEFT UNCOMMITTED for Advisor
+  publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
