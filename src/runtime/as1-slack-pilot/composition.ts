@@ -659,6 +659,16 @@ export class As1GatewayComposition {
     const receiveGrantProvenance = deps.buildReceiveGrantProvenance({ receiveGrantRef, accepted: acceptedReceiveGrant, grant });
     await this.guardedAwait(() => receiveGrantProvenance.assertAccepted(grant));
 
+    // Handoff 120: in PERSONAL_LEO_ONLY only, and ONLY now that the fresh startup grant has passed expiry, state-root
+    // binding, exact snapshot equality, and Git provenance above, retire the ONE obsolete post-acceptance Git-divergence
+    // advisor latch before the check below. The operation is fully fixed (profile + reason) and re-checks every gating
+    // condition (DISABLED_CLEAN, null active profile, kill clear, incident admission open, exact true latch with the
+    // exact obsolete reason); on any mismatch or persistence failure it mutates nothing, so the existing isProfileLatched
+    // check then fails closed exactly as before. A latch with any other reason or state is never touched.
+    if (this.isPersonalLeoOnly()) {
+      await this.guardedAwait(() => this.control.retireObsoleteAdvisorLatch());
+    }
+
     // handoff 95 F01 (correction 5 / restart): a DURABLE selected-profile latch persisted by a PRIOR run — e.g. its
     // haltProgression or failure barrier — survives restart. Detect it here, AFTER grant/profile resolution and BEFORE
     // any socket build or durable transition, and fail closed truthfully as PROFILE_LATCHED (no socket, no arm, no

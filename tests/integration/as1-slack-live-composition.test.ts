@@ -36,6 +36,7 @@ import {
   type As1ForegroundOwnerBoundary,
   type As1OwnerSignal,
 } from '../../src/runtime/as1-slack-pilot/cli.js';
+import { As1SlackControl } from '../../src/operations/readiness/as1-slack-control.js';
 import {
   FakeClock,
   FakeGitVerifier,
@@ -55,6 +56,8 @@ const AUTH_ROOT = 'advisor/jobs/20260714_agent_office_as1_multi_team_slack_pilot
 const RECEIVE_GRANT_REF = `${AUTH_ROOT}/receive-grant.json`;
 const ACCEPTING_RECEIVE_GATE: As1ReceiveGrantProvenanceGate = { assertAccepted: () => Promise.resolve() };
 const ACCEPTING_DELIVERY_GATE: As1DeliveryProvenanceGate = { assertAccepted: () => Promise.resolve() };
+/** The exact obsolete advisor latch reason handoff 120 retires (post-acceptance receive-grant Git divergence). */
+const OBSOLETE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
 
 /**
  * The exact domain-separated profile-state-root binding hash (design §5.2) a correctly-minted receive grant carries
@@ -609,6 +612,15 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     const { filePath } = await writeSecretFile(secretText(validSecretValues()));
     const gitSource = new FakeGitSource();
     gitSource.setLazy(RECEIVE_GRANT_REF, async () => validReceiveGrant(await boundGrantHashes(stateRoot, 'agent-office-advisor')));
+    // Handoff 120: seed the EXACT obsolete advisor latch on the durable root BEFORE the lazy grant snapshot hashes are
+    // derived (they are read at observe time during start below), so the fresh startup grant binds the TRUE-latch
+    // snapshot and the four startup-grant validations pass against it. A prior clean run is simulated: latch the advisor
+    // profile with the exact obsolete reason, then drain to DISABLED_CLEAN. The personal owner must retire this latch
+    // after those validations and then proceed to receive both messages.
+    const seed = await As1SlackControl.open(stateRoot, new FakeClock(CLOCK_ISO));
+    await seed.latchProfile('agent-office-advisor', OBSOLETE_ADVISOR_LATCH_REASON);
+    await seed.shutdown(); // DISABLED_DEFAULT -> DISABLED_CLEAN
+    await seed.close();
     const socket = new FakeCompositionSocket();
     const signals = new Map<As1OwnerSignal, () => void>();
     let tick = 0;
@@ -652,6 +664,10 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     expect(answers[0]?.request.threadTs).toBe('1720000000.000100');
     expect(answers[1]?.request.text).toContain('answer two');
     expect(answers[1]?.request.threadTs).toBe('1720000000.000200'); // same thread as message 2, not message 1
+    // Retirement proof: the seeded obsolete advisor latch was cleared to false at startup — otherwise start() would have
+    // failed closed as PROFILE_LATCHED and delivered nothing (answers.length would be 0, not 2).
+    const advisorLatchRaw = await readFile(path.join(stateRoot, 'indexes/as1-slack-pilot/profiles/agent-office-advisor/failure-latch.json'), 'utf8');
+    expect((JSON.parse(advisorLatchRaw) as { readonly latched: boolean }).latched).toBe(false);
   });
 
   it('rejects a second top-level root (one root-to-result round trip per channel)', async () => {

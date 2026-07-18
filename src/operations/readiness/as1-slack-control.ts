@@ -84,6 +84,14 @@ const CONTROL_SCHEMA = 'agent-office.as1-global-control.v1';
 const ESTABLISHED_MARKER = 'control-established.json';
 const LATCH_REASON_MAX = 512;
 
+/**
+ * The SINGLE obsolete profile latch that handoff 120 authorizes retiring: the post-acceptance receive-grant
+ * Git-divergence latch on the advisor profile. Both the profile and the reason are FIXED here — no caller may choose
+ * either — so this operation can never auto-reset any other latch, slug, reason, or latch state.
+ */
+const RETIRABLE_ADVISOR_PROFILE: As1ProfileSlug = 'agent-office-advisor';
+const RETIRABLE_ADVISOR_LATCH_REASON = 'receive-grant diverged post-acceptance: GIT_ERROR';
+
 export interface As1GlobalControlV1 {
   readonly schemaVersion: typeof CONTROL_SCHEMA;
   readonly state: As1GlobalState;
@@ -503,6 +511,52 @@ export class As1SlackControl {
       throw new DomainError('STORE_QUARANTINED', 'as1 profile latch record is missing; refusing a silent reset');
     }
     return parseProfileLatch(record, slug).latched;
+  }
+
+  /**
+   * Handoff 120: retire ONLY the obsolete `agent-office-advisor` profile latch whose reason is EXACTLY
+   * `receive-grant diverged post-acceptance: GIT_ERROR`, and ONLY while the whole control surface is in the exact
+   * quiescent shape a fresh startup grant has just validated. This is the one narrow, fully-fixed exception to "a latch
+   * is never auto-reset": the profile, the reason, and every gating condition are constants re-checked here — no caller
+   * chooses any of them. Each of these must hold or it mutates nothing and returns `NOT_RETIRED`:
+   *   - this control still owns its process lock;
+   *   - global state is EXACTLY `DISABLED_CLEAN` with a null active profile;
+   *   - the global kill is clear and the synchronous incident gate is open;
+   *   - the strictly parsed advisor latch is EXACTLY `true` with EXACTLY the obsolete reason.
+   * The canonical false latch is persisted atomically BEFORE the in-memory cache is updated (the exact persist-then-cache
+   * order of `latchProfile`); a read/parse or persistence failure updates nothing and also returns `NOT_RETIRED`, leaving
+   * the still-true durable latch to be surfaced by the caller's own `isProfileLatched` check. Serialized through the SAME
+   * mutex as every other durable mutation, so it can never interleave with a concurrent latch/kill/transition.
+   */
+  public async retireObsoleteAdvisorLatch(): Promise<'RETIRED' | 'NOT_RETIRED'> {
+    return this.mutex.run(async () => {
+      if (this.released || this.lock === null) return 'NOT_RETIRED';
+      if (this.control.state !== 'DISABLED_CLEAN' || this.control.activeProfileSlug !== null) return 'NOT_RETIRED';
+      if (this.isGloballyLatched() || !this.incidentGateOpen) return 'NOT_RETIRED';
+      const target = await this.profileLatchPath(RETIRABLE_ADVISOR_PROFILE);
+      let parsed: ParsedProfileLatch;
+      try {
+        const existing = await readJsonRecord(target);
+        if (existing === null) return 'NOT_RETIRED';
+        parsed = parseProfileLatch(existing, RETIRABLE_ADVISOR_PROFILE);
+      } catch {
+        return 'NOT_RETIRED'; // an unreadable/corrupt/quarantined latch is not the exact obsolete latch: mutate nothing
+      }
+      if (!parsed.latched || parsed.reason !== RETIRABLE_ADVISOR_LATCH_REASON) return 'NOT_RETIRED';
+      try {
+        await writeAtomicCanonicalJson(target, {
+          schemaVersion: PROFILE_LATCH_SCHEMA,
+          profileSlug: RETIRABLE_ADVISOR_PROFILE,
+          latched: false,
+          reason: null,
+          latchedAt: null,
+        });
+      } catch {
+        return 'NOT_RETIRED'; // persistence failed: the in-memory cache is untouched and the latch stays durably true
+      }
+      this.profileLatchCache.set(RETIRABLE_ADVISOR_PROFILE, false);
+      return 'RETIRED';
+    });
   }
 
   /** Clean shutdown: any active state drains through DRAINING to DISABLED_CLEAN via the legal table only. */
