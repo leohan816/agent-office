@@ -571,32 +571,6 @@ describe('AS1 live composition — one fixed-workspace / Leo-only Agent Office r
     }
   });
 
-  it('posts DELIVERY_CONFIRMED immediately and idempotently after durable transport', async () => {
-    const { stateRoot, composition, socket, web } = await startAgentOfficeComposition({ personalLeoOnly: true });
-    try {
-      await composition.start();
-      await socket.deliver(slackEnvelope());
-      const intakeId = composition.lastIntake();
-      if (intakeId === null) throw new Error('expected an intake');
-      const postsAfterAccept = web.posted.length; // ACCEPTED only, before delivery
-      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
-      // Immediate: DELIVERY_CONFIRMED is posted right after the durable transport — WITHOUT waiting for the Advisor ACK.
-      const profile = selectProfile('AGENT_OFFICE_ADVISOR');
-      const store = await As1ProfileInboundStore.open(stateRoot, profile, new FakeClock(CLOCK_ISO));
-      expect(await store.readOutboxRecord(userStatusOutboundId(profile.profileId, intakeId, 'DELIVERY_CONFIRMED'))).not.toBeNull();
-      const postsAfterConfirm = web.posted.length;
-      expect(postsAfterConfirm).toBe(postsAfterAccept + 1); // exactly one new post = DELIVERY_CONFIRMED
-      // Idempotent: a re-entry (the transport journal is terminal TRANSPORT_RECORDED) posts NO duplicate, and a later
-      // accepted ACK (evidence ingest) also does not — it observes the durable record and skips.
-      expect((await composition.deliverPending()).outcome).toBe('DELIVERED');
-      const evidence = await composition.ingestEvidenceAndProject();
-      expect(web.posted.length).toBe(postsAfterConfirm); // still exactly one DELIVERY_CONFIRMED post
-      expect(evidence).toContain('ACK:NOT_READY');
-    } finally {
-      await composition.stop();
-    }
-  });
-
   it('rejects a second top-level root (one root-to-result round trip per channel)', async () => {
     const { composition, socket } = await startAgentOfficeComposition();
     try {

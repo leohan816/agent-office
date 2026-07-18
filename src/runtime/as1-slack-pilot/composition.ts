@@ -1209,10 +1209,6 @@ export class As1GatewayComposition {
       if (this.personalLeoOnly) {
         this.internalDeliveryGrant = deliveryGrant;
         this.internalLease = lease;
-        // Handoff 117 behavior 1: post the same-thread DELIVERY_CONFIRMED status IMMEDIATELY after the durable
-        // TRANSPORT_RECORDED — no waiting for the Advisor ACK. Idempotent: a re-entry or the later accepted ACK finds
-        // the durable outbox record and does not post a duplicate.
-        await this.sendDeliveryConfirmedOnce(live, deps, intakeId);
       } else {
         this.acceptedDeliveryGrant = provisionalDeliveryGrant;
         this.acceptedLease = provisionalLease;
@@ -1421,25 +1417,13 @@ export class As1GatewayComposition {
           outcomes.push(`DELIVERY_CONFIRMED:SUPPRESSED_BY_${classification}`);
           return outcomes;
         }
-        // Handoff 117 behavior 1: in PERSONAL_LEO_ONLY the DELIVERY_CONFIRMED was already posted immediately after the
-        // durable transport, so the accepted ACK must NOT post a duplicate — it observes the durable record and skips.
-        // Default mode is unchanged (the ACK is still the confirmation trigger).
-        const priorConfirmed = this.personalLeoOnly
-          ? await this.guardedAwait(() =>
-              live.store.readOutboxRecord(userStatusOutboundId(live.profile.profileId, intakeId, 'DELIVERY_CONFIRMED')),
-            )
-          : null;
-        if (priorConfirmed !== null) {
-          outcomes.push('DELIVERY_CONFIRMED:ALREADY_SENT');
-        } else {
-          const confirmed = await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
-          outcomes.push(`DELIVERY_CONFIRMED:${confirmed.outcome}`);
-          // §5.7: a failed / non-DELIVERED DELIVERY_CONFIRMED is terminal — it must NOT continue to INTAKE or RESULT
-          // projection. Halt (latch, withhold authority); the owner stops on hasFailureBarrier().
-          if (confirmed.outcome !== 'DELIVERED') {
-            await this.haltProgression(live, `delivery-confirmed-${confirmed.outcome}`);
-            return outcomes;
-          }
+        const confirmed = await this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
+        outcomes.push(`DELIVERY_CONFIRMED:${confirmed.outcome}`);
+        // §5.7: a failed / non-DELIVERED DELIVERY_CONFIRMED is terminal — it must NOT continue to INTAKE or RESULT
+        // projection. Halt (latch, withhold authority); the owner stops on hasFailureBarrier().
+        if (confirmed.outcome !== 'DELIVERED') {
+          await this.haltProgression(live, `delivery-confirmed-${confirmed.outcome}`);
+          return outcomes;
         }
       }
       if (ingested.outcome === 'ACCEPTED' && ingested.accepted !== null) {
@@ -1493,19 +1477,6 @@ export class As1GatewayComposition {
   private sendUserStatus(live: LiveState, deps: As1CompositionDependencies, intakeId: string, kind: As1UserStatusKind): Promise<As1OutboxResult> {
     const outbox = this.buildStatusOutbox(live, deps);
     return this.guardedAwait(() => outbox.sendStatus(intakeId, kind));
-  }
-
-  /**
-   * Handoff 117 behavior 1 (PERSONAL_LEO_ONLY): post DELIVERY_CONFIRMED at most once for the intake. The deterministic
-   * `as1status-` outbox identity already dedupes a replay; this ALSO short-circuits on the durable outbox record so the
-   * immediate post-transport call and the later accepted-ACK path never post a duplicate. Returns null when skipped.
-   */
-  private async sendDeliveryConfirmedOnce(live: LiveState, deps: As1CompositionDependencies, intakeId: string): Promise<As1OutboxResult | null> {
-    const existing = await this.guardedAwait(() =>
-      live.store.readOutboxRecord(userStatusOutboundId(live.profile.profileId, intakeId, 'DELIVERY_CONFIRMED')),
-    );
-    if (existing !== null) return null;
-    return this.sendUserStatus(live, deps, intakeId, 'DELIVERY_CONFIRMED');
   }
 
   /**
