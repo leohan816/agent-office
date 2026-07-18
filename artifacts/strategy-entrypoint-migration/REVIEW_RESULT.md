@@ -57,3 +57,57 @@ None identified within the authorized one-line delta and named gates. This verdi
 `PASS`
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Compile-Closure Delta Review
+
+## Findings
+
+No findings.
+
+## Review identity and authority
+
+- Mission: `AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001`
+- Review type: `NARROW_STRATEGY_COMPILE_CLOSURE_DELTA_REVIEW`
+- Review pass: `IMPLEMENTATION_REVIEW`
+- Reviewer: same existing independent Agent Office Reviewer, `agent-office-reviewer`, pane `%28`
+- Live runtime: `gpt-5.6-sol`, effort `xhigh`; all repository commands were explicitly rooted at the authorized mission worktree
+- Committed launcher/handoff: `3efd18cddead45804d24ac82b730386f74e90c51`, local and upstream-equal on `feature/strategy-entrypoint-migration-001`
+- Baseline: `8066e74ed7f1b91f842468f1f528fcbfa5633c1c`
+- Exact candidate: `269d777a09c3657fee273246403280de33b7b8ef`
+- Committed Worker evidence reviewed at launcher commit: `artifacts/strategy-entrypoint-migration/WORKER_RESULT.md` and `WORKER_RESULT_POINTER.txt`
+
+## Direct delta evidence and criterion coverage
+
+1. **Office-layout exhaustiveness — CLOSED.** Candidate line 95 of `src/application/organization/office-layout-config.ts` adds the exhaustive `STRATEGY: 'GENERIC_REGISTERED'` entry and changes nothing else in that file.
+2. **Service Advisor narrowing — CLOSED.** Candidate line 755 of `src/application/slack-pilot/service.ts` uses the `profile.role === 'STRATEGY'` discriminant to fail closed before the existing Advisor-only builders at lines 798, 809, and 827. No assertion, cast, or artifact-contract widening was added.
+3. **Composition Advisor narrowing — CLOSED.** Candidate line 437 of `src/runtime/as1-slack-pilot/composition.ts` adds a discriminant-based `liveAdvisorProfile()` fail-closed guard. Only the three existing Advisor-only consumers use it: `As1ExactTransport` at line 1468, `As1EvidenceIngress` at line 1663, and `As1Outbox` at line 1762. Their contracts are not widened.
+4. **Scope and behavior — CLOSED.** The exact range changes only the three compiler-named source files (`+23/-3`). It contains no redesign, broad refactor, hidden assertion/cast, behavioral expansion, test/doc/config/manifest/lockfile change, or other tracked path.
+5. **Readiness-seal preservation — CLOSED.** Candidate line 508 retains the reviewed `socket.connect(...)` seal `() => this.control.isConnectReady(slug)`.
+
+## Worker evidence verification
+
+- **Reported:** committed Worker evidence identifies the seven starting diagnostics at `office-layout-config.ts(89)`, `service.ts(792/803/822)`, and `composition.ts(1455/1650/1749)`, and records candidate `269d777a09c3657fee273246403280de33b7b8ef` pushed non-force from `8066e74` with local/upstream equality at publication time.
+- **Actual:** the candidate is an ancestor of the current local/upstream launcher commit; the exact candidate range is the stated three-file `+23/-3` delta; the reproduced candidate build completes with zero diagnostics.
+- No post-candidate source drift exists: `269d777..3efd18c` changes only the committed handoff, launcher, Worker result, and Worker pointer artifacts.
+
+## Reproduced gates
+
+- `npm run build:core` — **PASS**; `tsc -p tsconfig.build.json` completed with zero diagnostics.
+- `npx eslint src/application/organization/office-layout-config.ts src/application/slack-pilot/service.ts src/runtime/as1-slack-pilot/composition.ts` — **PASS**, no output.
+- `git diff --check 8066e74ed7f1b91f842468f1f528fcbfa5633c1c..269d777a09c3657fee273246403280de33b7b8ef` — **PASS**, clean.
+
+## Excluded scope
+
+No tests, second build, broad lint/typecheck, profile/design command, live proof, activation, credential/service/actor probe, rollback worktree/service, Foundation session, or prior unchanged surface was inspected or exercised. No service was started and no candidate source was modified.
+
+## Residual risk
+
+None identified within the authorized compile-closure delta and gates. This verdict is independent review evidence only; it is not risk acceptance, final approval, activation, or next-mission authority.
+
+## Verdict
+
+`PASS`
+
+RETURN_TO: `agent-office-advisor`
