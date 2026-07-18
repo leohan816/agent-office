@@ -162,6 +162,22 @@ typecheck, build, browser/visual tests, or unchanged-surface review.
 - Live Strategy activation or cutover.
 - Force push, merge, main-branch work, self-review, or next-mission work.
 
+## Strategy Scope Decision: Option A
+
+Leo/Strategy authorizes one bounded additive Strategy startup branch inside the
+already allowlisted `composition.ts` and `cli.ts`. This branch may accept only
+the two closed Strategy profile literals, parse only the fixed
+`/home/leo/.config/agent-office/strategy-slack-apps.env` data file, use only the
+two fixed Strategy roots and fixed pane/session/workspace/command bindings, and
+reuse the existing PERSONAL direct FIFO/result spool.
+
+This authorizes connectable code needed for later Advisor-run live proofs. It
+does not authorize the Worker to activate either Strategy service. The legacy
+Advisor startup path and active rollback service must remain behaviorally
+unchanged. No new file, descriptor, grant system, schema, generic lifecycle or
+router, legacy refactor, broad test, Foundation input, or design cycle is
+authorized. Timebox: 20 minutes for implementation and remaining named tests.
+
 ## Result
 
 Commit and non-force push one coherent candidate. Write the exact changed paths,
