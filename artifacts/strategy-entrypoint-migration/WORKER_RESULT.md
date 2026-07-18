@@ -150,5 +150,36 @@ disposition and the `startStrategyDirect()` connect readiness seal.
   or lockfile staged/committed. These two evidence files are updated but LEFT UNCOMMITTED for Advisor
   publication.
 
+## Leo Delta Amendment execution — Strategy compile closure (2026-07-18)
+
+Authority: handoff amendment commit `8066e74ed7f1b91f842468f1f528fcbfa5633c1c` (verified; local==upstream
+at entry). Clean starting tip `2e9e73eab13e8f9450ab1952b13542a9845dd26b`. Supersedes only the prior
+core-build prohibition + the source allowlist needed to close the Strategy-addition `tsc` errors.
+
+- **Diagnostics closed (all seven emitted at the starting tip):**
+  - `office-layout-config.ts(89)` TS2741 — `roleCategoryByRole` missing `STRATEGY`.
+  - `service.ts(792/803/822)` TS2345/TS2322 — widened `profileId` into `buildNewMissionIntake`,
+    `buildContinuationIntake`, `buildAdvisorPointer`.
+  - `composition.ts(1455/1650/1749)` TS2345/TS2322 — widened `LiveState.profile` into `As1ExactTransport`,
+    `As1EvidenceIngress`, `As1Outbox`.
+- **Exact changed paths (3-file allowlist; 3 files, +23/−3):**
+  - `src/application/organization/office-layout-config.ts` — add `STRATEGY: 'GENERIC_REGISTERED'` (the
+    smallest semantically neutral category, matching `DESIGNER`/`defaultRoleCategory`) for exhaustiveness.
+  - `src/application/slack-pilot/service.ts` — in `materializeFromTransport()`, a local discriminant guard
+    (`profile.role === 'STRATEGY'` → throw) narrowing to the Advisor union; the three artifact contracts are
+    NOT widened; preserves the legacy-only materialization invariant.
+  - `src/runtime/as1-slack-pilot/composition.ts` — a shared `liveAdvisorProfile(live)` discriminant helper
+    used at the three Advisor-only consumers; consumer contracts NOT widened; preserves the path invariant.
+- **Behavior impact:** compile-time typing plus unreachable-in-practice runtime invariant guards (throw only
+  if a Strategy profile reached a legacy Advisor-only consumer, which never happens). No legacy Advisor path
+  behavior change; the readiness-seal delta (`isConnectReady`) is preserved exactly.
+- **Commands/results:** `npm run build:core` — **0 errors**; focused tests 4 & 5 — **PASS** (throw-guards add
+  runtime control flow, so both were run); ESLint on the 3 changed files — **0 errors**;
+  `git diff --check 2e9e73e..HEAD` — clean.
+- **Git:** candidate `269d777a09c3657fee273246403280de33b7b8ef`; pushed non-force `8066e74..269d777`;
+  local == upstream. Staged only the 3 allowlist source paths.
+- **Rollback:** no descriptor/config/profile/service/test/doc/worktree/binding change; no activation; no new
+  file; no manifest/lockfile staged. These two evidence files LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

@@ -80,3 +80,55 @@ writable outputs are:
 Leave those two outputs uncommitted for Advisor publication, return the pointer
 to `agent-office-advisor`, and STOP. The verdict is independent review evidence,
 not risk acceptance, final approval, or next-mission authority.
+
+## Leo Delta Amendment: Strategy Compile Closure Review (2026-07-18)
+
+Status: `ACTIVE`
+
+This amendment supersedes only the delta/range and reproduction gates above.
+Review only the compile-closure candidate and its committed Worker build
+evidence. All independence, read-only, output, routing, activation, credential,
+service, actor-input, and STOP boundaries remain unchanged.
+
+REVIEW_TYPE: `NARROW_STRATEGY_COMPILE_CLOSURE_DELTA_REVIEW`
+
+DELTA_BASELINE: `8066e74ed7f1b91f842468f1f528fcbfa5633c1c`
+
+EXACT_CANDIDATE: `269d777a09c3657fee273246403280de33b7b8ef`
+
+The same existing independent Reviewer in pane `%28` must verify its exact
+binding and this committed handoff, then inspect direct evidence for only:
+
+1. `src/application/organization/office-layout-config.ts` — the exhaustive
+   `STRATEGY` entry in
+   `COMMITTED_OFFICE_LAYOUT_CONFIG_V1.roleCategoryByRole`.
+2. `src/application/slack-pilot/service.ts` — the local Advisor-profile
+   discriminant narrowing in `materializeFromTransport()` before the three
+   existing Advisor-only artifact builders, with none of those contracts
+   widened.
+3. `src/runtime/as1-slack-pilot/composition.ts` — the discriminant-based
+   Advisor-profile narrowing used only at the three existing Advisor-only
+   `As1ExactTransport`, `As1EvidenceIngress`, and `As1Outbox` consumers, with
+   none of those contracts widened.
+4. The Worker build evidence in `WORKER_RESULT.md` and
+   `WORKER_RESULT_POINTER.txt`, including candidate/push identity and the exact
+   seven-diagnostic closure.
+
+Reject any redesign, broad refactor, hidden assertion/cast, contract widening,
+behavioral expansion, readiness-seal regression, or change outside the three
+compiler-named source files. The only acceptable executable effect is a
+fail-closed invariant guard if an impossible Strategy profile reaches a legacy
+Advisor-only path.
+
+Run only `npm run build:core`, ESLint only on the three changed source files,
+and
+`git diff --check 8066e74ed7f1b91f842468f1f528fcbfa5633c1c..269d777a09c3657fee273246403280de33b7b8ef`.
+Do not run tests, another build, broad lint/typecheck, profile/design commands,
+live proof, activation, or any credential/service/actor probe. Review no prior
+unchanged surface.
+
+Append the compile-closure verdict and exact reproduced evidence to the existing
+`REVIEW_RESULT.md`, update `REVIEW_RESULT_POINTER.txt` to this candidate, leave
+only those two files uncommitted for Advisor publication, return to
+`agent-office-advisor`, and STOP. Timebox: 3 minutes; return one exact finding or
+blocker sooner.
