@@ -1890,11 +1890,13 @@ export class As1GatewayComposition {
       // polling for the next queued message; a STOPPED_BEFORE_PASTE here would be treated as a delivery failure/halt.
       return { phase: 'AWAITING', outcome: 'AWAITING_POINTER_DELIVERY_GRANT', reason: 'no queued personal message' };
     }
-    // Fixed Strategy status controls are intercepted BEFORE ordinary delivery/correlation/status processing: a control
-    // never becomes a normal question, pending normal correlation, Advisor delivery, arbitrary tmux text, or shell input.
-    const control = classifyStatusControl(current.text);
-    if (control !== null) {
-      return await this.handleStatusControl(live, deps, current, control);
+    // Fixed Strategy status controls are intercepted BEFORE ordinary delivery — ONLY on the two Strategy profiles. The
+    // legacy PERSONAL Advisor path never intercepts them (a control there stays an ordinary message: pre-candidate behavior).
+    if (live.profile.role === 'STRATEGY') {
+      const control = classifyStatusControl(current.text);
+      if (control !== null) {
+        return await this.handleStatusControl(live, deps, current, control);
+      }
     }
     // Fixed observation validation of %26 (a mismatch engages the durable global kill — fixed-destination corruption).
     const dest = await this.validateFixedAdvisorDestination(live, deps);
@@ -1903,8 +1905,12 @@ export class As1GatewayComposition {
     // delete on success AND ordinary failure. Every ordinary message is prepended with the fixed non-shell
     // LEO_SLACK_MESSAGE label; while a subscription is active, a fixed status-action instruction is appended.
     const bufferName = `as1-${live.profile.profileStateSlug}-personal`;
-    const subscribed = (await spool.readSubscription()) !== null;
-    const paste = personalOrdinaryPasteText(live.profile, current.text, subscribed);
+    // Strategy profiles get the fixed LEO_SLACK_MESSAGE label (+ status instruction while subscribed); the legacy PERSONAL
+    // Advisor path keeps its ORIGINAL unlabeled paste text, pre-candidate behavior byte-for-byte unchanged.
+    const paste =
+      live.profile.role === 'STRATEGY'
+        ? personalOrdinaryPasteText(live.profile, current.text, (await spool.readSubscription()) !== null)
+        : `${current.text}\n\n[AS1] To answer Leo, run:  ${personalAnswerCommandFor(live.profile)}`;
     try {
       try {
         await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(paste, 'utf8'));
@@ -1976,7 +1982,9 @@ export class As1GatewayComposition {
   public async consumeStatusStream(): Promise<readonly string[]> {
     const live = this.live;
     const deps = this.deps;
-    if (!this.personalLeoOnly || live === null || deps === null) return ['STATUS_STREAM:INACTIVE'];
+    // ONLY the two Strategy profiles run the status stream; the legacy PERSONAL Advisor path never creates/consumes a
+    // subscription, status entry, or heartbeat.
+    if (!this.personalLeoOnly || live === null || deps === null || live.profile.role !== 'STRATEGY') return ['STATUS_STREAM:INACTIVE'];
     const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
     const sub = await spool.readSubscription();
     if (sub === null) return ['STATUS_STREAM:INACTIVE'];

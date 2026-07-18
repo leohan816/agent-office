@@ -136,6 +136,54 @@ describe('AS1 fixed Strategy status stream', () => {
     expect(subscribed).toContain('상태 액션');
     expect(paste).not.toContain('상태 액션');
   });
+
+  it('does not intercept or label status-like messages for a legacy Advisor profile', async () => {
+    // Drive the REAL personal composition on the LEGACY Advisor profile (role ADVISOR) with a status-LIKE control text.
+    // It must stay ordinary Advisor delivery: original unlabeled paste, no Strategy ack/subscription/prompt, no label.
+    const clock = new FakeClock(CLOCK_ISO);
+    const stateRoot = await makeStateRoot();
+    const world = fakeWireWorld();
+    const { filePath } = await writeSecretFile(secretText(validSecretValues()));
+    const gitSource = new FakeGitSource();
+    gitSource.setLazy(RECEIVE_GRANT_REF, async () => validReceiveGrant(await boundGrantHashes(stateRoot, 'agent-office-advisor')));
+    const socket = new FakeCompositionSocket();
+    const tmuxPort = new FakeTmuxObservationPort(parseTmuxDestination(validDestination(), 'd'));
+    const signals = new Map<As1OwnerSignal, () => void>();
+    let tick = 0;
+    const result = await runForegroundOwner({
+      descriptor: enabledDescriptor(filePath),
+      stateRoot,
+      clock,
+      personalLeoOnly: true,
+      buildDeps: () => fullFakeDeps(gitSource, world, { buildSocket: () => socket, tmuxPort }),
+      initialize: () => Promise.resolve(),
+      installSignalHandlers: (handlers) => {
+        (['SIGINT', 'SIGTERM', 'SIGUSR2'] as const).forEach((s) => signals.set(s, handlers[s]));
+        return ['SIGINT', 'SIGTERM', 'SIGUSR2'];
+      },
+      delay: async () => {
+        tick += 1;
+        if (tick === 1) {
+          await socket.deliver(slackEnvelope({ envelopeId: 'Env0AGENTOFFICE1', eventId: 'Ev0AGENTOFFICE01', ts: '1720000000.000100', text: '!상태' }));
+        } else if (tick === 2) {
+          await runAs1Cli(parseAs1Cli(['answer', 'ordinary answer']), {} as unknown as As1GatewayComposition, stateRoot);
+        } else if (tick >= 4) {
+          signals.get('SIGTERM')?.();
+        }
+      },
+    });
+    expect(result.ok).toBe(true);
+    // The status-like message was delivered as an ORDINARY Advisor message (answered), not intercepted as a control.
+    const answers = world.web.posted.filter((p) => p.request.text.startsWith('RESULT [COMPLETED]'));
+    expect(answers.length).toBe(1);
+    expect(answers[0]?.request.text).toContain('ordinary answer');
+    // No Strategy status acknowledgement/prompt/subscription was created on the legacy path.
+    expect(world.web.posted.some((p) => p.request.text.includes('상태 스트림'))).toBe(false);
+    // The pasted buffer is the ORIGINAL text with NO LEO_SLACK_MESSAGE label; the raw `!상태` is present unlabeled.
+    const pastes = tmuxPort.loadedBuffers.map((b) => b.toString('utf8'));
+    expect(pastes.some((t) => t.includes('!상태'))).toBe(true);
+    expect(pastes.some((t) => t.includes('LEO_SLACK_MESSAGE:'))).toBe(false);
+  });
 });
 
 describe('AS1 one-shot Agent Office malformed-frame latch retirement', () => {
