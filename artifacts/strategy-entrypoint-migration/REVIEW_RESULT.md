@@ -367,3 +367,33 @@ Therefore the focused evidence does not exercise or prove the handoff's load-bea
 P1 is a patchable in-scope test-evidence blocker. This verdict is independent review evidence, not risk acceptance or final approval.
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Disconnect-Recovery Two-Layer Test-Proof Delta Review
+
+## Findings
+
+No findings.
+
+## Prior finding closure
+
+- **P1 — CLOSED.** Candidate `tests/adapters/as1-slack-socket-client.test.ts:951-1022` now drives real provider-disconnect frames through `As1RawSocketTransport`. It proves synchronous current-generation removal to `CLOSED`, deferred callback delivery, no first durable latch, reconnection on the same transport, one-use callback behavior, and later-disconnect fallback to the durable `provider disconnect` latch.
+- Candidate `tests/integration/as1-slack-live-composition.test.ts:637-646` now drives `runForegroundOwner` through the captured `onProviderDisconnect` binding with a failed reconnect and proves one disconnect notice plus the existing successful clean-stop terminal, rather than merely checking the composition flag.
+- Direct read-only production trace confirms the composition supplies `onProviderDisconnect` to `buildSocket` (`composition.ts:572-580`), production passes it to `As1RawSocketTransport` (`cli.ts:459-468`), transport dispatches/defer-limits it (`socket-client.ts:568-584`), composition clears/notices/reconnects/re-arms (`composition.ts:2052-2091`), and the owner observes `isStrategyRecoveryStop()` before clean stop (`cli.ts:817-830`).
+
+## Scope and reproduced evidence
+
+- Exact range `a98b8e3..41f46997a70f9925ae19ce96f71062fc87d397ae` changes exactly the two authorized test files; no production file changed.
+- Six exact named Vitest cases — **PASS**: 6 passed, 137 skipped across the two authorized test files, one worker.
+- Type-aware ESLint on exactly the two changed test files — **PASS**, no output.
+- `git diff --check a98b8e3..41f46997a70f9925ae19ce96f71062fc87d397ae` — **PASS**, clean.
+- No build, implementation, live/state action, `%63` action, production modification, broad test, or other changed-file review was performed.
+
+## Verdict
+
+`PASS`
+
+No blocking residual risk identified within the authorized P1 evidence delta and direct production-wiring trace. This is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
