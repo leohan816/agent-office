@@ -415,6 +415,14 @@ build, broad test, implementation, live/state action, `%63` action, or other
 file. Write only the existing `REVIEW_RESULT.md` and
 `REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.
 
+## ACTIVE AMENDMENT — Agent Office provider-disconnect latch tuple review
+
+Authority baseline: `98963bf`; review candidate: `336ae4e40ee14f20b3712fb9d7f4cafaed0e986d`. Supersedes earlier review scope.
+
+Review only `src/operations/readiness/as1-slack-control.ts` and `tests/integration/as1-slack-live-composition.test.ts`. Verify that only the exact tuple root `strategy-agent-office-v1`, profile `agent-office-advisor`, reason `provider disconnect`, `latchedAt` `2026-07-19T01:09:11.410Z` is newly retired, all prior ownership/state/kill/incident/persist-before-cache gates remain, later and mismatched tuples refuse retirement, and the existing Agent Office pre-start hook is unchanged.
+
+Reproduce only the three named focused latch cases, two-file type-aware ESLint, and `git diff --check 98963bf..336ae4e40ee14f20b3712fb9d7f4cafaed0e986d`. No build, broad test, implementation, live/state action, `%62` action, other file, or Agent Office activation. Write only the existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return PASS or one concrete blocker within three minutes, and STOP.
+
 ## ACTIVE AMENDMENT — files-bearing Slack text frame
 
 Authority: Advisor handoff baseline `3434309`; review candidate

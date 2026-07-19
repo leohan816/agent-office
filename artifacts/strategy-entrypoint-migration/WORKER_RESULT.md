@@ -507,5 +507,29 @@ test, docs, image handling, other source/test, live/state/service, or Agent Offi
   descriptor/state-root change; no live/state/service or Agent Office action. These two evidence files are updated but
   LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Agent Office provider-disconnect one-shot retirement tuple (2026-07-19)
+
+Authority: ACTIVE AMENDMENT `Agent Office provider-disconnect latch`, baseline `a35704a`. Two-file allowlist; no build,
+broad tests, socket/parser/image change, docs, other files, `%62`, live/state, or Agent Office activation.
+
+- **Exact changed paths (two allowlisted files):**
+  - `src/operations/readiness/as1-slack-control.ts` — extended ONLY `retireOneShotAgentOfficeMalformedFrameLatch`'s
+    fully-fixed matcher (single-tuple → two-tuple) to accept the exact additional tuple root `strategy-agent-office-v1`,
+    profile `agent-office-advisor`, reason `provider disconnect`, `latchedAt` `2026-07-19T01:09:11.410Z`, alongside the
+    existing malformed-frame tuple. Every ownership / `DISABLED_CLEAN` / null-active / kill-clear / incident-open /
+    persist-before-cache and mismatched-or-later-latch refusal gate is retained; the `AGENT_OFFICE_STRATEGY` pre-start
+    hook is unchanged.
+  - `tests/integration/as1-slack-live-composition.test.ts` — one focused case `retires the exact Agent Office
+    provider-disconnect latch and refuses a later one` (exact tuple → `RETIRED` + `isProfileLatched` false; the same
+    reason at a later `latchedAt` → `NOT_RETIRED`, stays latched).
+- **Named focused latch cases (all PASS — 3 passed | 91 skipped):** the new provider-disconnect case + the two existing
+  Agent Office malformed-frame cases (proving the matcher refactor preserved the first tuple).
+- **Gates:** two-file type-aware ESLint — 0 errors; `git diff --check a35704a` — clean.
+- **Git:** candidate `336ae4e40ee14f20b3712fb9d7f4cafaed0e986d`; pushed non-force `98963bf..336ae4e` to
+  `origin/feature/strategy-entrypoint-migration-001`; local == upstream == `336ae4e`. Staged ONLY the two allowlist paths.
+- **Boundaries honored:** no build/broad tests; no socket/parser/image change; no other source/test/profile/config/
+  descriptor/state-root change; no `%62`, live/state, or Agent Office activation. These two evidence files are updated but
+  LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

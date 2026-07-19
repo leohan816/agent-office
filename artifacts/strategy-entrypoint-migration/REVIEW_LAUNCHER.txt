@@ -1,23 +1,22 @@
 TARGET_ACTOR: Independent Agent Office Reviewer (existing agent-office-reviewer pane %28)
 MISSION_ID: AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
-ACTION: RUN_NARROW_FILES_BEARING_SLACK_TEXT_FRAME_DELTA_REVIEW
+ACTION: RUN_NARROW_AGENT_OFFICE_LATCH_DELTA_REVIEW
 WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 BRANCH: feature/strategy-entrypoint-migration-001
-DELTA_BASELINE: 3434309
-EXACT_CANDIDATE: a682fd90553b4379daf5029a26fc75ff74ee8a01
+DELTA_BASELINE: 98963bf
+EXACT_CANDIDATE: 336ae4e40ee14f20b3712fb9d7f4cafaed0e986d
 ACTIVE_SCOPE_SUPERSEDES_ALL_EARLIER_SCOPE: YES
-ACTIVE_SCOPE: Read-only review of only the exact four-file files-bearing Slack text frame and fixed Foundation one-shot latch-retirement delta.
-EXACT_FILES: src/adapters/gateways/slack-pilot/socket-frame.ts; tests/adapters/as1-slack-socket-frame.test.ts; src/operations/readiness/as1-slack-control.ts; tests/integration/as1-slack-live-composition.test.ts
-NAMED_TEST_1: ignores the files subtree that would otherwise exceed the array bound and preserves event.text exactly once
-NAMED_TEST_2: still delivers an ordinary text message with no files subtree unchanged
-NAMED_TEST_3: keeps a files-bearing frame fail-closed on raw oversize, malformed JSON, or an invalid outer envelope
-NAMED_TEST_4: retires the exact fourth Foundation malformed-frame latch and refuses a later one
-OTHER_GATES: type-aware ESLint only the four changed files; git diff --check 3434309..a682fd90553b4379daf5029a26fc75ff74ee8a01
-FORBIDDEN: build; live/state action; broad tests; implementation; patch; image handling; Agent Office action; other files
+ACTIVE_SCOPE: Read-only review of only the exact two-file Agent Office provider-disconnect latch-retirement delta.
+EXACT_FILES: src/operations/readiness/as1-slack-control.ts; tests/integration/as1-slack-live-composition.test.ts
+NAMED_TEST_1: retires the exact Agent Office provider-disconnect latch and refuses a later one
+NAMED_TEST_2: preserves the existing Agent Office malformed-frame tuple and refuses mismatched retirement
+NAMED_TEST_3: refuses a later or mismatched Agent Office provider-disconnect tuple
+OTHER_GATES: type-aware ESLint only the two changed files; git diff --check 98963bf..336ae4e40ee14f20b3712fb9d7f4cafaed0e986d
+FORBIDDEN: build; live/state action; broad tests; implementation; patch; image handling; Foundation `%62` action; other files
 RETURN: write only existing REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt; PASS or one concrete blocker within three minutes; STOP
 HANDOFF: artifacts/strategy-entrypoint-migration/REVIEW_HANDOFF.md
 PROTOCOL: activate and follow fable-sentinel; read required repository Reviewer entry files
-SCOPE: read-only exact four-file files-bearing Slack text-frame/latch-retirement delta and committed Worker evidence; reproduce only the four named focused tests, four-file ESLint, and exact-range diff-check; no build, broad checks, live action, or activation
+SCOPE: read-only exact two-file Agent Office latch-retirement delta and committed Worker evidence; reproduce only the three named focused cases, two-file ESLint, and exact-range diff-check; no build, broad checks, live action, or activation
 OUTPUTS: artifacts/strategy-entrypoint-migration/REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt only; leave uncommitted for Advisor publication
 RETURN_TO: agent-office-advisor
 STOP
