@@ -45,13 +45,12 @@ Scope: this file applies to the entire repository.
 
 Common mandatory reads for every role: this file, `CLAUDE.md`,
 `docs/agent/TEAM_OPERATING_MODEL.md`, the actor's matching role document under
-`docs/agent/roles/`, and the current role-appropriate authority input — a Leo/GPT
-mission or decision for the Advisor, or the exact committed Advisor handoff for a
-subordinate. `docs/agent/RUN_PROTOCOL.md` and
-`docs/agent/RESULT_REPORTING_PROTOCOL.md` are mandatory for **Worker
-assignments**; another role reads them only when its exact authority names them
-for read-only audit context. Read any canonical authority named by the
-mission/handoff directly. Historical reports are evidence, not current permission.
+`docs/agent/roles/`, `docs/agent/RESULT_REPORTING_PROTOCOL.md`, and the current
+role-appropriate authority input — a Leo/GPT mission or decision for the
+Advisor, or the exact committed Advisor handoff for a subordinate.
+`docs/agent/RUN_PROTOCOL.md` is additionally mandatory for **Worker
+assignments**. Read any canonical authority named by the mission/handoff
+directly. Historical reports are evidence, not current permission.
 
 ## Team Binding and Common Role Docs
 

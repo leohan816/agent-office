@@ -10,9 +10,8 @@ every assignment, also read:
    (Designer, Worker, Reviewer, Control);
 2. `docs/agent/TEAM_OPERATING_MODEL.md` and the actor's matching role document
    under `docs/agent/roles/`;
-3. `docs/agent/RUN_PROTOCOL.md` and `docs/agent/RESULT_REPORTING_PROTOCOL.md` for
-   a Worker assignment (another role reads them only when its exact authority
-   names them for read-only audit context); and
+3. `docs/agent/RESULT_REPORTING_PROTOCOL.md` for every role, plus
+   `docs/agent/RUN_PROTOCOL.md` for a Worker assignment; and
 4. every canonical authority explicitly named by the mission or handoff.
 
 ## Role Summary
