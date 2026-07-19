@@ -1021,3 +1021,92 @@ describe('AS1 raw socket transport — fixed-Strategy provider-disconnect recove
     expect(ctx.durableLatches.some((r) => r.includes('provider disconnect'))).toBe(true);
   });
 });
+
+// PERSONAL Strategy ordinary-frame resilience (amendment): on the Strategy path (the provider-disconnect recovery hook
+// is present) an ordinary malformed/oversize/invalid post-ready frame is DROPPED — no durable latch, no dispatch, no
+// block — while a valid outer envelope reaches the handler (the existing non-latching self/bot/unsupported filter) and a
+// handler-rejected fixed-authority mismatch STILL durably latches. The legacy Advisor path (no hook) is unchanged.
+describe('AS1 raw socket transport — PERSONAL Strategy ordinary-frame resilience', () => {
+  async function resilientReady(onEnvelope: (env: As1InboundEnvelope) => Promise<void> = () => Promise.resolve()) {
+    const opener = new FakeConnectionsOpener();
+    const factory = new FakeAs1WebSocketFactory();
+    const fakeWs = new FakeAs1Ws();
+    factory.setNext(fakeWs);
+    const durableLatches: string[] = [];
+    const received: As1InboundEnvelope[] = [];
+    const transport = new As1RawSocketTransport(
+      opener,
+      factory,
+      { record: () => undefined },
+      () => 100_000,
+      (reason) => { durableLatches.push(reason); return Promise.resolve(); },
+      () => Promise.resolve(true),
+      () => { /* provider-disconnect recovery hook present → PERSONAL Strategy ordinary-frame resilience active */ },
+    );
+    transport.onEnvelope((env) => { received.push(env); return onEnvelope(env); });
+    const promise = transport.connect({ profileId: 'AGENT_OFFICE_STRATEGY', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    fakeWs.emit('open');
+    fakeWs.emit('message', helloFrame(APP_ID), false);
+    await promise;
+    transport.armReceive();
+    return { transport, fakeWs, durableLatches, received };
+  }
+
+  it('processes a metadata-rich self/bot frame with no durable latch', async () => {
+    const ctx = await resilientReady();
+    const frame = JSON.stringify({
+      type: 'events_api',
+      envelope_id: 'Env0AGENTOFFICE1',
+      payload: {
+        type: 'event_callback',
+        team_id: 'TWORKSPACE001',
+        api_app_id: APP_ID,
+        event: {
+          type: 'message',
+          user: 'ULEO0000001',
+          channel: 'CAGENTOFFICE01',
+          ts: '1720000000.000100',
+          text: 'please start a new mission',
+          bot_profile: { id: 'B1', app_id: 'A1', name: 'bot' },
+          files: Array.from({ length: 20 }, (_v, i) => ({ id: `F${String(i)}`, mode: 'hosted' })),
+          blocks: [{ type: 'rich_text', block_id: 'b1', elements: [{ type: 'rich_text_section', elements: [{ type: 'text', text: 'x' }] }] }],
+          attachments: Array.from({ length: 20 }, (_v, i) => ({ id: i, text: 'a' })),
+        },
+      },
+    });
+    ctx.fakeWs.emit('message', Buffer.from(frame, 'utf8'), false);
+    await flush();
+    // The heavy metadata (20-entry files/attachments > PARSED_ARRAY_MAX) is ignored by the bounded walk, so the frame is
+    // NOT malformed-rejected: it reaches the handler (the non-latching self/bot filter) with no durable latch.
+    expect(ctx.received).toHaveLength(1);
+    expect(ctx.durableLatches).toHaveLength(0);
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+  });
+
+  it('drops a malformed then oversize frame with no dispatch or latch and still processes a later valid Leo event', async () => {
+    const ctx = await resilientReady();
+    ctx.fakeWs.emit('message', Buffer.from('{ not valid json', 'utf8'), false); // malformed → dropped, no latch
+    ctx.fakeWs.emit('message', Buffer.from(JSON.stringify({ type: 'events_api', envelope_id: 'E', payload: { blob: 'x'.repeat(40_000) } }), 'utf8'), false); // raw oversize → dropped
+    await flush();
+    expect(ctx.received).toHaveLength(0); // no dispatch of the ordinary-rejected frames
+    expect(ctx.durableLatches).toHaveLength(0); // no durable profile latch
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY'); // socket stays open, not latched
+    // A later valid Leo event is NOT blocked by the earlier ordinary rejects — it still processes.
+    ctx.fakeWs.emit('message', eventFrame('Env0AGENTOFFICE1', APP_ID), false);
+    await flush();
+    expect(ctx.received).toHaveLength(1);
+    expect(ctx.durableLatches).toHaveLength(0);
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+  });
+
+  it('still durably latches on a fixed-authority mismatch even under ordinary-frame resilience', async () => {
+    // A fixed app/workspace/channel/Leo/destination authority mismatch is rejected by the handler (throw); that
+    // handler-failure path still fails closed with a durable owning-profile latch — resilience never weakens it.
+    const ctx = await resilientReady(() => Promise.reject(new Error('fixed authority mismatch')));
+    ctx.fakeWs.emit('message', eventFrame('Env0AGENTOFFICE1', APP_ID), false);
+    await flush();
+    expect(ctx.transport.getPhase()).toBe('LATCHED');
+    expect(ctx.durableLatches.some((r) => r.includes('handler failure'))).toBe(true);
+  });
+});

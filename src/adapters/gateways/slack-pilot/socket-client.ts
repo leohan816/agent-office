@@ -364,7 +364,10 @@ export class As1RawSocketTransport implements As1SocketPort {
         if (data.byteLength > LIMITS.WS_MAX_PAYLOAD_BYTES) {
           if (afterReady) {
             this.log.record(this.profileId, this.phase, 'REJECTED_OVERSIZE_FRAME');
-            this.latch(socket, 1009, 'oversize frame after ready');
+            // PERSONAL Strategy ordinary-frame resilience: on the Strategy path (recovery hook present) an oversize
+            // post-ready frame is DROPPED — no durable latch, no dispatch, no close — so later valid Leo messages still
+            // process. The legacy Advisor path (no hook) still fails closed with a durable latch (review B05 V6-05A).
+            if (this.onProviderDisconnect === undefined) this.latch(socket, 1009, 'oversize frame after ready');
           } else {
             rejectOnce(1009, 'oversize frame in quarantine');
           }
@@ -557,11 +560,17 @@ export class As1RawSocketTransport implements As1SocketPort {
   private dispatchAfterReady(socket: As1WsLike, generation: number, text: string): void {
     let value: unknown;
     try {
-      value = parseTrustedJson(text);
+      // PERSONAL Strategy path (recovery hook present) ignores the wider blocks/attachments/bot_profile metadata for the
+      // bounded walk; the legacy Advisor path (no hook) keeps the exact rich-text blocks depth check (R2 §3), unchanged.
+      value = parseTrustedJson(text, this.onProviderDisconnect !== undefined);
     } catch {
-      // A malformed post-hello frame is a protocol-corrupt live stream: fail closed with a durable owning-profile
-      // latch, never logged-and-ignored (review B05 V5). No reconnect/retry/fallback.
       this.log.record(this.profileId, 'EVENT_RECEIVE_READY', 'REJECTED_MALFORMED_FRAME');
+      // PERSONAL Strategy ordinary-frame resilience (amendment): on the Strategy path (the provider-disconnect recovery
+      // hook is present) an ordinary malformed/oversize post-ready frame is DROPPED — no durable latch, no dispatch, and
+      // the socket stays open so later valid Leo messages still process. Authority mismatch still latches via the
+      // handler-failure path. The legacy Advisor path (no recovery hook) is byte-for-byte unchanged: it fails closed
+      // with a durable owning-profile latch (review B05 V5), never logged-and-ignored. No reconnect/retry/fallback.
+      if (this.onProviderDisconnect !== undefined) return;
       this.latch(socket, 1008, 'malformed frame after ready');
       return;
     }
@@ -589,8 +598,10 @@ export class As1RawSocketTransport implements As1SocketPort {
       const parsed = parseEventsApiValue(value);
       envelope = { envelopeId: parsed.envelopeId, payload: parsed.callback, retryAttempt: parsed.retryAttempt, retryReason: parsed.retryReason };
     } catch {
-      // A well-formed but invalid/unexpected Events API envelope after ready is also a fail-closed durable latch.
       this.log.record(this.profileId, 'EVENT_RECEIVE_READY', 'REJECTED_ENVELOPE');
+      // Strategy resilience: drop an invalid outer envelope (no latch, no dispatch); later messages proceed. The legacy
+      // Advisor path (no recovery hook) is unchanged — a well-formed but invalid Events API envelope fails closed.
+      if (this.onProviderDisconnect !== undefined) return;
       this.latch(socket, 1008, 'invalid events-api envelope after ready');
       return;
     }

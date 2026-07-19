@@ -247,8 +247,12 @@ export function parseEventsApiFrame(text: string): As1ParsedEnvelope {
   return parseEventsApiValue(parseTrustedJson(text));
 }
 
-/** JSON.parse a post-proof frame and enforce the bounded structural walk before any field access. */
-export function parseTrustedJson(text: string): unknown {
+/**
+ * JSON.parse a post-proof frame and enforce the bounded structural walk before any field access. `ignoreStrategyMetadata`
+ * (PERSONAL Strategy post-ready path only) additionally ignores the `blocks`/`attachments`/`bot_profile` metadata subtrees
+ * for the walk; the default (legacy Advisor) ignores only `files`, preserving the exact rich-text `blocks` depth check.
+ */
+export function parseTrustedJson(text: string, ignoreStrategyMetadata = false): unknown {
   if (Buffer.byteLength(text, 'utf8') > LIMITS.RAW_SOCKET_ENVELOPE_MAX_BYTES) {
     throw frameError('event frame exceeds the raw byte bound');
   }
@@ -258,7 +262,7 @@ export function parseTrustedJson(text: string): unknown {
   } catch {
     throw frameError('event frame is not valid JSON');
   }
-  assertSocketBoundedJsonStructure(value);
+  assertSocketBoundedJsonStructure(value, ignoreStrategyMetadata);
   return value;
 }
 
@@ -272,30 +276,38 @@ export function parseTrustedJson(text: string): unknown {
  * bytes, values, IDs, URLs, tokens, or provider text.
  */
 /**
- * The metadata/content subtree of a valid Slack message's `payload.event.files` is IGNORED by the bounded structural
- * walk (amendment: files-bearing text frame). The pilot is text-only, so attachment metadata must not trip the local
- * depth / array bounds; the RAW envelope byte bound already caps the whole frame (files included) and every outer/event
- * identity validation is unchanged, so the bounded `event.text` still reaches the text-only intake exactly once and no
- * file content is ever downloaded, interpreted, copied, logged, or routed. Only an exact `payload.event.files` key is
- * dropped from the validation-only copy; any other shape (malformed/oversize/over-depth outside files) stays fail-closed.
+ * Non-authoritative Slack message metadata IGNORED by the bounded structural walk (amendment: PERSONAL Strategy
+ * ordinary-frame resilience). The pilot routes only the outer Slack envelope + the authoritative event fields
+ * (type/user/channel/ts/text), so heavy `files`, `blocks`, `attachments`, and `bot_profile` metadata must not trip the
+ * local depth / array bounds. The RAW envelope byte bound (`parseTrustedJson`) already caps the whole frame (metadata
+ * included) and every outer/event identity validation is unchanged, so the bounded `event.text` still reaches the
+ * text-only intake exactly once and no metadata content is ever downloaded, interpreted, copied, logged, or routed.
+ * Only these exact non-authoritative `payload.event.*` keys are dropped from the validation-only copy; any other shape
+ * (malformed / oversize / over-depth outside these keys) stays fail-closed.
  */
-function withIgnoredFilesSubtree(value: unknown): unknown {
+// `files` is ignored UNCONDITIONALLY (files-bearing text frame amendment) for every caller. The wider PERSONAL Strategy
+// set (`blocks`/`attachments`/`bot_profile`) is ignored ONLY when the Strategy caller opts in, so the legacy Advisor
+// path keeps validating rich-text `blocks` depth exactly (R2 recovery design §3) — a byte-for-byte unchanged legacy path.
+const IGNORED_FILES_ONLY_KEYS = ['files'];
+const IGNORED_STRATEGY_METADATA_KEYS = ['files', 'blocks', 'attachments', 'bot_profile'];
+
+function withIgnoredEventMetadata(value: unknown, keys: readonly string[]): unknown {
   if (!isRecord(value)) return value;
   const payload = value.payload;
   if (!isRecord(payload)) return value;
   const event = payload.event;
-  if (!isRecord(event) || !('files' in event)) return value;
-  const eventWithoutFiles: Record<string, unknown> = {};
+  if (!isRecord(event) || !keys.some((k) => k in event)) return value;
+  const projectedEvent: Record<string, unknown> = {};
   for (const key of Object.keys(event)) {
-    if (key !== 'files') eventWithoutFiles[key] = event[key];
+    if (!keys.includes(key)) projectedEvent[key] = event[key];
   }
-  return { ...value, payload: { ...payload, event: eventWithoutFiles } };
+  return { ...value, payload: { ...payload, event: projectedEvent } };
 }
 
-function assertSocketBoundedJsonStructure(value: unknown): void {
-  // Validate a copy whose ignored `payload.event.files` subtree is dropped; the RAW byte bound (parseTrustedJson) still
-  // caps the whole incoming frame, so attachment metadata cannot bypass the total size limit.
-  const validated = withIgnoredFilesSubtree(value);
+function assertSocketBoundedJsonStructure(value: unknown, ignoreStrategyMetadata = false): void {
+  // Validate a copy whose ignored non-authoritative `payload.event.*` metadata is dropped; the RAW byte bound
+  // (parseTrustedJson) still caps the whole incoming frame, so metadata cannot bypass the total size limit.
+  const validated = withIgnoredEventMetadata(value, ignoreStrategyMetadata ? IGNORED_STRATEGY_METADATA_KEYS : IGNORED_FILES_ONLY_KEYS);
   let serialized: string | undefined;
   try {
     serialized = JSON.stringify(validated);
