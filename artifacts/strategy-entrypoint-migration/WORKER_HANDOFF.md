@@ -915,3 +915,4 @@ Commit/push non-force. Update only the two existing Worker result files with
 exact paths, four focused tests, changed-file lint/type evidence, diff-check,
 candidate/push state and boundaries; leave them uncommitted, return to Advisor,
 and STOP.
+Continuation authority: preserve the current partial diff and complete handoff `c2dd0c0` only through the optional fixed-Strategy `As1SocketBindings` provider-disconnect callback/recovery seal specified by Leo—defer it after unlatching clean removal of the current generation, reconnect/re-arm the same socket from composition-owned fixed wire/control, set one local clean-stop flag on failure, and never retain `As1SocketConnectInput` in the transport.
