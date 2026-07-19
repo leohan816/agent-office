@@ -474,5 +474,38 @@ composition cases previously drove only a fake socket) with a two-layer proof.
   authorized; no config/descriptor/profile/package/lockfile/state-root change; no live/`%63`/Foundation action. These two
   evidence files are updated but LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Files-bearing Slack text frame + fourth Foundation retirement tuple (2026-07-19)
+
+Authority: ACTIVE AMENDMENT `files-bearing Slack text frame`, baseline `f7ef9d5`. Four-file allowlist; no build, broad
+test, docs, image handling, other source/test, live/state/service, or Agent Office action.
+
+- **Exact changed paths (four allowlisted files):**
+  - `src/adapters/gateways/slack-pilot/socket-frame.ts` — in ONLY the existing post-proof bounded-JSON validation path
+    (`assertSocketBoundedJsonStructure`), a `withIgnoredFilesSubtree` helper drops ONLY an exact `payload.event.files`
+    key from the validation-only copy before the serialized-size re-check and the depth/array structural walk. The RAW
+    envelope byte bound (`parseTrustedJson`, on the original frame), every outer/event identity validation, and the
+    returned callback are UNCHANGED, so the bounded `event.text` reaches the text-only intake exactly once; any other
+    shape (malformed / oversize / over-depth outside files) stays fail-closed and no file content is downloaded,
+    interpreted, copied, logged, or routed.
+  - `src/operations/readiness/as1-slack-control.ts` — extended ONLY `retireOneShotFoundationDiagnosticLatch`'s
+    fully-fixed matcher with the exact fourth tuple (root `strategy-foundation-v1`, profile `foundation-advisor`, reason
+    `malformed frame after ready`, `latchedAt` `2026-07-19T07:03:17.125Z`), retaining every ownership / `DISABLED_CLEAN`
+    / null-active / kill-clear / incident-open / persist-before-cache / mismatched-or-later-latch refusal check; the
+    `FOUNDATION_STRATEGY` pre-start hook is unchanged.
+  - `tests/adapters/as1-slack-socket-frame.test.ts` — three focused cases: a files-bearing message whose 20-entry files
+    array would otherwise exceed `PARSED_ARRAY_MAX` is accepted with `event.text` preserved exactly once; an ordinary
+    text message with no files is unchanged; a files-bearing frame stays fail-closed on raw oversize, malformed JSON, and
+    an invalid outer envelope.
+  - `tests/integration/as1-slack-live-composition.test.ts` — one focused case `retires the exact fourth Foundation
+    malformed-frame latch and refuses a later one` (exact tuple → `RETIRED` + `isProfileLatched` false; the same reason
+    at a later `latchedAt` → `NOT_RETIRED`, stays latched).
+- **Named focused cases (all PASS — 4 passed | 103 skipped):** the three socket-frame cases + the one latch case.
+- **Gates:** four-file type-aware ESLint — 0 errors; `git diff --check f7ef9d5` — clean.
+- **Git:** candidate `a682fd90553b4379daf5029a26fc75ff74ee8a01`; pushed non-force `3434309..a682fd9` to
+  `origin/feature/strategy-entrypoint-migration-001`; local == upstream == `a682fd9`. Staged ONLY the four allowlist paths.
+- **Boundaries honored:** no image/file download or routing; no build/broad tests; no other source/test/profile/config/
+  descriptor/state-root change; no live/state/service or Agent Office action. These two evidence files are updated but
+  LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

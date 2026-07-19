@@ -414,3 +414,31 @@ a98b8e3..41f46997a70f9925ae19ce96f71062fc87d397ae`. No production change,
 build, broad test, implementation, live/state action, `%63` action, or other
 file. Write only the existing `REVIEW_RESULT.md` and
 `REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.
+
+## ACTIVE AMENDMENT — files-bearing Slack text frame
+
+Authority: Advisor handoff baseline `3434309`; review candidate
+`a682fd90553b4379daf5029a26fc75ff74ee8a01`. Supersedes every earlier review
+scope; return PASS or one concrete blocker within three minutes.
+
+Review only the exact four-file delta in
+`src/adapters/gateways/slack-pilot/socket-frame.ts`,
+`tests/adapters/as1-slack-socket-frame.test.ts`,
+`src/operations/readiness/as1-slack-control.ts`, and
+`tests/integration/as1-slack-live-composition.test.ts`. Verify that only exact
+`payload.event.files` metadata/content is excluded from the validation-only
+deep walk, while raw envelope size, outer envelope validation, bounded
+`event.text`, and malformed/oversize rejection remain fail-closed; no file
+content is interpreted, copied, logged, downloaded, or routed, and ordinary
+text behavior is unchanged. Verify the one-shot Foundation matcher accepts
+only root `strategy-foundation-v1`, profile `foundation-advisor`, reason
+`malformed frame after ready`, and `latchedAt`
+`2026-07-19T07:03:17.125Z`, while refusing later/mismatched records and
+retaining all existing safety checks.
+
+Reproduce only the four exact named tests in the current launcher, type-aware
+ESLint only these four files, and `git diff --check
+3434309..a682fd90553b4379daf5029a26fc75ff74ee8a01`. No build, broad test,
+implementation, live/state action, image handling, Agent Office action, or
+other file. Write only the existing `REVIEW_RESULT.md` and
+`REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.
