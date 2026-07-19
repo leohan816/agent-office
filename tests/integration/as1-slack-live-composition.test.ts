@@ -275,6 +275,40 @@ describe('AS1 one-shot Agent Office malformed-frame latch retirement', () => {
     expect(await later.isProfileLatched('agent-office-advisor')).toBe(true);
     await later.close();
   });
+
+  it('preserves the existing Agent Office malformed-frame tuple and refuses mismatched retirement', async () => {
+    // The FIRST reviewed tuple (malformed frame after ready @ its own latchedAt) still retires under the two-tuple matcher.
+    const root = await agentOfficeRoot();
+    await seedAoLatch(root, AO_LATCH_REASON, AO_LATCH_AT);
+    const control = await As1SlackControl.open(root, new FakeClock(CLOCK_ISO));
+    expect(await control.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('RETIRED');
+    expect(await control.isProfileLatched('agent-office-advisor')).toBe(false);
+    await control.close();
+    // A mismatched retirement (an unrelated reason at the malformed timestamp) refuses and stays durably latched.
+    const mismatchRoot = await agentOfficeRoot();
+    await seedAoLatch(mismatchRoot, 'some unrelated latch reason', AO_LATCH_AT);
+    const mismatch = await As1SlackControl.open(mismatchRoot, new FakeClock(CLOCK_ISO));
+    expect(await mismatch.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('NOT_RETIRED');
+    expect(await mismatch.isProfileLatched('agent-office-advisor')).toBe(true);
+    await mismatch.close();
+  });
+
+  it('refuses a later or mismatched Agent Office provider-disconnect tuple', async () => {
+    // The provider-disconnect reason at a LATER latchedAt is never the exact tuple → stays durably latched.
+    const laterRoot = await agentOfficeRoot();
+    await seedAoLatch(laterRoot, 'provider disconnect', '2026-07-19T01:09:11.411Z');
+    const later = await As1SlackControl.open(laterRoot, new FakeClock(CLOCK_ISO));
+    expect(await later.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('NOT_RETIRED');
+    expect(await later.isProfileLatched('agent-office-advisor')).toBe(true);
+    await later.close();
+    // Cross-tuple mismatch: the provider-disconnect reason paired with the malformed tuple's timestamp is also refused.
+    const mismatchRoot = await agentOfficeRoot();
+    await seedAoLatch(mismatchRoot, 'provider disconnect', AO_LATCH_AT);
+    const mismatch = await As1SlackControl.open(mismatchRoot, new FakeClock(CLOCK_ISO));
+    expect(await mismatch.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('NOT_RETIRED');
+    expect(await mismatch.isProfileLatched('agent-office-advisor')).toBe(true);
+    await mismatch.close();
+  });
 });
 
 describe('AS1 one-shot Foundation Strategy diagnostic-latch retirement', () => {
