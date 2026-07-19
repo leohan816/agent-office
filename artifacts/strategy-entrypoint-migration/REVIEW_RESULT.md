@@ -339,3 +339,31 @@ No findings.
 No blocking residual risk identified within the authorized instruction-only delta and named gates. This is independent review evidence, not risk acceptance or final approval.
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Silent Status and Bounded Strategy Disconnect-Recovery Delta Review
+
+## Findings
+
+### P1 — The named recovery tests bypass the actual transport disconnect seam
+
+`NEEDS_PATCH` — [evidence gap] Candidate `tests/integration/as1-slack-live-composition.test.ts:440-461` defines `RecoveryFakeCompositionSocket`, and lines 497-510 inject that fake directly into the composition. The two recovery tests then call `composition.recoverStrategyDisconnect()` directly at lines 569 and 592. They never send a provider-disconnect frame through the changed `As1RawSocketTransport.dispatchAfterReady()` branch at `src/adapters/gateways/slack-pilot/socket-client.ts:568-584`.
+
+Therefore the focused evidence does not exercise or prove the handoff's load-bearing transport behavior: current-generation removal without the first durable latch, deferred callback dispatch, the one-use `strategyRecoveryUsed` guard, later-disconnect fallback/no-repeat behavior, or the production transport-to-composition wiring. The failure test also asserts only `isStrategyRecoveryStop()` at test line 576 and closes the composition in `finally`; it does not drive `runForegroundOwner` to demonstrate the claimed clean-stop terminal. This directly violates the explicit requirement that the focused tests use the actual transport disconnect seam rather than only invoking a fake callback.
+
+## Scope and reproduced evidence
+
+- Exact range `c318858..3eedbe930a9989736351a6d599b1ad798dd6eaba` changes exactly the six authorized files.
+- Four exact named Vitest cases — **PASS**: 4 passed, 88 skipped, one worker, but P1 limits their recovery coverage as described above.
+- Type-aware ESLint on exactly the six changed files — **PASS**, no output.
+- `git diff --check c318858..3eedbe930a9989736351a6d599b1ad798dd6eaba` — **PASS**, clean.
+- No build, broad test, implementation, live/state action, `%63` action, other-file review, or candidate modification was performed.
+
+## Verdict
+
+`NEEDS_PATCH`
+
+P1 is a patchable in-scope test-evidence blocker. This verdict is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
