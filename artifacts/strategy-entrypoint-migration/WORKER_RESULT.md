@@ -531,5 +531,27 @@ broad tests, socket/parser/image change, docs, other files, `%62`, live/state, o
   descriptor/state-root change; no `%62`, live/state, or Agent Office activation. These two evidence files are updated but
   LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Launcher-named Agent Office two-tuple retirement cases (2026-07-19)
+
+Authority: ACTIVE AMENDMENT (test-only continuation), baseline `336ae4e`. Single-file allowlist
+(`tests/integration/as1-slack-live-composition.test.ts`); production code UNCHANGED; no source, build, broad tests,
+live/state, `%62`, or other path.
+
+- **Exact changed path (one allowlisted test file):** added exactly the two named cases fixed in `REVIEW_LAUNCHER.txt`
+  to the existing Agent Office one-shot latch retirement block, reusing the existing `agentOfficeRoot`/`seedAoLatch`
+  harness with the production matcher unchanged:
+  - `preserves the existing Agent Office malformed-frame tuple and refuses mismatched retirement` — the first
+    (malformed-frame) tuple still retires under the two-tuple matcher, and an unrelated reason at the malformed
+    timestamp refuses (stays latched).
+  - `refuses a later or mismatched Agent Office provider-disconnect tuple` — the provider-disconnect reason at a later
+    `latchedAt`, and paired with the malformed tuple's timestamp (cross-tuple mismatch), both refuse (stay latched).
+- **Named focused cases (all PASS — 3 passed | 93 skipped):** the two new launcher-named cases + the existing
+  `retires the exact Agent Office provider-disconnect latch and refuses a later one`.
+- **Gates:** one-file type-aware ESLint — 0 errors; `git diff --check 336ae4e` — clean.
+- **Git:** candidate `a6f884a1b74cdadbb823e173b3beeb7e947052f7`; pushed non-force `cbf3c1b..a6f884a` to
+  `origin/feature/strategy-entrypoint-migration-001`; local == upstream == `a6f884a`. Staged ONLY the one test path.
+- **Boundaries honored:** no source/production change; no build/broad tests; no other test name or path; no live/state,
+  `%62`, or Agent Office action. These two evidence files are updated but LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

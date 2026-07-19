@@ -415,6 +415,12 @@ build, broad test, implementation, live/state action, `%63` action, or other
 file. Write only the existing `REVIEW_RESULT.md` and
 `REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.
 
+## ACTIVE AMENDMENT — Agent Office latch test evidence closure
+
+Authority baseline: `336ae4e40ee14f20b3712fb9d7f4cafaed0e986d`; review candidate: `a6f884a1b74cdadbb823e173b3beeb7e947052f7`. Review only `tests/integration/as1-slack-live-composition.test.ts`; production source is unchanged.
+
+Reproduce exactly the three launcher-named cases: `retires the exact Agent Office provider-disconnect latch and refuses a later one`, `preserves the existing Agent Office malformed-frame tuple and refuses mismatched retirement`, and `refuses a later or mismatched Agent Office provider-disconnect tuple`. Run only one-file type-aware ESLint and `git diff --check 336ae4e40ee14f20b3712fb9d7f4cafaed0e986d..a6f884a1b74cdadbb823e173b3beeb7e947052f7`; no source change, build, broad test, live/state action, `%62` action, or other file. Write only the two existing result files, return PASS or one concrete blocker within two minutes, and STOP.
+
 ## ACTIVE AMENDMENT — Agent Office provider-disconnect latch tuple review
 
 Authority baseline: `98963bf`; review candidate: `336ae4e40ee14f20b3712fb9d7f4cafaed0e986d`. Supersedes earlier review scope.
