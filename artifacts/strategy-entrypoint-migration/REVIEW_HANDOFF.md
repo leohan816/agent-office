@@ -389,3 +389,28 @@ c318858..3eedbe930a9989736351a6d599b1ad798dd6eaba`. No build, broad test,
 implementation, live/state action, `%63` action, or other file. Write only the
 existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return verdict, and
 STOP.
+
+## ACTIVE AMENDMENT — disconnect-recovery two-layer test proof
+
+Authority: Advisor publication baseline `a98b8e3`; review candidate
+`41f46997a70f9925ae19ce96f71062fc87d397ae`. Supersedes earlier review scope;
+return PASS or one concrete blocker within three minutes.
+
+Review only the exact two-file test delta in
+`tests/adapters/as1-slack-socket-client.test.ts` and
+`tests/integration/as1-slack-live-composition.test.ts`, together with direct
+read-only tracing of the already-reviewed production wiring named by the prior
+amendment. Assess the combined proof that real `As1RawSocketTransport`
+dispatches the provider-disconnect frame, cleanly removes the current
+generation, defers its callback, takes no first durable latch, permits only one
+recovery/no repeated notice, and sends a second/later disconnect through the
+legacy durable-latch fallback, while the composition proof retains notice,
+reconnect, next-message-once behavior and drives `runForegroundOwner` through
+`isStrategyRecoveryStop` to its clean-stop terminal.
+
+Reproduce only the existing four named cases plus exactly the two adapter seam
+cases, type-aware ESLint only the two changed test files, and `git diff --check
+a98b8e3..41f46997a70f9925ae19ce96f71062fc87d397ae`. No production change,
+build, broad test, implementation, live/state action, `%63` action, or other
+file. Write only the existing `REVIEW_RESULT.md` and
+`REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.

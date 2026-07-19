@@ -444,5 +444,35 @@ Agent Office `%63` preserved; Foundation `%62` stays stopped until independent P
   no descriptor/config/profile/package/lockfile/state-root change; no new spool/storage/framework. These two evidence files
   are updated but LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Two-layer provider-disconnect recovery proof (2026-07-19)
+
+Authority: Evidence-gap + Two-layer proof continuation authority (`ee81373` → `a98b8e3`) for handoff `c2dd0c0`, from
+candidate `3eedbe9`. TEST-ONLY: no production source read or changed. Closes the disclosed coverage gap (the four
+composition cases previously drove only a fake socket) with a two-layer proof.
+
+- **Exact changed paths (the two allowlisted test files; six total authorized cases, no others):**
+  - `tests/adapters/as1-slack-socket-client.test.ts` — **Layer 1** (two NEW adapter cases, using ONLY the existing
+    opener/factory/`FakeAs1Ws` harness): drive a provider-disconnect frame through a REAL `As1RawSocketTransport`
+    constructed with the optional `onProviderDisconnect` hook. `cleanly removes the current generation, defers the
+    callback, and takes no first durable latch` proves the dispatch synchronously returns to a reconnectable `CLOSED`
+    with an empty `durableLatches` and the callback fires only AFTER the dispatch (deferred). `runs recovery once and a
+    later disconnect falls back to the durable latch with no repeated callback` reconnects a fresh generation and proves
+    a second disconnect does NOT re-fire the callback and DOES durably latch (`provider disconnect`).
+  - `tests/integration/as1-slack-live-composition.test.ts` — **Layer 2**: the named case `posts one disconnect notice
+    and stops cleanly when fixed Strategy recovery fails` now drives the REAL `runForegroundOwner` loop
+    (`runStrategyOwnerLoop` harness + `RecoveryFakeCompositionSocket` capturing the composition `onProviderDisconnect`
+    binding); the first tick fires the recovery seal, the reconnect fails, and the owner reaches its EXISTING clean-stop
+    terminal through `isStrategyRecoveryStop` (`result.ok === true`) after posting exactly one notice. The other three
+    named cases retain the silent-status, priority-stop, and reconnect/next-message proofs unchanged.
+- **Named cases (six authorized; all PASS — 6 passed | 137 skipped):** the four composition cases + the two Layer-1
+  adapter cases.
+- **Gates:** two-file type-aware ESLint (`tests/adapters/as1-slack-socket-client.test.ts`,
+  `tests/integration/as1-slack-live-composition.test.ts`) — 0 errors; `git diff --check 9e08504` — clean.
+- **Git:** candidate `41f46997a70f9925ae19ce96f71062fc87d397ae`; pushed non-force `a98b8e3..41f4699` to
+  `origin/feature/strategy-entrypoint-migration-001`; local == upstream == `41f4699`. Staged ONLY the two test files.
+- **Boundaries honored:** NO production source read or change; no build/broad tests; no new test names beyond the six
+  authorized; no config/descriptor/profile/package/lockfile/state-root change; no live/`%63`/Foundation action. These two
+  evidence files are updated but LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
