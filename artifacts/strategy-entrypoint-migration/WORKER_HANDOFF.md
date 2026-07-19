@@ -847,3 +847,71 @@ same-thread answer exactly once`, two-file ESLint, and `git diff --check
 fd57f04..HEAD`. No build, CLI/spool/owner/state/routing change, broad test,
 design, or other file. Commit/push; update only the two existing Worker result
 files uncommitted; return to Advisor and STOP.
+## ACTIVE AMENDMENT — silent status and bounded Strategy disconnect recovery
+
+Authority: Leo Strategy correction; baseline `9e08504`. Supersedes every
+earlier Worker scope. Return one pushed candidate within 15 minutes or one exact
+provider-recovery code blocker. Preserve Agent Office `%63`; Foundation `%62`
+stays stopped until independent PASS.
+
+Change only:
+
+- `src/application/slack-pilot/service.ts`
+- `src/adapters/gateways/slack-pilot/socket-client.ts`
+- `src/operations/readiness/as1-slack-control.ts`
+- `src/runtime/as1-slack-pilot/composition.ts`
+- `src/runtime/as1-slack-pilot/cli.ts`
+- `tests/adapters/as1-slack-socket-client.test.ts`
+- `tests/integration/as1-slack-live-composition.test.ts`
+
+Implement only these closed changes:
+
+1. Delete periodic status heartbeat behavior entirely. With an active
+   subscription and no new status entry, `consumeStatusStream()` emits no Slack
+   post. Add no replacement liveness message.
+2. Add one fixed `takeNextPersonalStatusControl()` service queue operation that
+   extracts only the four exact controls while preserving relative order of all
+   ordinary entries. Add a composition priority-control tick and call it from
+   `runForegroundOwner` before pending ordinary-result handling every loop.
+   START and STOP therefore preempt a pending ordinary result; STOP immediately
+   posts one existing stop acknowledgement, clears subscription/pending status,
+   and preserves `personalCurrent` plus ordinary FIFO.
+3. In `As1RawSocketTransport.dispatchAfterReady`, keep legacy behavior
+   unchanged. Only when `startStrategyDirect()` supplied the dedicated fixed
+   Strategy recovery callbacks, handle the first provider-disconnect frame with
+   one bounded recovery attempt: close/remove only that generation without a
+   new durable provider latch, invoke composition once to clear an active
+   subscription/pending status and post exactly one fixed notice
+   `STATUS: 연결이 끊어져 상태 스트림을 종료했습니다.` to its bound thread, then
+   reconnect once using the same already-fixed connect input/readiness seal and
+   existing envelope handler. No loop/backoff/framework and no caller routing.
+   On success, keep the owner and normal intake running. On notice/reconnect
+   failure, signal `runForegroundOwner` to perform its existing clean stop after
+   the single notice attempt. A later disconnect must not repeat the notice or
+   start another recovery attempt.
+4. Extend only `retireOneShotFoundationDiagnosticLatch()` to accept the third
+   exact fixed Foundation tuple `provider disconnect` at
+   `2026-07-19T01:09:09.491Z`, in addition to its two reviewed tuples, retaining
+   every ownership/state/kill/incident/persist-before-cache/no-mutation check and
+   the unchanged `FOUNDATION_STRATEGY` pre-start hook. Any mismatch stays
+   latched.
+
+Add/run only these exact focused tests in the two allowlisted test files:
+
+- `emits no idle status post while subscribed`
+- `prioritizes fixed status stop while an ordinary result is pending`
+- `posts one disconnect notice and stops cleanly when fixed Strategy recovery fails`
+- `recovers fixed Strategy intake and handles the next normal message once`
+
+The recovery tests must exercise the dedicated socket seam, exactly-once notice,
+no provider latch on the recoverable path, exact current-latch retirement for
+activation, and normal post-recovery intake; no fake generic reconnect API.
+Run changed-file type-aware ESLint only on the seven files and `git diff --check
+9e08504..HEAD`. No build, broad tests, security redesign, generic reconnect,
+heartbeat replacement, database/Git evidence/grants, docs/design, live action,
+Agent Office action, or other file.
+
+Commit/push non-force. Update only the two existing Worker result files with
+exact paths, four focused tests, changed-file lint/type evidence, diff-check,
+candidate/push state and boundaries; leave them uncommitted, return to Advisor,
+and STOP.
