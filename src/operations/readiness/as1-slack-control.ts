@@ -111,6 +111,8 @@ const AGENT_OFFICE_MALFORMED_LATCH_ROOT_ID = 'strategy-agent-office-v1';
 const AGENT_OFFICE_MALFORMED_LATCH_PROFILE: As1ProfileSlug = 'agent-office-advisor';
 const AGENT_OFFICE_MALFORMED_LATCH_REASON = 'malformed frame after ready';
 const AGENT_OFFICE_MALFORMED_LATCH_AT = '2026-07-18T15:20:22.170Z';
+const AGENT_OFFICE_MALFORMED_LATCH_REASON_2 = 'provider disconnect';
+const AGENT_OFFICE_MALFORMED_LATCH_AT_2 = '2026-07-19T01:09:11.410Z';
 
 export interface As1GlobalControlV1 {
   readonly schemaVersion: typeof CONTROL_SCHEMA;
@@ -655,8 +657,10 @@ export class As1SlackControl {
       } catch {
         return 'NOT_RETIRED'; // an unreadable/corrupt/quarantined latch is not the exact malformed-frame latch
       }
-      if (!parsed.latched || parsed.reason !== AGENT_OFFICE_MALFORMED_LATCH_REASON || parsed.latchedAt !== AGENT_OFFICE_MALFORMED_LATCH_AT) {
-        return 'NOT_RETIRED'; // a wrong reason, or the same reason at any other timestamp, stays durably latched
+      const matchesTuple1 = parsed.reason === AGENT_OFFICE_MALFORMED_LATCH_REASON && parsed.latchedAt === AGENT_OFFICE_MALFORMED_LATCH_AT;
+      const matchesTuple2 = parsed.reason === AGENT_OFFICE_MALFORMED_LATCH_REASON_2 && parsed.latchedAt === AGENT_OFFICE_MALFORMED_LATCH_AT_2;
+      if (!parsed.latched || (!matchesTuple1 && !matchesTuple2)) {
+        return 'NOT_RETIRED'; // a wrong reason, or any reviewed reason at a mismatched/later timestamp, stays durably latched
       }
       try {
         await writeAtomicCanonicalJson(target, {

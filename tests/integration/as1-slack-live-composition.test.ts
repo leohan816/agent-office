@@ -258,6 +258,23 @@ describe('AS1 one-shot Agent Office malformed-frame latch retirement', () => {
     expect(await later.isProfileLatched('agent-office-advisor')).toBe(true);
     await later.close();
   });
+
+  it('retires the exact Agent Office provider-disconnect latch and refuses a later one', async () => {
+    const root = await agentOfficeRoot();
+    await seedAoLatch(root, 'provider disconnect', '2026-07-19T01:09:11.410Z');
+    const control = await As1SlackControl.open(root, new FakeClock(CLOCK_ISO));
+    // The exact second reviewed tuple (reason + its OWN latchedAt) under the fixed root/profile → exact-match retirement.
+    expect(await control.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('RETIRED');
+    expect(await control.isProfileLatched('agent-office-advisor')).toBe(false);
+    await control.close();
+    // Later/mismatch: the same reason at a DIFFERENT (later) latchedAt is never the tuple → stays durably latched.
+    const laterRoot = await agentOfficeRoot();
+    await seedAoLatch(laterRoot, 'provider disconnect', '2026-07-19T01:09:11.411Z');
+    const later = await As1SlackControl.open(laterRoot, new FakeClock(CLOCK_ISO));
+    expect(await later.retireOneShotAgentOfficeMalformedFrameLatch()).toBe('NOT_RETIRED');
+    expect(await later.isProfileLatched('agent-office-advisor')).toBe(true);
+    await later.close();
+  });
 });
 
 describe('AS1 one-shot Foundation Strategy diagnostic-latch retirement', () => {
