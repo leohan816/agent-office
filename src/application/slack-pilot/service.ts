@@ -155,6 +155,15 @@ export class As1InboundService {
     return this.personalQueue.shift() ?? null;
   }
 
+  /** Fixed Strategy status stream: extract ONLY the next matching status control from the FIFO, preserving the relative
+   *  order of all ordinary entries. Returns null when no queued control matches. */
+  public takeNextPersonalStatusControl(isControl: (text: string) => boolean): As1PersonalCorrelation | null {
+    const index = this.personalQueue.findIndex((entry) => isControl(entry.text));
+    if (index === -1) return null;
+    const [entry] = this.personalQueue.splice(index, 1);
+    return entry ?? null;
+  }
+
   /**
    * Handoff 119 PERSONAL_LEO_ONLY intake bypass: fixed Leo/workspace/App/channel allowlist + exact source-event-id
    * dedupe + a sequential in-memory correlation carrying bounded text. NO receive-grant binding, ROOT_BOUND/root slot,

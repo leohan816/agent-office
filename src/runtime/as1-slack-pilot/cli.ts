@@ -464,6 +464,7 @@ export function buildAs1ProductionDependencies(
         undefined,
         bindings.latch,
         bindings.control,
+        bindings.onProviderDisconnect,
       ),
     buildReceiveGrantProvenance: ({ receiveGrantRef, accepted }) =>
       new GitAs1ReceiveGrantProvenanceGate(
@@ -746,6 +747,16 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
         terminal = 'DELIVERY_HALTED';
         break;
       }
+      // Fixed Strategy status control has PRIORITY over the ordinary result (handoff c2dd0c0): a pending START/STOP is
+      // consumed BEFORE any ordinary deliver/consume this iteration. STOP posts one ack and clears the subscription +
+      // pending status while PRESERVING the personal current and the ordinary FIFO; START records the subscription.
+      if (composition.isPersonalLeoOnly()) {
+        await composition.consumeStatusControlTick();
+        if (incidentPending()) {
+          terminal = 'INCIDENT_KILL';
+          break;
+        }
+      }
       if (!delivered) {
         const delivery = await composition.deliverPending();
         if (incidentPending()) {
@@ -803,11 +814,18 @@ export async function runForegroundOwner(boundary: As1ForegroundOwnerBoundary): 
           }
         }
       }
-      // Fixed Strategy status stream: post any one pending status entry, and the fixed 60 s heartbeat while subscribed.
+      // Fixed Strategy status stream (handoff c2dd0c0): post at most one pending status entry per tick — NO periodic
+      // heartbeat while subscribed.
       if (composition.isPersonalLeoOnly()) {
         await composition.consumeStatusStream();
         if (incidentPending()) {
           terminal = 'INCIDENT_KILL';
+          break;
+        }
+        // Fixed Strategy provider-disconnect recovery failure (handoff c2dd0c0/c318858): the single recovery attempt
+        // posted its one notice and could not clear+notice or reconnect — release the owner cleanly, never a live spin.
+        if (composition.isStrategyRecoveryStop()) {
+          terminal = 'CLEAN_STOP';
           break;
         }
       }

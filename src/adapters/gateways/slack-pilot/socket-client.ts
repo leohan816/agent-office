@@ -184,6 +184,13 @@ export class As1RawSocketTransport implements As1SocketPort {
   // A durable-latch persistence FAILURE stays visibly fail-closed: never treated as a successful persist.
   private durableLatchFailed = false;
 
+  /**
+   * One-shot guard for the OPTIONAL fixed-Strategy provider-disconnect recovery (handoff c2dd0c0/c318858): the recovery
+   * path (clean current-generation removal + deferred callback, no durable latch) runs at most ONCE; a second provider
+   * disconnect falls back to the durable fail-closed latch.
+   */
+  private strategyRecoveryUsed = false;
+
   public constructor(
     private readonly opener: As1ConnectionsOpener,
     private readonly factory: As1WebSocketFactory,
@@ -201,6 +208,15 @@ export class As1RawSocketTransport implements As1SocketPort {
      * never runs; admission stops and the socket fails closed.
      */
     private readonly control: () => Promise<boolean>,
+    /**
+     * OPTIONAL fixed-Strategy provider-disconnect recovery hook (handoff c2dd0c0/c318858). When supplied, the FIRST
+     * provider-disconnect frame after ready does NOT durably latch: the transport cleanly removes only that current
+     * generation (returning to a reconnectable clean CLOSED/no-Socket state) and defers this callback until the
+     * disconnect dispatch returns, so the composition can clear+notice once, reconnect the same socket once, and
+     * re-arm the existing handler. A SECOND provider disconnect (or no hook) falls back to the durable fail-closed
+     * latch. At most ONE recovery attempt.
+     */
+    private readonly onProviderDisconnect?: () => void,
   ) {}
 
   /** Persist the DURABLE profile latch exactly once (review B05) and RETURN its promise so an async caller can
@@ -550,8 +566,21 @@ export class As1RawSocketTransport implements As1SocketPort {
       return;
     }
     if (isDisconnectFrame(value)) {
-      // Provider disconnect is transport control: close with no reconnect (design §7.5/§7.7).
+      // Provider disconnect is transport control. Without a recovery hook this closes with no reconnect (design
+      // §7.5/§7.7). With the OPTIONAL fixed-Strategy recovery hook (handoff c2dd0c0/c318858), the FIRST disconnect
+      // cleanly removes ONLY this current generation WITHOUT a durable latch and defers the recovery callback until
+      // this dispatch returns; a second disconnect (or no hook) falls back to the durable fail-closed latch.
       this.log.record(this.profileId, 'EVENT_RECEIVE_READY', 'PROVIDER_DISCONNECT');
+      if (this.onProviderDisconnect !== undefined && !this.strategyRecoveryUsed) {
+        this.strategyRecoveryUsed = true;
+        const notify = this.onProviderDisconnect;
+        this.removeCurrentGenerationForRecovery(socket);
+        // Defer until this dispatch stack returns so the composition re-drives connect/arm on a settled clean state.
+        queueMicrotask(() => {
+          notify();
+        });
+        return;
+      }
       void this.disconnectAndLatch(socket, 1008, 'provider disconnect');
       return;
     }
@@ -682,6 +711,30 @@ export class As1RawSocketTransport implements As1SocketPort {
     // ws-callback (sync) context: the durable latch is fired-and-forgotten (still persisted once); only the async
     // disconnect() drain/close path awaits it before returning.
     void this.disconnectAndLatch(socket, code, reason);
+  }
+
+  /**
+   * Cleanly remove ONLY the current generation after a fixed-Strategy provider disconnect (handoff c2dd0c0/c318858):
+   * stop admission, drop the pending queue, close the socket, and return to the reconnectable clean CLOSED/no-Socket
+   * state WITHOUT a durable latch — so the composition's single recovery attempt can connect the same socket again.
+   * Unlike disconnectAndLatch this never persists a durable latch and never sets LATCHED.
+   */
+  private removeCurrentGenerationForRecovery(socket: As1WsLike): void {
+    this.admitting = false;
+    this.armed = false;
+    this.queue.length = 0;
+    this.phase = 'CLOSED';
+    try {
+      socket.close(1000, 'AS1_STRATEGY_RECOVER');
+    } catch {
+      try {
+        socket.terminate();
+      } catch {
+        // The socket is already gone; the transport is already back to the clean CLOSED/no-Socket state.
+      }
+    }
+    socket.removeAllListeners();
+    if (this.socket === socket) this.socket = null;
   }
 
   private disconnectAndLatch(socket: As1WsLike, closeCode = 1008, reason = 'socket fail-closed latch'): Promise<void> {

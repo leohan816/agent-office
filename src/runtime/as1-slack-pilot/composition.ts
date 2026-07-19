@@ -200,12 +200,11 @@ const STRATEGY_STATUS_START_CONTROLS: readonly string[] = ['!상태', '!状态']
 const STRATEGY_STATUS_STOP_CONTROLS: readonly string[] = ['!상태그만', '!状态停止'];
 const STRATEGY_STATUS_START_ACK = 'LEO 상태 스트림을 시작합니다. 60초마다 생존 신호를 보냅니다.';
 const STRATEGY_STATUS_STOP_ACK = 'LEO 상태 스트림을 종료했습니다.';
-const STRATEGY_STATUS_HEARTBEAT = 'LEO 상태 스트림 유지 중입니다.';
+/** The fixed bounded provider-disconnect recovery notice posted once to the bound thread on the recoverable path. */
+const STRATEGY_STATUS_DISCONNECT_NOTICE = 'STATUS: 연결이 끊어져 상태 스트림을 종료했습니다.';
 const STRATEGY_STATUS_CONTROL_PROMPT = `${LEO_SLACK_MESSAGE_LABEL}[상태 스트림 활성] 진행 상황을 상태 액션으로 보고하세요.`;
 const STRATEGY_STATUS_INSTRUCTION =
   '[상태 스트림 활성] 이 Slack 메시지를 처리하는 동안, 새로 만들거나 캡처된 Advisor/Worker 출력에서 고른 사용자용 진행·발견·결과 블록마다 정확히 한 번씩 이 프로필의 고정 status 액션(상태 액션)으로 bounded 텍스트만 전달하세요. npm/도구 호출, "Ran" 헤더, REASON/제어 줄, 중복 내용은 절대 보내지 마세요. 터미널 직접 대화는 Slack 밖에 둡니다.';
-/** The fixed 60-second liveness heartbeat window (never more than one heartbeat per window per fixed root). */
-const STRATEGY_STATUS_HEARTBEAT_WINDOW_MS = 60_000;
 
 /** Classify a personal message's trimmed text as a fixed status control, or null for an ordinary message. */
 export function classifyStatusControl(text: string): 'START' | 'STOP' | null {
@@ -345,6 +344,10 @@ export interface As1CompositionSocketPort extends As1SocketPort {
 export interface As1SocketBindings {
   readonly latch: (reason: string) => Promise<void>;
   readonly control: () => Promise<boolean>;
+  /** Fixed Strategy provider-disconnect recovery (Strategy only): the transport cleanly removes only the FIRST current
+   *  generation (no durable latch) and defers this callback until dispatch returns; the callback clears+notices once,
+   *  reconnects the same socket once, and re-arms the existing handler, or signals the owner's clean stop on failure. */
+  readonly onProviderDisconnect?: () => void;
 }
 
 /**
@@ -438,6 +441,9 @@ export class As1GatewayComposition {
    *  LOCAL to that message — no profile/global latch. The owner loop consumes this to reset and continue to the next
    *  Leo root. Distinct from `failureAdmission`/`progressionHalted`, which stay reserved for the corruption classes. */
   private personalMessageFailed = false;
+  /** Fixed Strategy provider-disconnect recovery: set to request the owner's existing clean stop after a single failed
+   *  notice/reconnect. Never repeats a recovery attempt (the transport removes only the first current generation). */
+  private strategyRecoveryStop = false;
   /** Handoff 119 direct-%26 branch: the ONLY delivered-state record for the current PERSONAL_LEO_ONLY message — an
    *  in-memory correlation carrying the request id, source event id, same-thread ts, and channel. It replaces the
    *  hashed delivery id + tmux journal + receive-grant/lease/evidence authority for the personal message path. */
@@ -566,6 +572,11 @@ export class As1GatewayComposition {
       const socket = deps.buildSocket({
         latch: (reason: string) => this.control.latchProfile(slug, reason),
         control: () => Promise.resolve(this.control.isReceiveReady(slug)),
+        // Fixed Strategy provider-disconnect recovery: the transport removes only the first current generation without a
+        // durable latch and defers this callback after the disconnect dispatch returns.
+        onProviderDisconnect: () => {
+          void this.recoverStrategyDisconnect();
+        },
       });
       startedSocket = socket;
       await this.guardedAwait(() => this.control.transition('RECEIVE_GRANTED_ONE_PROFILE', 'AUTHENTICATING_ONE_PROFILE'));
@@ -1995,22 +2006,94 @@ export class As1GatewayComposition {
       try {
         await deps.web.postMessage(secret.botToken, { channel: sub.channel, threadTs: sub.threadTs, text: `STATUS: ${status.statusText}` });
         await spool.markStatusPosted(status.requestId);
-        await spool.recordSubscription({ ...sub, lastPostAt: this.clock.now() });
         return ['STATUS_STREAM:POSTED'];
       } catch {
         return ['STATUS_STREAM:POST_FAILED'];
       }
     }
-    if (Date.parse(this.clock.now()) - Date.parse(sub.lastPostAt) >= STRATEGY_STATUS_HEARTBEAT_WINDOW_MS) {
-      try {
-        await deps.web.postMessage(secret.botToken, { channel: sub.channel, threadTs: sub.threadTs, text: STRATEGY_STATUS_HEARTBEAT });
-        await spool.recordSubscription({ ...sub, lastPostAt: this.clock.now() });
-        return ['STATUS_STREAM:HEARTBEAT'];
-      } catch {
-        return ['STATUS_STREAM:HEARTBEAT_FAILED'];
-      }
-    }
+    // NO periodic heartbeat: with an active subscription and no new status entry, emit NO Slack post (no replacement liveness).
     return ['STATUS_STREAM:IDLE'];
+  }
+
+  /** Fixed Strategy owner tick: extract and handle ONE priority status control (Strategy only) BEFORE ordinary-result
+   *  handling, so START/STOP preempt a pending ordinary result. STOP posts one stop ack + clears subscription/pending
+   *  status and PRESERVES `personalCurrent` + the ordinary FIFO (never resets). */
+  public async consumeStatusControlTick(): Promise<readonly string[]> {
+    const live = this.live;
+    const deps = this.deps;
+    if (!this.personalLeoOnly || live === null || deps === null || live.profile.role !== 'STRATEGY') return ['STATUS_CONTROL:NONE'];
+    const control = live.service.takeNextPersonalStatusControl((text) => classifyStatusControl(text) !== null);
+    if (control === null) return ['STATUS_CONTROL:NONE'];
+    const kind = classifyStatusControl(control.text);
+    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
+    const secret = this.liveProfileSecret(live);
+    if (kind === 'START') {
+      await spool.recordSubscription({ channel: control.channel, threadTs: control.threadTs, lastPostAt: this.clock.now() });
+      await deps.web.postMessage(secret.botToken, { channel: control.channel, threadTs: control.threadTs, text: STRATEGY_STATUS_START_ACK });
+      const dest = await this.validateFixedAdvisorDestination(live, deps);
+      const bufferName = `as1-${live.profile.profileStateSlug}-status-control`;
+      try {
+        await deps.tmuxPort.loadVerifiedBuffer(bufferName, Buffer.from(STRATEGY_STATUS_CONTROL_PROMPT, 'utf8'));
+        await deps.tmuxPort.pasteBuffer(bufferName, dest.paneId);
+        await deps.tmuxPort.sendEnter(dest.paneId);
+      } finally {
+        await deps.tmuxPort.deleteBuffer(bufferName).catch(() => undefined);
+      }
+      return ['STATUS_CONTROL:START'];
+    }
+    // STOP: one stop ack + clear subscription/pending status. PRESERVE personalCurrent + ordinary FIFO (no reset).
+    const sub = await spool.readSubscription();
+    await spool.clearSubscription();
+    const thread = sub?.threadTs ?? control.threadTs;
+    await deps.web.postMessage(secret.botToken, { channel: control.channel, threadTs: thread, text: STRATEGY_STATUS_STOP_ACK });
+    return ['STATUS_CONTROL:STOP'];
+  }
+
+  /** Fixed Strategy provider-disconnect recovery (deferred by the transport after dispatch returns). It clears the active
+   *  subscription/pending status, posts EXACTLY ONE fixed disconnect notice to the bound thread, reconnects the SAME
+   *  socket ONCE using the fixed wire/profile/slug + readiness seal, and re-arms the existing handler. On a notice or
+   *  reconnect failure it requests the owner's existing clean stop. Never retains the connect input or loops. */
+  public async recoverStrategyDisconnect(): Promise<readonly string[]> {
+    const live = this.live;
+    const deps = this.deps;
+    if (!this.personalLeoOnly || live === null || deps === null || live.profile.role !== 'STRATEGY') {
+      this.strategyRecoveryStop = true;
+      return ['STRATEGY_RECOVERY:NOT_STRATEGY'];
+    }
+    const spool = await As1FilePersonalResultSpool.open(this.stateRoot);
+    const secret = this.liveProfileSecret(live);
+    const sub = await spool.readSubscription();
+    await spool.clearSubscription();
+    try {
+      if (sub !== null) {
+        await deps.web.postMessage(secret.botToken, { channel: sub.channel, threadTs: sub.threadTs, text: STRATEGY_STATUS_DISCONNECT_NOTICE });
+      }
+    } catch {
+      this.strategyRecoveryStop = true;
+      return ['STRATEGY_RECOVERY:NOTICE_FAILED'];
+    }
+    try {
+      const reconnected = await live.socket.connect({
+        profileId: live.profile.profileId,
+        appToken: live.wire.appToken,
+        expectedAppId: live.wire.appId,
+        readinessSeal: () => this.control.isConnectReady(live.slug),
+      });
+      if (!reconnected.ok) {
+        this.strategyRecoveryStop = true;
+        return ['STRATEGY_RECOVERY:RECONNECT_FAILED'];
+      }
+      live.socket.armReceive();
+      return ['STRATEGY_RECOVERY:RECONNECTED'];
+    } catch {
+      this.strategyRecoveryStop = true;
+      return ['STRATEGY_RECOVERY:RECONNECT_FAILED'];
+    }
+  }
+
+  /** True after a failed fixed-Strategy provider-disconnect recovery — the owner performs its existing clean stop. */
+  public isStrategyRecoveryStop(): boolean {
+    return this.strategyRecoveryStop;
   }
 
   /**

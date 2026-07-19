@@ -428,6 +428,184 @@ describe('AS1 Strategy isolated FIFO routes (personal-direct reuse)', () => {
   });
 });
 
+/** A composition-socket fake for the fixed-Strategy provider-disconnect recovery tests: `connect()` returns queued
+ *  outcomes by call order (the initial start uses #1; the single recovery reconnect uses #2), and re-arm calls are
+ *  counted so a test can prove the SAME socket was re-armed exactly once. */
+class RecoveryFakeCompositionSocket implements As1CompositionSocketPort {
+  public armed = false;
+  public armCount = 0;
+  public connectCount = 0;
+  public disconnected = false;
+  private handler: ((envelope: As1InboundEnvelope) => Promise<void>) | null = null;
+  public constructor(private readonly connectResults: readonly boolean[] = [true, true]) {}
+  public connect(input: As1SocketConnectInput): Promise<As1SocketConnectResult> {
+    const queued = this.connectResults[this.connectCount];
+    this.connectCount += 1;
+    return Promise.resolve({ ok: queued ?? input.readinessSeal() });
+  }
+  public onEnvelope(handler: (envelope: As1InboundEnvelope) => Promise<void>): void {
+    this.handler = handler;
+  }
+  public disconnect(): Promise<void> {
+    this.disconnected = true;
+    return Promise.resolve();
+  }
+  public armReceive(): void {
+    this.armed = true;
+    this.armCount += 1;
+  }
+  public async deliver(envelope: As1InboundEnvelope): Promise<void> {
+    if (!this.armed || this.handler === null) throw new Error('socket not armed');
+    await this.handler(envelope);
+  }
+}
+
+/** Start a connectable fixed AGENT_OFFICE_STRATEGY owner (the personal-direct branch) on its own fixed state root, using
+ *  a Strategy secret whose AO-Strategy identity equals the base AO identity the fake wire already serves. Returns the
+ *  live composition so a focused test can drive the status stream / priority control tick / provider-disconnect recovery
+ *  directly (the same collaborators the owner loop calls each tick). */
+async function startStrategyOwner(
+  options: { readonly socket?: RecoveryFakeCompositionSocket; readonly tmuxPort?: FakeTmuxObservationPort } = {},
+) {
+  const stateRoot = await mkdtemp(path.join(tmpdir(), 'as1-strat-own-'));
+  await initializeStateRoot(stateRoot, { stateRootId: 'strategy-agent-office-v1', initializedAt: CLOCK_ISO });
+  const world = fakeWireWorld();
+  const b = validSecretValues();
+  const strategySecret = secretText({
+    SLACK_WORKSPACE_ID: b.SLACK_WORKSPACE_ID,
+    SLACK_LEO_USER_ID: b.SLACK_LEO_USER_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_APP_ID: b.SLACK_AGENT_OFFICE_APP_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_CHANNEL_ID: b.SLACK_AGENT_OFFICE_CHANNEL_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_BOT_TOKEN: b.SLACK_AGENT_OFFICE_BOT_TOKEN,
+    SLACK_AGENT_OFFICE_STRATEGY_APP_TOKEN: b.SLACK_AGENT_OFFICE_APP_TOKEN,
+    SLACK_FOUNDATION_STRATEGY_APP_ID: b.SLACK_FOUNDATION_APP_ID,
+    SLACK_FOUNDATION_STRATEGY_CHANNEL_ID: b.SLACK_FOUNDATION_CHANNEL_ID,
+    SLACK_FOUNDATION_STRATEGY_BOT_TOKEN: b.SLACK_FOUNDATION_BOT_TOKEN,
+    SLACK_FOUNDATION_STRATEGY_APP_TOKEN: b.SLACK_FOUNDATION_APP_TOKEN,
+  });
+  const { filePath: strategySecretPath } = await writeSecretFile(strategySecret, { fileName: 'strategy-slack-apps.env' });
+  const profile = selectStrategyProfile('AGENT_OFFICE_STRATEGY');
+  const directPaneId = '%48';
+  // The fixed Strategy destination the composition validates ONCE at startup (validateFixedAdvisorDestination): the fixed
+  // pane + the SELECTED profile's exact session/workspace/command. The fake pane echoes this so startup binds cleanly.
+  const strategyDestination = {
+    paneId: directPaneId,
+    sessionName: profile.sessionName,
+    workspace: profile.workspace,
+    currentCommand: profile.currentCommand,
+  } as As1TmuxDestination;
+  const socket = options.socket ?? new RecoveryFakeCompositionSocket();
+  const tmuxPort = options.tmuxPort ?? new FakeTmuxObservationPort(strategyDestination);
+  const gitSource = new FakeGitSource();
+  const composition = await As1GatewayComposition.open(enabledDescriptor(strategySecretPath), {
+    stateRoot,
+    clock: new FakeClock(CLOCK_ISO),
+    personalLeoOnly: true,
+    expectedPersonalRoot: stateRoot,
+    strategyProfile: profile,
+    strategySecretFilePath: strategySecretPath,
+    directDestination: { paneId: directPaneId, sessionName: profile.sessionName },
+    deps: fullFakeDeps(gitSource, world, { buildSocket: () => socket, tmuxPort }),
+  });
+  const started = await composition.startStrategyDirect();
+  return { stateRoot, composition, socket, tmuxPort, web: world.web, started };
+}
+
+describe('AS1 fixed Strategy silent status + bounded provider-disconnect recovery', () => {
+  it('emits no idle status post while subscribed', async () => {
+    const { stateRoot, composition, web, started } = await startStrategyOwner();
+    try {
+      expect(started.connected).toBe(true);
+      // An active subscription with NO pending status entry: the stream stays SILENT — the periodic heartbeat is deleted,
+      // so no replacement liveness post is emitted on an idle tick, no matter how many times the owner ticks.
+      const spool = await As1FilePersonalResultSpool.open(stateRoot);
+      await spool.recordSubscription({ channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', lastPostAt: CLOCK_ISO });
+      const before = web.posted.length;
+      const first = await composition.consumeStatusStream();
+      const second = await composition.consumeStatusStream();
+      expect(first).toContain('STATUS_STREAM:IDLE');
+      expect(second).toContain('STATUS_STREAM:IDLE');
+      expect(web.posted.length).toBe(before); // no idle status post on either tick
+    } finally {
+      await composition.close().catch(() => undefined);
+    }
+  });
+
+  it('prioritizes fixed status stop while an ordinary result is pending', async () => {
+    const { stateRoot, composition, socket, tmuxPort, web, started } = await startStrategyOwner();
+    try {
+      expect(started.connected).toBe(true);
+      const spool = await As1FilePersonalResultSpool.open(stateRoot);
+      await spool.recordSubscription({ channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', lastPostAt: CLOCK_ISO });
+      // An ORDINARY Leo message is pending in the FIFO; then a STOP control arrives behind it.
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AOSTRAT0001', eventId: 'Ev0AOSTRAT0001', ts: '1720000000.000200', text: 'do the work' }));
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AOSTRAT0002', eventId: 'Ev0AOSTRAT0002', ts: '1720000000.000300', text: '!상태그만' }));
+      const postsBefore = web.posted.length;
+      // The priority control tick consumes the STOP BEFORE any ordinary deliver: one stop ack, subscription cleared.
+      const control = await composition.consumeStatusControlTick();
+      expect(control).toContain('STATUS_CONTROL:STOP');
+      expect(await spool.readSubscription()).toBeNull();
+      expect(web.posted.length).toBe(postsBefore + 1);
+      // A SECOND priority tick finds NO remaining control — the ordinary message was never taken as a control.
+      expect(await composition.consumeStatusControlTick()).toContain('STATUS_CONTROL:NONE');
+      // The ordinary FIFO was PRESERVED across the STOP: the pending ordinary still delivers (one labeled paste).
+      const pastesBefore = tmuxPort.pasteCalls;
+      await composition.deliverPending();
+      expect(tmuxPort.pasteCalls).toBe(pastesBefore + 1);
+    } finally {
+      await composition.close().catch(() => undefined);
+    }
+  });
+
+  it('posts one disconnect notice and stops cleanly when fixed Strategy recovery fails', async () => {
+    // The single recovery reconnect FAILS (the second connect returns not-ok).
+    const socket = new RecoveryFakeCompositionSocket([true, false]);
+    const { stateRoot, composition, web, started } = await startStrategyOwner({ socket });
+    try {
+      expect(started.connected).toBe(true);
+      const spool = await As1FilePersonalResultSpool.open(stateRoot);
+      await spool.recordSubscription({ channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', lastPostAt: CLOCK_ISO });
+      const before = web.posted.length;
+      const recovery = await composition.recoverStrategyDisconnect();
+      expect(recovery).toContain('STRATEGY_RECOVERY:RECONNECT_FAILED');
+      // EXACTLY ONE disconnect notice posted to the bound thread; the subscription is cleared.
+      expect(web.posted.length).toBe(before + 1);
+      expect(web.posted[web.posted.length - 1]?.request.text).toContain('상태 스트림을 종료');
+      expect(await spool.readSubscription()).toBeNull();
+      // The owner-loop clean-stop flag is set — runForegroundOwner then performs its EXISTING clean stop (no live spin).
+      expect(composition.isStrategyRecoveryStop()).toBe(true);
+    } finally {
+      await composition.close().catch(() => undefined);
+    }
+  });
+
+  it('recovers fixed Strategy intake and handles the next normal message once', async () => {
+    // Both connects succeed: recovery clears+notices once, reconnects the SAME socket once, and re-arms the handler.
+    const socket = new RecoveryFakeCompositionSocket([true, true]);
+    const { stateRoot, composition, web, started } = await startStrategyOwner({ socket });
+    try {
+      expect(started.connected).toBe(true);
+      const spool = await As1FilePersonalResultSpool.open(stateRoot);
+      await spool.recordSubscription({ channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', lastPostAt: CLOCK_ISO });
+      const armsBefore = socket.armCount;
+      const before = web.posted.length;
+      const recovery = await composition.recoverStrategyDisconnect();
+      expect(recovery).toContain('STRATEGY_RECOVERY:RECONNECTED');
+      expect(web.posted.length).toBe(before + 1); // exactly one disconnect notice
+      expect(socket.armCount).toBe(armsBefore + 1); // the same socket re-armed exactly once
+      expect(composition.isStrategyRecoveryStop()).toBe(false); // recovery succeeded → no clean stop
+      // The re-armed intake handles the NEXT normal message ONCE; a duplicate event id makes no second intake.
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AOSTRAT0009', eventId: 'Ev0AOSTRAT0009', ts: '1720000000.000900', text: 'next message' }));
+      const intake = composition.lastIntake();
+      expect(intake).not.toBeNull();
+      await socket.deliver(slackEnvelope({ envelopeId: 'Env0AOSTRAT0009b', eventId: 'Ev0AOSTRAT0009', ts: '1720000000.000900', text: 'next message' }));
+      expect(composition.lastIntake()).toBe(intake);
+    } finally {
+      await composition.close().catch(() => undefined);
+    }
+  });
+});
+
 /**
  * The exact domain-separated profile-state-root binding hash (design §5.2) a correctly-minted receive grant carries
  * in `profileStateRootHash`. Computed from the actual initialized state-root marker so the composition's F02 binding

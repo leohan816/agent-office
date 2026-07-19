@@ -100,6 +100,9 @@ const FOUNDATION_DIAG_LATCH_AT = '2026-07-18T16:15:44.312Z';
 /** The second exact reviewed Foundation tuple (same fixed root/profile) — a distinct (reason, latchedAt) pair. */
 const FOUNDATION_DIAG_LATCH_REASON_2 = 'malformed frame after ready';
 const FOUNDATION_DIAG_LATCH_AT_2 = '2026-07-18T18:55:19.830Z';
+/** The third exact reviewed Foundation tuple (same fixed root/profile) — provider-disconnect at a distinct latchedAt. */
+const FOUNDATION_DIAG_LATCH_REASON_3 = 'provider disconnect';
+const FOUNDATION_DIAG_LATCH_AT_3 = '2026-07-19T01:09:09.491Z';
 
 /** The EXACT one-shot Agent Office malformed-frame latch identity (all four fields fixed; no caller/root/path operand). */
 const AGENT_OFFICE_MALFORMED_LATCH_ROOT_ID = 'strategy-agent-office-v1';
@@ -604,7 +607,8 @@ export class As1SlackControl {
       // reason, timestamp, or mismatched pairing stays durably latched.
       const matchesTuple1 = parsed.reason === FOUNDATION_DIAG_LATCH_REASON && parsed.latchedAt === FOUNDATION_DIAG_LATCH_AT;
       const matchesTuple2 = parsed.reason === FOUNDATION_DIAG_LATCH_REASON_2 && parsed.latchedAt === FOUNDATION_DIAG_LATCH_AT_2;
-      if (!parsed.latched || (!matchesTuple1 && !matchesTuple2)) {
+      const matchesTuple3 = parsed.reason === FOUNDATION_DIAG_LATCH_REASON_3 && parsed.latchedAt === FOUNDATION_DIAG_LATCH_AT_3;
+      if (!parsed.latched || (!matchesTuple1 && !matchesTuple2 && !matchesTuple3)) {
         return 'NOT_RETIRED';
       }
       try {
