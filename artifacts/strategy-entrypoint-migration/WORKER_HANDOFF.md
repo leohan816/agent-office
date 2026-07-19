@@ -935,3 +935,11 @@ Extend only `retireOneShotFoundationDiagnosticLatch` with the exact additional t
 Add only focused proof for a files-bearing message preserving bounded `event.text` while attachment metadata is ignored, ordinary text regression, malformed/oversize rejection, and the existing one-shot latch test's exact new tuple plus wrong/later refusal; run only those named focused cases, type-aware ESLint only the four changed files, and `git diff --check f7ef9d5d6f1ce0e93a921abec341d407c832ad1d`, with no build, broad test, docs/design, image handling, other source/test, live/state/service action, or Agent Office action.
 
 Commit and push non-force, update only the two existing Worker result files with exact evidence and leave them uncommitted, return candidate or one concrete code blocker within the mission timebox, and STOP.
+
+## ACTIVE AMENDMENT — Agent Office provider-disconnect latch tuple
+
+Authority baseline: `a35704a1aa1201770bb8e4b0ed1c1125e3db9be2`. Change only `src/operations/readiness/as1-slack-control.ts` and `tests/integration/as1-slack-live-composition.test.ts`.
+
+Extend only the existing fixed Agent Office one-shot retirement matcher to accept the exact additional tuple root `strategy-agent-office-v1`, profile `agent-office-advisor`, reason `provider disconnect`, `latchedAt` `2026-07-19T01:09:11.410Z`; retain every existing ownership, `DISABLED_CLEAN`, null-active, kill-clear, incident-open, persist-before-cache, and mismatched/later-latch refusal gate, and leave the existing Agent Office pre-start hook unchanged. Add the exact new tuple case plus later/mismatch refusal to the existing focused latch tests.
+
+Run only the named focused latch cases, type-aware ESLint on these two files, and `git diff --check a35704a1aa1201770bb8e4b0ed1c1125e3db9be2..HEAD`; no build, broad tests, socket/parser/image changes, docs/design, other files, live/state action, `%62` action, or Agent Office activation. Commit/push, update only the two existing Worker result files, return candidate or one concrete blocker within eight minutes, and STOP.
