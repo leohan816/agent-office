@@ -340,6 +340,23 @@ describe('AS1 one-shot Foundation Strategy diagnostic-latch retirement', () => {
     expect(await mixed.isProfileLatched('foundation-advisor')).toBe(true);
     await mixed.close();
   });
+
+  it('retires the exact fourth Foundation malformed-frame latch and refuses a later one', async () => {
+    const root = await foundationRoot();
+    await seedLatch(root, 'malformed frame after ready', '2026-07-19T07:03:17.125Z');
+    const control = await As1SlackControl.open(root, new FakeClock(CLOCK_ISO));
+    // The fourth exact reviewed tuple (reason + its OWN latchedAt) under the fixed root/profile → exact-match retirement.
+    expect(await control.retireOneShotFoundationDiagnosticLatch()).toBe('RETIRED');
+    expect(await control.isProfileLatched('foundation-advisor')).toBe(false);
+    await control.close();
+    // Wrong/later: the same reason at a DIFFERENT (later) latchedAt is never the fourth tuple → stays latched.
+    const laterRoot = await foundationRoot();
+    await seedLatch(laterRoot, 'malformed frame after ready', '2026-07-19T07:03:17.126Z');
+    const later = await As1SlackControl.open(laterRoot, new FakeClock(CLOCK_ISO));
+    expect(await later.retireOneShotFoundationDiagnosticLatch()).toBe('NOT_RETIRED');
+    expect(await later.isProfileLatched('foundation-advisor')).toBe(true);
+    await later.close();
+  });
 });
 
 describe('AS1 Strategy answer paste commands', () => {

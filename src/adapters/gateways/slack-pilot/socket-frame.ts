@@ -271,17 +271,41 @@ export function parseTrustedJson(text: string): unknown {
  * -depth, oversized arrays, and non-serializable values reject before any field access; no rejection includes raw
  * bytes, values, IDs, URLs, tokens, or provider text.
  */
+/**
+ * The metadata/content subtree of a valid Slack message's `payload.event.files` is IGNORED by the bounded structural
+ * walk (amendment: files-bearing text frame). The pilot is text-only, so attachment metadata must not trip the local
+ * depth / array bounds; the RAW envelope byte bound already caps the whole frame (files included) and every outer/event
+ * identity validation is unchanged, so the bounded `event.text` still reaches the text-only intake exactly once and no
+ * file content is ever downloaded, interpreted, copied, logged, or routed. Only an exact `payload.event.files` key is
+ * dropped from the validation-only copy; any other shape (malformed/oversize/over-depth outside files) stays fail-closed.
+ */
+function withIgnoredFilesSubtree(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const payload = value.payload;
+  if (!isRecord(payload)) return value;
+  const event = payload.event;
+  if (!isRecord(event) || !('files' in event)) return value;
+  const eventWithoutFiles: Record<string, unknown> = {};
+  for (const key of Object.keys(event)) {
+    if (key !== 'files') eventWithoutFiles[key] = event[key];
+  }
+  return { ...value, payload: { ...payload, event: eventWithoutFiles } };
+}
+
 function assertSocketBoundedJsonStructure(value: unknown): void {
+  // Validate a copy whose ignored `payload.event.files` subtree is dropped; the RAW byte bound (parseTrustedJson) still
+  // caps the whole incoming frame, so attachment metadata cannot bypass the total size limit.
+  const validated = withIgnoredFilesSubtree(value);
   let serialized: string | undefined;
   try {
-    serialized = JSON.stringify(value);
+    serialized = JSON.stringify(validated);
   } catch {
     throw frameError('event frame is not serializable JSON');
   }
   if (typeof serialized !== 'string' || Buffer.byteLength(serialized, 'utf8') > LIMITS.RAW_SOCKET_ENVELOPE_MAX_BYTES) {
     throw frameError('event frame exceeds its bounded byte size');
   }
-  walkSocketBoundedJson(value, 1);
+  walkSocketBoundedJson(validated, 1);
 }
 
 function walkSocketBoundedJson(value: unknown, depth: number): void {

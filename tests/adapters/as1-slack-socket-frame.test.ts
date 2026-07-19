@@ -17,6 +17,64 @@ const validValue = (over: Record<string, unknown> = {}): Record<string, unknown>
   ...over,
 });
 
+// Files-bearing Slack text frame (amendment): the metadata/content subtree of payload.event.files is IGNORED by the
+// bounded structural walk so the bounded event.text reaches the text-only intake exactly once; the raw byte bound and
+// all outer/event identity validation stay fail-closed, and no file content is interpreted/copied/routed.
+describe('AS1 socket frame parser — files-bearing text frame (ignored attachment subtree)', () => {
+  const filesBearingText = (eventOver: Record<string, unknown> = {}, files?: unknown): string =>
+    JSON.stringify({
+      type: 'events_api',
+      envelope_id: 'Env0AGENTOFFICE1',
+      payload: {
+        type: 'event_callback',
+        event: {
+          type: 'message',
+          text: 'please start a new mission',
+          files: files ?? Array.from({ length: 20 }, (_v, i) => ({ id: `F${String(i)}`, mode: 'hosted', name: 'attachment', filetype: 'png' })),
+          ...eventOver,
+        },
+      },
+    });
+
+  it('ignores the files subtree that would otherwise exceed the array bound and preserves event.text exactly once', () => {
+    // 20 files > PARSED_ARRAY_MAX (16): the walk would reject this frame WITHOUT the ignore. Dropping payload.event.files
+    // from the validation copy lets the bounded event.text reach the text-only intake unchanged (files are ignored, not
+    // interpreted or removed from the returned callback).
+    const frame = filesBearingText();
+    expect(() => parseTrustedJson(frame)).not.toThrow();
+    const parsed = parseEventsApiFrame(frame);
+    expect(parsed.envelopeId).toBe('Env0AGENTOFFICE1');
+    const event = parsed.callback.event as { readonly text?: unknown };
+    expect(event.text).toBe('please start a new mission');
+  });
+
+  it('still delivers an ordinary text message with no files subtree unchanged', () => {
+    const ordinary = JSON.stringify({
+      type: 'events_api',
+      envelope_id: 'Env0AGENTOFFICE1',
+      payload: { type: 'event_callback', event: { type: 'message', text: 'hello there' } },
+    });
+    const parsed = parseEventsApiFrame(ordinary);
+    const event = parsed.callback.event as { readonly text?: unknown };
+    expect(event.text).toBe('hello there');
+  });
+
+  it('keeps a files-bearing frame fail-closed on raw oversize, malformed JSON, or an invalid outer envelope', () => {
+    // The RAW envelope byte bound still caps the WHOLE frame (files included) — attachments cannot smuggle past 32_768 B.
+    const oversize = filesBearingText({}, [{ id: 'F0', blob: 'x'.repeat(40_000) }]);
+    expect(() => parseTrustedJson(oversize)).toThrow(DomainError);
+    // Malformed JSON stays rejected.
+    expect(() => parseTrustedJson(`${filesBearingText()}{`)).toThrow(DomainError);
+    // An invalid outer envelope (empty envelope_id) stays rejected even with an otherwise-ignored valid files subtree.
+    const badOuter = JSON.stringify({
+      type: 'events_api',
+      envelope_id: '',
+      payload: { type: 'event_callback', event: { type: 'message', text: 'hi', files: [{ id: 'F0' }] } },
+    });
+    expect(() => parseEventsApiFrame(badOuter)).toThrow(DomainError);
+  });
+});
+
 describe('AS1 socket frame parser — exact limits (B08)', () => {
   it('parses a bounded valid events_api frame', () => {
     const parsed = parseEventsApiValue(validValue());
