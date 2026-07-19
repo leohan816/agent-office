@@ -427,3 +427,36 @@ No findings.
 No blocking residual risk identified within the authorized P1 evidence delta and direct production-wiring trace. This is independent review evidence, not risk acceptance or final approval.
 
 RETURN_TO: `agent-office-advisor`
+
+---
+
+# Agent Office Provider-Disconnect Latch Tuple Delta Review
+
+## Findings
+
+### P1 — Two mandated named latch cases are absent
+
+`NEEDS_PATCH` — [focused evidence gap] The current launcher mandates three exact named cases, but candidate `tests/integration/as1-slack-live-composition.test.ts` contains only `retires the exact Agent Office provider-disconnect latch and refuses a later one` at line 262. It contains neither `preserves the existing Agent Office malformed-frame tuple and refuses mismatched retirement` nor `refuses a later or mismatched Agent Office provider-disconnect tuple`. Running the exact three-title filter therefore reports only **1 passed** and 93 skipped, not the required three focused cases.
+
+The changed test does exercise the exact new tuple and one later timestamp, and the unchanged older tests have related malformed-frame coverage, but neither substitutes for the handoff's two absent exact named gates. The required focused evidence is incomplete.
+
+## Scope and direct evidence
+
+- Exact range `98963bf..336ae4e40ee14f20b3712fb9d7f4cafaed0e986d` changes exactly the two authorized files.
+- Candidate `src/operations/readiness/as1-slack-control.ts:108-109,661-665` adds only the fixed Agent Office tuple `provider disconnect` at `2026-07-19T01:09:11.410Z`, paired under the existing fixed root/profile matcher. Existing ownership, `DISABLED_CLEAN`, null-active, kill-clear, incident-open, strict-parse, persist-before-cache, and no-mutation failure gates remain unchanged.
+- The existing Agent Office pre-start hook is unchanged because no composition/runtime path changes in the exact range.
+
+## Reproduced gates
+
+- Exact three-title Vitest filter — **INCOMPLETE**: 1 passed, 93 skipped; P1 identifies the two missing named cases.
+- Type-aware ESLint on exactly the two changed files — **PASS**, no output.
+- `git diff --check 98963bf..336ae4e40ee14f20b3712fb9d7f4cafaed0e986d` — **PASS**, clean.
+- No build, broad test, implementation, live/state action, `%62` action, Foundation action, Agent Office activation, candidate modification, or other-file review was performed.
+
+## Verdict
+
+`NEEDS_PATCH`
+
+P1 is a patchable in-scope test-evidence blocker. This verdict is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
