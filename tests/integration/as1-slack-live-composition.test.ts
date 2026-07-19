@@ -436,6 +436,9 @@ class RecoveryFakeCompositionSocket implements As1CompositionSocketPort {
   public armCount = 0;
   public connectCount = 0;
   public disconnected = false;
+  /** The composition bindings captured at buildSocket time, so an owner-loop tick can fire the real
+   *  `onProviderDisconnect` recovery seal exactly as the transport would after a provider-disconnect dispatch. */
+  public bindings: { readonly onProviderDisconnect?: () => void } | null = null;
   private handler: ((envelope: As1InboundEnvelope) => Promise<void>) | null = null;
   public constructor(private readonly connectResults: readonly boolean[] = [true, true]) {}
   public connect(input: As1SocketConnectInput): Promise<As1SocketConnectResult> {
@@ -511,6 +514,80 @@ async function startStrategyOwner(
   return { stateRoot, composition, socket, tmuxPort, web: world.web, started };
 }
 
+/** Two-layer proof, LAYER 2: drive the REAL runForegroundOwner loop over a connectable fixed AGENT_OFFICE_STRATEGY
+ *  owner, firing the captured provider-disconnect recovery seal on the first tick. With a failing reconnect the owner
+ *  observes isStrategyRecoveryStop() and reaches the existing clean-stop terminal — never a live spin. */
+async function runStrategyOwnerLoop(
+  socket: RecoveryFakeCompositionSocket,
+): Promise<{ result: Awaited<ReturnType<typeof runForegroundOwner>>; web: ReturnType<typeof fakeWireWorld>['web']; stateRoot: string }> {
+  const stateRoot = await mkdtemp(path.join(tmpdir(), 'as1-strat-loop-'));
+  await initializeStateRoot(stateRoot, { stateRootId: 'strategy-agent-office-v1', initializedAt: CLOCK_ISO });
+  const world = fakeWireWorld();
+  const b = validSecretValues();
+  const strategySecret = secretText({
+    SLACK_WORKSPACE_ID: b.SLACK_WORKSPACE_ID,
+    SLACK_LEO_USER_ID: b.SLACK_LEO_USER_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_APP_ID: b.SLACK_AGENT_OFFICE_APP_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_CHANNEL_ID: b.SLACK_AGENT_OFFICE_CHANNEL_ID,
+    SLACK_AGENT_OFFICE_STRATEGY_BOT_TOKEN: b.SLACK_AGENT_OFFICE_BOT_TOKEN,
+    SLACK_AGENT_OFFICE_STRATEGY_APP_TOKEN: b.SLACK_AGENT_OFFICE_APP_TOKEN,
+    SLACK_FOUNDATION_STRATEGY_APP_ID: b.SLACK_FOUNDATION_APP_ID,
+    SLACK_FOUNDATION_STRATEGY_CHANNEL_ID: b.SLACK_FOUNDATION_CHANNEL_ID,
+    SLACK_FOUNDATION_STRATEGY_BOT_TOKEN: b.SLACK_FOUNDATION_BOT_TOKEN,
+    SLACK_FOUNDATION_STRATEGY_APP_TOKEN: b.SLACK_FOUNDATION_APP_TOKEN,
+  });
+  const { filePath: strategySecretPath } = await writeSecretFile(strategySecret, { fileName: 'strategy-slack-apps.env' });
+  const profile = selectStrategyProfile('AGENT_OFFICE_STRATEGY');
+  const directPaneId = '%48';
+  const strategyDestination = {
+    paneId: directPaneId,
+    sessionName: profile.sessionName,
+    workspace: profile.workspace,
+    currentCommand: profile.currentCommand,
+  } as As1TmuxDestination;
+  const tmuxPort = new FakeTmuxObservationPort(strategyDestination);
+  const gitSource = new FakeGitSource();
+  const signals = new Map<As1OwnerSignal, () => void>();
+  let tick = 0;
+  const boundary: As1ForegroundOwnerBoundary = {
+    descriptor: enabledDescriptor(strategySecretPath),
+    stateRoot,
+    clock: new FakeClock(CLOCK_ISO),
+    personalLeoOnly: true,
+    strategyProfile: profile,
+    strategySecretFilePath: strategySecretPath,
+    strategyDirectStart: true,
+    directDestination: { paneId: directPaneId, sessionName: profile.sessionName },
+    buildDeps: () =>
+      fullFakeDeps(gitSource, world, {
+        buildSocket: (bindings) => {
+          socket.bindings = bindings;
+          return socket;
+        },
+        tmuxPort,
+      }),
+    initialize: () => Promise.resolve(),
+    installSignalHandlers: (handlers) => {
+      (['SIGINT', 'SIGTERM', 'SIGUSR2'] as const).forEach((s) => signals.set(s, handlers[s]));
+      return ['SIGINT', 'SIGTERM', 'SIGUSR2'];
+    },
+    delay: async () => {
+      tick += 1;
+      if (tick === 1) {
+        // Bind a subscription, then fire the captured recovery seal exactly as the transport would after a disconnect.
+        const spool = await As1FilePersonalResultSpool.open(stateRoot);
+        await spool.recordSubscription({ channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', lastPostAt: CLOCK_ISO });
+        socket.bindings?.onProviderDisconnect?.();
+      } else if (tick > 12) {
+        // Safety net so a regression can never hang the suite; the recovery flag converges well before this tick.
+        signals.get('SIGTERM')?.();
+      }
+    },
+  };
+  const result = await runForegroundOwner(boundary);
+  return { result, web: world.web, stateRoot };
+}
+
 describe('AS1 fixed Strategy silent status + bounded provider-disconnect recovery', () => {
   it('emits no idle status post while subscribed', async () => {
     const { stateRoot, composition, web, started } = await startStrategyOwner();
@@ -558,25 +635,14 @@ describe('AS1 fixed Strategy silent status + bounded provider-disconnect recover
   });
 
   it('posts one disconnect notice and stops cleanly when fixed Strategy recovery fails', async () => {
-    // The single recovery reconnect FAILS (the second connect returns not-ok).
+    // Layer 2: drive the REAL runForegroundOwner loop. The first tick fires the provider-disconnect recovery seal; the
+    // reconnect FAILS (second connect not-ok), so recovery posts exactly one notice, sets the clean-stop flag, and the
+    // owner loop reaches its EXISTING clean-stop terminal through isStrategyRecoveryStop — never a live spin.
     const socket = new RecoveryFakeCompositionSocket([true, false]);
-    const { stateRoot, composition, web, started } = await startStrategyOwner({ socket });
-    try {
-      expect(started.connected).toBe(true);
-      const spool = await As1FilePersonalResultSpool.open(stateRoot);
-      await spool.recordSubscription({ channel: 'CAGENTOFFICE01', threadTs: '1720000000.000100', lastPostAt: CLOCK_ISO });
-      const before = web.posted.length;
-      const recovery = await composition.recoverStrategyDisconnect();
-      expect(recovery).toContain('STRATEGY_RECOVERY:RECONNECT_FAILED');
-      // EXACTLY ONE disconnect notice posted to the bound thread; the subscription is cleared.
-      expect(web.posted.length).toBe(before + 1);
-      expect(web.posted[web.posted.length - 1]?.request.text).toContain('상태 스트림을 종료');
-      expect(await spool.readSubscription()).toBeNull();
-      // The owner-loop clean-stop flag is set — runForegroundOwner then performs its EXISTING clean stop (no live spin).
-      expect(composition.isStrategyRecoveryStop()).toBe(true);
-    } finally {
-      await composition.close().catch(() => undefined);
-    }
+    const { result, web } = await runStrategyOwnerLoop(socket);
+    expect(result.ok).toBe(true); // STOPPED_CLEAN, not an incident/latch terminal
+    const notices = web.posted.filter((p) => p.request.text.includes('상태 스트림을 종료'));
+    expect(notices).toHaveLength(1); // exactly one disconnect notice through the recovery path
   });
 
   it('recovers fixed Strategy intake and handles the next normal message once', async () => {

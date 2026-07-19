@@ -947,3 +947,77 @@ describe('AS1 raw socket transport — R2 Socket-local depth 10 through an armed
     }
   });
 });
+
+// Two-layer proof, LAYER 1 (handoff c2dd0c0): the OPTIONAL fixed-Strategy provider-disconnect recovery seal driven
+// through a REAL As1RawSocketTransport with the existing opener/factory/FakeAs1Ws harness. A recovery hook makes the
+// FIRST provider disconnect a clean current-generation removal (reconnectable CLOSED, NO durable latch) with a DEFERRED
+// callback; recovery is one-use, so a later disconnect on the reconnected generation falls back to the durable latch
+// WITHOUT re-firing the callback.
+describe('AS1 raw socket transport — fixed-Strategy provider-disconnect recovery seam (Layer 1)', () => {
+  const disconnectFrame = Buffer.from('{"type":"disconnect","reason":"refresh_requested"}', 'utf8');
+  function makeRecoverable(onProviderDisconnect: () => void) {
+    const opener = new FakeConnectionsOpener();
+    const factory = new FakeAs1WebSocketFactory();
+    const gen1 = new FakeAs1Ws();
+    factory.setNext(gen1);
+    const durableLatches: string[] = [];
+    const received: As1InboundEnvelope[] = [];
+    const transport = new As1RawSocketTransport(
+      opener,
+      factory,
+      { record: () => undefined },
+      () => 100_000,
+      (reason) => { durableLatches.push(reason); return Promise.resolve(); },
+      () => Promise.resolve(true),
+      onProviderDisconnect,
+    );
+    transport.onEnvelope((env) => { received.push(env); return Promise.resolve(); });
+    return { opener, factory, gen1, transport, durableLatches, received };
+  }
+  async function armGeneration(transport: As1RawSocketTransport, ws: FakeAs1Ws): Promise<void> {
+    const promise = transport.connect({ profileId: 'AGENT_OFFICE_ADVISOR', appToken: 'xapp-x', expectedAppId: APP_ID, readinessSeal: () => true });
+    await flush();
+    ws.emit('open');
+    ws.emit('message', helloFrame(APP_ID), false);
+    await promise;
+    transport.armReceive();
+  }
+
+  it('cleanly removes the current generation, defers the callback, and takes no first durable latch', async () => {
+    let recoverCalls = 0;
+    const ctx = makeRecoverable(() => { recoverCalls += 1; });
+    await armGeneration(ctx.transport, ctx.gen1);
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+    ctx.gen1.emit('message', disconnectFrame, false);
+    // Synchronously within the dispatch: current generation cleanly removed to reconnectable CLOSED, NO durable latch,
+    // and the recovery callback is DEFERRED (not yet fired before the dispatch returns).
+    expect(ctx.transport.getPhase()).toBe('CLOSED');
+    expect(ctx.durableLatches).toHaveLength(0);
+    expect(recoverCalls).toBe(0);
+    await flush();
+    expect(recoverCalls).toBe(1); // the deferred callback fired after the dispatch returned
+    expect(ctx.durableLatches).toHaveLength(0); // still no first provider latch
+  });
+
+  it('runs recovery once and a later disconnect falls back to the durable latch with no repeated callback', async () => {
+    let recoverCalls = 0;
+    const ctx = makeRecoverable(() => { recoverCalls += 1; });
+    await armGeneration(ctx.transport, ctx.gen1);
+    ctx.gen1.emit('message', disconnectFrame, false); // first disconnect → clean removal + deferred callback
+    await flush();
+    expect(recoverCalls).toBe(1);
+    expect(ctx.transport.getPhase()).toBe('CLOSED');
+    // Recovery reconnects the SAME transport onto a fresh generation (as recoverStrategyDisconnect drives from the
+    // composition-owned fixed wire), reaching receive-ready again.
+    const gen2 = new FakeAs1Ws();
+    ctx.factory.setNext(gen2);
+    await armGeneration(ctx.transport, gen2);
+    expect(ctx.transport.getPhase()).toBe('EVENT_RECEIVE_READY');
+    // A LATER provider disconnect is one-use-exhausted: NO repeated callback, and it falls back to the durable latch.
+    gen2.emit('message', disconnectFrame, false);
+    await flush();
+    expect(recoverCalls).toBe(1); // one-use recovery — the callback is not re-fired
+    expect(ctx.transport.getPhase()).toBe('LATCHED'); // later fallback durably latches
+    expect(ctx.durableLatches.some((r) => r.includes('provider disconnect'))).toBe(true);
+  });
+});
