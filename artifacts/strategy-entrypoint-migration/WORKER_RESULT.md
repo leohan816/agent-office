@@ -553,5 +553,42 @@ live/state, `%62`, or other path.
 - **Boundaries honored:** no source/production change; no build/broad tests; no other test name or path; no live/state,
   `%62`, or Agent Office action. These two evidence files are updated but LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — PERSONAL Strategy ordinary-frame resilience (2026-07-19)
+
+Authority: ACTIVE AMENDMENT `PERSONAL Strategy ordinary-frame resilience`, baseline `820d7d1`. Allowlist:
+`socket-frame.ts`, `socket-client.ts`, and their two adapter tests. Gated ENTIRELY on the Strategy discriminator
+(the provider-disconnect recovery hook is present only on the Strategy path); the legacy Advisor path is byte-for-byte
+unchanged. No service read/change, build, broad tests, payload logging, image handling, or other path.
+
+- **Exact changed paths (3 of the 4 allowlisted files; the socket-frame test is unchanged — all three regressions are
+  transport-observable and live in the socket-client test):**
+  - `src/adapters/gateways/slack-pilot/socket-frame.ts` — `parseTrustedJson` gains an opt-in `ignoreStrategyMetadata`
+    flag. `files` stays ignored UNCONDITIONALLY (prior files-bearing amendment); when the Strategy caller opts in, the
+    bounded walk additionally ignores `blocks`/`attachments`/`bot_profile`, so a metadata-rich frame projects to its
+    authoritative outer/routing/`event.text` fields and is not malformed-rejected. The default (legacy) path keeps the
+    exact rich-text `blocks` depth check (R2 recovery design §3) — retaining the raw-byte and JSON-syntax bounds.
+  - `src/adapters/gateways/slack-pilot/socket-client.ts` — `dispatchAfterReady` passes `this.onProviderDisconnect !==
+    undefined` to `parseTrustedJson`; on the Strategy path an ordinary malformed / invalid-envelope / oversize
+    post-ready frame is DROPPED (no durable latch, no dispatch, no close) so later valid Leo messages still process (the
+    raw post-ready oversize latch is likewise Strategy-gated). A valid outer envelope still reaches the handler (the
+    existing non-latching self/bot/unsupported filter), and a handler-rejected fixed app/workspace/channel/Leo/destination
+    authority mismatch STILL durably latches (handler-failure path). Legacy Advisor (no hook) still fails closed on every
+    malformed/invalid/oversize frame (review B05 V5 / V6-05A).
+  - `tests/adapters/as1-slack-socket-client.test.ts` — three focused regressions on a resilient (hooked) transport.
+- **Named focused cases (all PASS):** `processes a metadata-rich self/bot frame with no durable latch`; `drops a
+  malformed then oversize frame with no dispatch or latch and still processes a later valid Leo event`; `still durably
+  latches on a fixed-authority mismatch even under ordinary-frame resilience`. Both full adapter test files run green
+  (68 passed) — including the restored R2 depth-10/11 `blocks` legacy tests, proving legacy behavior is unchanged.
+- **Gates:** four-file type-aware ESLint — 0 errors; `git diff --check 820d7d1` — clean.
+- **Git:** candidate `b6d45aed36bae0bd60e5b3d35e25bc0662bb1898`; pushed non-force `7fe7860..b6d45ae` to
+  `origin/feature/strategy-entrypoint-migration-001`; local == upstream == `b6d45ae`. Staged ONLY the 3 changed paths.
+- **Deviation disclosed:** the metadata ignore is Strategy-CONDITIONAL (via the `ignoreStrategyMetadata` flag), not the
+  unconditional `blocks`/`attachments`/`bot_profile` drop a literal reading might imply — because an unconditional
+  `blocks` ignore silently deleted the legacy Advisor R2 §3 depth-11 rejection (two existing adapter tests reproduced it),
+  which "No legacy Advisor behavior change" forbids. Gating on the existing Strategy hook keeps legacy byte-for-byte
+  unchanged while giving the Strategy path the full metadata tolerance. No new constructor param or out-of-allowlist wiring.
+- **Boundaries honored:** no service read/change, build/broad tests, payload logging, image handling, or other source.
+  These two evidence files are updated but LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

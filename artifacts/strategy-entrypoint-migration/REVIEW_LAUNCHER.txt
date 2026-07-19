@@ -1,22 +1,28 @@
 TARGET_ACTOR: Independent Agent Office Reviewer (existing agent-office-reviewer pane %28)
 MISSION_ID: AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
-ACTION: RUN_NARROW_AGENT_OFFICE_LATCH_TEST_EVIDENCE_DELTA_REVIEW
+ACTION: RUN_NARROW_PERSONAL_STRATEGY_FRAME_RESILIENCE_DELTA_REVIEW
 WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 BRANCH: feature/strategy-entrypoint-migration-001
-DELTA_BASELINE: 336ae4e40ee14f20b3712fb9d7f4cafaed0e986d
-EXACT_CANDIDATE: a6f884a1b74cdadbb823e173b3beeb7e947052f7
+DELTA_BASELINE: 820d7d12315221a48204da717c43ae6f2a9152d3
+EXACT_CANDIDATE: b6d45aed36bae0bd60e5b3d35e25bc0662bb1898
+REVIEW_TIER: NORMAL
+REVIEW_ROLE: Independent Agent Office Reviewer
+REVIEW_MODEL: Opus 4.8
+REVIEW_EFFORT: Max
+REVIEW_BINDING: pane %28; Claude visible selector Opus 4.8 / Max; exact migration worktree
 ACTIVE_SCOPE_SUPERSEDES_ALL_EARLIER_SCOPE: YES
-ACTIVE_SCOPE: Read-only review of only the exact one-test-file Agent Office latch evidence delta; production source unchanged.
-EXACT_FILES: tests/integration/as1-slack-live-composition.test.ts
-NAMED_TEST_1: retires the exact Agent Office provider-disconnect latch and refuses a later one
-NAMED_TEST_2: preserves the existing Agent Office malformed-frame tuple and refuses mismatched retirement
-NAMED_TEST_3: refuses a later or mismatched Agent Office provider-disconnect tuple
-OTHER_GATES: type-aware ESLint only the one changed test file; git diff --check 336ae4e40ee14f20b3712fb9d7f4cafaed0e986d..a6f884a1b74cdadbb823e173b3beeb7e947052f7
-FORBIDDEN: source change; build; live/state action; broad tests; implementation; patch; image handling; Foundation `%62` action; other files
-RETURN: write only existing REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt; PASS or one concrete blocker within three minutes; STOP
+ACTIVE_SCOPE: Read-only review of only the exact PERSONAL Strategy ordinary-frame resilience delta; legacy Advisor behavior remains unchanged.
+EXACT_FILES: src/adapters/gateways/slack-pilot/socket-frame.ts; src/adapters/gateways/slack-pilot/socket-client.ts; tests/adapters/as1-slack-socket-client.test.ts
+REFERENCE_ONLY: tests/adapters/as1-slack-socket-frame.test.ts
+NAMED_TEST_1: processes a metadata-rich self/bot frame with no durable latch
+NAMED_TEST_2: drops a malformed then oversize frame with no dispatch or latch and still processes a later valid Leo event
+NAMED_TEST_3: still durably latches on a fixed-authority mismatch even under ordinary-frame resilience
+OTHER_GATES: four-file type-aware ESLint; git diff --check 820d7d12315221a48204da717c43ae6f2a9152d3..b6d45aed36bae0bd60e5b3d35e25bc0662bb1898
+FORBIDDEN: source change; build; live/state action; broad tests; implementation; patch; image handling; `%62`/`%63` action; other files
+RETURN: write only existing REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt; PASS or one concrete blocker within ten minutes; STOP
 HANDOFF: artifacts/strategy-entrypoint-migration/REVIEW_HANDOFF.md
 PROTOCOL: activate and follow fable-sentinel; read required repository Reviewer entry files
-SCOPE: read-only exact one-test-file Agent Office latch evidence delta and committed Worker evidence; reproduce only the three named focused cases, one-file ESLint, and exact-range diff-check; no build, broad checks, live action, or activation
+SCOPE: read-only exact three-source/test-file PERSONAL Strategy resilience delta and committed Worker evidence; reproduce only the three named focused cases, recorded four-file ESLint, and exact-range diff-check; no build, broad checks, live action, or activation
 OUTPUTS: artifacts/strategy-entrypoint-migration/REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt only; leave uncommitted for Advisor publication
 RETURN_TO: agent-office-advisor
 STOP

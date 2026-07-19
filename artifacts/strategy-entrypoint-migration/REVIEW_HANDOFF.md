@@ -415,6 +415,14 @@ build, broad test, implementation, live/state action, `%63` action, or other
 file. Write only the existing `REVIEW_RESULT.md` and
 `REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.
 
+## ACTIVE AMENDMENT — PERSONAL Strategy ordinary-frame resilience review
+
+REVIEW_TIER: NORMAL; REVIEW_ROLE: Independent Agent Office Reviewer; REVIEW_MODEL: Opus 4.8; REVIEW_EFFORT: Max; REVIEW_BINDING: pane `%28`, Claude visible selectors Opus 4.8/Max, exact worktree `/home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001`.
+
+Review only candidate `b6d45aed36bae0bd60e5b3d35e25bc0662bb1898` against baseline `820d7d12315221a48204da717c43ae6f2a9152d3`; exact changed files are `src/adapters/gateways/slack-pilot/socket-frame.ts`, `src/adapters/gateways/slack-pilot/socket-client.ts`, and `tests/adapters/as1-slack-socket-client.test.ts` (the existing socket-frame test is reference-only for legacy bounds). Verify Strategy-only tolerance of metadata-rich self/bot frames, malformed/oversized drop with later valid Leo processing, authority mismatch latch preservation, ACK/filter order, and unchanged legacy behavior.
+
+Reproduce only the three named focused cases from the Worker evidence, review the exact delta, and run only the recorded changed-file checks/diff-check; no build, live action, broad suite, source changes, or other files. Write only the existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return PASS or one concrete blocker, and STOP.
+
 ## ACTIVE AMENDMENT — Agent Office latch test evidence closure
 
 Authority baseline: `336ae4e40ee14f20b3712fb9d7f4cafaed0e986d`; review candidate: `a6f884a1b74cdadbb823e173b3beeb7e947052f7`. Review only `tests/integration/as1-slack-live-composition.test.ts`; production source is unchanged.
