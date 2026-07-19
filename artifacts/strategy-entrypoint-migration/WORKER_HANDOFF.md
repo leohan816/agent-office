@@ -943,3 +943,9 @@ Authority baseline: `a35704a1aa1201770bb8e4b0ed1c1125e3db9be2`. Change only `src
 Extend only the existing fixed Agent Office one-shot retirement matcher to accept the exact additional tuple root `strategy-agent-office-v1`, profile `agent-office-advisor`, reason `provider disconnect`, `latchedAt` `2026-07-19T01:09:11.410Z`; retain every existing ownership, `DISABLED_CLEAN`, null-active, kill-clear, incident-open, persist-before-cache, and mismatched/later-latch refusal gate, and leave the existing Agent Office pre-start hook unchanged. Add the exact new tuple case plus later/mismatch refusal to the existing focused latch tests.
 
 Run only the named focused latch cases, type-aware ESLint on these two files, and `git diff --check a35704a1aa1201770bb8e4b0ed1c1125e3db9be2..HEAD`; no build, broad tests, socket/parser/image changes, docs/design, other files, live/state action, `%62` action, or Agent Office activation. Commit/push, update only the two existing Worker result files, return candidate or one concrete blocker within eight minutes, and STOP.
+
+## ACTIVE AMENDMENT — close Agent Office latch evidence gap (tests only)
+
+Authority source baseline: `336ae4e40ee14f20b3712fb9d7f4cafaed0e986d`; change only `tests/integration/as1-slack-live-composition.test.ts`.
+
+Add exactly the two missing named cases already fixed in `REVIEW_LAUNCHER.txt`: `preserves the existing Agent Office malformed-frame tuple and refuses mismatched retirement` and `refuses a later or mismatched Agent Office provider-disconnect tuple`, reusing the existing latch harness and unchanged production code; do not add any other test name or path. Run only the three launcher-named cases, type-aware ESLint only this test file, and `git diff --check 336ae4e40ee14f20b3712fb9d7f4cafaed0e986d..HEAD`; commit/push and update only the two existing Worker result files, then STOP within five minutes.
