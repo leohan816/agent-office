@@ -58,6 +58,36 @@ None identified within the authorized one-line delta and named gates. This verdi
 
 RETURN_TO: `agent-office-advisor`
 
+---
+
+# Files-Bearing Slack Text Frame and Foundation Latch Delta Review
+
+## Findings
+
+No findings.
+
+## Scope and direct evidence
+
+- Exact range `3434309..a682fd90553b4379daf5029a26fc75ff74ee8a01` changes exactly the four authorized files.
+- Candidate `socket-frame.ts:282-308` drops only the exact `payload.event.files` subtree from a validation-only copy. The original raw UTF-8 envelope remains capped before parsing, the original parsed value is returned, and all non-files fields continue through the existing bounded walk and outer-envelope validation.
+- Candidate `as1-slack-socket-frame.test.ts:39-75` covers an over-array-bound files subtree with unchanged text, ordinary text without files, raw oversize, malformed JSON, and invalid outer-envelope rejection.
+- Candidate `as1-slack-control.ts:95-107,593-629` fixes the fourth tuple to root `strategy-foundation-v1`, profile `foundation-advisor`, reason `malformed frame after ready`, and `2026-07-19T07:03:17.125Z`; existing ownership, quiescence, kill/incident, strict parsing, persist-before-cache, and no-mutation failure checks remain unchanged. Candidate test lines 344-358 prove the exact tuple retires and a later timestamp remains latched.
+
+## Reproduced gates
+
+- Four exact named Vitest cases — **PASS**: 4 passed, 103 skipped across the two authorized test files, one worker.
+- Type-aware ESLint on exactly the four changed files — **PASS**, no output.
+- `git diff --check 3434309..a682fd90553b4379daf5029a26fc75ff74ee8a01` — **PASS**, clean.
+- No build, broad test, implementation, live/state action, image handling, Agent Office action, candidate modification, or other-file review was performed.
+
+## Verdict
+
+`PASS`
+
+No blocking residual risk identified within the authorized files-bearing frame and fixed-latch delta. This is independent review evidence, not risk acceptance or final approval.
+
+RETURN_TO: `agent-office-advisor`
+
 # Fixed Strategy Answer Actions Delta Review
 
 ## Findings
