@@ -3,15 +3,17 @@ MISSION_ID: AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 ACTION: RUN_NARROW_FIXED_STRATEGY_ANSWER_ACTIONS_DELTA_REVIEW
 WORKTREE: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_STRATEGY_ENTRYPOINT_MIGRATION_001
 BRANCH: feature/strategy-entrypoint-migration-001
-DELTA_BASELINE: df4a81f
-EXACT_CANDIDATE: 8d4d2394a294034ad1b1bd5b7938d541edfc9bfc
+DELTA_BASELINE: c318858
+EXACT_CANDIDATE: 3eedbe930a9989736351a6d599b1ad798dd6eaba
 ACTIVE_SCOPE_SUPERSEDES_ALL_EARLIER_SCOPE: YES
-ACTIVE_SCOPE: Read-only review of only the exact two-file subscribed Strategy status-forwarding instruction delta.
-EXACT_FILES: src/runtime/as1-slack-pilot/composition.ts; tests/integration/as1-slack-live-composition.test.ts
-NAMED_TEST_1: requires subscribed Strategy progress forwarding and omits it when unsubscribed
-NAMED_TEST_2: delivers one status and one normal same-thread answer exactly once
-OTHER_GATES: ESLint only the exact two files; git diff --check df4a81f..8d4d2394a294034ad1b1bd5b7938d541edfc9bfc
-FORBIDDEN: build; live action; broad tests; implementation; patch; other files
+ACTIVE_SCOPE: Read-only review of only the exact six-file silent-status and bounded fixed-Strategy disconnect-recovery delta.
+EXACT_FILES: src/application/slack-pilot/service.ts; src/adapters/gateways/slack-pilot/socket-client.ts; src/operations/readiness/as1-slack-control.ts; src/runtime/as1-slack-pilot/composition.ts; src/runtime/as1-slack-pilot/cli.ts; tests/integration/as1-slack-live-composition.test.ts
+NAMED_TEST_1: emits no idle status post while subscribed
+NAMED_TEST_2: prioritizes fixed status stop while an ordinary result is pending
+NAMED_TEST_3: posts one disconnect notice and stops cleanly when fixed Strategy recovery fails
+NAMED_TEST_4: recovers fixed Strategy intake and handles the next normal message once
+OTHER_GATES: type-aware ESLint only the six changed files; git diff --check c318858..3eedbe930a9989736351a6d599b1ad798dd6eaba
+FORBIDDEN: build; live/state action; broad tests; implementation; patch; Agent Office action; other files
 RETURN: write only existing REVIEW_RESULT.md and REVIEW_RESULT_POINTER.txt; PASS or one concrete blocker within three minutes; STOP
 HANDOFF: artifacts/strategy-entrypoint-migration/REVIEW_HANDOFF.md
 PROTOCOL: activate and follow fable-sentinel; read required repository Reviewer entry files

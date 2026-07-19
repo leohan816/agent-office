@@ -396,5 +396,53 @@ Authority: handoff amendment `df4a81f` (verified; local==upstream at entry). Bas
 - **Boundaries:** only the two allowlisted files; no CLI/spool/owner/state/routing change; no build/broad test/design/
   live action/other file. Evidence files LEFT UNCOMMITTED for Advisor publication.
 
+## Leo Delta Amendment execution — Silent status + bounded fixed-Strategy provider-disconnect recovery (2026-07-19)
+
+Authority: ACTIVE HANDOFF `c2dd0c0` + continuation `c318858` (verified; local==upstream at entry). Baseline `9e08504`.
+Agent Office `%63` preserved; Foundation `%62` stays stopped until independent PASS. No pane input, no live-state action.
+
+- **Exact changed paths (6 of the 7-file allowlist; the `tests/adapters/as1-slack-socket-client.test.ts` slot is left
+  unchanged — the transport change is backward-compatible via an OPTIONAL constructor param, so its existing tests stay
+  valid and the four named tests are the deliverable):**
+  - `src/runtime/as1-slack-pilot/composition.ts` — (1) `consumeStatusStream` DELETES the periodic heartbeat: an active
+    subscription with no new status entry emits NO Slack post (returns `STATUS_STREAM:IDLE`); the heartbeat constant/window
+    is replaced by a fixed `STRATEGY_STATUS_DISCONNECT_NOTICE`. (2) added `consumeStatusControlTick()` (Strategy-only
+    priority tick via `takeNextPersonalStatusControl`: START records subscription + start ack + fixed pane prompt; STOP
+    posts one stop ack + `clearSubscription` and PRESERVES `personalCurrent` + the ordinary FIFO). (3) added
+    `recoverStrategyDisconnect()` (Strategy-only; clears subscription, posts EXACTLY ONE fixed disconnect notice,
+    reconnects the SAME socket ONCE via the fixed wire/profile/slug + `isConnectReady` seal, re-arms; a notice/reconnect
+    failure sets one local clean-stop flag), `isStrategyRecoveryStop()`, a `strategyRecoveryStop` field, the optional
+    `onProviderDisconnect` on `As1SocketBindings`, and the `startStrategyDirect` `buildSocket` binding.
+  - `src/adapters/gateways/slack-pilot/socket-client.ts` — added the OPTIONAL `onProviderDisconnect` constructor callback +
+    a one-shot `strategyRecoveryUsed` guard. On the FIRST provider-disconnect frame with the hook set, the transport cleanly
+    removes ONLY the current generation without a durable latch (`removeCurrentGenerationForRecovery`: stop admission, drop
+    queue, close, return to the reconnectable CLOSED/no-Socket state) and DEFERS the callback (`queueMicrotask`) until the
+    dispatch returns; a second disconnect (or no hook) falls back to the UNCHANGED `disconnectAndLatch`.
+  - `src/application/slack-pilot/service.ts` — added `takeNextPersonalStatusControl(isControl)` (removes and returns the
+    first queued personal correlation matching the control predicate; ordinary FIFO order preserved).
+  - `src/runtime/as1-slack-pilot/cli.ts` — `buildAs1ProductionDependencies` passes `bindings.onProviderDisconnect` into
+    `As1RawSocketTransport`; `runForegroundOwner` calls `consumeStatusControlTick()` BEFORE ordinary-result handling each
+    tick and treats `isStrategyRecoveryStop()` as a `CLEAN_STOP` terminal; the stale heartbeat comment on the
+    `consumeStatusStream` tick is corrected.
+  - `src/operations/readiness/as1-slack-control.ts` — extended `retireOneShotFoundationDiagnosticLatch()`'s fixed matcher
+    to accept a THIRD reviewed tuple (`provider disconnect` @ `2026-07-19T01:09:09.491Z`) under the unchanged fixed root
+    `strategy-foundation-v1` / profile `foundation-advisor`; all ownership/state/parse/persist checks unchanged.
+  - `tests/integration/as1-slack-live-composition.test.ts` — the four named focused tests + a connectable
+    AGENT_OFFICE_STRATEGY owner harness (`startStrategyOwner`, `RecoveryFakeCompositionSocket`).
+- **Named focused tests (all PASS; 4 passed | 88 skipped):** `emits no idle status post while subscribed`;
+  `prioritizes fixed status stop while an ordinary result is pending`; `posts one disconnect notice and stops cleanly when
+  fixed Strategy recovery fails`; `recovers fixed Strategy intake and handles the next normal message once`.
+- **Gates:** changed-file type-aware ESLint on the 6 files — 0 errors; `git diff --check 9e08504` — clean.
+- **Disclosed test-fixture note:** no existing helper starts a full Strategy composition through `startStrategyDirect()`,
+  so the new harness derives the fixed Strategy tmux destination from the SELECTED profile's own session/workspace/command
+  and passes a matching `directDestination`; the Strategy secret's AO-Strategy identity equals the base AO identity the
+  fake wire already serves. No production/live identity, secret value, or pane was used.
+- **Git:** candidate `3eedbe930a9989736351a6d599b1ad798dd6eaba`; pushed non-force `c318858..3eedbe9` to
+  `origin/feature/strategy-entrypoint-migration-001`; local == upstream == `3eedbe9`. Staged ONLY the 6 allowlisted paths.
+- **Boundaries honored:** no build/broad tests/typecheck; no generic reconnect or heartbeat replacement; one recovery
+  attempt and one notice maximum; ordinary FIFO preserved; no grants/activation/live action; no `%63`/Foundation action;
+  no descriptor/config/profile/package/lockfile/state-root change; no new spool/storage/framework. These two evidence files
+  are updated but LEFT UNCOMMITTED for Advisor publication.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor

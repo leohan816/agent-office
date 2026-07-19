@@ -359,3 +359,33 @@ exactly once`; two-file ESLint; and `git diff --check
 df4a81f..8d4d2394a294034ad1b1bd5b7938d541edfc9bfc`. No build, broad test,
 implementation, live action, or other file. Write only existing
 `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return verdict, and STOP.
+## ACTIVE AMENDMENT — silent status and bounded Strategy disconnect recovery
+
+Authority: Advisor publication baseline `c318858`; review candidate
+`3eedbe930a9989736351a6d599b1ad798dd6eaba`. Supersedes earlier review scope;
+return PASS or one concrete blocker within three minutes.
+
+Review only the exact six changed files: `src/application/slack-pilot/service.ts`,
+`src/adapters/gateways/slack-pilot/socket-client.ts`,
+`src/operations/readiness/as1-slack-control.ts`,
+`src/runtime/as1-slack-pilot/composition.ts`,
+`src/runtime/as1-slack-pilot/cli.ts`, and
+`tests/integration/as1-slack-live-composition.test.ts`.
+
+Verify: idle subscription posts nothing; all four fixed controls preempt a pending
+ordinary result without disturbing ordinary FIFO; the first fixed-Strategy
+provider disconnect removes only its generation without a durable latch, defers
+one callback, clears subscription/pending status, posts exactly one fixed notice,
+and reconnects/re-arms the same composition-owned socket once; failure cleanly
+stops; later disconnects produce neither repeat notice nor repeat recovery and
+do not leave a heartbeat loop; legacy transport behavior is unchanged; and only
+the exact current Foundation provider-disconnect latch tuple is newly retired.
+Confirm the focused tests exercise the actual transport disconnect seam rather
+than only invoking a fake callback.
+
+Reproduce only the four exact named tests, type-aware ESLint only the six changed
+files, and `git diff --check
+c318858..3eedbe930a9989736351a6d599b1ad798dd6eaba`. No build, broad test,
+implementation, live/state action, `%63` action, or other file. Write only the
+existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt`, return verdict, and
+STOP.
