@@ -1,6 +1,55 @@
-# Agent Office Worker Result Reporting Protocol
+# Agent Office Result Reporting Protocol
 
 Status: `ACTIVE`
+
+This protocol applies to every Advisor, Control, Designer, Worker, and Reviewer.
+Role-specific evidence requirements remain in each role document. The detailed
+Worker result fields below remain mandatory for Worker runs.
+
+## Minimal Reporting Default
+
+Durable evidence is mandatory. Long narrative is not. A report is a compact
+index to exact Git, file, test, runtime, and review evidence; it is not a replay
+of the prompt, exploration transcript, or source code.
+
+Every role must report only:
+
+- the exact changed delta or reviewed subject;
+- required check outcomes, including material failures and skips;
+- material findings, risks, limitations, and STOP conditions;
+- exact Git/runtime state needed to support the claim;
+- the next decision or return target.
+
+Do not:
+
+- restate the handoff or repeat unchanged facts;
+- paste source code, command transcripts, or long tool output when an exact
+  commit, path, command name, and concise result identify the evidence;
+- narrate routine exploration or reasoning chronologically;
+- create optional summary, handoff, or evidence files not required by the
+  mission;
+- duplicate the same evidence across the full result, pointer, chat, and final
+  audit.
+
+Default soft ceilings are 25 lines for a module/milestone checkpoint, 80 lines
+for a role result, and 120 lines for a final review or Advisor audit. When a
+named safety issue, blocking conflict, or required evidence cannot fit, begin
+the overflow with:
+
+```text
+REPORT_LENGTH_EXCEPTION: YES
+REASON: <exact material reason>
+```
+
+Otherwise `REPORT_LENGTH_EXCEPTION: NO` is implicit. Put necessary detailed
+evidence at one exact durable path and reference it; do not repeat it in the
+pointer or chat return.
+
+The responsible Advisor enforces this discipline in every handoff. If a
+subordinate returns an unnecessarily long report, the Advisor requests a
+compact replacement without rerunning implementation, tests, or analysis. A
+Reviewer inspects the actual candidate and direct evidence, so report length is
+never a substitute for independent verification.
 
 Every Worker run must produce durable, evidence-bearing output at the exact result
 and pointer paths supplied by Advisor. Chat or pane output alone is not evidence.

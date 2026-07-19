@@ -11,7 +11,8 @@ Companion documents:
 
 - role definitions: `docs/agent/roles/` (one document per role);
 - Worker execution: `docs/agent/RUN_PROTOCOL.md`;
-- Worker result evidence: `docs/agent/RESULT_REPORTING_PROTOCOL.md`;
+- all-role result evidence and reporting discipline:
+  `docs/agent/RESULT_REPORTING_PROTOCOL.md`;
 - migration/authority record: `docs/agent/ACTOR_PROJECT_BINDING_MIGRATION.md`.
 
 ## Authority and Ownership
@@ -47,6 +48,10 @@ Leo/GPT
 Return to Leo/GPT only for new scope, material or high-risk/canonical decisions,
 explicit risk acceptance, final closure, next-mission selection, or an
 unresolved STOP condition. Routine results return to the responsible Advisor.
+
+Every Advisor, Control, Designer, Worker, and Reviewer must read and follow
+`docs/agent/RESULT_REPORTING_PROTOCOL.md`. Durable evidence is mandatory, but
+reports are compact indexes to evidence rather than narrative transcripts.
 
 ## 2. One Responsible Advisor Per Actor
 
@@ -167,7 +172,7 @@ Before any actor is dispatched, the responsible Advisor confirms:
 - an exact committed handoff naming actor, session, repository, branch, allowed
   files/actions, completion criteria, forbidden scope, and result/pointer paths;
 - that the actor has read this operating model and its matching role document in
-  `docs/agent/roles/`;
+  `docs/agent/roles/`, plus `docs/agent/RESULT_REPORTING_PROTOCOL.md`;
 - the live runtime (session, model, effort, workspace, readiness, role),
   verified directly and not from the session name;
 - that no unauthorized agent, sub-agent, delegated context, temporary session,
