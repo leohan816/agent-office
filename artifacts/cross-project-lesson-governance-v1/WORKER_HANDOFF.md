@@ -41,6 +41,10 @@ Treat this as relayed authority only; do not contact Foundation or inspect its r
 
 The independent Reviewer must traverse these as five direct navigation cases and return any conflict to Agent Office Strategy through Advisor. Ambiguous ownership, hidden mandatory reads, or a path that cannot be executed is a blocking finding.
 
+## Clean-context wording correction
+
+Candidate `d20b7b6` is not review-ready: `AGENTS.md` calls the full common set mandatory for every role while the later `DELTA` rule permits reducing unchanged common authority. Change only that earlier heading/paragraph in place so it explicitly defines the full `COLD` set and is subject to the `COLD`/`DELTA` router. Preserve that `DELTA` always re-reads the current mission/handoff and every project-local mandatory product/safety authority. Keep the six-file allowlist unchanged, touch only `AGENTS.md` for this correction, refresh the focused checks and mandatory-read/heading measurements, commit the correction, then continue the existing result/push sequence.
+
 ## Exact writable allowlist
 
 Change fewer only if every objective remains coherent; do not write outside:
