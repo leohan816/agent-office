@@ -100,3 +100,30 @@ or start another mission. Write only:
 Return `PASS`, `PASS_WITH_RISK`, `NEEDS_PATCH`, or `FAIL`, with compact findings,
 case traces, focused evidence, residual risk, and the exact pointer to Advisor;
 then stop. Advisor routes any conflict to Agent Office Strategy.
+
+## AO-GOV-01 direct delta review — current authority
+
+This section supersedes the earlier review subject only for AO-GOV-01. Use the
+same existing `agent-office-reviewer` pane `%28`; do not create or replace a
+session. Before `COLD`, live-verify Fable 5, effort `max`, exact mission
+worktree/branch, and reload `/fable-sentinel`. ACK only the applicable local
+references and do not open or follow its Foundation/Cosmile pointer.
+
+Review subject: canonical baseline `9c1e9e9` (its parent `49cdfea` has identical
+`AGENTS.md`/`CLAUDE.md`), candidate `41526c6`, and Worker evidence HEAD
+`1225941`. Review only the direct wording delta in:
+
+- `AGENTS.md` — `Required Entry Reads` authority-input clause.
+- `CLAUDE.md` — numbered entry-read item 1.
+
+Confirm only: exact two-file name-status/diff, `git diff --check`, and that both
+COLD clauses explicitly enumerate (1) a Leo/GPT mission or decision for the
+Advisor, (2) a Leo/GPT governance mission for Agent Office Strategy, and (3)
+the exact committed Advisor handoff for a subordinate. Reject any other
+canonical change, semantic drift, ambiguity, or missing actor.
+
+No broad history/read/check, link walk, measurement rerun, build, lint,
+typecheck, test, runtime/product work, Foundation/Cosmile access, prior-verdict
+reliance, PR, merge, or next mission. The candidate is read-only. Update in
+place only `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt` with a compact
+AO-GOV-01 delta verdict and return to Advisor; do not commit or push, then stop.
