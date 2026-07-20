@@ -23,6 +23,17 @@ Status: `ACTIVE`
 - If any binding or authority fact conflicts or cannot be verified, do not
   review; return one concrete blocker to Advisor and stop.
 
+### Fresh-runtime Sentinel gate
+
+- Reject prior Reviewer PID `2381134` and every verdict from it; preserved
+  pre-banner scrollback is collision evidence only, not review evidence.
+- Same-pane fresh PID `705867` must load `/fable-sentinel` before `COLD` and ACK
+  local `contract-review.md`, `provenance-review.md`,
+  `review-classification.md`, and `delta-review.md`. Do not open or follow its
+  Foundation/Cosmile pointer.
+- After that ACK, perform the `COLD` reads above and accept only post-gate review
+  evidence. If Sentinel requires forbidden access, return that conflict and stop.
+
 ## Exact review subject
 
 - Repository/worktree:
