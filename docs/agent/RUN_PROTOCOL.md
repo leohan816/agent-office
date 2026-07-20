@@ -38,6 +38,11 @@ Before changing state:
   branches, push or merge to `main`, or force push.
 - Do not perform self-review, impersonate Fable5, accept risk, or grant final
   approval.
+- Verification must reveal observed truth: do not add an unapproved path or
+  fallback, suppress the first actionable failure, reinterpret a non-zero result
+  as success, or mutate anything outside the handoff. On a non-zero result or an
+  unexpected tracked delta, preserve bounded diagnostics, classify the first
+  failing stage (or `UNCLASSIFIED`), then stop and return to Advisor.
 
 ## 3. Change Sequence
 

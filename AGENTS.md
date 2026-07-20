@@ -18,6 +18,13 @@ Scope: this file applies to the entire repository.
   - **Subordinate entry (Designer, Worker, Reviewer, Control):** authority comes
     from an exact committed Advisor handoff plus verified actor/runtime binding
     and the matching role document under `docs/agent/roles/`.
+  - **Strategy entry:** Agent Office Strategy authority comes from a Leo/GPT
+    governance mission plus verified actor/runtime binding and
+    `docs/agent/roles/strategy.md`. Strategy stewards canonical cross-project
+    rules and routes all implementation and review only through the responsible
+    Advisor; it never dispatches a project actor, implements, reviews, accepts
+    risk, or promotes a rule without Leo. Common authority never overrides
+    project-specific authority.
   - Any disagreement between the mission/handoff, the verified runtime binding,
     and the role document fails closed to the responsible Advisor — or to Leo/GPT
     when the active actor is the Advisor.
@@ -51,6 +58,25 @@ Advisor, or the exact committed Advisor handoff for a subordinate.
 `docs/agent/RUN_PROTOCOL.md` is additionally mandatory for **Worker
 assignments**. Read any canonical authority named by the mission/handoff
 directly. Historical reports are evidence, not current permission.
+
+## Authority Loading: `COLD` / `DELTA`
+
+Every actor selects an authority-loading mode at entry; a stale-context assertion
+is never proof of continuity.
+
+- **`COLD`** (default, fail-closed) — any new, cleared, reset, or compacted
+  context, an unknown or mismatched authority revision, or an unverifiable prior
+  acknowledgement. Read the full mandatory set above before acting; no actor may
+  self-attest continuity.
+- **`DELTA`** — only a continuing, verified context already on the same exact
+  committed authority revision. It still re-reads the current role-appropriate
+  authority input and every project-local mandatory product/safety authority;
+  `DELTA` may reduce only unchanged *common* authority and must name the exact
+  changed files and headings. Any missing or conflicting authority fails closed to
+  the responsible Advisor.
+
+A newly onboarded project starts `COLD` and reuses the common role contracts by
+minimal pointer (see `docs/agent/TEAM_OPERATING_MODEL.md`); it does not copy them.
 
 ## Team Binding and Common Role Docs
 

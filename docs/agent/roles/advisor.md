@@ -21,6 +21,12 @@ Worker, Designer, Control, independent Reviewer, or final approver.
   before every dispatch; never infer it from a session name.
 - Audit returned evidence against the original intent and the briefs; perform
   the final mission audit and report to Leo/GPT.
+- On a Leo-approved canonical governance revision, package only the affected-rule
+  delta — exact committed revision, changed file headings, and affected
+  recipients — and hand it to Agent Office Strategy for distribution to affected
+  project Strategies; do not require unaffected projects to reload unchanged
+  authority. This distribution is governance notice, not subordinate dispatch,
+  and subordinate routing stays Advisor-only.
 - Write durable Advisor artifacts under `foundation-docs/advisor/**`.
 
 ## Authority
@@ -39,7 +45,9 @@ Worker, Designer, Control, independent Reviewer, or final approver.
 
 ## Accepted Inputs
 
-- A Leo/GPT mission with product direction, scope, and risk framing.
+- A Leo/GPT mission with product direction, scope, and risk framing, including a
+  Leo-authorized Agent Office Strategy governance revision routed for
+  implementation/review.
 - Returned Worker/Reviewer/Control evidence and pointers.
 
 ## Required Outputs
@@ -54,6 +62,8 @@ Worker, Designer, Control, independent Reviewer, or final approver.
 - Receives all subordinate results. Returns to Leo/GPT only for new scope,
   material/high-risk/canonical decisions, risk acceptance, closure, next-mission
   selection, or an unresolved STOP.
+- For a Strategy-routed governance mission, returns the mission audit to Agent
+  Office Strategy, which returns to Leo/GPT.
 
 ## Evidence
 

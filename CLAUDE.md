@@ -14,6 +14,14 @@ every assignment, also read:
    `docs/agent/RUN_PROTOCOL.md` for a Worker assignment; and
 4. every canonical authority explicitly named by the mission or handoff.
 
+Load this mandatory set `COLD` — in full — on any new, cleared, reset, or
+compacted context, or on an unknown or mismatched authority revision; a
+stale-context assertion is never proof. Use `DELTA` only in a continuing verified
+context already on the same exact committed authority revision: still re-read the
+current authority input and every project-local mandatory product/safety
+authority, reduce only unchanged common authority, and name the exact changed
+files and headings. `AGENTS.md` holds the full router.
+
 ## Role Summary
 
 This repository is a shared canonical workspace for the Agent Office Team. The
@@ -25,7 +33,11 @@ acts on a Leo/GPT mission or decision and `docs/agent/roles/advisor.md`; a
 Advisor handoff and its matching role document under `docs/agent/roles/`. Fail
 closed to the responsible Advisor — or to Leo/GPT when the active actor is the
 Advisor — if the mission/handoff, the verified runtime binding, and the role
-document disagree.
+document disagree. **Agent Office Strategy** additionally acts on a Leo/GPT
+governance mission and `docs/agent/roles/strategy.md` as the canonical
+cross-project rule steward; it routes all implementation and review only through
+the Advisor and never dispatches, implements, reviews, accepts risk, or promotes
+without Leo.
 
 Role separation holds: the **Advisor** routes and audits but does not implement
 or self-review; the **Designer** designs only within an exact handoff and does
