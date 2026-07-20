@@ -134,3 +134,52 @@ runtime, product, or hidden-read change; observations are non-blocking. Verdict:
 
 RETURN_TO: agent-office-advisor. Reviewer accepts no risk and grants no closure; result files intentionally left
 uncommitted (handoff forbids Reviewer commit/push).
+
+---
+
+# AO-GOV-01 — Focused Delta Review Result (updated in place)
+
+REPORT_LENGTH_EXCEPTION: NO
+Pass: `IMPLEMENTATION_REVIEW` (AO-GOV-01 direct wording delta) — Verdict: **`PASS`**
+
+## Binding
+
+- Authority HEAD `5b25db0545ff751c09f38b0e533bb8e4a95c4e82`; governing authority: `REVIEW_HANDOFF.md`
+  §"AO-GOV-01 direct delta review — current authority" (supersedes the earlier subject for AO-GOV-01 only).
+- Same independent Reviewer session `agent-office-reviewer:0.0`, pane `%28`, PID `705867`, model
+  `claude-fable-5`; effort `max` per Advisor pre-dispatch live verification. `/fable-sentinel` reloaded
+  pre-COLD with its four local references verified current; the Foundation/Cosmile pointer was never
+  accessed. Fresh COLD binding gate at this HEAD accepted before PROCEED; clean upstream equality verified.
+
+## Subject and checks (restricted set only)
+
+- Subject: `9c1e9e94b30e635caeb620568a1d4fadd5add4a7..41526c6b3be26d8d0bceeb75a11a25106c8d3306`,
+  restricted to `AGENTS.md` and `CLAUDE.md`; both endpoints live-verified as ancestors of HEAD.
+- Range name-status: exactly `M AGENTS.md`, `M CLAUDE.md` — zero other files, so zero other canonical,
+  Foundation/Cosmile, runtime, product, source, test, or configuration change in the subject range.
+- `git diff --check` over the two files: clean (exit 0).
+- Exact content diff: a pure insertion of one authority-input item in each file's COLD clause; no other
+  sentence changed (the `AGENTS.md` hunk shows line reflow only around the insertion; the surviving
+  Advisor and subordinate items are preserved letter-for-letter).
+
+## Three-authority enumeration — confirmed in both COLD clauses
+
+- `AGENTS.md` "Required Entry Reads" authority-input clause and `CLAUDE.md` numbered entry-read item 1
+  both enumerate, verbatim and in the same order: (1) "a Leo/GPT mission or decision for the Advisor",
+  (2) "a Leo/GPT governance mission for Agent Office Strategy", (3) "the exact committed Advisor handoff
+  for a subordinate" — `CLAUDE.md` retaining the "(Designer, Worker, Reviewer, Control)" parenthetical.
+- The inserted phrase is letter-identical across both files and exactly matches the pre-existing
+  Strategy-entry term "Leo/GPT governance mission" (`AGENTS.md` §Actors and Authority). No semantic
+  drift, no dropped qualifier, no reordering, no ambiguity, no missing actor.
+
+## Exclusions and residual risk
+
+- Not used or read: prior verdicts (including this file's earlier section, which is not evidence for
+  AO-GOV-01), Worker evidence (`1225941`), history beyond the subject range, link walks, measurement
+  reruns, tests/build/lint/typecheck, product/runtime, Foundation/Cosmile.
+- Handoff-asserted, not independently verified (outside the restricted check set): baseline parent
+  `49cdfea` holds identical `AGENTS.md`/`CLAUDE.md`.
+- Residual risk: none identified within the restricted scope.
+
+Verdict: **`PASS`**. RETURN_TO: agent-office-advisor. Files updated in place only; no Reviewer
+commit/push.

@@ -134,3 +134,43 @@ is committed and are returned to Agent Office Strategy with this pointer.
   performed, and no next mission was started.
 
 RETURN_TO: `agent-office-strategy-sol` with `ADVISOR_AUDIT_POINTER.txt`.
+
+---
+
+## AO-GOV-01 bounded correction audit
+
+Classification: `CLARIFICATION`. AO-GOV-01 makes the root COLD enumeration
+explicit for the already-canonical Agent Office Strategy role; it creates no
+new authority class, mandatory file, behavior, or distribution mechanism.
+
+- Advisor authority amendment: `9c1e9e9`; it changed only the existing
+  `WORKER_HANDOFF.md` and is a direct child of clean pushed `49cdfea`.
+- Worker: same existing `agent-office-opus` pane `%16`, PID `575878`, Opus 4.8,
+  effort `xhigh`, exact worktree/branch. COLD ACK at `9c1e9e9` preceded work.
+- Candidate: `41526c6b3be26d8d0bceeb75a11a25106c8d3306`.
+  Its direct name-status is exactly `M AGENTS.md`, `M CLAUDE.md`.
+- Worker evidence: `122594139705a3ad4dd57fe4040cb48bb55c6ae3`,
+  updating only the existing Worker result and pointer.
+- Review authority: `5b25db0545ff751c09f38b0e533bb8e4a95c4e82`,
+  updating only the existing `REVIEW_HANDOFF.md`.
+- Reviewer: same independent `agent-office-reviewer` pane `%28`, PID `705867`,
+  Fable 5, effort `max`, exact worktree/branch. `/fable-sentinel` and its four
+  local references were reloaded before a fresh COLD ACK at `5b25db0`; the
+  Foundation/Cosmile pointer was not opened or followed.
+
+Direct focused evidence passes: `git diff --check` is clean; each target clause
+preserves the Advisor and subordinate inputs and adds the letter-identical
+option “a Leo/GPT governance mission for Agent Office Strategy”; no other
+canonical sentence or file changed. The same independent Reviewer returned
+`PASS` in the updated `REVIEW_RESULT.md`, with no residual risk in scope and no
+reliance on the prior verdict or Worker result.
+
+The earlier mandatory-read measurements remain the original candidate record.
+AO-GOV-01 changes no mandatory-set membership; measurement reruns were excluded
+by the focused correction authority. No build, lint, typecheck, test, runtime,
+product, link-walk, broad history, Foundation/Cosmile, PR, or merge action was
+performed. No risk, approval, or closure is accepted by Advisor.
+
+The final evidence commit, non-force push, clean worktree, and upstream equality
+are verified after committing the updated review/audit evidence and returned to
+`agent-office-strategy-sol` with the pointer.
