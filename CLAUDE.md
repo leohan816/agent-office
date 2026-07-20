@@ -6,7 +6,8 @@ Status: `ACTIVE`
 every assignment, also read:
 
 1. the current role-appropriate authority input — a Leo/GPT mission or decision
-   for the Advisor, or the exact committed Advisor handoff for a subordinate
+   for the Advisor, a Leo/GPT governance mission for Agent Office Strategy, or the
+   exact committed Advisor handoff for a subordinate
    (Designer, Worker, Reviewer, Control);
 2. `docs/agent/TEAM_OPERATING_MODEL.md` and the actor's matching role document
    under `docs/agent/roles/`;
