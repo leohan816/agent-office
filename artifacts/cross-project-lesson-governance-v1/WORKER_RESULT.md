@@ -57,5 +57,15 @@ Documentation/governance only, within the six-file writable allowlist. Changed f
 - Limitation: `wc -w` is a whitespace-token proxy, not a model tokenizer (no tokenizer fetched/installed, per handoff).
 - STOP conditions encountered: two mid-run Advisor authority amendments (`33a8173`, `7de19d2`) — each re-verified (delta, branch/worktree, clean state, allowlist) before resuming; no other blocker.
 
+## AO-GOV-01 bounded correction (follow-on)
+
+Authority HEAD `9c1e9e9` (parent `49cdfea`; its AO-GOV-01 section supersedes the earlier allowlist for this correction only). AGENTS.md and CLAUDE.md are byte-identical at `49cdfea` and `9c1e9e9`, so the baseline is unambiguous.
+
+- Scope: exactly two clauses — AGENTS.md `Required Entry Reads` authority-input clause and CLAUDE.md numbered item 1 — add the option "a Leo/GPT governance mission for Agent Office Strategy". Both clauses now enumerate Advisor, Agent Office Strategy, and subordinate; no other canonical text, line, heading, or file changed.
+- Candidate commit: `41526c6` (AGENTS.md +3/-2, CLAUDE.md +2/-1). Evidence commit: the commit updating this result and its pointer.
+- Checks (only authorized): two-file name-status = `M AGENTS.md`, `M CLAUDE.md`; `git diff --check` clean; direct three-actor enumeration confirmed in both clauses.
+- Push: non-force to `origin/governance/cross-project-lesson-governance-v1`; clean upstream equality verified in the Worker return.
+- Safety: no other canonical/evidence file; no broad reads/checks; no build/lint/typecheck/test/runtime/product; no Foundation/Cosmile; no PR/merge; no force push; no new session/model fallback; no next-mission inference.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
