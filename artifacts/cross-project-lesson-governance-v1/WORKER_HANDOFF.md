@@ -86,3 +86,32 @@ Run no product test, broad test, build, lint, typecheck, server, browser, or ext
 Commit the canonical documentation delta first. Then write a compact evidence-bearing result and pointer at the two allowed result paths, naming the candidate commit, and commit those two evidence files separately. Push both commits non-force to the matching remote branch. The result is Worker evidence, not review or approval.
 
 Confirm explicitly: no Foundation/Cosmile access or change; no runtime/product change; no unrelated expansion; no agent/sub-agent/delegation; no self-review; no merge/main/force push. Return the pointer to `agent-office-advisor` and stop. Independent review is a separate Advisor dispatch.
+
+## AO-GOV-01 bounded correction — current authority
+
+This section supersedes the earlier canonical allowlist only for AO-GOV-01.
+Start from clean pushed HEAD
+`49cdfeae9ad4ed771bb1dd0da75f6e7eb7532680` on the same worktree and branch.
+
+Canonical writable allowlist (exactly two files):
+
+- `AGENTS.md`: change only the authority-input clause in `Required Entry Reads`.
+- `CLAUDE.md`: change only numbered entry-read item 1.
+
+In both clauses, add exactly this semantic authority option alongside Advisor
+and subordinate inputs: “a Leo/GPT governance mission for Agent Office
+Strategy”. Agent Office Strategy must therefore be explicitly enumerated as a
+role-appropriate COLD authority input. Do not change any other canonical text,
+line, heading, behavior, or file.
+
+Evidence writable allowlist remains the existing
+`WORKER_RESULT.md` and `WORKER_RESULT_POINTER.txt`; update them in place for
+AO-GOV-01 and add no evidence file. Run only exact two-file name-status/diff,
+`git diff --check`, and direct confirmation that both clauses enumerate
+Advisor, Agent Office Strategy, and subordinate. No broad reads or checks.
+
+Commit the two-clause canonical delta as its own commit, then update and commit
+the existing Worker result/pointer, and push non-force to the same branch.
+Confirm clean upstream equality and return the candidate/evidence commits to
+Advisor. No Foundation/Cosmile access, product/runtime work, PR, merge, model
+fallback, new session, or next mission; stop after the return.
