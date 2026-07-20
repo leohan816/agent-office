@@ -29,6 +29,18 @@ Make the smallest documentation-only governance correction:
 7. Add one concise Worker verification-truth invariant: verification reveals observed truth and must not add unapproved paths/fallbacks, suppress the first actionable failure, reinterpret non-zero as success, or mutate outside the handoff. On non-zero or unexpected tracked delta, preserve bounded diagnostics, classify the first failing stage or `UNCLASSIFIED`, then stop.
 8. Make every normative delta operational by naming its actor, trigger/precondition, required read/action, stop/escalation point, and evidence return where applicable; prefer links/routing and rewrite redundancy instead of adding prose. Keep compact incident intake outside mandatory reads. Do not create a hierarchy, registry, policy import, framework, automation, or duplicate policy.
 
+## Leo/Foundation compatibility acceptance
+
+Treat this as relayed authority only; do not contact Foundation or inspect its repository. The candidate and later direct clean-context Reviewer traversal must prove all five executable paths:
+
+1. A project actor using `DELTA` still reads the current mission handoff and every project-local mandatory product/safety authority; `DELTA` can reduce only unchanged common authority. Missing or conflicting authority stops to its responsible Advisor.
+2. Context reset, compaction, an unknown or mismatched authority revision, or an unverifiable prior acknowledgement always triggers `COLD`; no actor may self-attest continuity.
+3. Agent Office common authority never overrides project-specific authority. Agent Office Strategy never dispatches project actors directly; it only classifies intake, coordinates a Leo-approved canonical revision, and notifies affected project Strategies.
+4. A new project starts `COLD` and onboards through minimal pointers to common role contracts; it does not copy those contracts.
+5. An affected project Strategy may reject and report an incompatible rule to Agent Office Strategy instead of silently applying it; Strategy returns the conflict through the same Leo-controlled promotion gate.
+
+The independent Reviewer must traverse these as five direct navigation cases and return any conflict to Agent Office Strategy through Advisor. Ambiguous ownership, hidden mandatory reads, or a path that cannot be executed is a blocking finding.
+
 ## Exact writable allowlist
 
 Change fewer only if every objective remains coherent; do not write outside:
