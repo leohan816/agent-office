@@ -50,14 +50,18 @@ Scope: this file applies to the entire repository.
 
 ## Required Entry Reads
 
-Common mandatory reads for every role: this file, `CLAUDE.md`,
-`docs/agent/TEAM_OPERATING_MODEL.md`, the actor's matching role document under
-`docs/agent/roles/`, `docs/agent/RESULT_REPORTING_PROTOCOL.md`, and the current
-role-appropriate authority input — a Leo/GPT mission or decision for the
-Advisor, or the exact committed Advisor handoff for a subordinate.
-`docs/agent/RUN_PROTOCOL.md` is additionally mandatory for **Worker
-assignments**. Read any canonical authority named by the mission/handoff
-directly. Historical reports are evidence, not current permission.
+The full `COLD` read set for every role — subject to the `COLD`/`DELTA` router
+below — is: this file, `CLAUDE.md`, `docs/agent/TEAM_OPERATING_MODEL.md`, the
+actor's matching role document under `docs/agent/roles/`,
+`docs/agent/RESULT_REPORTING_PROTOCOL.md`, and the current role-appropriate
+authority input — a Leo/GPT mission or decision for the Advisor, or the exact
+committed Advisor handoff for a subordinate. `docs/agent/RUN_PROTOCOL.md` is
+additionally part of the `COLD` set for **Worker assignments**. Read any
+canonical authority named by the mission/handoff directly; historical reports are
+evidence, not current permission. A `COLD` entry reads this full set; a
+same-revision `DELTA` entry may skip only unchanged common items, but always
+re-reads the current role-appropriate authority input (mission/handoff) and every
+project-local mandatory product/safety authority.
 
 ## Authority Loading: `COLD` / `DELTA`
 
