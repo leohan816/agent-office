@@ -115,3 +115,37 @@ the existing Worker result/pointer, and push non-force to the same branch.
 Confirm clean upstream equality and return the candidate/evidence commits to
 Advisor. No Foundation/Cosmile access, product/runtime work, PR, merge, model
 fallback, new session, or next mission; stop after the return.
+
+## AO-GOV-02 bounded governance — current authority
+
+This section supersedes earlier writable allowlists only for AO-GOV-02. Start
+from clean pushed HEAD `5e6b62f79f8f5297d9a6cb66c835060f6671a378`
+on the same worktree and branch. Advisor gate: `PROCEED_WITH_LIMITS`;
+classification: `NEW_INVARIANT`. The applicable current Agent Office common and
+project-local entry authority plus `docs/agent/roles/strategy.md` was checked at
+that revision; no equivalent pre-add/no-silent-drop obligation exists. Confirm
+that absence after a fresh `COLD` read before editing.
+
+Canonical writable allowlist: only `docs/agent/roles/strategy.md`, under
+`Operating Rules`, adding one compact bullet. It must make a direct,
+unambiguous Leo add instruction to Agent Office Strategy or an affected project
+Strategy binding; require checking applicable current common and project-local
+authority for an equivalent obligation before proposing an edit; avoid a
+duplicate when existing text satisfies it by returning the exact file/heading
+and treating it as satisfied/`ENFORCEMENT` unless Leo requires distinct wording;
+otherwise carry the obligation through the smallest existing-file-first
+addition/clarification via the responsible Advisor and independent Reviewer.
+Never silently omit, weaken, substitute, or abandon the requested obligation;
+return a concrete conflict to Leo for exact resolution. Route project-local
+additions through that project's responsible Advisor and common cross-project
+additions through this Agent Office Strategy governance chain.
+
+Evidence writable allowlist remains only the existing `WORKER_RESULT.md` and
+`WORKER_RESULT_POINTER.txt`; update them in place and add no file. Run only the
+one-file name-status/diff, `git diff --check`, and direct semantic confirmation
+against the seven requirements above. Commit the canonical one-file delta
+separately, then the two evidence files, push non-force, verify clean upstream
+equality, return both commits to Advisor, and stop. No other canonical/evidence
+file, broad read/check/history, test/build/lint/typecheck, product/runtime,
+Foundation/Cosmile access, PR, merge, distribution, new session, model fallback,
+or next mission is authorized.
