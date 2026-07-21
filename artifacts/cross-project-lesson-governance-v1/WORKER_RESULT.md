@@ -67,5 +67,16 @@ Authority HEAD `9c1e9e9` (parent `49cdfea`; its AO-GOV-01 section supersedes the
 - Push: non-force to `origin/governance/cross-project-lesson-governance-v1`; clean upstream equality verified in the Worker return.
 - Safety: no other canonical/evidence file; no broad reads/checks; no build/lint/typecheck/test/runtime/product; no Foundation/Cosmile; no PR/merge; no force push; no new session/model fallback; no next-mission inference.
 
+## AO-GOV-02 bounded governance (follow-on)
+
+Authority HEAD `d5a7742` (parent `5e6b62f`; its AO-GOV-02 section supersedes earlier writable allowlists for this correction only). `strategy.md` is byte-identical at `5e6b62f` and `d5a7742`, so the baseline is unambiguous. Classification: `NEW_INVARIANT`.
+
+- Equivalence check (fresh COLD): no equivalent pre-add/no-silent-drop obligation existed; nearest related text is Operating Rules > Feedback (reject an incompatible incoming rule), the inverse case. Absence confirmed.
+- Scope: one compact bullet added under `docs/agent/roles/strategy.md` "Operating Rules" ("Add instruction (no silent drop)") covering all seven required semantics — binding Leo add instruction; pre-add equivalence check of common + project-local authority; duplicate-avoidance (return exact file/heading, treat satisfied/`ENFORCEMENT` unless Leo requires distinct wording); else smallest existing-file-first addition via responsible Advisor and independent Reviewer; never silently omit/weaken/substitute/abandon; return a concrete conflict to Leo; route project-local vs common additions appropriately. No other canonical text/file changed.
+- Candidate commit: `49d9d0b` (strategy.md +11/-0). Evidence commit: the commit updating this result and its pointer.
+- Checks (only authorized): one-file name-status = `M docs/agent/roles/strategy.md`; `git diff --check` clean; direct seven-semantic confirmation.
+- Push: non-force to `origin/governance/cross-project-lesson-governance-v1`; clean upstream equality verified in the Worker return.
+- Safety: no other canonical/evidence file; no broad read/check/history; no build/lint/typecheck/test/runtime/product; no Foundation/Cosmile; no PR/merge/distribution; no force push; no new session/model fallback; no next-mission inference.
+
 RETURN_TO: Advisor
 PROPOSED_NEXT_ACTOR: Advisor
