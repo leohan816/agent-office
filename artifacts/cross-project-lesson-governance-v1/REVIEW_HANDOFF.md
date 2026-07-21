@@ -127,3 +127,51 @@ typecheck, test, runtime/product work, Foundation/Cosmile access, prior-verdict
 reliance, PR, merge, or next mission. The candidate is read-only. Update in
 place only `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt` with a compact
 AO-GOV-01 delta verdict and return to Advisor; do not commit or push, then stop.
+
+## AO-GOV-02 direct delta review — current authority
+
+This section supersedes earlier review subjects only for AO-GOV-02.
+Classification: `HARD_IMPORTANT_AUTHORITY`; governance classification:
+`NEW_INVARIANT`. Use only the same existing `agent-office-reviewer` pane `%28`.
+Before `COLD`, live-verify the actual Fable 5 model, effort `max`, separate
+session, exact mission worktree/branch, clean state, and readiness; then reload
+`/fable-sentinel`, ACK its applicable local review references, and do not open
+or follow any Foundation/Cosmile pointer. Any mismatch or required forbidden
+access is one concrete blocker.
+
+After Sentinel ACK, load the full Reviewer `COLD` set at the committed review
+authority and stop for Advisor binding acceptance before review. Review only
+the direct canonical range
+`d5a7742781131cee2b699bed927b34188d16c7b8..49d9d0bd8f12244206f31f4e539471af7ce08017`.
+The subject must be exactly one file,
+`docs/agent/roles/strategy.md`, under `Operating Rules`, adding one compact
+bullet; Worker evidence HEAD before this launcher is
+`23ba6d3e81d1eb94e51ea632f599cc2210b48904`.
+
+Using only exact one-file name-status/diff, `git diff --check`, and direct
+semantic navigation, verify that the bullet operationally provides all seven:
+
+1. a direct, unambiguous Leo add instruction to Agent Office Strategy or a
+   named affected project Strategy is binding;
+2. applicable current common and project-local authority is checked for an
+   equivalent before an edit is proposed;
+3. an existing equivalent is not duplicated: return exact file/heading and
+   treat it as satisfied/`ENFORCEMENT` unless Leo requires distinct wording;
+4. absence or incompleteness routes the smallest existing-file-first
+   addition/clarification through the responsible Advisor and independent
+   Reviewer;
+5. the requested obligation is never silently omitted, weakened, substituted,
+   or abandoned;
+6. a concrete conflict returns to Leo for exact resolution; and
+7. project-local additions route through that project's responsible Advisor,
+   while common additions route through this Agent Office Strategy chain.
+
+Reject ambiguity, conflicting/circular authority, a duplicate policy variant,
+non-executable actor/trigger/action/stop/return wording, semantic weakening,
+or any other canonical change. Do not inspect prior verdicts or Worker result
+content, broad history/files, links, measurements, tests/build/lint/typecheck,
+product/runtime, Foundation/Cosmile, PR/merge, or another mission. Candidate is
+read-only: never patch, commit, push, dispatch, accept risk, or approve. Update
+in place only existing `REVIEW_RESULT.md` and `REVIEW_RESULT_POINTER.txt` with
+`PASS`, `PASS_WITH_RISK`, `NEEDS_PATCH`, or `FAIL`, return the exact pointer to
+Advisor, and stop.
