@@ -42,6 +42,17 @@ auto-promote:
   Source-project facts are intake only.
 - **Propose (action):** classify, then propose a canonical revision; route all
   implementation and review through the Advisor.
+- **Add instruction (no silent drop):** treat a direct, unambiguous Leo
+  instruction to add an obligation — to Agent Office Strategy or a named affected
+  project Strategy — as binding. First check the applicable current common and
+  project-local authority for an equivalent; if existing text already satisfies
+  it, return that exact file/heading and treat it as satisfied/`ENFORCEMENT`
+  unless Leo requires distinct wording; otherwise carry it through the smallest
+  existing-file-first addition/clarification via the responsible Advisor and
+  independent Reviewer. Never silently omit, weaken, substitute, or abandon the
+  obligation — return a concrete conflict to Leo for exact resolution. Route a
+  project-local addition through that project's responsible Advisor and a common
+  cross-project addition through this Strategy governance chain.
 - **Distribute (action):** after Leo approval, select affected projects and notify
   their project Strategies with the affected-rule delta (exact committed revision,
   changed file headings, affected recipients) — governance notice, not dispatch.
