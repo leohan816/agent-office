@@ -183,3 +183,70 @@ Pass: `IMPLEMENTATION_REVIEW` (AO-GOV-01 direct wording delta) — Verdict: **`P
 
 Verdict: **`PASS`**. RETURN_TO: agent-office-advisor. Files updated in place only; no Reviewer
 commit/push.
+
+---
+
+# AO-GOV-02 — Focused Delta Review Result (updated in place)
+
+REPORT_LENGTH_EXCEPTION: NO
+Pass: `IMPLEMENTATION_REVIEW` (AO-GOV-02 direct delta) — Verdict: **`PASS`**
+
+## Binding
+
+- Authority HEAD `a0bf05aca6ac58287865c7e2314ac3073bc9b61a`; governing authority: `REVIEW_HANDOFF.md`
+  §"AO-GOV-02 direct delta review — current authority". Classification `HARD_IMPORTANT_AUTHORITY`;
+  governance classification `NEW_INVARIANT`.
+- Same independent Reviewer session `agent-office-reviewer:0.0`, pane `%28`, PID `705867`, model
+  `claude-fable-5`; effort `max` per Advisor live verification. `/fable-sentinel` reloaded and ACKed
+  before the COLD gate; four local references verified current; zero Foundation/Cosmile pointer access
+  all session. COLD binding gate at this HEAD accepted before PROCEED; clean tree and exact upstream
+  equality live-verified.
+
+## Subject and checks (restricted set only)
+
+- Subject `d5a7742781131cee2b699bed927b34188d16c7b8..49d9d0bd8f12244206f31f4e539471af7ce08017`; both
+  endpoints live-verified ancestors of HEAD.
+- Range name-status: exactly `M docs/agent/roles/strategy.md` — one file; zero other canonical,
+  Foundation/Cosmile, runtime, product, source, test, or configuration change.
+- Exact one-file diff: pure insertion of one compact bullet, "**Add instruction (no silent drop)**"
+  (11 lines), under `Operating Rules` between the existing "Propose (action)" and "Distribute (action)"
+  bullets; every context line unchanged. `git diff --check`: clean (exit 0).
+
+## Seven required semantics — each operationally present in the bullet
+
+1. Binding instruction: "treat a direct, unambiguous Leo instruction to add an obligation — to Agent
+   Office Strategy or a named affected project Strategy — as binding."
+2. Equivalent-check first: "First check the applicable current common and project-local authority for
+   an equivalent" — sequenced before any edit path.
+3. No duplication: "return that exact file/heading and treat it as satisfied/`ENFORCEMENT` unless Leo
+   requires distinct wording" — `ENFORCEMENT` selects the existing in-file Classification value (no
+   rule change), not a redefinition.
+4. Absence/incompleteness routing: "otherwise carry it through the smallest existing-file-first
+   addition/clarification via the responsible Advisor and independent Reviewer."
+5. No silent drop: "Never silently omit, weaken, substitute, or abandon the obligation" — all four
+   verbs, reinforced by the bullet label.
+6. Conflict return: "return a concrete conflict to Leo for exact resolution."
+7. Routing split: "Route a project-local addition through that project's responsible Advisor and a
+   common cross-project addition through this Strategy governance chain" — "this Strategy governance
+   chain" resolves in-file to §"Reusable Governance Chain" (the Agent Office Strategy chain the
+   handoff names).
+
+## Rejection hunt — nothing to reject
+
+- Actor (Strategy/named project Strategy), trigger (direct unambiguous Leo add instruction), action
+  (decidable satisfied-vs-add branch), stop (concrete conflict to Leo), and return (exact file/heading;
+  Advisor-routed addition) are all determined. No ambiguity or non-executable wording.
+- No semantic weakening versus the handoff criteria; no duplicate policy variant in `strategy.md` or the
+  COLD set (the obligation is new — consistent with `NEW_INVARIANT`); no conflicting/circular authority
+  (Advisor-only implementation/review routing, Leo-only resolution, and the common-vs-project split all
+  preserved); no other canonical change in the range.
+
+## Exclusions and residual risk
+
+- Not used or read: prior verdicts (earlier sections of this file are not AO-GOV-02 evidence), Worker
+  result content (evidence HEAD `23ba6d3e81d1eb94e51ea632f599cc2210b48904` unread), broad history/files,
+  links, measurements, tests/build/lint/typecheck, product/runtime, Foundation/Cosmile.
+- Residual risk: none identified within the restricted scope.
+
+Verdict: **`PASS`**. RETURN_TO: agent-office-advisor. Files updated in place only; no Reviewer
+commit/push; no risk acceptance or closure.

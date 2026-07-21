@@ -174,3 +174,51 @@ performed. No risk, approval, or closure is accepted by Advisor.
 The final evidence commit, non-force push, clean worktree, and upstream equality
 are verified after committing the updated review/audit evidence and returned to
 `agent-office-strategy-sol` with the pointer.
+
+---
+
+## AO-GOV-02 bounded governance audit
+
+Classification: `NEW_INVARIANT`; Advisor gate: `PROCEED_WITH_LIMITS`. Before
+the edit, the applicable current Agent Office common/project-local entry
+authority and `strategy.md` were checked for an equivalent obligation. None
+exists: the nearest `Operating Rules > Feedback` text governs rejection of an
+incompatible incoming rule, not pre-add equivalence checking and mandatory
+carry-through of Leo's requested obligation.
+
+- Advisor authority: `d5a7742781131cee2b699bed927b34188d16c7b8`, changing
+  only the existing `WORKER_HANDOFF.md` from clean pushed `5e6b62f`.
+- Worker: same existing `agent-office-opus` pane `%16`, PID `575878`, Opus 4.8,
+  effort `xhigh`, exact worktree/branch; fresh COLD ACK preceded PROCEED.
+- Candidate: `49d9d0bd8f12244206f31f4e539471af7ce08017`; direct
+  name-status is exactly `M docs/agent/roles/strategy.md`, adding one compact
+  11-line `Operating Rules` bullet and changing no context line.
+- Worker evidence: `23ba6d3e81d1eb94e51ea632f599cc2210b48904`, updating
+  only the existing Worker result and pointer.
+- Review authority: `a0bf05aca6ac58287865c7e2314ac3073bc9b61a`, updating
+  only the existing `REVIEW_HANDOFF.md`; review classification
+  `HARD_IMPORTANT_AUTHORITY`.
+- Reviewer: same independent `agent-office-reviewer` pane `%28`, PID `705867`,
+  Fable 5, effort `max`, exact worktree/branch. `/fable-sentinel` was reloaded
+  with four applicable local references before the fresh COLD ACK; its forbidden
+  Foundation/Cosmile pointer was not opened or followed.
+
+Focused evidence passes: one-file name-status/diff is exact and
+`git diff --check` is clean. The bullet makes the direct Leo add instruction
+binding; checks common and project-local authority first; returns an existing
+equivalent's exact file/heading as satisfied/`ENFORCEMENT`; otherwise uses the
+smallest existing-file-first Advisor/independent-Reviewer chain; forbids silent
+omission, weakening, substitution, or abandonment; returns concrete conflicts
+to Leo; and separates project-local from common routing. Actor, trigger, action,
+stop, and return are executable. The independent Reviewer returned `PASS` with
+no finding or residual risk in the restricted scope.
+
+This adds no mandatory file or hierarchy; it adds 11 lines only to Strategy's
+existing role read. No broad measurement, link walk, history, build, lint,
+typecheck, test, product/runtime work, Foundation/Cosmile access, distribution,
+PR, merge, new session, model fallback, risk acceptance, approval, closure, or
+next mission occurred. Candidate content is unchanged after `49d9d0b`.
+
+The final evidence commit, non-force push, clean worktree, and upstream equality
+are verified after committing these existing review/audit evidence files and
+returned to `agent-office-strategy-sol` with the pointer.

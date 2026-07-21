@@ -1,15 +1,16 @@
 REVIEW_RESULT_POINTER
 MISSION_ID: AGENT_OFFICE_CROSS_PROJECT_LESSON_GOVERNANCE_V1
-REVIEW_ID: AO-GOV-01 (focused delta review; prior mission review section retained in the same result file)
+REVIEW_ID: AO-GOV-02 (focused delta review; prior mission and AO-GOV-01 sections retained in the same result file)
 ACTOR: Agent Office Reviewer (independent Sentinel, PID 705867)
 PASS: IMPLEMENTATION_REVIEW
 VERDICT: PASS
+CLASSIFICATION: HARD_IMPORTANT_AUTHORITY / NEW_INVARIANT
 RESULT_FILE: artifacts/cross-project-lesson-governance-v1/REVIEW_RESULT.md
 TARGET_REPO: /home/leo/Project/.worktrees/agent-office/AGENT_OFFICE_CROSS_PROJECT_LESSON_GOVERNANCE_V1
 TARGET_BRANCH: governance/cross-project-lesson-governance-v1
-REVIEW_BASELINE: 9c1e9e94b30e635caeb620568a1d4fadd5add4a7
-REVIEW_CANDIDATE: 41526c6b3be26d8d0bceeb75a11a25106c8d3306
-AUTHORITY_HEAD: 5b25db0545ff751c09f38b0e533bb8e4a95c4e82
+REVIEW_BASELINE: d5a7742781131cee2b699bed927b34188d16c7b8
+REVIEW_CANDIDATE: 49d9d0bd8f12244206f31f4e539471af7ce08017
+AUTHORITY_HEAD: a0bf05aca6ac58287865c7e2314ac3073bc9b61a
 COMMIT_STATUS: result files updated in place, uncommitted (Reviewer commit/push forbidden)
 RETURN_TO: agent-office-advisor
 PROPOSED_NEXT_ACTOR: Advisor
